@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
+import { ImportedConstant } from "@/lib/constants-backup";
 import { CustomFunctionDefinition, parseConstantDefinition, Quantity, SavedConstant } from "@/lib/units";
 
 const CONSTANTS_STORAGE_KEY = "si-unit-calculator.constants.v1";
@@ -9,6 +10,7 @@ const FAVORITE_UNITS_STORAGE_KEY = "si-unit-calculator.favorite-units.v1";
 const CUSTOM_FUNCTIONS_STORAGE_KEY = "si-unit-calculator.custom-functions.v1";
 const TEMPLATES_STORAGE_KEY = "si-unit-calculator.templates.v1";
 const NOTES_STORAGE_KEY = "si-unit-calculator.notes.v1";
+const CLEARED_CONSTANTS_STORAGE_KEY = "si-unit-calculator.cleared-constants.v1";
 
 export type SavedCalculation = {
   id: string;
@@ -60,9 +62,13 @@ type CalculatorStore = {
   customFunctions: SavedCustomFunction[];
   templates: CalculationTemplate[];
   notes: CalculationNote[];
+  hasRestorableConstants: boolean;
   isLoading: boolean;
   upsertConstant: (symbol: string, expression: string) => Promise<SavedConstant>;
   removeConstant: (symbol: string) => Promise<void>;
+  importConstants: (entries: ImportedConstant[], mode: "merge" | "replace") => Promise<number>;
+  clearConstants: () => Promise<void>;
+  restoreClearedConstants: () => Promise<boolean>;
   addHistoryEntry: (entry: SavedCalculation) => Promise<void>;
   clearHistory: () => Promise<void>;
   toggleFavoriteUnit: (unit: string) => Promise<void>;
@@ -123,6 +129,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
   const [customFunctions, setCustomFunctions] = useState<SavedCustomFunction[]>([]);
   const [templates, setTemplates] = useState<CalculationTemplate[]>([]);
   const [notes, setNotes] = useState<CalculationNote[]>([]);
+  const [clearedConstants, setClearedConstants] = useState<SavedConstant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const persistConstants = useCallback(async (next: SavedConstant[]) => {
@@ -164,8 +171,9 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
       AsyncStorage.getItem(CUSTOM_FUNCTIONS_STORAGE_KEY),
       AsyncStorage.getItem(TEMPLATES_STORAGE_KEY),
       AsyncStorage.getItem(NOTES_STORAGE_KEY),
+      AsyncStorage.getItem(CLEARED_CONSTANTS_STORAGE_KEY),
     ])
-      .then(([constantsRaw, historyRaw, favoriteUnitsRaw, customFunctionsRaw, templatesRaw, notesRaw]) => {
+      .then(([constantsRaw, historyRaw, favoriteUnitsRaw, customFunctionsRaw, templatesRaw, notesRaw, clearedConstantsRaw]) => {
         if (!active) return;
         setConstants(parseStoredArray(constantsRaw).filter(isSavedConstant));
         setHistory(parseStoredArray(historyRaw).filter(isSavedCalculation));
@@ -173,6 +181,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         setCustomFunctions(parseStoredArray(customFunctionsRaw).filter(isSavedCustomFunction));
         setTemplates(parseStoredArray(templatesRaw).filter(isCalculationTemplate));
         setNotes(parseStoredArray(notesRaw).filter(isCalculationNote));
+        setClearedConstants(parseStoredArray(clearedConstantsRaw).filter(isSavedConstant));
       })
       .catch(() => {
         if (!active) return;
@@ -182,6 +191,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         setCustomFunctions([]);
         setTemplates([]);
         setNotes([]);
+        setClearedConstants([]);
       })
       .finally(() => {
         if (active) setIsLoading(false);
@@ -195,6 +205,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     async (symbolInput: string, expressionInput: string) => {
       const symbol = symbolInput.trim();
       const expression = expressionInput.trim();
+      if (/^a[1-9]\d*$/i.test(symbol)) throw new Error("a1、a2…は計算履歴の自動定数として予約されています。");
       const existing = constants.find((item) => item.symbol === symbol);
       const others = constants.filter((item) => item.symbol !== symbol);
       const parsed = parseConstantDefinition(`${symbol} = ${expression}`, others);
@@ -208,6 +219,44 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
   const removeConstant = useCallback(async (symbol: string) => {
     await persistConstants(constants.filter((item) => item.symbol !== symbol));
   }, [constants, persistConstants]);
+
+  const importConstants = useCallback(async (entries: ImportedConstant[], mode: "merge" | "replace") => {
+    const incomingSymbols = new Set(entries.map((item) => item.symbol));
+    const next = mode === "replace" ? [] : constants.filter((item) => !incomingSymbols.has(item.symbol));
+    let pending = [...entries];
+    let stalled = false;
+    while (pending.length && !stalled) {
+      stalled = true;
+      const remaining: ImportedConstant[] = [];
+      for (const item of pending) {
+        try {
+          const parsed = parseConstantDefinition(`${item.symbol} = ${item.expression}`, next);
+          next.push({ ...parsed, createdAt: item.createdAt || new Date().toISOString() });
+          stalled = false;
+        } catch {
+          remaining.push(item);
+        }
+      }
+      pending = remaining;
+    }
+    if (pending.length) throw new Error(`定数を読み込めませんでした：${pending.map((item) => item.symbol).join(", ")}。参照先と式を確認してください。`);
+    await persistConstants(next.sort((left, right) => left.symbol.localeCompare(right.symbol)));
+    return entries.length;
+  }, [constants, persistConstants]);
+
+  const clearConstants = useCallback(async () => {
+    await AsyncStorage.setItem(CLEARED_CONSTANTS_STORAGE_KEY, JSON.stringify(constants));
+    setClearedConstants(constants);
+    await persistConstants([]);
+  }, [constants, persistConstants]);
+
+  const restoreClearedConstants = useCallback(async () => {
+    if (!clearedConstants.length) return false;
+    await persistConstants(clearedConstants);
+    setClearedConstants([]);
+    await AsyncStorage.removeItem(CLEARED_CONSTANTS_STORAGE_KEY);
+    return true;
+  }, [clearedConstants, persistConstants]);
 
   const addHistoryEntry = useCallback(async (entry: SavedCalculation) => {
     const next = [entry, ...history.filter((item) => item.expression !== entry.expression)].slice(0, 500);
@@ -263,8 +312,8 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
   }, [notes, persistNotes]);
 
   const value = useMemo(
-    () => ({ constants, history, favoriteUnits, customFunctions, templates, notes, isLoading, upsertConstant, removeConstant, addHistoryEntry, clearHistory, toggleFavoriteUnit, upsertCustomFunction, removeCustomFunction, upsertTemplate, removeTemplate, upsertNote, removeNote }),
-    [constants, history, favoriteUnits, customFunctions, templates, notes, isLoading, upsertConstant, removeConstant, addHistoryEntry, clearHistory, toggleFavoriteUnit, upsertCustomFunction, removeCustomFunction, upsertTemplate, removeTemplate, upsertNote, removeNote],
+    () => ({ constants, history, favoriteUnits, customFunctions, templates, notes, hasRestorableConstants: clearedConstants.length > 0, isLoading, upsertConstant, removeConstant, importConstants, clearConstants, restoreClearedConstants, addHistoryEntry, clearHistory, toggleFavoriteUnit, upsertCustomFunction, removeCustomFunction, upsertTemplate, removeTemplate, upsertNote, removeNote }),
+    [constants, history, favoriteUnits, customFunctions, templates, notes, clearedConstants.length, isLoading, upsertConstant, removeConstant, importConstants, clearConstants, restoreClearedConstants, addHistoryEntry, clearHistory, toggleFavoriteUnit, upsertCustomFunction, removeCustomFunction, upsertTemplate, removeTemplate, upsertNote, removeNote],
   );
 
   return <CalculatorContext.Provider value={value}>{children}</CalculatorContext.Provider>;

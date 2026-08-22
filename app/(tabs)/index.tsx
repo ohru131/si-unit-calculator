@@ -20,6 +20,7 @@ import { isSampleCategoryVisible, isUnitGroupVisible, visibleUnits } from "@/lib
 import { useCalculatorStore } from "@/lib/calculator-store";
 import { exportCalculationHistory } from "@/lib/calculation-export";
 import { useGlobalSettings } from "@/lib/global-settings";
+import { historyToAutoConstants } from "@/lib/history-auto-constants";
 import { getCalculatorQuickShortcut } from "@/lib/quick-shortcuts";
 import { usePro } from "@/lib/revenuecat-provider";
 import { getUnitExplanation } from "@/lib/unit-explanations";
@@ -59,6 +60,7 @@ export default function CalculatorScreen() {
   const visibleSampleCategories = useMemo(() => SAMPLE_CATEGORIES.filter((category) => isSampleCategoryVisible(category.id, isAdvancedMode)), [isAdvancedMode]);
   const visibleSamples = useMemo(() => SAMPLE_CALCULATIONS.filter((sample) => sample.category === sampleCategory && isSampleCategoryVisible(sample.category, isAdvancedMode)), [isAdvancedMode, sampleCategory]);
   const visibleHistory = isPro ? history : history.slice(0, 5);
+  const autoConstants = useMemo(() => historyToAutoConstants(history), [history]);
   const unitInfo = useMemo(() => getUnitExplanation(unitInfoSymbol ?? ""), [unitInfoSymbol]);
 
   useEffect(() => {
@@ -84,9 +86,9 @@ export default function CalculatorScreen() {
   };
 
   const copy = language === "en" ? {
-    definitionHint: "Define a constant: W = 3cm", calculate: "Calculate", siBase: "SI base unit", emptyResult: "Enter an expression, then tap Calculate.", unitPlaceholder: "Choose a compatible unit or enter one", selectAfter: "Compatible units appear here after calculation.", speedTitle: "Distance, time & speed", speedFormula: "Speed = distance ÷ time     Distance = speed × time", findSpeed: "Find speed", findDistance: "Find distance", findTime: "Find time", speedHint: "Mix s, min, h, m, km, and other compatible units freely.", savedHistory: "Saved calculations", clear: "Clear", helpTitle: "Examples", helpDone: "Done", unitSearch: "Search units or categories", copied: "Calculation copied", copy: "Copy", unitDetails: "Unit details", siConversion: "SI conversion", commonUse: "Common use", close: "Close", advancedMath: "Advanced math", advancedMathHint: "Angles use rad, deg, or °. Includes inverse trig, logs, and atan2(y, x).", saveTemplate: "Save as template",
+    definitionHint: "Define a constant: W = 3cm", calculate: "Calculate", siBase: "SI base unit", emptyResult: "Enter an expression, then tap Calculate.", unitPlaceholder: "Choose a compatible unit or enter one", selectAfter: "Compatible units appear here after calculation.", speedTitle: "Distance, time & speed", speedFormula: "Speed = distance ÷ time     Distance = speed × time", findSpeed: "Find speed", findDistance: "Find distance", findTime: "Find time", speedHint: "Mix s, min, h, m, km, and other compatible units freely.", savedHistory: "Saved calculations", historyHint: "Latest answers are available as a1, a2, and so on.", clear: "Clear", helpTitle: "Examples", helpDone: "Done", unitSearch: "Search units or categories", copied: "Calculation copied", copy: "Copy", unitDetails: "Unit details", siConversion: "SI conversion", commonUse: "Common use", close: "Close", advancedMath: "Advanced math", advancedMathHint: "Angles use rad, deg, or °. Includes inverse trig, logs, and atan2(y, x).", saveTemplate: "Save as template",
   } : {
-    definitionHint: "定数定義：W = 3cm", calculate: "計算", siBase: "SI標準単位", emptyResult: "式を入力して「計算」を押してください。", unitPlaceholder: "候補から選択、または入力", selectAfter: "計算後、次元に合う単位のみをここへ表示します。", speedTitle: "距離・時間・速度", speedFormula: "速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間", findSpeed: "速度を求める", findDistance: "距離を求める", findTime: "時間を求める", speedHint: "時間は s、min、h、距離は m、km などを自由に組み合わせられます。", savedHistory: "保存済みの計算履歴", clear: "消去", helpTitle: "入力例", helpDone: "閉じる", unitSearch: "単位・カテゴリを検索", copied: "計算結果をコピーしました", copy: "コピー", unitDetails: "単位の説明", siConversion: "SI換算", commonUse: "主な利用分野", close: "閉じる", advancedMath: "上級の数学機能", advancedMathHint: "角度は rad・deg・° で入力します。逆三角・対数・atan2(y, x)にも対応します。", saveTemplate: "テンプレートに保存",
+    definitionHint: "定数定義：W = 3cm", calculate: "計算", siBase: "SI標準単位", emptyResult: "式を入力して「計算」を押してください。", unitPlaceholder: "候補から選択、または入力", selectAfter: "計算後、次元に合う単位のみをここへ表示します。", speedTitle: "距離・時間・速度", speedFormula: "速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間", findSpeed: "速度を求める", findDistance: "距離を求める", findTime: "時間を求める", speedHint: "時間は s、min、h、距離は m、km などを自由に組み合わせられます。", savedHistory: "保存済みの計算履歴", historyHint: "最新の結果は a1、a2… として次の式で使えます。", clear: "消去", helpTitle: "入力例", helpDone: "閉じる", unitSearch: "単位・カテゴリを検索", copied: "計算結果をコピーしました", copy: "コピー", unitDetails: "単位の説明", siConversion: "SI換算", commonUse: "主な利用分野", close: "閉じる", advancedMath: "上級の数学機能", advancedMathHint: "角度は rad・deg・° で入力します。逆三角・対数・atan2(y, x)にも対応します。", saveTemplate: "テンプレートに保存",
   };
 
   const display = useMemo(() => {
@@ -109,8 +111,9 @@ export default function CalculatorScreen() {
     setNotice("");
     try {
       const assignment = input.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=/);
-      const next = assignment ? parseConstantDefinition(input, constants) : null;
-      const quantity = next?.quantity ?? evaluateExpression(input, constants, customFunctions);
+      const availableConstants = [...constants, ...autoConstants];
+      const next = assignment ? parseConstantDefinition(input, availableConstants) : null;
+      const quantity = next?.quantity ?? evaluateExpression(input, availableConstants, customFunctions);
       if (next) {
         await upsertConstant(next.symbol, next.expression);
         setNotice(`定数 ${next.symbol} を保存しました。`);
@@ -471,15 +474,15 @@ export default function CalculatorScreen() {
         {history.length ? (
           <View style={styles.history}>
             <View style={styles.historyHeader}>
-              <View><Text style={styles.historyTitle}>{copy.savedHistory}</Text>{!isPro && history.length > 5 ? <Text style={styles.historyLimit}>{language === "en" ? "Free shows the latest 5 entries" : "無料版では最新5件を表示"}</Text> : null}</View>
+              <View><Text style={styles.historyTitle}>{copy.savedHistory}</Text><Text style={styles.historyHint}>{copy.historyHint}</Text>{!isPro && history.length > 5 ? <Text style={styles.historyLimit}>{language === "en" ? "Free shows the latest 5 entries" : "無料版では最新5件を表示"}</Text> : null}</View>
               <View style={styles.historyActions}>
                 <Pressable onPress={() => void exportHistory()} style={({ pressed }) => [styles.exportHistoryButton, pressed && styles.pressed]}><IconSymbol name="square.and.arrow.up" size={15} color={colors.primary} /><Text style={styles.exportHistoryText}>CSV</Text></Pressable>
                 <Pressable onPress={() => void clearHistory()} style={({ pressed }) => [styles.clearHistoryButton, pressed && styles.pressed]}><Text style={styles.clearHistoryText}>{copy.clear}</Text></Pressable>
               </View>
             </View>
-            {visibleHistory.map((entry) => (
+            {visibleHistory.map((entry, index) => (
               <Pressable key={entry.id} onPress={() => restoreHistory(entry)} style={({ pressed }) => [styles.historyRow, pressed && styles.cardPressed]}>
-                <Text numberOfLines={1} style={styles.historyExpression}>{entry.expression}</Text>
+                <View style={styles.historyExpressionWrap}><Text style={styles.historyAutoSymbol}>a{index + 1}</Text><Text numberOfLines={1} style={styles.historyExpression}>{entry.expression}</Text></View>
                 <Text numberOfLines={1} style={styles.historyResult}>{entry.resultText}</Text>
               </Pressable>
             ))}
@@ -648,7 +651,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   cardPressed: { opacity: 0.7 },
   history: { marginTop: 6 },
   historyHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 7 },
-  historyTitle: { color: colors.muted, fontSize: 12, fontWeight: "700" },
+  historyTitle: { color: colors.muted, fontSize: 12, fontWeight: "700" }, historyHint: { color: colors.placeholder, fontSize: 10, lineHeight: 15, marginTop: 2 },
   historyLimit: { color: colors.placeholder, fontSize: 10, marginTop: 2 },
   historyActions: { alignItems: "center", flexDirection: "row", gap: 10 },
   exportHistoryButton: { alignItems: "center", flexDirection: "row", gap: 3, paddingHorizontal: 4, paddingVertical: 4 },
@@ -656,7 +659,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   clearHistoryButton: { paddingHorizontal: 4, paddingVertical: 4 },
   clearHistoryText: { color: colors.error, fontSize: 11, fontWeight: "700" },
   historyRow: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 11, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", marginBottom: 6, paddingHorizontal: 12, paddingVertical: 10 },
-  historyExpression: { color: colors.foreground, flex: 1, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, marginRight: 10 },
+  historyExpressionWrap: { alignItems: "center", flex: 1, flexDirection: "row", marginRight: 10 }, historyAutoSymbol: { color: colors.primary, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 11, fontWeight: "800", marginRight: 7 }, historyExpression: { color: colors.foreground, flex: 1, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12 },
   historyResult: { color: colors.primary, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, fontWeight: "700", maxWidth: "45%" },
   helpBackdrop: { alignItems: "center", backgroundColor: colors.overlay, flex: 1, justifyContent: "center", padding: 24 },
   helpSheet: { backgroundColor: colors.surface, borderRadius: 20, padding: 20, width: "100%" },

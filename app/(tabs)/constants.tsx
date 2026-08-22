@@ -19,6 +19,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
+import { exportConstantsBackup, pickConstantsBackup } from "@/lib/constants-backup-file";
 import {
   CalculationNote,
   CalculationNoteStep,
@@ -42,13 +43,17 @@ export default function ConstantsScreen() {
   const { language } = useGlobalSettings();
   const {
     constants,
+    clearConstants,
     customFunctions,
+    hasRestorableConstants,
+    importConstants,
     isLoading,
     notes,
     removeConstant,
     removeCustomFunction,
     removeNote,
     removeTemplate,
+    restoreClearedConstants,
     templates,
     upsertConstant,
     upsertCustomFunction,
@@ -68,6 +73,7 @@ export default function ConstantsScreen() {
   const [steps, setSteps] = useState<CalculationNoteStep[]>([]);
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [backupNotice, setBackupNotice] = useState("");
 
   const copy = language === "en" ? {
     title: "Library", subtitle: "Save reusable templates, functions, and calculation notes on this device.",
@@ -77,7 +83,7 @@ export default function ConstantsScreen() {
     functionEmpty: "No custom functions yet", functionEmptyHint: "Define a reusable formula such as circleArea(r) = pi × r^2.",
     constantEmpty: "No constants yet", constantEmptyHint: "Store a reusable value such as W = 3cm.",
     titleLabel: "Name", descriptionLabel: "Description", expressionLabel: "Expression", outputUnitLabel: "Display unit (optional)", symbolLabel: "Symbol", functionNameLabel: "Function name", parametersLabel: "Parameters, comma-separated", stepsLabel: "Calculation steps", stepName: "Step", addStep: "Add step", runStep: "Use this step", deleteStep: "Remove", useTemplate: "Use template",
-    templateEditor: "Save template", noteEditor: "Calculation note", functionEditor: "Custom function", constantEditor: "Constant", signature: "Signature", deleteConfirm: "Delete this item?", validation: "Please fill in the required fields.",
+    templateEditor: "Save template", noteEditor: "Calculation note", functionEditor: "Custom function", constantEditor: "Constant", signature: "Signature", deleteConfirm: "Delete this item?", validation: "Please fill in the required fields.", backup: "Backup", export: "Export", import: "Import", clearAll: "Clear all", restore: "Restore", exportDone: "Constants backup exported.", importMode: "How should imported constants be applied?", merge: "Merge and replace matches", replace: "Replace all constants", importDone: "{count} constants imported.", clearConfirm: "Clear all saved constants? You can restore the latest cleared set.", cleared: "Constants cleared. You can restore them from this device.", restored: "Cleared constants restored.",
   } : {
     title: "ライブラリ", subtitle: "よく使う式・関数・計算手順を、この端末に保存して再利用できます。",
     templates: "テンプレート", notes: "計算ノート", functions: "自作関数", constants: "定数", add: "追加", close: "閉じる", save: "保存", saving: "保存中…", delete: "削除", cancel: "キャンセル",
@@ -86,7 +92,7 @@ export default function ConstantsScreen() {
     functionEmpty: "自作関数はまだありません", functionEmptyHint: "例：circleArea(r) = pi × r^2 のように式を再利用できます。",
     constantEmpty: "定数はまだありません", constantEmptyHint: "例：W = 3cm のように、よく使う値を保存できます。",
     titleLabel: "名前", descriptionLabel: "説明", expressionLabel: "式", outputUnitLabel: "表示単位（任意）", symbolLabel: "記号", functionNameLabel: "関数名", parametersLabel: "引数（カンマ区切り）", stepsLabel: "計算手順", stepName: "手順", addStep: "手順を追加", runStep: "この手順を使う", deleteStep: "削除", useTemplate: "この式を使う",
-    templateEditor: "テンプレートを保存", noteEditor: "工程計算ノート", functionEditor: "自作関数", constantEditor: "定数", signature: "呼び出し方", deleteConfirm: "この項目を削除しますか？", validation: "必須項目を入力してください。",
+    templateEditor: "テンプレートを保存", noteEditor: "工程計算ノート", functionEditor: "自作関数", constantEditor: "定数", signature: "呼び出し方", deleteConfirm: "この項目を削除しますか？", validation: "必須項目を入力してください。", backup: "バックアップ", export: "書き出す", import: "読み込む", clearAll: "すべて消去", restore: "復活", exportDone: "定数バックアップを書き出しました。", importMode: "読み込む定数をどのように反映しますか？", merge: "追加・同名は置換", replace: "すべての定数を置換", importDone: "{count}件の定数を読み込みました。", clearConfirm: "保存済みの定数をすべて消去しますか？直前に消去した一覧は復活できます。", cleared: "定数を消去しました。この端末上で復活できます。", restored: "消去した定数を復活しました。",
   };
 
   const sectionItems: Array<{ id: LibrarySection; label: string }> = [
@@ -179,6 +185,44 @@ export default function ConstantsScreen() {
     ]);
   };
 
+  const handleExportConstants = async () => {
+    try {
+      await exportConstantsBackup(constants);
+      setBackupNotice(copy.exportDone);
+    } catch (cause) {
+      setBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+    }
+  };
+
+  const handleImportConstants = async () => {
+    try {
+      const entries = await pickConstantsBackup();
+      if (!entries) return;
+      Alert.alert(copy.import, copy.importMode, [
+        { text: copy.cancel, style: "cancel" },
+        { text: copy.merge, onPress: () => { void importConstants(entries, "merge").then((count) => setBackupNotice(copy.importDone.replace("{count}", String(count)))).catch((cause) => setBackupNotice(cause instanceof Error ? cause.message : copy.validation)); } },
+        { text: copy.replace, style: "destructive", onPress: () => { void importConstants(entries, "replace").then((count) => setBackupNotice(copy.importDone.replace("{count}", String(count)))).catch((cause) => setBackupNotice(cause instanceof Error ? cause.message : copy.validation)); } },
+      ]);
+    } catch (cause) {
+      setBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+    }
+  };
+
+  const handleClearConstants = () => {
+    Alert.alert(copy.clearAll, copy.clearConfirm, [
+      { text: copy.cancel, style: "cancel" },
+      { text: copy.clearAll, style: "destructive", onPress: () => { void clearConstants().then(() => setBackupNotice(copy.cleared)).catch((cause) => setBackupNotice(cause instanceof Error ? cause.message : copy.validation)); } },
+    ]);
+  };
+
+  const handleRestoreConstants = async () => {
+    try {
+      if (await restoreClearedConstants()) setBackupNotice(copy.restored);
+    } catch (cause) {
+      setBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+    }
+  };
+
   const renderEmpty = (titleText: string, hint: string) => <View style={styles.emptyCard}><IconSymbol name="bookmark.fill" size={30} color={colors.primary} /><Text style={styles.emptyTitle}>{titleText}</Text><Text style={styles.emptyText}>{hint}</Text></View>;
 
   const renderContent = () => {
@@ -193,6 +237,7 @@ export default function ConstantsScreen() {
   return <ScreenContainer className="px-5" containerClassName="bg-background">
     <View style={styles.header}><View><Text style={styles.title}>{copy.title}</Text><Text style={styles.subtitle}>{copy.subtitle}</Text></View><Pressable accessibilityLabel={copy.add} onPress={() => openEditor(section)} style={({ pressed }) => [styles.addButton, pressed && styles.buttonPressed]}><IconSymbol name="plus.circle.fill" size={28} color={colors.primary} /></Pressable></View>
     <View style={styles.sectionRail}>{sectionItems.map((item) => <Pressable key={item.id} onPress={() => setSection(item.id)} style={({ pressed }) => [styles.sectionChip, section === item.id && styles.sectionChipActive, pressed && styles.buttonPressed]}><Text style={[styles.sectionChipText, section === item.id && styles.sectionChipTextActive]}>{item.label}</Text></Pressable>)}</View>
+    {section === "constants" ? <View style={styles.backupCard}><Text style={styles.backupTitle}>{copy.backup}</Text><View style={styles.backupActions}><Pressable onPress={() => void handleExportConstants()} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.export}</Text></Pressable><Pressable onPress={() => void handleImportConstants()} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.import}</Text></Pressable><Pressable onPress={handleClearConstants} style={({ pressed }) => [styles.clearButton, pressed && styles.buttonPressed]}><Text style={styles.clearButtonText}>{copy.clearAll}</Text></Pressable>{hasRestorableConstants ? <Pressable onPress={() => void handleRestoreConstants()} style={({ pressed }) => [styles.restoreButton, pressed && styles.buttonPressed]}><Text style={styles.restoreButtonText}>{copy.restore}</Text></Pressable> : null}</View>{backupNotice ? <Text style={styles.backupNotice}>{backupNotice}</Text> : null}</View> : null}
     {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /></View> : renderContent()}
 
     <Modal visible={Boolean(editorKind)} transparent animationType="slide" onRequestClose={closeEditor}>
@@ -217,6 +262,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   title: { color: colors.foreground, fontSize: 30, fontWeight: "700", letterSpacing: -0.6 }, subtitle: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 4, maxWidth: "88%" },
   addButton: { alignItems: "center", backgroundColor: colors.primarySurface, borderRadius: 22, height: 44, justifyContent: "center", width: 44 },
   sectionRail: { flexDirection: "row", flexWrap: "wrap", gap: 7, paddingBottom: 14 }, sectionChip: { backgroundColor: colors.surfaceSecondary, borderRadius: 14, paddingHorizontal: 11, paddingVertical: 8 }, sectionChipActive: { backgroundColor: colors.primaryFill }, sectionChipText: { color: colors.muted, fontSize: 12, fontWeight: "700" }, sectionChipTextActive: { color: colors.onPrimary },
+  backupCard: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 14, borderWidth: 1, marginBottom: 12, padding: 12 }, backupTitle: { color: colors.foreground, fontSize: 13, fontWeight: "800" }, backupActions: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 9 }, backupButton: { backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 9, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 8 }, backupButtonText: { color: colors.primary, fontSize: 12, fontWeight: "800" }, clearButton: { backgroundColor: colors.errorSurface, borderColor: colors.errorBorder, borderRadius: 9, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 8 }, clearButtonText: { color: colors.error, fontSize: 12, fontWeight: "800" }, restoreButton: { backgroundColor: colors.successSurface, borderColor: colors.successBorder, borderRadius: 9, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 8 }, restoreButtonText: { color: colors.success, fontSize: 12, fontWeight: "800" }, backupNotice: { color: colors.muted, fontSize: 11, lineHeight: 17, marginTop: 8 },
   loading: { alignItems: "center", flex: 1, justifyContent: "center" }, list: { gap: 10, paddingBottom: 30 }, emptyList: { flexGrow: 1, justifyContent: "center", paddingBottom: 96 }, emptyCard: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 20, borderWidth: 1, paddingHorizontal: 30, paddingVertical: 32 }, emptyTitle: { color: colors.foreground, fontSize: 17, fontWeight: "700", marginTop: 12 }, emptyText: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 7, textAlign: "center" },
   libraryCard: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, flexDirection: "row", minHeight: 82, paddingHorizontal: 13, paddingVertical: 12 }, libraryMain: { flex: 1 }, libraryTitle: { color: colors.foreground, fontSize: 15, fontWeight: "800" }, libraryDescription: { color: colors.muted, fontSize: 12, marginTop: 3 }, libraryExpression: { color: colors.primary, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, fontWeight: "700", marginTop: 5 }, libraryMeta: { color: colors.placeholder, fontSize: 12, marginTop: 5 }, deleteButton: { alignItems: "center", height: 38, justifyContent: "center", width: 38 },
   buttonPressed: { opacity: 0.72, transform: [{ scale: 0.97 }] }, cardPressed: { opacity: 0.74 }, iconPressed: { opacity: 0.55 },
