@@ -25,6 +25,8 @@ const MAPPING = {
   "xmark": "close",
   "trash": "delete",
   "delete.left": "backspace",
+  "crown.fill": "workspace-premium",
+  "square.and.arrow.up": "ios-share",
 } as IconMapping;
 
 /**

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useRouter } from "expo-router";
 import {
   Modal,
   Platform,
@@ -13,13 +14,17 @@ import {
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useCalculatorStore } from "@/lib/calculator-store";
+import { exportCalculationHistory } from "@/lib/calculation-export";
+import { usePro } from "@/lib/revenuecat-provider";
 import { SAMPLE_CALCULATIONS, SAMPLE_CATEGORIES, type SampleCalculation } from "@/lib/sample-calculations";
 import { evaluateExpression, formatDimension, formatQuantity, getCompatibleUnitGroups, parseConstantDefinition, Quantity, UNIT_GROUPS } from "@/lib/units";
 
 const KEYS = ["(", ")", "÷", "⌫", "7", "8", "9", "×", "4", "5", "6", "-", "1", "2", "3", "+", ".", "0", " ", "="];
 
 export default function CalculatorScreen() {
-  const { constants, history, upsertConstant, addHistoryEntry, clearHistory } = useCalculatorStore();
+  const router = useRouter();
+  const { constants, history, favoriteUnits, upsertConstant, addHistoryEntry, clearHistory } = useCalculatorStore();
+  const { isPro } = usePro();
   const [expression, setExpression] = useState("5cm + 1mm");
   const [targetUnit, setTargetUnit] = useState("cm");
   const [result, setResult] = useState<Quantity | null>(null);
@@ -32,6 +37,7 @@ export default function CalculatorScreen() {
   const selectedInputGroup = UNIT_GROUPS.find((group) => group.id === inputGroupId) ?? UNIT_GROUPS[0];
   const compatibleUnitGroups = useMemo(() => (result ? getCompatibleUnitGroups(result.dimension) : []), [result]);
   const visibleSamples = useMemo(() => SAMPLE_CALCULATIONS.filter((sample) => sample.category === sampleCategory), [sampleCategory]);
+  const visibleHistory = isPro ? history : history.slice(0, 5);
 
   const display = useMemo(() => {
     if (!result) return null;
@@ -132,6 +138,19 @@ export default function CalculatorScreen() {
     setError("");
     setNotice("");
     void calculate(sample.expression, sample.targetUnit);
+  };
+
+  const exportHistory = async () => {
+    if (!isPro) {
+      router.push("/pro");
+      return;
+    }
+    try {
+      await exportCalculationHistory(history);
+      setNotice("計算履歴をCSVとして出力しました。");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "CSVを出力できませんでした。");
+    }
   };
 
   return (
@@ -276,6 +295,13 @@ export default function CalculatorScreen() {
           </View>
         </View>
 
+        {isPro && favoriteUnits.length ? (
+          <View style={styles.favoriteUnitsCard}>
+            <View style={styles.favoriteHeader}><Text style={styles.cardLabel}>マイ単位セット</Text><Text style={styles.proTag}>PRO</Text></View>
+            <View style={styles.chips}>{favoriteUnits.map((unit) => <Pressable key={unit} onPress={() => insertUnit(unit)} style={({ pressed }) => [styles.inputUnitChip, pressed && styles.pressed]}><Text style={styles.inputUnitText}>{unit}</Text></Pressable>)}</View>
+          </View>
+        ) : null}
+
         <View style={styles.motionCard}>
           <Text style={styles.cardLabel}>距離・時間・速度</Text>
           <Text style={styles.motionFormula}>速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間</Text>
@@ -320,12 +346,13 @@ export default function CalculatorScreen() {
         {history.length ? (
           <View style={styles.history}>
             <View style={styles.historyHeader}>
-              <Text style={styles.historyTitle}>保存済みの計算履歴</Text>
-              <Pressable onPress={() => void clearHistory()} style={({ pressed }) => [styles.clearHistoryButton, pressed && styles.pressed]}>
-                <Text style={styles.clearHistoryText}>すべて消去</Text>
-              </Pressable>
+              <View><Text style={styles.historyTitle}>保存済みの計算履歴</Text>{!isPro && history.length > 5 ? <Text style={styles.historyLimit}>無料版では最新5件を表示</Text> : null}</View>
+              <View style={styles.historyActions}>
+                <Pressable onPress={() => void exportHistory()} style={({ pressed }) => [styles.exportHistoryButton, pressed && styles.pressed]}><IconSymbol name="square.and.arrow.up" size={15} color="#146C94" /><Text style={styles.exportHistoryText}>CSV</Text></Pressable>
+                <Pressable onPress={() => void clearHistory()} style={({ pressed }) => [styles.clearHistoryButton, pressed && styles.pressed]}><Text style={styles.clearHistoryText}>消去</Text></Pressable>
+              </View>
             </View>
-            {history.map((entry) => (
+            {visibleHistory.map((entry) => (
               <Pressable key={entry.id} onPress={() => restoreHistory(entry)} style={({ pressed }) => [styles.historyRow, pressed && styles.cardPressed]}>
                 <Text numberOfLines={1} style={styles.historyExpression}>{entry.expression}</Text>
                 <Text numberOfLines={1} style={styles.historyResult}>{entry.resultText}</Text>
@@ -423,6 +450,9 @@ const styles = StyleSheet.create({
   selectedGroupLabel: { color: "#173A4D", fontSize: 13, fontWeight: "800" },
   inputUnitChip: { backgroundColor: "#E5F4FB", borderColor: "#C9E7F4", borderRadius: 14, borderWidth: 1, paddingHorizontal: 11, paddingVertical: 7 },
   inputUnitText: { color: "#146C94", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 13, fontWeight: "800" },
+  favoriteUnitsCard: { backgroundColor: "#FFF9E9", borderColor: "#F0DB9C", borderRadius: 18, borderWidth: 1, padding: 15 },
+  favoriteHeader: { alignItems: "center", flexDirection: "row", gap: 7 },
+  proTag: { backgroundColor: "#E0A12C", borderRadius: 7, color: "#FFFFFF", fontSize: 10, fontWeight: "800", overflow: "hidden", paddingHorizontal: 6, paddingVertical: 3 },
   motionCard: { backgroundColor: "#F3F8FB", borderColor: "#D1E7F1", borderRadius: 18, borderWidth: 1, padding: 15 },
   motionFormula: { color: "#173A4D", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, fontWeight: "700", lineHeight: 19, marginTop: 8 },
   motionExamples: { gap: 8, marginTop: 12 },
@@ -447,6 +477,10 @@ const styles = StyleSheet.create({
   history: { marginTop: 6 },
   historyHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 7 },
   historyTitle: { color: "#637381", fontSize: 12, fontWeight: "700" },
+  historyLimit: { color: "#8A99A6", fontSize: 10, marginTop: 2 },
+  historyActions: { alignItems: "center", flexDirection: "row", gap: 10 },
+  exportHistoryButton: { alignItems: "center", flexDirection: "row", gap: 3, paddingHorizontal: 4, paddingVertical: 4 },
+  exportHistoryText: { color: "#146C94", fontSize: 11, fontWeight: "700" },
   clearHistoryButton: { paddingHorizontal: 4, paddingVertical: 4 },
   clearHistoryText: { color: "#A53B35", fontSize: 11, fontWeight: "700" },
   historyRow: { backgroundColor: "#FFFFFF", borderColor: "#E0E6EB", borderRadius: 11, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", marginBottom: 6, paddingHorizontal: 12, paddingVertical: 10 },

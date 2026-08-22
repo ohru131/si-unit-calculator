@@ -5,6 +5,7 @@ import { parseConstantDefinition, Quantity, SavedConstant } from "@/lib/units";
 
 const CONSTANTS_STORAGE_KEY = "si-unit-calculator.constants.v1";
 const HISTORY_STORAGE_KEY = "si-unit-calculator.history.v1";
+const FAVORITE_UNITS_STORAGE_KEY = "si-unit-calculator.favorite-units.v1";
 
 export type SavedCalculation = {
   id: string;
@@ -18,11 +19,13 @@ export type SavedCalculation = {
 type CalculatorStore = {
   constants: SavedConstant[];
   history: SavedCalculation[];
+  favoriteUnits: string[];
   isLoading: boolean;
   upsertConstant: (symbol: string, expression: string) => Promise<SavedConstant>;
   removeConstant: (symbol: string) => Promise<void>;
   addHistoryEntry: (entry: SavedCalculation) => Promise<void>;
   clearHistory: () => Promise<void>;
+  toggleFavoriteUnit: (unit: string) => Promise<void>;
 };
 
 const CalculatorContext = createContext<CalculatorStore | null>(null);
@@ -30,29 +33,13 @@ const CalculatorContext = createContext<CalculatorStore | null>(null);
 function isSavedConstant(value: unknown): value is SavedConstant {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<SavedConstant>;
-  return (
-    typeof candidate.symbol === "string" &&
-    typeof candidate.expression === "string" &&
-    typeof candidate.createdAt === "string" &&
-    typeof candidate.quantity?.siValue === "number" &&
-    Array.isArray(candidate.quantity.dimension) &&
-    candidate.quantity.dimension.length === 7
-  );
+  return typeof candidate.symbol === "string" && typeof candidate.expression === "string" && typeof candidate.createdAt === "string" && typeof candidate.quantity?.siValue === "number" && Array.isArray(candidate.quantity.dimension) && candidate.quantity.dimension.length === 7;
 }
 
 function isSavedCalculation(value: unknown): value is SavedCalculation {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<SavedCalculation>;
-  return (
-    typeof candidate.id === "string" &&
-    typeof candidate.expression === "string" &&
-    typeof candidate.resultText === "string" &&
-    typeof candidate.targetUnit === "string" &&
-    typeof candidate.createdAt === "string" &&
-    typeof candidate.quantity?.siValue === "number" &&
-    Array.isArray(candidate.quantity.dimension) &&
-    candidate.quantity.dimension.length === 7
-  );
+  return typeof candidate.id === "string" && typeof candidate.expression === "string" && typeof candidate.resultText === "string" && typeof candidate.targetUnit === "string" && typeof candidate.createdAt === "string" && typeof candidate.quantity?.siValue === "number" && Array.isArray(candidate.quantity.dimension) && candidate.quantity.dimension.length === 7;
 }
 
 function parseStoredArray(raw: string | null): unknown[] {
@@ -68,6 +55,7 @@ function parseStoredArray(raw: string | null): unknown[] {
 export function CalculatorProvider({ children }: { children: ReactNode }) {
   const [constants, setConstants] = useState<SavedConstant[]>([]);
   const [history, setHistory] = useState<SavedCalculation[]>([]);
+  const [favoriteUnits, setFavoriteUnits] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const persistConstants = useCallback(async (next: SavedConstant[]) => {
@@ -80,18 +68,29 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(next));
   }, []);
 
+  const persistFavoriteUnits = useCallback(async (next: string[]) => {
+    setFavoriteUnits(next);
+    await AsyncStorage.setItem(FAVORITE_UNITS_STORAGE_KEY, JSON.stringify(next));
+  }, []);
+
   useEffect(() => {
     let active = true;
-    Promise.all([AsyncStorage.getItem(CONSTANTS_STORAGE_KEY), AsyncStorage.getItem(HISTORY_STORAGE_KEY)])
-      .then(([constantsRaw, historyRaw]) => {
+    Promise.all([
+      AsyncStorage.getItem(CONSTANTS_STORAGE_KEY),
+      AsyncStorage.getItem(HISTORY_STORAGE_KEY),
+      AsyncStorage.getItem(FAVORITE_UNITS_STORAGE_KEY),
+    ])
+      .then(([constantsRaw, historyRaw, favoriteUnitsRaw]) => {
         if (!active) return;
         setConstants(parseStoredArray(constantsRaw).filter(isSavedConstant));
         setHistory(parseStoredArray(historyRaw).filter(isSavedCalculation));
+        setFavoriteUnits(parseStoredArray(favoriteUnitsRaw).filter((unit): unit is string => typeof unit === "string"));
       })
       .catch(() => {
         if (!active) return;
         setConstants([]);
         setHistory([]);
+        setFavoriteUnits([]);
       })
       .finally(() => {
         if (active) setIsLoading(false);
@@ -108,38 +107,34 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
       const existing = constants.find((item) => item.symbol === symbol);
       const others = constants.filter((item) => item.symbol !== symbol);
       const parsed = parseConstantDefinition(`${symbol} = ${expression}`, others);
-      const nextItem: SavedConstant = {
-        ...parsed,
-        createdAt: existing?.createdAt ?? new Date().toISOString(),
-      };
+      const nextItem: SavedConstant = { ...parsed, createdAt: existing?.createdAt ?? new Date().toISOString() };
       await persistConstants([...others, nextItem].sort((left, right) => left.symbol.localeCompare(right.symbol)));
       return nextItem;
     },
     [constants, persistConstants],
   );
 
-  const removeConstant = useCallback(
-    async (symbol: string) => {
-      await persistConstants(constants.filter((item) => item.symbol !== symbol));
-    },
-    [constants, persistConstants],
-  );
+  const removeConstant = useCallback(async (symbol: string) => {
+    await persistConstants(constants.filter((item) => item.symbol !== symbol));
+  }, [constants, persistConstants]);
 
-  const addHistoryEntry = useCallback(
-    async (entry: SavedCalculation) => {
-      const next = [entry, ...history.filter((item) => item.expression !== entry.expression)].slice(0, 20);
-      await persistHistory(next);
-    },
-    [history, persistHistory],
-  );
+  const addHistoryEntry = useCallback(async (entry: SavedCalculation) => {
+    const next = [entry, ...history.filter((item) => item.expression !== entry.expression)].slice(0, 500);
+    await persistHistory(next);
+  }, [history, persistHistory]);
 
   const clearHistory = useCallback(async () => {
     await persistHistory([]);
   }, [persistHistory]);
 
+  const toggleFavoriteUnit = useCallback(async (unit: string) => {
+    const next = favoriteUnits.includes(unit) ? favoriteUnits.filter((item) => item !== unit) : [...favoriteUnits, unit];
+    await persistFavoriteUnits(next);
+  }, [favoriteUnits, persistFavoriteUnits]);
+
   const value = useMemo(
-    () => ({ constants, history, isLoading, upsertConstant, removeConstant, addHistoryEntry, clearHistory }),
-    [constants, history, isLoading, upsertConstant, removeConstant, addHistoryEntry, clearHistory],
+    () => ({ constants, history, favoriteUnits, isLoading, upsertConstant, removeConstant, addHistoryEntry, clearHistory, toggleFavoriteUnit }),
+    [constants, history, favoriteUnits, isLoading, upsertConstant, removeConstant, addHistoryEntry, clearHistory, toggleFavoriteUnit],
   );
 
   return <CalculatorContext.Provider value={value}>{children}</CalculatorContext.Provider>;
@@ -150,4 +145,3 @@ export function useCalculatorStore() {
   if (!value) throw new Error("CalculatorProvider の内部で使用してください。");
   return value;
 }
-
