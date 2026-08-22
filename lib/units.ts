@@ -32,6 +32,12 @@ export type UnitGroup = {
   units: UnitOption[];
 };
 
+export type UnitRegistration = {
+  status: "registered" | "supported" | "unknown";
+  group?: UnitGroup;
+  unit?: UnitOption;
+};
+
 type UnitDefinition = {
   scale: number;
   dimension: Dimension;
@@ -277,6 +283,19 @@ export function parseUnit(input: string): UnitDefinition {
   }
 
   return result;
+}
+
+export function getUnitRegistration(input: string): UnitRegistration {
+  const source = input.trim();
+  if (!source) return { status: "unknown" };
+  const group = UNIT_GROUPS.find((candidate) => candidate.units.some((option) => option.symbol === source));
+  if (group) return { status: "registered", group, unit: group.units.find((option) => option.symbol === source) };
+  try {
+    parseUnit(source);
+    return { status: "supported" };
+  } catch {
+    return { status: "unknown" };
+  }
 }
 
 function quantity(value: number, dimension: Dimension = ZERO): Quantity {

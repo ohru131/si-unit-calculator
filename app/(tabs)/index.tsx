@@ -26,7 +26,7 @@ import { usePro } from "@/lib/revenuecat-provider";
 import { getUnitExplanation } from "@/lib/unit-explanations";
 import UnitCalculatorWidget from "@/widgets/UnitCalculatorWidget";
 import { SAMPLE_CALCULATIONS, SAMPLE_CATEGORIES, type SampleCalculation } from "@/lib/sample-calculations";
-import { evaluateExpression, formatDimension, formatQuantity, getCompatibleUnitGroups, getRegionalUnits, parseConstantDefinition, Quantity, searchUnitOptions, UNIT_GROUPS } from "@/lib/units";
+import { evaluateExpression, formatDimension, formatQuantity, getCompatibleUnitGroups, getRegionalUnits, getUnitRegistration, parseConstantDefinition, Quantity, searchUnitOptions, UNIT_GROUPS } from "@/lib/units";
 
 const KEYS = ["(", ")", "÷", "⌫", "7", "8", "9", "×", "4", "5", "6", "-", "1", "2", "3", "+", ".", "0", " ", "="];
 const ADVANCED_KEYS = ["sin(", "cos(", "tan(", "asin(", "acos(", "atan(", "atan2(", "ln(", "log(", "log2(", "sqrt(", "^", "π", "e"];
@@ -47,6 +47,12 @@ export default function CalculatorScreen() {
   const [inputGroupId, setInputGroupId] = useState("length");
   const [sampleCategory, setSampleCategory] = useState("basic");
   const [showHelp, setShowHelp] = useState(false);
+  const [showSamples, setShowSamples] = useState(false);
+  const [showUnitPicker, setShowUnitPicker] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showAdvancedKeys, setShowAdvancedKeys] = useState(false);
+  const [unitPickerMode, setUnitPickerMode] = useState<"insert" | "target">("insert");
   const [unitInfoSymbol, setUnitInfoSymbol] = useState<string | null>(null);
   const [unitSearch, setUnitSearch] = useState("");
   const unitSearchRef = useRef<TextInput>(null);
@@ -62,6 +68,8 @@ export default function CalculatorScreen() {
   const visibleHistory = isPro ? history : history.slice(0, 5);
   const autoConstants = useMemo(() => historyToAutoConstants(history), [history]);
   const unitInfo = useMemo(() => getUnitExplanation(unitInfoSymbol ?? ""), [unitInfoSymbol]);
+  const targetUnitRegistration = useMemo(() => getUnitRegistration(targetUnit), [targetUnit]);
+  const searchedUnitRegistration = useMemo(() => getUnitRegistration(unitSearch), [unitSearch]);
 
   useEffect(() => {
     if (!isAdvancedMode && !isUnitGroupVisible(UNIT_GROUPS.find((group) => group.id === inputGroupId) ?? UNIT_GROUPS[0], false)) setInputGroupId("length");
@@ -86,9 +94,9 @@ export default function CalculatorScreen() {
   };
 
   const copy = language === "en" ? {
-    definitionHint: "Define a constant: W = 3cm", calculate: "Calculate", siBase: "SI base unit", emptyResult: "Enter an expression, then tap Calculate.", unitPlaceholder: "Choose a compatible unit or enter one", selectAfter: "Compatible units appear here after calculation.", speedTitle: "Distance, time & speed", speedFormula: "Speed = distance ÷ time     Distance = speed × time", findSpeed: "Find speed", findDistance: "Find distance", findTime: "Find time", speedHint: "Mix s, min, h, m, km, and other compatible units freely.", savedHistory: "Saved calculations", historyHint: "Latest answers are available as a1, a2, and so on.", clear: "Clear", helpTitle: "Examples", helpDone: "Done", unitSearch: "Search units or categories", copied: "Calculation copied", copy: "Copy", unitDetails: "Unit details", siConversion: "SI conversion", commonUse: "Common use", close: "Close", advancedMath: "Advanced math", advancedMathHint: "Angles use rad, deg, or °. Includes inverse trig, logs, and atan2(y, x).", saveTemplate: "Save as template",
+    definitionHint: "Define a constant: W = 3cm", calculate: "Calculate", siBase: "SI base unit", emptyResult: "Enter an expression, then tap Calculate.", unitPlaceholder: "Choose a compatible unit or enter one", selectAfter: "Compatible units appear here after calculation.", speedTitle: "Distance, time & speed", speedFormula: "Speed = distance ÷ time     Distance = speed × time", findSpeed: "Find speed", findDistance: "Find distance", findTime: "Find time", speedHint: "Mix s, min, h, m, km, and other compatible units freely.", savedHistory: "Saved calculations", historyHint: "Latest answers are available as a1, a2, and so on.", clear: "Clear", helpTitle: "Examples", helpDone: "Done", unitSearch: "Search units or categories", copied: "Calculation copied", copy: "Copy", unitDetails: "Unit details", siConversion: "SI conversion", commonUse: "Common use", close: "Close", advancedMath: "Advanced math", advancedMathHint: "Angles use rad, deg, or °. Includes inverse trig, logs, and atan2(y, x).", saveTemplate: "Save as template", tools: "Tools", samples: "Examples", units: "Units", shortcuts: "Speed", math: "Math", outputUnit: "Output unit", insertUnit: "Insert unit", pickUnit: "Choose a registered unit", registered: "Registered candidate", supported: "Supported, but not listed", unknown: "Not registered or supported", unknownHint: "Check the symbol or choose a registered candidate below.", history: "History", latest: "Latest", use: "Use", noUnit: "No output unit", compatible: "Compatible candidates", allCandidates: "All registered candidates",
   } : {
-    definitionHint: "定数定義：W = 3cm", calculate: "計算", siBase: "SI標準単位", emptyResult: "式を入力して「計算」を押してください。", unitPlaceholder: "候補から選択、または入力", selectAfter: "計算後、次元に合う単位のみをここへ表示します。", speedTitle: "距離・時間・速度", speedFormula: "速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間", findSpeed: "速度を求める", findDistance: "距離を求める", findTime: "時間を求める", speedHint: "時間は s、min、h、距離は m、km などを自由に組み合わせられます。", savedHistory: "保存済みの計算履歴", historyHint: "最新の結果は a1、a2… として次の式で使えます。", clear: "消去", helpTitle: "入力例", helpDone: "閉じる", unitSearch: "単位・カテゴリを検索", copied: "計算結果をコピーしました", copy: "コピー", unitDetails: "単位の説明", siConversion: "SI換算", commonUse: "主な利用分野", close: "閉じる", advancedMath: "上級の数学機能", advancedMathHint: "角度は rad・deg・° で入力します。逆三角・対数・atan2(y, x)にも対応します。", saveTemplate: "テンプレートに保存",
+    definitionHint: "定数定義：W = 3cm", calculate: "計算", siBase: "SI標準単位", emptyResult: "式を入力して「計算」を押してください。", unitPlaceholder: "候補から選択、または入力", selectAfter: "計算後、次元に合う単位のみをここへ表示します。", speedTitle: "距離・時間・速度", speedFormula: "速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間", findSpeed: "速度を求める", findDistance: "距離を求める", findTime: "時間を求める", speedHint: "時間は s、min、h、距離は m、km などを自由に組み合わせられます。", savedHistory: "保存済みの計算履歴", historyHint: "最新の結果は a1、a2… として次の式で使えます。", clear: "消去", helpTitle: "入力例", helpDone: "閉じる", unitSearch: "単位・カテゴリを検索", copied: "計算結果をコピーしました", copy: "コピー", unitDetails: "単位の説明", siConversion: "SI換算", commonUse: "主な利用分野", close: "閉じる", advancedMath: "上級の数学機能", advancedMathHint: "角度は rad・deg・° で入力します。逆三角・対数・atan2(y, x)にも対応します。", saveTemplate: "テンプレートに保存", tools: "ツール", samples: "サンプル", units: "単位", shortcuts: "速度", math: "数学", outputUnit: "表示単位", insertUnit: "単位を挿入", pickUnit: "登録済み単位から選択", registered: "登録済み候補", supported: "計算対応（候補外）", unknown: "未登録・未対応", unknownHint: "記号を確認するか、下の登録済み候補から選んでください。", history: "履歴", latest: "最新", use: "使う", noUnit: "表示単位なし", compatible: "結果に合う候補", allCandidates: "すべての登録済み候補",
   };
 
   const display = useMemo(() => {
@@ -180,6 +188,19 @@ export default function CalculatorScreen() {
     setNotice("");
   };
 
+  const openUnitPicker = (mode: "insert" | "target") => {
+    setUnitPickerMode(mode);
+    setUnitSearch(mode === "target" ? targetUnit : "");
+    setShowUnitPicker(true);
+  };
+
+  const chooseUnit = (unit: string) => {
+    if (unitPickerMode === "target") applyTargetUnit(unit);
+    else insertUnit(unit);
+    setUnitSearch("");
+    setShowUnitPicker(false);
+  };
+
   const restoreHistory = (entry: (typeof history)[number]) => {
     setExpression(entry.expression);
     setTargetUnit(entry.targetUnit);
@@ -212,6 +233,7 @@ export default function CalculatorScreen() {
       setNotice(language === "en" ? "Choose a sample calculation to begin." : "サンプル計算式を選んで試せます。");
     }
     if (shortcut.focusSearch) {
+      openUnitPicker("insert");
       setTimeout(() => unitSearchRef.current?.focus(), 250);
     }
   }, [language, quick]);
@@ -273,32 +295,6 @@ export default function CalculatorScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.samplesCard}>
-          <Text style={styles.cardLabel}>{t("examples")}</Text>
-          <Text style={styles.samplesHint}>{t("examplesHint")}</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sampleCategoryRail}>
-            {visibleSampleCategories.map((category) => (
-              <Pressable key={category.id} onPress={() => setSampleCategory(category.id)} style={({ pressed }) => [styles.sampleCategoryChip, sampleCategory === category.id && styles.sampleCategoryChipActive, pressed && styles.pressed]}>
-                <Text style={[styles.sampleCategoryText, sampleCategory === category.id && styles.sampleCategoryTextActive]}>{language === "en" ? category.labelEn : category.label}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-          <View style={styles.sampleList}>
-            {visibleSamples.map((sample) => (
-              <Pressable key={sample.id} onPress={() => applySample(sample)} style={({ pressed }) => [styles.sampleRow, pressed && styles.cardPressed]}>
-                <View style={styles.sampleCopy}>
-                  <Text style={styles.sampleTitle}>{language === "en" ? sample.titleEn : sample.title}</Text>
-                  <Text style={styles.sampleDescription}>{language === "en" ? sample.descriptionEn : sample.description}</Text>
-                </View>
-                <View style={styles.sampleExpressionWrap}>
-                  <Text numberOfLines={1} style={styles.sampleExpression}>{sample.expression}</Text>
-                  <Text style={styles.sampleTarget}>→ {targetUnitForSample(sample)}</Text>
-                </View>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
         <View style={styles.inputCard}>
           <View style={styles.inputLabelRow}>
             <Text style={styles.cardLabel}>{t("expression")}</Text>
@@ -327,6 +323,13 @@ export default function CalculatorScreen() {
           </View>
         </View>
 
+        <View style={styles.toolRow}>
+          <Pressable onPress={() => setShowSamples(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.samples}</Text></Pressable>
+          <Pressable onPress={() => openUnitPicker("insert")} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.insertUnit}</Text></Pressable>
+          <Pressable onPress={() => setShowShortcuts(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.shortcuts}</Text></Pressable>
+          {isAdvancedMode ? <Pressable onPress={() => setShowAdvancedKeys(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.math}</Text></Pressable> : null}
+        </View>
+
         <View style={styles.resultCard}>
               <View style={styles.resultHeader}><Text style={styles.cardLabel}>{t("result")}</Text>{display ? <View style={styles.resultActions}><Pressable accessibilityLabel={copy.saveTemplate} onPress={() => router.push({ pathname: "/constants", params: { templateExpression: expression, templateUnit: targetUnit } })} style={({ pressed }) => [styles.copyButton, pressed && styles.pressed]}><IconSymbol name="bookmark.fill" size={14} color={colors.primary} /><Text style={styles.copyButtonText}>{copy.saveTemplate}</Text></Pressable><Pressable accessibilityLabel={copy.copy} onPress={() => void copyCalculation()} style={({ pressed }) => [styles.copyButton, pressed && styles.pressed]}><IconSymbol name="doc.on.doc" size={16} color={colors.primary} /><Text style={styles.copyButtonText}>{copy.copy}</Text></Pressable></View> : null}</View>
           {display ? (
@@ -348,110 +351,13 @@ export default function CalculatorScreen() {
           )}
         </View>
 
-        <View style={styles.convertCard}>
-          <Text style={styles.cardLabel}>{t("displayUnit")}</Text>
-          <TextInput
-            value={targetUnit}
-            onChangeText={applyTargetUnit}
-            placeholder={copy.unitPlaceholder}
-            placeholderTextColor={colors.placeholder}
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={styles.unitInput}
-          />
-          {compatibleUnitGroups.length ? (
-            <View style={styles.unitGroupList}>
-              <Text style={styles.compatibleHint}>{t("compatibleOnly")}</Text>
-              {compatibleUnitGroups.map((group) => (
-                <View key={group.id} style={styles.compatibleGroup}>
-                  <Text style={styles.unitGroupLabel}>{unitGroupLabel(group.id)}</Text>
-                  <View style={styles.chips}>
-                    {visibleUnits(getRegionalUnits(group, unitSystem), isAdvancedMode).map((unit) => {
-                      const explanation = getUnitExplanation(unit.symbol);
-                      return (
-                        <View key={unit.symbol} style={styles.unitChoice}>
-                          <Pressable onPress={() => applyTargetUnit(unit.symbol)} style={({ pressed }) => [styles.chip, targetUnit === unit.symbol && styles.chipActive, pressed && styles.pressed]}>
-                            <Text style={[styles.chipText, targetUnit === unit.symbol && styles.chipTextActive]}>{unit.label}</Text>
-                          </Pressable>
-                          {explanation ? <Pressable accessibilityLabel={`${unit.label} ${copy.unitDetails}`} onPress={() => setUnitInfoSymbol(unit.symbol)} style={({ pressed }) => [styles.unitInfoButton, pressed && styles.iconPressed]}><IconSymbol name="info.circle" size={15} color={colors.primary} /></Pressable> : null}
-                        </View>
-                      );
-                    })}
-                  </View>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <Text style={styles.compatibleHint}>{copy.selectAfter}</Text>
-          )}
-        </View>
-
-        <View style={styles.unitPadCard}>
-          <Text style={styles.cardLabel}>{t("enterUnit")}</Text>
-          <Text style={styles.unitPadHint}>{t("enterUnitHint")}</Text>
-          <View style={styles.unitSearchWrap}>
-            <IconSymbol name="magnifyingglass" size={18} color={colors.muted} />
-            <TextInput ref={unitSearchRef} value={unitSearch} onChangeText={setUnitSearch} placeholder={copy.unitSearch} placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.unitSearchInput} />
-          </View>
-          {searchedUnits.length ? <View style={styles.searchResults}>{searchedUnits.map(({ group, unit }) => {
-            const explanation = getUnitExplanation(unit.symbol);
-            return <View key={`${group.id}-${unit.symbol}`} style={styles.searchResult}><Pressable onPress={() => { insertUnit(unit.symbol); setUnitSearch(""); }} style={({ pressed }) => [styles.searchResultButton, pressed && styles.pressed]}><Text style={styles.searchUnit}>{unit.symbol}</Text><Text style={styles.searchGroup}>{unitGroupLabel(group.id)}</Text></Pressable>{explanation ? <Pressable accessibilityLabel={`${unit.symbol} ${copy.unitDetails}`} onPress={() => setUnitInfoSymbol(unit.symbol)} style={({ pressed }) => [styles.unitInfoButton, pressed && styles.iconPressed]}><IconSymbol name="info.circle" size={16} color={colors.primary} /></Pressable> : null}</View>;
-          })}</View> : null}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRail}>
-            {visibleInputGroups.map((group) => (
-              <Pressable key={group.id} onPress={() => setInputGroupId(group.id)} style={({ pressed }) => [styles.categoryChip, inputGroupId === group.id && styles.categoryChipActive, pressed && styles.pressed]}>
-                <Text style={[styles.categoryChipText, inputGroupId === group.id && styles.categoryChipTextActive]}>{unitGroupLabel(group.id)}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-          <View style={styles.inputUnitRow}>
-            <Text style={styles.selectedGroupLabel}>{unitGroupLabel(selectedInputGroup.id)}</Text>
-            <View style={styles.chips}>
-              {selectedInputUnits.map((unit) => {
-                const explanation = getUnitExplanation(unit.symbol);
-                return <View key={unit.symbol} style={styles.unitChoice}><Pressable onPress={() => insertUnit(unit.symbol)} style={({ pressed }) => [styles.inputUnitChip, pressed && styles.pressed]}><Text style={styles.inputUnitText}>{unit.label}</Text></Pressable>{explanation ? <Pressable accessibilityLabel={`${unit.label} ${copy.unitDetails}`} onPress={() => setUnitInfoSymbol(unit.symbol)} style={({ pressed }) => [styles.unitInfoButton, pressed && styles.iconPressed]}><IconSymbol name="info.circle" size={15} color={colors.primary} /></Pressable> : null}</View>;
-              })}
-            </View>
-          </View>
-        </View>
-
-        {isPro && favoriteUnits.length ? (
-          <View style={styles.favoriteUnitsCard}>
-            <View style={styles.favoriteHeader}><Text style={styles.cardLabel}>マイ単位セット</Text><Text style={styles.proTag}>PRO</Text></View>
-            <View style={styles.chips}>{favoriteUnits.map((unit) => <Pressable key={unit} onPress={() => insertUnit(unit)} style={({ pressed }) => [styles.inputUnitChip, pressed && styles.pressed]}><Text style={styles.inputUnitText}>{unit}</Text></Pressable>)}</View>
-          </View>
-        ) : null}
-
-        <View style={styles.motionCard}>
-          <Text style={styles.cardLabel}>{copy.speedTitle}</Text>
-          <Text style={styles.motionFormula}>{copy.speedFormula}</Text>
-          <View style={styles.motionExamples}>
-            <Pressable onPress={() => applyMotionExample("1km ÷ 1min", "km/h", "距離と時間から速度を計算する例を入力しました。")} style={({ pressed }) => [styles.motionButton, pressed && styles.pressed]}>
-              <Text style={styles.motionButtonTitle}>{copy.findSpeed}</Text>
-              <Text style={styles.motionButtonExample}>1km ÷ 1min</Text>
-            </Pressable>
-            <Pressable onPress={() => applyMotionExample("10m/s × 2min", "km", "速度と時間から距離を計算する例を入力しました。")} style={({ pressed }) => [styles.motionButton, pressed && styles.pressed]}>
-              <Text style={styles.motionButtonTitle}>{copy.findDistance}</Text>
-              <Text style={styles.motionButtonExample}>10m/s × 2min</Text>
-            </Pressable>
-            <Pressable onPress={() => applyMotionExample("1km ÷ 5m/s", "min", "距離と速度から時間を計算する例を入力しました。")} style={({ pressed }) => [styles.motionButton, pressed && styles.pressed]}>
-              <Text style={styles.motionButtonTitle}>{copy.findTime}</Text>
-              <Text style={styles.motionButtonExample}>1km ÷ 5m/s</Text>
-            </Pressable>
-          </View>
-          <Text style={styles.motionHint}>{copy.speedHint}</Text>
-        </View>
+        <Pressable onPress={() => openUnitPicker("target")} style={({ pressed }) => [styles.outputSelector, pressed && styles.pressed]}>
+          <View><Text style={styles.cardLabel}>{copy.outputUnit}</Text><Text style={styles.outputUnitValue}>{targetUnit || copy.noUnit}</Text></View>
+          {targetUnit.trim() ? <View style={[styles.registrationBadge, targetUnitRegistration.status === "unknown" && styles.registrationUnknown, targetUnitRegistration.status === "supported" && styles.registrationSupported]}><Text style={styles.registrationText}>{targetUnitRegistration.status === "registered" ? copy.registered : targetUnitRegistration.status === "supported" ? copy.supported : copy.unknown}</Text></View> : <Text style={styles.outputPickHint}>{copy.pickUnit}</Text>}
+        </Pressable>
 
         {error ? <View style={styles.messageError}><Text style={styles.messageErrorText}>{error}</Text></View> : null}
         {notice ? <View style={styles.messageSuccess}><Text style={styles.messageSuccessText}>{notice}</Text></View> : null}
-
-        {isAdvancedMode ? <View style={styles.advancedMathCard}>
-          <Text style={styles.cardLabel}>{copy.advancedMath}</Text>
-          <Text style={styles.advancedMathHint}>{copy.advancedMathHint}</Text>
-          <View style={styles.advancedKeyRow}>
-            {ADVANCED_KEYS.map((key) => <Pressable accessibilityLabel={key} key={key} onPress={() => pressKey(key)} style={({ pressed }) => [styles.advancedKey, pressed && styles.pressed]}><Text style={styles.advancedKeyText}>{key}</Text></Pressable>)}
-          </View>
-        </View> : null}
 
         <View style={styles.keypad}>
           {KEYS.map((key, index) => {
@@ -471,24 +377,28 @@ export default function CalculatorScreen() {
           })}
         </View>
 
-        {history.length ? (
-          <View style={styles.history}>
-            <View style={styles.historyHeader}>
-              <View><Text style={styles.historyTitle}>{copy.savedHistory}</Text><Text style={styles.historyHint}>{copy.historyHint}</Text>{!isPro && history.length > 5 ? <Text style={styles.historyLimit}>{language === "en" ? "Free shows the latest 5 entries" : "無料版では最新5件を表示"}</Text> : null}</View>
-              <View style={styles.historyActions}>
-                <Pressable onPress={() => void exportHistory()} style={({ pressed }) => [styles.exportHistoryButton, pressed && styles.pressed]}><IconSymbol name="square.and.arrow.up" size={15} color={colors.primary} /><Text style={styles.exportHistoryText}>CSV</Text></Pressable>
-                <Pressable onPress={() => void clearHistory()} style={({ pressed }) => [styles.clearHistoryButton, pressed && styles.pressed]}><Text style={styles.clearHistoryText}>{copy.clear}</Text></Pressable>
-              </View>
-            </View>
-            {visibleHistory.map((entry, index) => (
-              <Pressable key={entry.id} onPress={() => restoreHistory(entry)} style={({ pressed }) => [styles.historyRow, pressed && styles.cardPressed]}>
-                <View style={styles.historyExpressionWrap}><Text style={styles.historyAutoSymbol}>a{index + 1}</Text><Text numberOfLines={1} style={styles.historyExpression}>{entry.expression}</Text></View>
-                <Text numberOfLines={1} style={styles.historyResult}>{entry.resultText}</Text>
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
+        {history.length ? <Pressable onPress={() => setShowHistory(true)} style={({ pressed }) => [styles.historySummary, pressed && styles.pressed]}><View style={styles.historySummaryMain}><Text style={styles.cardLabel}>{copy.history}</Text><Text numberOfLines={1} style={styles.historySummaryExpression}><Text style={styles.historyAutoSymbol}>a1</Text> {history[0].expression}</Text></View><View style={styles.historySummaryRight}><Text numberOfLines={1} style={styles.historySummaryResult}>{history[0].resultText}</Text><Text style={styles.historyOpenText}>{history.length} ›</Text></View></Pressable> : null}
       </ScrollView>
+
+      <Modal visible={showSamples} transparent animationType="slide" onRequestClose={() => setShowSamples(false)}>
+        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><Text style={styles.sheetTitle}>{copy.samples}</Text><Pressable onPress={() => setShowSamples(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sampleCategoryRail}>{visibleSampleCategories.map((category) => <Pressable key={category.id} onPress={() => setSampleCategory(category.id)} style={({ pressed }) => [styles.sampleCategoryChip, sampleCategory === category.id && styles.sampleCategoryChipActive, pressed && styles.pressed]}><Text style={[styles.sampleCategoryText, sampleCategory === category.id && styles.sampleCategoryTextActive]}>{language === "en" ? category.labelEn : category.label}</Text></Pressable>)}</ScrollView><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleSamples.map((sample) => <Pressable key={sample.id} onPress={() => { applySample(sample); setShowSamples(false); }} style={({ pressed }) => [styles.sampleRow, pressed && styles.cardPressed]}><View style={styles.sampleCopy}><Text style={styles.sampleTitle}>{language === "en" ? sample.titleEn : sample.title}</Text><Text style={styles.sampleDescription}>{language === "en" ? sample.descriptionEn : sample.description}</Text></View><View style={styles.sampleExpressionWrap}><Text numberOfLines={1} style={styles.sampleExpression}>{sample.expression}</Text><Text style={styles.sampleTarget}>→ {targetUnitForSample(sample)}</Text></View></Pressable>)}</ScrollView></View></View>
+      </Modal>
+
+      <Modal visible={showUnitPicker} transparent animationType="slide" onRequestClose={() => setShowUnitPicker(false)}>
+        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>{unitPickerMode === "target" ? copy.outputUnit : copy.insertUnit}</Text><Text style={styles.sheetSubtitle}>{copy.pickUnit}</Text></View><Pressable onPress={() => setShowUnitPicker(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.unitSearchWrap}><IconSymbol name="magnifyingglass" size={18} color={colors.muted} /><TextInput ref={unitSearchRef} value={unitSearch} onChangeText={setUnitSearch} placeholder={copy.unitSearch} placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.unitSearchInput} /></View>{unitSearch.trim() ? <View style={[styles.registrationCard, searchedUnitRegistration.status === "unknown" && styles.registrationCardUnknown, searchedUnitRegistration.status === "supported" && styles.registrationCardSupported]}><Text style={styles.registrationCardTitle}>{searchedUnitRegistration.status === "registered" ? copy.registered : searchedUnitRegistration.status === "supported" ? copy.supported : copy.unknown}</Text><Text style={styles.registrationCardHint}>{searchedUnitRegistration.status === "registered" ? `${unitSearch} · ${unitGroupLabel(searchedUnitRegistration.group?.id ?? "")}` : searchedUnitRegistration.status === "supported" ? unitSearch : copy.unknownHint}</Text>{searchedUnitRegistration.status !== "unknown" ? <Pressable onPress={() => chooseUnit(unitSearch.trim())} style={({ pressed }) => [styles.useTypedUnitButton, pressed && styles.pressed]}><Text style={styles.useTypedUnitText}>{copy.use} “{unitSearch.trim()}”</Text></Pressable> : null}</View> : null}<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRail}>{visibleInputGroups.map((group) => <Pressable key={group.id} onPress={() => { setInputGroupId(group.id); setUnitSearch(""); }} style={({ pressed }) => [styles.categoryChip, inputGroupId === group.id && styles.categoryChipActive, pressed && styles.pressed]}><Text style={[styles.categoryChipText, inputGroupId === group.id && styles.categoryChipTextActive]}>{unitGroupLabel(group.id)}</Text></Pressable>)}</ScrollView><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{unitPickerMode === "target" && compatibleUnitGroups.length ? <><Text style={styles.pickerSectionLabel}>{copy.compatible}</Text>{compatibleUnitGroups.map((group) => <View key={group.id} style={styles.pickerGroup}><Text style={styles.unitGroupLabel}>{unitGroupLabel(group.id)}</Text><View style={styles.chips}>{visibleUnits(getRegionalUnits(group, unitSystem), isAdvancedMode).map((unit) => <Pressable key={unit.symbol} onPress={() => chooseUnit(unit.symbol)} style={({ pressed }) => [styles.inputUnitChip, pressed && styles.pressed]}><Text style={styles.inputUnitText}>{unit.label}</Text></Pressable>)}</View></View>)}</> : <><Text style={styles.pickerSectionLabel}>{unitSearch.trim() ? copy.allCandidates : unitGroupLabel(selectedInputGroup.id)}</Text>{searchedUnits.length ? searchedUnits.map(({ group, unit }) => <Pressable key={`${group.id}-${unit.symbol}`} onPress={() => chooseUnit(unit.symbol)} style={({ pressed }) => [styles.pickerRow, pressed && styles.cardPressed]}><Text style={styles.searchUnit}>{unit.label}</Text><Text style={styles.searchGroup}>{unitGroupLabel(group.id)}</Text></Pressable>) : <View style={styles.chips}>{selectedInputUnits.map((unit) => <Pressable key={unit.symbol} onPress={() => chooseUnit(unit.symbol)} style={({ pressed }) => [styles.inputUnitChip, pressed && styles.pressed]}><Text style={styles.inputUnitText}>{unit.label}</Text></Pressable>)}</View>}{isPro && favoriteUnits.length ? <View style={styles.favoritePicker}><Text style={styles.pickerSectionLabel}>PRO</Text><View style={styles.chips}>{favoriteUnits.map((unit) => <Pressable key={unit} onPress={() => chooseUnit(unit)} style={({ pressed }) => [styles.inputUnitChip, pressed && styles.pressed]}><Text style={styles.inputUnitText}>{unit}</Text></Pressable>)}</View></View> : null}</>}</ScrollView></View></View>
+      </Modal>
+
+      <Modal visible={showShortcuts} transparent animationType="fade" onRequestClose={() => setShowShortcuts(false)}>
+        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>{copy.speedTitle}</Text><Text style={styles.sheetSubtitle}>{copy.speedFormula}</Text></View><Pressable onPress={() => setShowShortcuts(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.modalList}>{[[copy.findSpeed, "1km ÷ 1min", "km/h"], [copy.findDistance, "10m/s × 2min", "km"], [copy.findTime, "1km ÷ 5m/s", "min"]].map(([label, nextExpression, nextUnit]) => <Pressable key={String(label)} onPress={() => { applyMotionExample(String(nextExpression), String(nextUnit), language === "en" ? "Example loaded." : "計算例を入力しました。" ); setShowShortcuts(false); }} style={({ pressed }) => [styles.shortcutRow, pressed && styles.cardPressed]}><Text style={styles.shortcutTitle}>{label}</Text><Text style={styles.shortcutExpression}>{nextExpression} → {nextUnit}</Text></Pressable>)}</View></View></View>
+      </Modal>
+
+      <Modal visible={showAdvancedKeys} transparent animationType="fade" onRequestClose={() => setShowAdvancedKeys(false)}>
+        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>{copy.advancedMath}</Text><Text style={styles.sheetSubtitle}>{copy.advancedMathHint}</Text></View><Pressable onPress={() => setShowAdvancedKeys(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.advancedKeyRow}>{ADVANCED_KEYS.map((key) => <Pressable accessibilityLabel={key} key={key} onPress={() => { pressKey(key); setShowAdvancedKeys(false); }} style={({ pressed }) => [styles.advancedKey, pressed && styles.pressed]}><Text style={styles.advancedKeyText}>{key}</Text></Pressable>)}</View></View></View>
+      </Modal>
+
+      <Modal visible={showHistory} transparent animationType="slide" onRequestClose={() => setShowHistory(false)}>
+        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>{copy.savedHistory}</Text><Text style={styles.sheetSubtitle}>{copy.historyHint}</Text></View><Pressable onPress={() => setShowHistory(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.historyActions}><Pressable onPress={() => void exportHistory()} style={({ pressed }) => [styles.exportHistoryButton, pressed && styles.pressed]}><IconSymbol name="square.and.arrow.up" size={15} color={colors.primary} /><Text style={styles.exportHistoryText}>CSV</Text></Pressable><Pressable onPress={() => void clearHistory()} style={({ pressed }) => [styles.clearHistoryButton, pressed && styles.pressed]}><Text style={styles.clearHistoryText}>{copy.clear}</Text></Pressable></View><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleHistory.map((entry, index) => <Pressable key={entry.id} onPress={() => { restoreHistory(entry); setShowHistory(false); }} style={({ pressed }) => [styles.historyRow, pressed && styles.cardPressed]}><View style={styles.historyExpressionWrap}><Text style={styles.historyAutoSymbol}>a{index + 1}</Text><Text numberOfLines={1} style={styles.historyExpression}>{entry.expression}</Text></View><Text numberOfLines={1} style={styles.historyResult}>{entry.resultText}</Text></Pressable>)}</ScrollView></View></View>
+      </Modal>
 
       <Modal visible={showHelp} transparent animationType="fade" onRequestClose={() => setShowHelp(false)}>
         <View style={styles.helpBackdrop}>
@@ -550,6 +460,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   title: { color: colors.foreground, fontSize: 29, fontWeight: "700", letterSpacing: -0.7 },
   subtitle: { color: colors.muted, fontSize: 13, marginTop: 3 },
   helpButton: { alignItems: "center", backgroundColor: colors.primarySurface, borderRadius: 20, height: 40, justifyContent: "center", width: 40 },
+  toolRow: { flexDirection: "row", flexWrap: "wrap", gap: 7 }, toolButton: { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, borderRadius: 10, borderWidth: 1, minHeight: 36, paddingHorizontal: 11, justifyContent: "center" }, toolButtonText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
   samplesCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 18, borderWidth: 1, padding: 15 },
   samplesHint: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 7 },
   sampleCategoryRail: { gap: 7, paddingBottom: 2, paddingTop: 12 },
@@ -588,6 +499,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   dimensionLabel: { color: colors.muted, fontSize: 11 },
   dimensionText: { color: colors.foreground, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 11, fontWeight: "700" },
   errorText: { color: colors.error, fontSize: 12, lineHeight: 18, marginTop: 11 },
+  outputSelector: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 14, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", minHeight: 58, paddingHorizontal: 14 }, outputUnitValue: { color: colors.primary, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 15, fontWeight: "800", marginTop: 3 }, outputPickHint: { color: colors.primary, fontSize: 11, fontWeight: "800" }, registrationBadge: { backgroundColor: colors.successSurface, borderColor: colors.successBorder, borderRadius: 9, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 5 }, registrationSupported: { backgroundColor: colors.warningSurface, borderColor: colors.warningBorder }, registrationUnknown: { backgroundColor: colors.errorSurface, borderColor: colors.errorBorder }, registrationText: { color: colors.foreground, fontSize: 10, fontWeight: "800" },
   convertCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 18, borderWidth: 1, padding: 15 },
   unitInput: { borderBottomColor: colors.border, borderBottomWidth: 1, color: colors.foreground, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 17, marginTop: 8, minHeight: 40, paddingHorizontal: 0 },
   unitGroupList: { gap: 11, marginTop: 12 },
@@ -661,6 +573,8 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   historyRow: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 11, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", marginBottom: 6, paddingHorizontal: 12, paddingVertical: 10 },
   historyExpressionWrap: { alignItems: "center", flex: 1, flexDirection: "row", marginRight: 10 }, historyAutoSymbol: { color: colors.primary, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 11, fontWeight: "800", marginRight: 7 }, historyExpression: { color: colors.foreground, flex: 1, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12 },
   historyResult: { color: colors.primary, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, fontWeight: "700", maxWidth: "45%" },
+  historySummary: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 12, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", minHeight: 54, paddingHorizontal: 12 }, historySummaryMain: { flex: 1, marginRight: 12 }, historySummaryExpression: { color: colors.foreground, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, marginTop: 3 }, historySummaryRight: { alignItems: "flex-end", maxWidth: "45%" }, historySummaryResult: { color: colors.primary, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, fontWeight: "800" }, historyOpenText: { color: colors.muted, fontSize: 11, marginTop: 2 },
+  modalBackdrop: { backgroundColor: colors.overlay, flex: 1, justifyContent: "flex-end" }, compactSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "86%", paddingBottom: 28, paddingHorizontal: 18, paddingTop: 12 }, sheetHeader: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between", marginBottom: 10 }, sheetTitle: { color: colors.foreground, fontSize: 20, fontWeight: "800" }, sheetSubtitle: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 3, maxWidth: "88%" }, modalList: { gap: 8, paddingBottom: 18, paddingTop: 10 }, registrationCard: { backgroundColor: colors.successSurface, borderColor: colors.successBorder, borderRadius: 12, borderWidth: 1, marginTop: 9, padding: 10 }, registrationCardSupported: { backgroundColor: colors.warningSurface, borderColor: colors.warningBorder }, registrationCardUnknown: { backgroundColor: colors.errorSurface, borderColor: colors.errorBorder }, registrationCardTitle: { color: colors.foreground, fontSize: 12, fontWeight: "800" }, registrationCardHint: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 3 }, useTypedUnitButton: { alignSelf: "flex-start", backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, marginTop: 8, paddingHorizontal: 9, paddingVertical: 6 }, useTypedUnitText: { color: colors.primary, fontSize: 12, fontWeight: "800" }, pickerSectionLabel: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.4, textTransform: "uppercase" }, pickerGroup: { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 9 }, pickerRow: { alignItems: "center", backgroundColor: colors.background, borderColor: colors.border, borderRadius: 10, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", minHeight: 44, paddingHorizontal: 12 }, favoritePicker: { backgroundColor: colors.warningSurface, borderColor: colors.warningBorder, borderRadius: 12, borderWidth: 1, padding: 10 }, shortcutRow: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 12, borderWidth: 1, padding: 12 }, shortcutTitle: { color: colors.primary, fontSize: 14, fontWeight: "800" }, shortcutExpression: { color: colors.foreground, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, marginTop: 4 },
   helpBackdrop: { alignItems: "center", backgroundColor: colors.overlay, flex: 1, justifyContent: "center", padding: 24 },
   helpSheet: { backgroundColor: colors.surface, borderRadius: 20, padding: 20, width: "100%" },
   helpTitleRow: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 12 },

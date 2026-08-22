@@ -7,6 +7,7 @@ import {
   formatQuantity,
   getCompatibleUnitGroups,
   getRegionalUnits,
+  getUnitRegistration,
   parseConstantDefinition,
   searchUnitOptions,
   type UnitGroup,
@@ -191,6 +192,12 @@ describe("単位付き計算", () => {
     expect(searchUnitOptions("psi", "us").map((result) => result.unit.symbol)).toEqual(["psi"]);
     expect(searchUnitOptions("pressure", "us").map((result) => result.unit.symbol)).toEqual(["psi", "atm"]);
     expect(searchUnitOptions("gal", "metric").map((result) => result.unit.symbol)).toEqual(["Gal", "mGal"]);
+  });
+
+  it("候補への登録済み・計算可能な候補外・未対応の単位を区別する", () => {
+    expect(getUnitRegistration("cm").status).toBe("registered");
+    expect(getUnitRegistration("g0").status).toBe("supported");
+    expect(getUnitRegistration("madeUpUnit").status).toBe("unknown");
   });
 
   it("異なる次元の加算を拒否する", () => {
