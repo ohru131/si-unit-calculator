@@ -13,6 +13,7 @@ import {
   UNIT_GROUPS,
 } from "../lib/units";
 import { SAMPLE_CALCULATIONS } from "../lib/sample-calculations";
+import { getUnitExplanation } from "../lib/unit-explanations";
 
 describe("単位付き計算", () => {
   it("異なる長さの単位をSIへ換算して加算する", () => {
@@ -77,6 +78,14 @@ describe("単位付き計算", () => {
     expect(convertQuantity(evaluateExpression("1Gal"), "m/s²").value).toBeCloseTo(0.01);
     expect(convertQuantity(evaluateExpression("1000mGal"), "Gal").value).toBeCloseTo(1);
     expect(convertQuantity(evaluateExpression("1µGal"), "m/s²").value).toBeCloseTo(1e-8);
+  });
+
+  it("kineをSI速度へ正規化し、特殊単位の説明を取得する", () => {
+    expect(convertQuantity(evaluateExpression("1kine"), "m/s").value).toBeCloseTo(0.01);
+    expect(formatQuantity(evaluateExpression("100kine"), "km/h")).toBe("3.6 km/h");
+    expect(getUnitExplanation("G")?.siConversion).toBe("1 G = 9.80665 m/s²");
+    expect(getUnitExplanation("kine")?.name.ja).toBe("カイン");
+    expect(getUnitExplanation("m")).toBeUndefined();
   });
 
   it("質量と標準重力の乗算から力を計算し、加速度候補を地域別に提示する", () => {

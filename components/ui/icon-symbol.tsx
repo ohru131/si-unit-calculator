@@ -22,6 +22,7 @@ const MAPPING = {
   "bookmark.fill": "bookmark",
   "plus.circle.fill": "add-circle",
   "questionmark.circle.fill": "help",
+  "info.circle": "info",
   "xmark": "close",
   "trash": "delete",
   "delete.left": "backspace",

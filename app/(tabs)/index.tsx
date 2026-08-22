@@ -21,6 +21,7 @@ import { exportCalculationHistory } from "@/lib/calculation-export";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { getCalculatorQuickShortcut } from "@/lib/quick-shortcuts";
 import { usePro } from "@/lib/revenuecat-provider";
+import { getUnitExplanation } from "@/lib/unit-explanations";
 import UnitCalculatorWidget from "@/widgets/UnitCalculatorWidget";
 import { SAMPLE_CALCULATIONS, SAMPLE_CATEGORIES, type SampleCalculation } from "@/lib/sample-calculations";
 import { evaluateExpression, formatDimension, formatQuantity, getCompatibleUnitGroups, getRegionalUnits, parseConstantDefinition, Quantity, searchUnitOptions, UNIT_GROUPS } from "@/lib/units";
@@ -43,6 +44,7 @@ export default function CalculatorScreen() {
   const [inputGroupId, setInputGroupId] = useState("length");
   const [sampleCategory, setSampleCategory] = useState("basic");
   const [showHelp, setShowHelp] = useState(false);
+  const [unitInfoSymbol, setUnitInfoSymbol] = useState<string | null>(null);
   const [unitSearch, setUnitSearch] = useState("");
   const unitSearchRef = useRef<TextInput>(null);
 
@@ -52,6 +54,7 @@ export default function CalculatorScreen() {
   const compatibleUnitGroups = useMemo(() => (result ? getCompatibleUnitGroups(result.dimension) : []), [result]);
   const visibleSamples = useMemo(() => SAMPLE_CALCULATIONS.filter((sample) => sample.category === sampleCategory), [sampleCategory]);
   const visibleHistory = isPro ? history : history.slice(0, 5);
+  const unitInfo = useMemo(() => getUnitExplanation(unitInfoSymbol ?? ""), [unitInfoSymbol]);
 
   const targetUnitForSample = (sample: SampleCalculation) => {
     if (unitSystem === "us") {
@@ -71,9 +74,9 @@ export default function CalculatorScreen() {
   };
 
   const copy = language === "en" ? {
-    definitionHint: "Define a constant: W = 3cm", calculate: "Calculate", siBase: "SI base unit", emptyResult: "Enter an expression, then tap Calculate.", unitPlaceholder: "Choose a compatible unit or enter one", selectAfter: "Compatible units appear here after calculation.", speedTitle: "Distance, time & speed", speedFormula: "Speed = distance ÷ time     Distance = speed × time", findSpeed: "Find speed", findDistance: "Find distance", findTime: "Find time", speedHint: "Mix s, min, h, m, km, and other compatible units freely.", savedHistory: "Saved calculations", clear: "Clear", helpTitle: "Examples", helpDone: "Done", unitSearch: "Search units or categories", copied: "Calculation copied", copy: "Copy",
+    definitionHint: "Define a constant: W = 3cm", calculate: "Calculate", siBase: "SI base unit", emptyResult: "Enter an expression, then tap Calculate.", unitPlaceholder: "Choose a compatible unit or enter one", selectAfter: "Compatible units appear here after calculation.", speedTitle: "Distance, time & speed", speedFormula: "Speed = distance ÷ time     Distance = speed × time", findSpeed: "Find speed", findDistance: "Find distance", findTime: "Find time", speedHint: "Mix s, min, h, m, km, and other compatible units freely.", savedHistory: "Saved calculations", clear: "Clear", helpTitle: "Examples", helpDone: "Done", unitSearch: "Search units or categories", copied: "Calculation copied", copy: "Copy", unitDetails: "Unit details", siConversion: "SI conversion", commonUse: "Common use", close: "Close",
   } : {
-    definitionHint: "定数定義：W = 3cm", calculate: "計算", siBase: "SI標準単位", emptyResult: "式を入力して「計算」を押してください。", unitPlaceholder: "候補から選択、または入力", selectAfter: "計算後、次元に合う単位のみをここへ表示します。", speedTitle: "距離・時間・速度", speedFormula: "速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間", findSpeed: "速度を求める", findDistance: "距離を求める", findTime: "時間を求める", speedHint: "時間は s、min、h、距離は m、km などを自由に組み合わせられます。", savedHistory: "保存済みの計算履歴", clear: "消去", helpTitle: "入力例", helpDone: "閉じる", unitSearch: "単位・カテゴリを検索", copied: "計算結果をコピーしました", copy: "コピー",
+    definitionHint: "定数定義：W = 3cm", calculate: "計算", siBase: "SI標準単位", emptyResult: "式を入力して「計算」を押してください。", unitPlaceholder: "候補から選択、または入力", selectAfter: "計算後、次元に合う単位のみをここへ表示します。", speedTitle: "距離・時間・速度", speedFormula: "速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間", findSpeed: "速度を求める", findDistance: "距離を求める", findTime: "時間を求める", speedHint: "時間は s、min、h、距離は m、km などを自由に組み合わせられます。", savedHistory: "保存済みの計算履歴", clear: "消去", helpTitle: "入力例", helpDone: "閉じる", unitSearch: "単位・カテゴリを検索", copied: "計算結果をコピーしました", copy: "コピー", unitDetails: "単位の説明", siConversion: "SI換算", commonUse: "主な利用分野", close: "閉じる",
   };
 
   const display = useMemo(() => {
@@ -339,11 +342,17 @@ export default function CalculatorScreen() {
                 <View key={group.id} style={styles.compatibleGroup}>
                   <Text style={styles.unitGroupLabel}>{unitGroupLabel(group.id)}</Text>
                   <View style={styles.chips}>
-                    {getRegionalUnits(group, unitSystem).map((unit) => (
-                      <Pressable key={unit.symbol} onPress={() => applyTargetUnit(unit.symbol)} style={({ pressed }) => [styles.chip, targetUnit === unit.symbol && styles.chipActive, pressed && styles.pressed]}>
-                        <Text style={[styles.chipText, targetUnit === unit.symbol && styles.chipTextActive]}>{unit.label}</Text>
-                      </Pressable>
-                    ))}
+                    {getRegionalUnits(group, unitSystem).map((unit) => {
+                      const explanation = getUnitExplanation(unit.symbol);
+                      return (
+                        <View key={unit.symbol} style={styles.unitChoice}>
+                          <Pressable onPress={() => applyTargetUnit(unit.symbol)} style={({ pressed }) => [styles.chip, targetUnit === unit.symbol && styles.chipActive, pressed && styles.pressed]}>
+                            <Text style={[styles.chipText, targetUnit === unit.symbol && styles.chipTextActive]}>{unit.label}</Text>
+                          </Pressable>
+                          {explanation ? <Pressable accessibilityLabel={`${unit.label} ${copy.unitDetails}`} onPress={() => setUnitInfoSymbol(unit.symbol)} style={({ pressed }) => [styles.unitInfoButton, pressed && styles.iconPressed]}><IconSymbol name="info.circle" size={15} color={colors.primary} /></Pressable> : null}
+                        </View>
+                      );
+                    })}
                   </View>
                 </View>
               ))}
@@ -360,7 +369,10 @@ export default function CalculatorScreen() {
             <IconSymbol name="magnifyingglass" size={18} color={colors.muted} />
             <TextInput ref={unitSearchRef} value={unitSearch} onChangeText={setUnitSearch} placeholder={copy.unitSearch} placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.unitSearchInput} />
           </View>
-          {searchedUnits.length ? <View style={styles.searchResults}>{searchedUnits.map(({ group, unit }) => <Pressable key={`${group.id}-${unit.symbol}`} onPress={() => { insertUnit(unit.symbol); setUnitSearch(""); }} style={({ pressed }) => [styles.searchResult, pressed && styles.pressed]}><Text style={styles.searchUnit}>{unit.symbol}</Text><Text style={styles.searchGroup}>{unitGroupLabel(group.id)}</Text></Pressable>)}</View> : null}
+          {searchedUnits.length ? <View style={styles.searchResults}>{searchedUnits.map(({ group, unit }) => {
+            const explanation = getUnitExplanation(unit.symbol);
+            return <View key={`${group.id}-${unit.symbol}`} style={styles.searchResult}><Pressable onPress={() => { insertUnit(unit.symbol); setUnitSearch(""); }} style={({ pressed }) => [styles.searchResultButton, pressed && styles.pressed]}><Text style={styles.searchUnit}>{unit.symbol}</Text><Text style={styles.searchGroup}>{unitGroupLabel(group.id)}</Text></Pressable>{explanation ? <Pressable accessibilityLabel={`${unit.symbol} ${copy.unitDetails}`} onPress={() => setUnitInfoSymbol(unit.symbol)} style={({ pressed }) => [styles.unitInfoButton, pressed && styles.iconPressed]}><IconSymbol name="info.circle" size={16} color={colors.primary} /></Pressable> : null}</View>;
+          })}</View> : null}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRail}>
             {UNIT_GROUPS.map((group) => (
               <Pressable key={group.id} onPress={() => setInputGroupId(group.id)} style={({ pressed }) => [styles.categoryChip, inputGroupId === group.id && styles.categoryChipActive, pressed && styles.pressed]}>
@@ -371,11 +383,10 @@ export default function CalculatorScreen() {
           <View style={styles.inputUnitRow}>
             <Text style={styles.selectedGroupLabel}>{unitGroupLabel(selectedInputGroup.id)}</Text>
             <View style={styles.chips}>
-              {selectedInputUnits.map((unit) => (
-                <Pressable key={unit.symbol} onPress={() => insertUnit(unit.symbol)} style={({ pressed }) => [styles.inputUnitChip, pressed && styles.pressed]}>
-                  <Text style={styles.inputUnitText}>{unit.label}</Text>
-                </Pressable>
-              ))}
+              {selectedInputUnits.map((unit) => {
+                const explanation = getUnitExplanation(unit.symbol);
+                return <View key={unit.symbol} style={styles.unitChoice}><Pressable onPress={() => insertUnit(unit.symbol)} style={({ pressed }) => [styles.inputUnitChip, pressed && styles.pressed]}><Text style={styles.inputUnitText}>{unit.label}</Text></Pressable>{explanation ? <Pressable accessibilityLabel={`${unit.label} ${copy.unitDetails}`} onPress={() => setUnitInfoSymbol(unit.symbol)} style={({ pressed }) => [styles.unitInfoButton, pressed && styles.iconPressed]}><IconSymbol name="info.circle" size={15} color={colors.primary} /></Pressable> : null}</View>;
+              })}
             </View>
           </View>
         </View>
@@ -468,6 +479,35 @@ export default function CalculatorScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal visible={Boolean(unitInfo)} transparent animationType="fade" onRequestClose={() => setUnitInfoSymbol(null)}>
+        <View style={styles.unitInfoBackdrop}>
+          {unitInfo ? <View style={styles.unitInfoSheet}>
+            <View style={styles.unitInfoHeader}>
+              <View>
+                <Text style={styles.cardLabel}>{copy.unitDetails}</Text>
+                <Text style={styles.unitInfoSymbol}>{unitInfo.symbol}</Text>
+                <Text style={styles.unitInfoTitle}>{unitInfo.name[language]}</Text>
+              </View>
+              <Pressable accessibilityLabel={copy.close} onPress={() => setUnitInfoSymbol(null)} style={({ pressed }) => [styles.closeHelp, pressed && styles.iconPressed]}>
+                <IconSymbol name="xmark" size={20} color={colors.muted} />
+              </Pressable>
+            </View>
+            <Text style={styles.unitInfoSummary}>{unitInfo.summary[language]}</Text>
+            <View style={styles.unitInfoFact}>
+              <Text style={styles.unitInfoFactLabel}>{copy.siConversion}</Text>
+              <Text selectable style={styles.unitInfoFactValue}>{unitInfo.siConversion}</Text>
+            </View>
+            <View style={styles.unitInfoFact}>
+              <Text style={styles.unitInfoFactLabel}>{copy.commonUse}</Text>
+              <Text style={styles.unitInfoUsage}>{unitInfo.usage[language]}</Text>
+            </View>
+            <Pressable onPress={() => setUnitInfoSymbol(null)} style={({ pressed }) => [styles.unitInfoDone, pressed && styles.pressed]}>
+              <Text style={styles.unitInfoDoneText}>{copy.close}</Text>
+            </Pressable>
+          </View> : null}
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -523,6 +563,8 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   compatibleGroup: { gap: 3 },
   unitGroupLabel: { color: colors.muted, fontSize: 11, fontWeight: "700" },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 5 },
+  unitChoice: { alignItems: "center", flexDirection: "row", gap: 3 },
+  unitInfoButton: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 13, borderWidth: 1, height: 26, justifyContent: "center", width: 26 },
   chip: { backgroundColor: colors.surfaceSecondary, borderRadius: 14, paddingHorizontal: 11, paddingVertical: 6 },
   chipActive: { backgroundColor: colors.primaryFill },
   chipText: { color: colors.muted, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, fontWeight: "700" },
@@ -533,6 +575,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   unitSearchInput: { color: colors.foreground, flex: 1, fontSize: 14, marginLeft: 8, paddingVertical: 9 },
   searchResults: { backgroundColor: colors.background, borderColor: colors.primaryBorder, borderRadius: 12, borderWidth: 1, gap: 2, marginTop: 8, padding: 5 },
   searchResult: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", minHeight: 38, paddingHorizontal: 9 },
+  searchResultButton: { alignItems: "center", flex: 1, flexDirection: "row", justifyContent: "space-between", minHeight: 38 },
   searchUnit: { color: colors.primary, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 14, fontWeight: "800" },
   searchGroup: { color: colors.muted, fontSize: 12 },
   categoryRail: { gap: 7, paddingBottom: 2, paddingTop: 12 },
@@ -567,6 +610,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   keyTextAccent: { color: colors.primary },
   keyPressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
   pressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
+  iconPressed: { opacity: 0.55 },
   cardPressed: { opacity: 0.7 },
   history: { marginTop: 6 },
   historyHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 7 },
@@ -588,4 +632,16 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   helpText: { color: colors.foreground, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 13, lineHeight: 25 },
   helpDone: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 11, marginTop: 18, paddingVertical: 12 },
   helpDoneText: { color: colors.onPrimary, fontWeight: "700" },
+  unitInfoBackdrop: { alignItems: "center", backgroundColor: colors.overlay, flex: 1, justifyContent: "center", padding: 24 },
+  unitInfoSheet: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 20, borderWidth: 1, maxWidth: 520, padding: 20, width: "100%" },
+  unitInfoHeader: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between" },
+  unitInfoSymbol: { color: colors.primary, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 26, fontWeight: "800" },
+  unitInfoTitle: { color: colors.foreground, fontSize: 18, fontWeight: "800", marginTop: 2 },
+  unitInfoSummary: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 13 },
+  unitInfoFact: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 11, borderWidth: 1, marginTop: 14, padding: 12 },
+  unitInfoFactLabel: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.4, textTransform: "uppercase" },
+  unitInfoFactValue: { color: colors.foreground, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 14, fontWeight: "700", marginTop: 4 },
+  unitInfoUsage: { color: colors.foreground, fontSize: 13, lineHeight: 19, marginTop: 4 },
+  unitInfoDone: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 11, marginTop: 18, paddingVertical: 12 },
+  unitInfoDoneText: { color: colors.onPrimary, fontWeight: "700" },
 });

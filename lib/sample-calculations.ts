@@ -24,6 +24,7 @@ export const SAMPLE_CALCULATIONS: SampleCalculation[] = [
   { id: "length-add", category: "basic", title: "長さを足す", titleEn: "Add lengths", description: "異なる長さの単位をSIでそろえて加算", descriptionEn: "Normalize mixed lengths to SI before adding", expression: "5cm + 1mm", targetUnit: "cm" },
   { id: "area", category: "basic", title: "面積を求める", titleEn: "Find an area", description: "長さ × 長さで面積へ", descriptionEn: "Length × length gives area", expression: "3cm × 20mm", targetUnit: "cm²" },
   { id: "speed", category: "motion", title: "速度を求める", titleEn: "Find speed", description: "距離 ÷ 時間 = 速度", descriptionEn: "Distance ÷ time = speed", expression: "1km ÷ 1min", targetUnit: "km/h" },
+  { id: "kine", category: "motion", title: "kineを換算", titleEn: "Convert kine", description: "CGS速度単位をSI速度へ", descriptionEn: "Convert the CGS speed unit to SI speed", expression: "100kine", targetUnit: "km/h" },
   { id: "distance", category: "motion", title: "距離を求める", titleEn: "Find distance", description: "速度 × 時間 = 距離", descriptionEn: "Speed × time = distance", expression: "10m/s × 2min", targetUnit: "km" },
   { id: "time", category: "motion", title: "時間を求める", titleEn: "Find time", description: "距離 ÷ 速度 = 時間", descriptionEn: "Distance ÷ speed = time", expression: "1km ÷ 5m/s", targetUnit: "min" },
   { id: "force", category: "mechanics", title: "力を求める", titleEn: "Find force", description: "質量 × 加速度 = 力", descriptionEn: "Mass × acceleration = force", expression: "2kg × 9.8m/s²", targetUnit: "N" },
