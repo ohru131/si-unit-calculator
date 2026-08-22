@@ -8,6 +8,7 @@ import {
   parseConstantDefinition,
   type UnitGroup,
 } from "../lib/units";
+import { SAMPLE_CALCULATIONS } from "../lib/sample-calculations";
 
 describe("単位付き計算", () => {
   it("異なる長さの単位をSIへ換算して加算する", () => {
@@ -78,6 +79,13 @@ describe("単位付き計算", () => {
     expect(ratioSymbols).toContain("%");
     expect(ratioSymbols).toContain("ppm");
     expect(ratioSymbols).not.toContain("cm");
+  });
+
+  it("すべてのサンプル式を計算し、指定単位で表示できる", () => {
+    SAMPLE_CALCULATIONS.forEach((sample) => {
+      const result = evaluateExpression(sample.expression);
+      expect(() => formatQuantity(result, sample.targetUnit)).not.toThrow();
+    });
   });
 
   it("異なる次元の加算を拒否する", () => {

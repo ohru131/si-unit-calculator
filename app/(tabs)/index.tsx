@@ -13,6 +13,7 @@ import {
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useCalculatorStore } from "@/lib/calculator-store";
+import { SAMPLE_CALCULATIONS, SAMPLE_CATEGORIES, type SampleCalculation } from "@/lib/sample-calculations";
 import { evaluateExpression, formatDimension, formatQuantity, getCompatibleUnitGroups, parseConstantDefinition, Quantity, UNIT_GROUPS } from "@/lib/units";
 
 const KEYS = ["(", ")", "÷", "⌫", "7", "8", "9", "×", "4", "5", "6", "-", "1", "2", "3", "+", ".", "0", " ", "="];
@@ -25,10 +26,12 @@ export default function CalculatorScreen() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [inputGroupId, setInputGroupId] = useState("length");
+  const [sampleCategory, setSampleCategory] = useState("basic");
   const [showHelp, setShowHelp] = useState(false);
 
   const selectedInputGroup = UNIT_GROUPS.find((group) => group.id === inputGroupId) ?? UNIT_GROUPS[0];
   const compatibleUnitGroups = useMemo(() => (result ? getCompatibleUnitGroups(result.dimension) : []), [result]);
+  const visibleSamples = useMemo(() => SAMPLE_CALCULATIONS.filter((sample) => sample.category === sampleCategory), [sampleCategory]);
 
   const display = useMemo(() => {
     if (!result) return null;
@@ -39,8 +42,9 @@ export default function CalculatorScreen() {
     }
   }, [result, targetUnit]);
 
-  const calculate = async () => {
-    const input = expression.trim();
+  const calculate = async (expressionOverride?: string, targetUnitOverride?: string) => {
+    const input = (expressionOverride ?? expression).trim();
+    const selectedTargetUnit = targetUnitOverride ?? targetUnit;
     if (!input) {
       setError("式を入力してください。");
       return;
@@ -58,7 +62,7 @@ export default function CalculatorScreen() {
       setResult(quantity);
       let output = formatQuantity(quantity);
       try {
-        output = targetUnit.trim() ? formatQuantity(quantity, targetUnit) : output;
+        output = selectedTargetUnit.trim() ? formatQuantity(quantity, selectedTargetUnit) : output;
       } catch {
         setNotice("計算しました。表示単位を候補から選ぶと変換できます。");
       }
@@ -68,7 +72,7 @@ export default function CalculatorScreen() {
           expression: input,
           resultText: output,
           quantity,
-          targetUnit: targetUnit.trim(),
+          targetUnit: selectedTargetUnit.trim(),
           createdAt: new Date().toISOString(),
         });
       } catch {
@@ -121,6 +125,15 @@ export default function CalculatorScreen() {
     setNotice(message);
   };
 
+  const applySample = (sample: SampleCalculation) => {
+    setExpression(sample.expression);
+    setTargetUnit(sample.targetUnit);
+    setResult(null);
+    setError("");
+    setNotice("");
+    void calculate(sample.expression, sample.targetUnit);
+  };
+
   return (
     <ScreenContainer className="px-5" containerClassName="bg-background">
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -132,6 +145,32 @@ export default function CalculatorScreen() {
           <Pressable accessibilityLabel="入力例を表示" onPress={() => setShowHelp(true)} style={({ pressed }) => [styles.helpButton, pressed && styles.pressed]}>
             <IconSymbol name="questionmark.circle.fill" size={25} color="#146C94" />
           </Pressable>
+        </View>
+
+        <View style={styles.samplesCard}>
+          <Text style={styles.cardLabel}>サンプルから始める</Text>
+          <Text style={styles.samplesHint}>気になる例を選ぶと、式・表示単位・計算結果をまとめて設定します。</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sampleCategoryRail}>
+            {SAMPLE_CATEGORIES.map((category) => (
+              <Pressable key={category.id} onPress={() => setSampleCategory(category.id)} style={({ pressed }) => [styles.sampleCategoryChip, sampleCategory === category.id && styles.sampleCategoryChipActive, pressed && styles.pressed]}>
+                <Text style={[styles.sampleCategoryText, sampleCategory === category.id && styles.sampleCategoryTextActive]}>{category.label}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+          <View style={styles.sampleList}>
+            {visibleSamples.map((sample) => (
+              <Pressable key={sample.id} onPress={() => applySample(sample)} style={({ pressed }) => [styles.sampleRow, pressed && styles.cardPressed]}>
+                <View style={styles.sampleCopy}>
+                  <Text style={styles.sampleTitle}>{sample.title}</Text>
+                  <Text style={styles.sampleDescription}>{sample.description}</Text>
+                </View>
+                <View style={styles.sampleExpressionWrap}>
+                  <Text numberOfLines={1} style={styles.sampleExpression}>{sample.expression}</Text>
+                  <Text style={styles.sampleTarget}>→ {sample.targetUnit}</Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
         </View>
 
         <View style={styles.inputCard}>
@@ -327,6 +366,21 @@ const styles = StyleSheet.create({
   title: { color: "#17212B", fontSize: 29, fontWeight: "700", letterSpacing: -0.7 },
   subtitle: { color: "#637381", fontSize: 13, marginTop: 3 },
   helpButton: { alignItems: "center", backgroundColor: "#E5F4FB", borderRadius: 20, height: 40, justifyContent: "center", width: 40 },
+  samplesCard: { backgroundColor: "#FFFFFF", borderColor: "#DCE5EA", borderRadius: 18, borderWidth: 1, padding: 15 },
+  samplesHint: { color: "#637381", fontSize: 12, lineHeight: 18, marginTop: 7 },
+  sampleCategoryRail: { gap: 7, paddingBottom: 2, paddingTop: 12 },
+  sampleCategoryChip: { backgroundColor: "#F2F5F7", borderRadius: 15, paddingHorizontal: 12, paddingVertical: 7 },
+  sampleCategoryChipActive: { backgroundColor: "#146C94" },
+  sampleCategoryText: { color: "#52606D", fontSize: 12, fontWeight: "700" },
+  sampleCategoryTextActive: { color: "#FFFFFF" },
+  sampleList: { gap: 7, marginTop: 11 },
+  sampleRow: { alignItems: "center", backgroundColor: "#F7FAFC", borderColor: "#E1EAF0", borderRadius: 11, borderWidth: 1, flexDirection: "row", paddingHorizontal: 11, paddingVertical: 10 },
+  sampleCopy: { flex: 1, marginRight: 10 },
+  sampleTitle: { color: "#173A4D", fontSize: 13, fontWeight: "800" },
+  sampleDescription: { color: "#637381", fontSize: 11, lineHeight: 16, marginTop: 2 },
+  sampleExpressionWrap: { alignItems: "flex-end", maxWidth: "48%" },
+  sampleExpression: { color: "#146C94", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, fontWeight: "700" },
+  sampleTarget: { color: "#637381", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 11, marginTop: 2 },
   inputCard: { backgroundColor: "#FFFFFF", borderColor: "#DCE5EA", borderRadius: 18, borderWidth: 1, padding: 15 },
   inputLabelRow: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
   cardLabel: { color: "#415160", fontSize: 12, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase" },
