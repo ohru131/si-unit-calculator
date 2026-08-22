@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   Modal,
   Platform,
@@ -17,6 +17,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useCalculatorStore } from "@/lib/calculator-store";
 import { exportCalculationHistory } from "@/lib/calculation-export";
 import { useGlobalSettings } from "@/lib/global-settings";
+import { getCalculatorQuickShortcut } from "@/lib/quick-shortcuts";
 import { usePro } from "@/lib/revenuecat-provider";
 import { SAMPLE_CALCULATIONS, SAMPLE_CATEGORIES, type SampleCalculation } from "@/lib/sample-calculations";
 import { evaluateExpression, formatDimension, formatQuantity, getCompatibleUnitGroups, getRegionalUnits, parseConstantDefinition, Quantity, searchUnitOptions, UNIT_GROUPS } from "@/lib/units";
@@ -25,6 +26,7 @@ const KEYS = ["(", ")", "÷", "⌫", "7", "8", "9", "×", "4", "5", "6", "-", "1
 
 export default function CalculatorScreen() {
   const router = useRouter();
+  const { quick } = useLocalSearchParams<{ quick?: string | string[] }>();
   const { constants, history, favoriteUnits, upsertConstant, addHistoryEntry, clearHistory } = useCalculatorStore();
   const { isPro } = usePro();
   const { language, locale, t, unitGroupLabel, unitSystem } = useGlobalSettings();
@@ -37,6 +39,7 @@ export default function CalculatorScreen() {
   const [sampleCategory, setSampleCategory] = useState("basic");
   const [showHelp, setShowHelp] = useState(false);
   const [unitSearch, setUnitSearch] = useState("");
+  const unitSearchRef = useRef<TextInput>(null);
 
   const selectedInputGroup = UNIT_GROUPS.find((group) => group.id === inputGroupId) ?? UNIT_GROUPS[0];
   const selectedInputUnits = useMemo(() => getRegionalUnits(selectedInputGroup, unitSystem), [selectedInputGroup, unitSystem]);
@@ -159,6 +162,26 @@ export default function CalculatorScreen() {
     setError("");
     setNotice(message);
   };
+
+  useEffect(() => {
+    const action = Array.isArray(quick) ? quick[0] : quick;
+    const shortcut = getCalculatorQuickShortcut(action);
+    if (!shortcut) return;
+    if (shortcut.expression && shortcut.targetUnit) {
+      setExpression(shortcut.expression);
+      setTargetUnit(shortcut.targetUnit);
+      setResult(null);
+      setError("");
+      setNotice(action === "speed" ? (language === "en" ? "Speed example ready: distance ÷ time." : "速度の例を準備しました：距離 ÷ 時間") : (language === "en" ? "Pressure example ready: force ÷ area." : "圧力の例を準備しました：力 ÷ 面積"));
+    }
+    if (shortcut.sampleCategory) {
+      setSampleCategory(shortcut.sampleCategory);
+      setNotice(language === "en" ? "Choose a sample calculation to begin." : "サンプル計算式を選んで試せます。");
+    }
+    if (shortcut.focusSearch) {
+      setTimeout(() => unitSearchRef.current?.focus(), 250);
+    }
+  }, [language, quick]);
 
   const applySample = (sample: SampleCalculation) => {
     const sampleTargetUnit = targetUnitForSample(sample);
@@ -318,7 +341,7 @@ export default function CalculatorScreen() {
           <Text style={styles.unitPadHint}>{t("enterUnitHint")}</Text>
           <View style={styles.unitSearchWrap}>
             <IconSymbol name="magnifyingglass" size={18} color="#6D8795" />
-            <TextInput value={unitSearch} onChangeText={setUnitSearch} placeholder={copy.unitSearch} placeholderTextColor="#8A99A6" autoCapitalize="none" autoCorrect={false} style={styles.unitSearchInput} />
+            <TextInput ref={unitSearchRef} value={unitSearch} onChangeText={setUnitSearch} placeholder={copy.unitSearch} placeholderTextColor="#8A99A6" autoCapitalize="none" autoCorrect={false} style={styles.unitSearchInput} />
           </View>
           {searchedUnits.length ? <View style={styles.searchResults}>{searchedUnits.map(({ group, unit }) => <Pressable key={`${group.id}-${unit.symbol}`} onPress={() => { insertUnit(unit.symbol); setUnitSearch(""); }} style={({ pressed }) => [styles.searchResult, pressed && styles.pressed]}><Text style={styles.searchUnit}>{unit.symbol}</Text><Text style={styles.searchGroup}>{unitGroupLabel(group.id)}</Text></Pressable>)}</View> : null}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRail}>
