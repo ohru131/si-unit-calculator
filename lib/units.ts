@@ -58,7 +58,7 @@ export const UNIT_GROUPS: UnitGroup[] = [
   { id: "mass", label: "質量", dimension: DIMENSIONS.mass, units: [{ symbol: "kg", label: "kg" }, { symbol: "g", label: "g" }, { symbol: "mg", label: "mg" }, { symbol: "t", label: "t" }, { symbol: "lb", label: "lb" }, { symbol: "oz", label: "oz" }, { symbol: "st", label: "st" }] },
   { id: "temperature", label: "温度", dimension: DIMENSIONS.temperature, units: [{ symbol: "K", label: "K" }, { symbol: "°C", label: "°C" }, { symbol: "°F", label: "°F" }] },
   { id: "velocity", label: "速度", dimension: [1, 0, -1, 0, 0, 0, 0], units: [{ symbol: "m/s", label: "m/s" }, { symbol: "km/s", label: "km/s" }, { symbol: "m/min", label: "m/min" }, { symbol: "km/min", label: "km/min" }, { symbol: "m/h", label: "m/h" }, { symbol: "km/h", label: "km/h" }, { symbol: "cm/s", label: "cm/s" }, { symbol: "ft/s", label: "ft/s" }, { symbol: "mph", label: "mph" }, { symbol: "kt", label: "kt" }] },
-  { id: "acceleration", label: "加速度", dimension: [1, 0, -2, 0, 0, 0, 0], units: [{ symbol: "m/s²", label: "m/s²" }, { symbol: "cm/s²", label: "cm/s²" }] },
+  { id: "acceleration", label: "加速度", dimension: [1, 0, -2, 0, 0, 0, 0], units: [{ symbol: "m/s²", label: "m/s²" }, { symbol: "cm/s²", label: "cm/s²" }, { symbol: "Gal", label: "Gal (gal)" }, { symbol: "mGal", label: "mGal" }, { symbol: "µGal", label: "µGal" }, { symbol: "G", label: "G (標準重力)" }, { symbol: "ft/s²", label: "ft/s²" }] },
   { id: "force", label: "力", dimension: [1, 1, -2, 0, 0, 0, 0], units: [{ symbol: "N", label: "N" }, { symbol: "kN", label: "kN" }] },
   { id: "pressure", label: "圧力", dimension: [-1, 1, -2, 0, 0, 0, 0], units: [{ symbol: "Pa", label: "Pa" }, { symbol: "kPa", label: "kPa" }, { symbol: "MPa", label: "MPa" }, { symbol: "bar", label: "bar" }, { symbol: "psi", label: "psi" }, { symbol: "atm", label: "atm" }] },
   { id: "energy", label: "エネルギー", dimension: [2, 1, -2, 0, 0, 0, 0], units: [{ symbol: "J", label: "J" }, { symbol: "kJ", label: "kJ" }, { symbol: "Wh", label: "Wh" }, { symbol: "BTU", label: "BTU" }] },
@@ -128,6 +128,11 @@ const BASE_UNITS: Record<string, UnitDefinition> = {
   atm: unit(101325, [-1, 1, -2, 0, 0, 0, 0]),
   BTU: unit(1055.05585262, [2, 1, -2, 0, 0, 0, 0]),
   hp: unit(745.699871582, [2, 1, -3, 0, 0, 0, 0]),
+  Gal: unit(1e-2, [1, 0, -2, 0, 0, 0, 0]),
+  mGal: unit(1e-5, [1, 0, -2, 0, 0, 0, 0]),
+  "µGal": unit(1e-8, [1, 0, -2, 0, 0, 0, 0]),
+  G: unit(9.80665, [1, 0, -2, 0, 0, 0, 0]),
+  g0: unit(9.80665, [1, 0, -2, 0, 0, 0, 0]),
   "°C": unit(1, DIMENSIONS.temperature, 273.15),
   "°F": unit(5 / 9, DIMENSIONS.temperature, 255.3722222222222),
 };
@@ -498,9 +503,9 @@ export function getCompatibleUnitGroups(dimension: Dimension): UnitGroup[] {
 }
 
 const REGIONAL_PRIORITY: Record<UnitSystem, Record<string, string[]>> = {
-  metric: { length: ["m", "km", "cm", "mm"], area: ["m²", "km²", "cm²"], volume: ["L", "mL", "m³"], mass: ["kg", "g", "mg"], temperature: ["°C", "K"], velocity: ["m/s", "km/h"], pressure: ["Pa", "kPa", "bar"], energy: ["J", "kJ", "Wh"], power: ["W", "kW"] },
-  us: { length: ["in", "ft", "yd", "mi"], area: ["in²", "ft²", "yd²", "acre"], volume: ["gal", "qt", "pt"], mass: ["lb", "oz"], temperature: ["°F"], velocity: ["mph", "ft/s"], pressure: ["psi", "atm"], energy: ["BTU", "Wh"], power: ["hp", "W"] },
-  uk: { length: ["mm", "m", "km", "mi"], area: ["m²", "acre"], volume: ["L", "pt"], mass: ["kg", "st", "lb"], temperature: ["°C"], velocity: ["mph", "km/h"], pressure: ["bar", "psi"], energy: ["kJ", "Wh"], power: ["kW", "hp"] },
+  metric: { length: ["m", "km", "cm", "mm"], area: ["m²", "km²", "cm²"], volume: ["L", "mL", "m³"], mass: ["kg", "g", "mg"], temperature: ["°C", "K"], velocity: ["m/s", "km/h"], acceleration: ["m/s²", "Gal", "mGal", "G"], pressure: ["Pa", "kPa", "bar"], energy: ["J", "kJ", "Wh"], power: ["W", "kW"] },
+  us: { length: ["in", "ft", "yd", "mi"], area: ["in²", "ft²", "yd²", "acre"], volume: ["gal", "qt", "pt"], mass: ["lb", "oz"], temperature: ["°F"], velocity: ["mph", "ft/s"], acceleration: ["ft/s²", "G", "m/s²", "Gal", "mGal"], pressure: ["psi", "atm"], energy: ["BTU", "Wh"], power: ["hp", "W"] },
+  uk: { length: ["mm", "m", "km", "mi"], area: ["m²", "acre"], volume: ["L", "pt"], mass: ["kg", "st", "lb"], temperature: ["°C"], velocity: ["mph", "km/h"], acceleration: ["m/s²", "G", "Gal"], pressure: ["bar", "psi"], energy: ["kJ", "Wh"], power: ["kW", "hp"] },
 };
 
 export function getRegionalUnits(group: UnitGroup, system: UnitSystem): UnitOption[] {

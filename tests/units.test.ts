@@ -71,6 +71,22 @@ describe("単位付き計算", () => {
     expect(formatQuantity(distance, "km")).toBe("1.2 km");
   });
 
+  it("加速度をSIへ正規化し、標準重力GとGal系で相互換算する", () => {
+    expect(convertQuantity(evaluateExpression("1G"), "m/s²").value).toBeCloseTo(9.80665);
+    expect(convertQuantity(evaluateExpression("1G"), "Gal").value).toBeCloseTo(980.665);
+    expect(convertQuantity(evaluateExpression("1Gal"), "m/s²").value).toBeCloseTo(0.01);
+    expect(convertQuantity(evaluateExpression("1000mGal"), "Gal").value).toBeCloseTo(1);
+    expect(convertQuantity(evaluateExpression("1µGal"), "m/s²").value).toBeCloseTo(1e-8);
+  });
+
+  it("質量と標準重力の乗算から力を計算し、加速度候補を地域別に提示する", () => {
+    expect(convertQuantity(evaluateExpression("2kg × 1G"), "N").value).toBeCloseTo(19.6133);
+    const accelerationGroup = UNIT_GROUPS.find((group) => group.id === "acceleration");
+    expect(accelerationGroup).toBeDefined();
+    expect(getRegionalUnits(accelerationGroup!, "metric").map((unit) => unit.symbol)).toEqual(["m/s²", "Gal", "mGal", "G"]);
+    expect(getRegionalUnits(accelerationGroup!, "us").map((unit) => unit.symbol)).toEqual(["ft/s²", "G", "m/s²", "Gal", "mGal"]);
+  });
+
   it("結果と同じ次元の単位グループだけを返す", () => {
     const length = evaluateExpression("5cm");
     const symbols = getCompatibleUnitGroups(length.dimension).flatMap((group: UnitGroup) => group.units.map((unit) => unit.symbol));
@@ -117,6 +133,7 @@ describe("単位付き計算", () => {
   it("単位検索は地域別プリセット内から記号とカテゴリで候補を返す", () => {
     expect(searchUnitOptions("psi", "us").map((result) => result.unit.symbol)).toEqual(["psi"]);
     expect(searchUnitOptions("pressure", "us").map((result) => result.unit.symbol)).toEqual(["psi", "atm"]);
+    expect(searchUnitOptions("gal", "metric").map((result) => result.unit.symbol)).toEqual(["Gal", "mGal"]);
   });
 
   it("異なる次元の加算を拒否する", () => {

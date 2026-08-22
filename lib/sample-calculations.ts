@@ -27,6 +27,7 @@ export const SAMPLE_CALCULATIONS: SampleCalculation[] = [
   { id: "distance", category: "motion", title: "距離を求める", titleEn: "Find distance", description: "速度 × 時間 = 距離", descriptionEn: "Speed × time = distance", expression: "10m/s × 2min", targetUnit: "km" },
   { id: "time", category: "motion", title: "時間を求める", titleEn: "Find time", description: "距離 ÷ 速度 = 時間", descriptionEn: "Distance ÷ speed = time", expression: "1km ÷ 5m/s", targetUnit: "min" },
   { id: "force", category: "mechanics", title: "力を求める", titleEn: "Find force", description: "質量 × 加速度 = 力", descriptionEn: "Mass × acceleration = force", expression: "2kg × 9.8m/s²", targetUnit: "N" },
+  { id: "standard-gravity", category: "mechanics", title: "標準重力を換算", titleEn: "Convert standard gravity", description: "1G を地球物理で用いる Gal へ", descriptionEn: "Convert 1G to Gal for gravimetry", expression: "1G", targetUnit: "Gal" },
   { id: "pressure", category: "mechanics", title: "圧力を求める", titleEn: "Find pressure", description: "力 ÷ 面積 = 圧力", descriptionEn: "Force ÷ area = pressure", expression: "100N ÷ 0.01m²", targetUnit: "kPa" },
   { id: "work", category: "energy", title: "仕事を求める", titleEn: "Find energy", description: "力 × 距離 = エネルギー", descriptionEn: "Force × distance = energy", expression: "250N × 4m", targetUnit: "kJ" },
   { id: "power", category: "energy", title: "仕事率を求める", titleEn: "Find power", description: "エネルギー ÷ 時間 = 電力", descriptionEn: "Energy ÷ time = power", expression: "1200J ÷ 2min", targetUnit: "W" },
