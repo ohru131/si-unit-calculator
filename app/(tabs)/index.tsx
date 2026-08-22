@@ -14,6 +14,8 @@ import {
 
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { type ThemeColorPalette } from "@/constants/theme";
+import { useColors } from "@/hooks/use-colors";
 import { useCalculatorStore } from "@/lib/calculator-store";
 import { exportCalculationHistory } from "@/lib/calculation-export";
 import { useGlobalSettings } from "@/lib/global-settings";
@@ -27,6 +29,8 @@ const KEYS = ["(", ")", "÷", "⌫", "7", "8", "9", "×", "4", "5", "6", "-", "1
 
 export default function CalculatorScreen() {
   const router = useRouter();
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { quick } = useLocalSearchParams<{ quick?: string | string[] }>();
   const { constants, history, favoriteUnits, upsertConstant, addHistoryEntry, clearHistory } = useCalculatorStore();
   const { isPro } = usePro();
@@ -238,7 +242,7 @@ export default function CalculatorScreen() {
             <Text style={styles.subtitle}>{t("calculatorSubtitle")}</Text>
           </View>
           <Pressable accessibilityLabel="入力例を表示" onPress={() => setShowHelp(true)} style={({ pressed }) => [styles.helpButton, pressed && styles.pressed]}>
-            <IconSymbol name="questionmark.circle.fill" size={25} color="#146C94" />
+            <IconSymbol name="questionmark.circle.fill" size={25} color={colors.primary} />
           </Pressable>
         </View>
 
@@ -282,7 +286,7 @@ export default function CalculatorScreen() {
             }}
             onSubmitEditing={() => void calculate()}
             placeholder={language === "en" ? "Example: 5cm + 1mm" : "例：5cm + 1mm"}
-            placeholderTextColor="#91A0AD"
+            placeholderTextColor={colors.placeholder}
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="done"
@@ -297,7 +301,7 @@ export default function CalculatorScreen() {
         </View>
 
         <View style={styles.resultCard}>
-          <View style={styles.resultHeader}><Text style={styles.cardLabel}>{t("result")}</Text>{display ? <Pressable accessibilityLabel={copy.copy} onPress={() => void copyCalculation()} style={({ pressed }) => [styles.copyButton, pressed && styles.pressed]}><IconSymbol name="doc.on.doc" size={16} color="#146C94" /><Text style={styles.copyButtonText}>{copy.copy}</Text></Pressable> : null}</View>
+          <View style={styles.resultHeader}><Text style={styles.cardLabel}>{t("result")}</Text>{display ? <Pressable accessibilityLabel={copy.copy} onPress={() => void copyCalculation()} style={({ pressed }) => [styles.copyButton, pressed && styles.pressed]}><IconSymbol name="doc.on.doc" size={16} color={colors.primary} /><Text style={styles.copyButtonText}>{copy.copy}</Text></Pressable> : null}</View>
           {display ? (
             <>
               <Text numberOfLines={2} adjustsFontSizeToFit style={styles.resultValue}>{display.value}</Text>
@@ -323,7 +327,7 @@ export default function CalculatorScreen() {
             value={targetUnit}
             onChangeText={applyTargetUnit}
             placeholder={copy.unitPlaceholder}
-            placeholderTextColor="#91A0AD"
+            placeholderTextColor={colors.placeholder}
             autoCapitalize="none"
             autoCorrect={false}
             style={styles.unitInput}
@@ -353,8 +357,8 @@ export default function CalculatorScreen() {
           <Text style={styles.cardLabel}>{t("enterUnit")}</Text>
           <Text style={styles.unitPadHint}>{t("enterUnitHint")}</Text>
           <View style={styles.unitSearchWrap}>
-            <IconSymbol name="magnifyingglass" size={18} color="#6D8795" />
-            <TextInput ref={unitSearchRef} value={unitSearch} onChangeText={setUnitSearch} placeholder={copy.unitSearch} placeholderTextColor="#8A99A6" autoCapitalize="none" autoCorrect={false} style={styles.unitSearchInput} />
+            <IconSymbol name="magnifyingglass" size={18} color={colors.muted} />
+            <TextInput ref={unitSearchRef} value={unitSearch} onChangeText={setUnitSearch} placeholder={copy.unitSearch} placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.unitSearchInput} />
           </View>
           {searchedUnits.length ? <View style={styles.searchResults}>{searchedUnits.map(({ group, unit }) => <Pressable key={`${group.id}-${unit.symbol}`} onPress={() => { insertUnit(unit.symbol); setUnitSearch(""); }} style={({ pressed }) => [styles.searchResult, pressed && styles.pressed]}><Text style={styles.searchUnit}>{unit.symbol}</Text><Text style={styles.searchGroup}>{unitGroupLabel(group.id)}</Text></Pressable>)}</View> : null}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRail}>
@@ -418,7 +422,7 @@ export default function CalculatorScreen() {
                 onPress={() => pressKey(key)}
                 style={({ pressed }) => [styles.key, isAction && styles.keyAction, isOperator && styles.keyOperator, isBlank && styles.keyBlank, pressed && !isBlank && styles.keyPressed]}
               >
-                {key === "⌫" ? <IconSymbol name="delete.left" size={22} color="#52606D" /> : <Text style={[styles.keyText, (isAction || isOperator) && styles.keyTextAccent]}>{key}</Text>}
+                {key === "⌫" ? <IconSymbol name="delete.left" size={22} color={colors.muted} /> : <Text style={[styles.keyText, (isAction || isOperator) && styles.keyTextAccent, isAction && { color: colors.onPrimary }]}>{key}</Text>}
               </Pressable>
             );
           })}
@@ -429,7 +433,7 @@ export default function CalculatorScreen() {
             <View style={styles.historyHeader}>
               <View><Text style={styles.historyTitle}>{copy.savedHistory}</Text>{!isPro && history.length > 5 ? <Text style={styles.historyLimit}>{language === "en" ? "Free shows the latest 5 entries" : "無料版では最新5件を表示"}</Text> : null}</View>
               <View style={styles.historyActions}>
-                <Pressable onPress={() => void exportHistory()} style={({ pressed }) => [styles.exportHistoryButton, pressed && styles.pressed]}><IconSymbol name="square.and.arrow.up" size={15} color="#146C94" /><Text style={styles.exportHistoryText}>CSV</Text></Pressable>
+                <Pressable onPress={() => void exportHistory()} style={({ pressed }) => [styles.exportHistoryButton, pressed && styles.pressed]}><IconSymbol name="square.and.arrow.up" size={15} color={colors.primary} /><Text style={styles.exportHistoryText}>CSV</Text></Pressable>
                 <Pressable onPress={() => void clearHistory()} style={({ pressed }) => [styles.clearHistoryButton, pressed && styles.pressed]}><Text style={styles.clearHistoryText}>{copy.clear}</Text></Pressable>
               </View>
             </View>
@@ -449,7 +453,7 @@ export default function CalculatorScreen() {
             <View style={styles.helpTitleRow}>
               <Text style={styles.helpTitle}>{copy.helpTitle}</Text>
               <Pressable accessibilityLabel="ヘルプを閉じる" onPress={() => setShowHelp(false)} style={({ pressed }) => [styles.closeHelp, pressed && styles.pressed]}>
-                <IconSymbol name="xmark" size={20} color="#52606D" />
+                <IconSymbol name="xmark" size={20} color={colors.muted} />
               </Pressable>
             </View>
             <Text style={styles.helpText}>• 5cm + 1mm</Text>
@@ -468,120 +472,120 @@ export default function CalculatorScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   content: { gap: 14, paddingBottom: 28, paddingTop: 8 },
   header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
-  title: { color: "#17212B", fontSize: 29, fontWeight: "700", letterSpacing: -0.7 },
-  subtitle: { color: "#637381", fontSize: 13, marginTop: 3 },
-  helpButton: { alignItems: "center", backgroundColor: "#E5F4FB", borderRadius: 20, height: 40, justifyContent: "center", width: 40 },
-  samplesCard: { backgroundColor: "#FFFFFF", borderColor: "#DCE5EA", borderRadius: 18, borderWidth: 1, padding: 15 },
-  samplesHint: { color: "#637381", fontSize: 12, lineHeight: 18, marginTop: 7 },
+  title: { color: colors.foreground, fontSize: 29, fontWeight: "700", letterSpacing: -0.7 },
+  subtitle: { color: colors.muted, fontSize: 13, marginTop: 3 },
+  helpButton: { alignItems: "center", backgroundColor: colors.primarySurface, borderRadius: 20, height: 40, justifyContent: "center", width: 40 },
+  samplesCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 18, borderWidth: 1, padding: 15 },
+  samplesHint: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 7 },
   sampleCategoryRail: { gap: 7, paddingBottom: 2, paddingTop: 12 },
-  sampleCategoryChip: { backgroundColor: "#F2F5F7", borderRadius: 15, paddingHorizontal: 12, paddingVertical: 7 },
-  sampleCategoryChipActive: { backgroundColor: "#146C94" },
-  sampleCategoryText: { color: "#52606D", fontSize: 12, fontWeight: "700" },
-  sampleCategoryTextActive: { color: "#FFFFFF" },
+  sampleCategoryChip: { backgroundColor: colors.surfaceSecondary, borderRadius: 15, paddingHorizontal: 12, paddingVertical: 7 },
+  sampleCategoryChipActive: { backgroundColor: colors.primaryFill },
+  sampleCategoryText: { color: colors.muted, fontSize: 12, fontWeight: "700" },
+  sampleCategoryTextActive: { color: colors.onPrimary },
   sampleList: { gap: 7, marginTop: 11 },
-  sampleRow: { alignItems: "center", backgroundColor: "#F7FAFC", borderColor: "#E1EAF0", borderRadius: 11, borderWidth: 1, flexDirection: "row", paddingHorizontal: 11, paddingVertical: 10 },
+  sampleRow: { alignItems: "center", backgroundColor: colors.background, borderColor: colors.border, borderRadius: 11, borderWidth: 1, flexDirection: "row", paddingHorizontal: 11, paddingVertical: 10 },
   sampleCopy: { flex: 1, marginRight: 10 },
-  sampleTitle: { color: "#173A4D", fontSize: 13, fontWeight: "800" },
-  sampleDescription: { color: "#637381", fontSize: 11, lineHeight: 16, marginTop: 2 },
+  sampleTitle: { color: colors.foreground, fontSize: 13, fontWeight: "800" },
+  sampleDescription: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 2 },
   sampleExpressionWrap: { alignItems: "flex-end", maxWidth: "48%" },
-  sampleExpression: { color: "#146C94", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, fontWeight: "700" },
-  sampleTarget: { color: "#637381", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 11, marginTop: 2 },
-  inputCard: { backgroundColor: "#FFFFFF", borderColor: "#DCE5EA", borderRadius: 18, borderWidth: 1, padding: 15 },
+  sampleExpression: { color: colors.primary, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, fontWeight: "700" },
+  sampleTarget: { color: colors.muted, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 11, marginTop: 2 },
+  inputCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 18, borderWidth: 1, padding: 15 },
   inputLabelRow: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
-  cardLabel: { color: "#415160", fontSize: 12, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase" },
-  syntaxHint: { color: "#8493A0", fontSize: 11 },
-  expressionInput: { color: "#17212B", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 20, fontWeight: "600", minHeight: 57, paddingHorizontal: 0 },
+  cardLabel: { color: colors.muted, fontSize: 12, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase" },
+  syntaxHint: { color: colors.placeholder, fontSize: 11 },
+  expressionInput: { color: colors.foreground, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 20, fontWeight: "600", minHeight: 57, paddingHorizontal: 0 },
   inputFooter: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
-  definitionHint: { color: "#8493A0", fontSize: 11 },
-  calculateButton: { backgroundColor: "#146C94", borderRadius: 10, paddingHorizontal: 18, paddingVertical: 9 },
-  calculateText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
-  resultCard: { backgroundColor: "#E5F4FB", borderColor: "#C9E7F4", borderRadius: 18, borderWidth: 1, padding: 16 },
+  definitionHint: { color: colors.placeholder, fontSize: 11 },
+  calculateButton: { backgroundColor: colors.primaryFill, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 9 },
+  calculateText: { color: colors.onPrimary, fontSize: 14, fontWeight: "700" },
+  resultCard: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 18, borderWidth: 1, padding: 16 },
   resultHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
-  copyButton: { alignItems: "center", backgroundColor: "#FFFFFF", borderRadius: 9, flexDirection: "row", gap: 5, minHeight: 32, paddingHorizontal: 9 },
-  copyButtonText: { color: "#146C94", fontSize: 12, fontWeight: "800" },
-  resultValue: { color: "#0E4964", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 30, fontWeight: "700", marginTop: 9, minHeight: 40 },
-  emptyResult: { color: "#637381", fontSize: 14, lineHeight: 21, marginTop: 12 },
-  divider: { backgroundColor: "#BBDDEB", height: StyleSheet.hairlineWidth, marginVertical: 13 },
+  copyButton: { alignItems: "center", backgroundColor: colors.surface, borderRadius: 9, flexDirection: "row", gap: 5, minHeight: 32, paddingHorizontal: 9 },
+  copyButtonText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
+  resultValue: { color: colors.primaryStrong, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 30, fontWeight: "700", marginTop: 9, minHeight: 40 },
+  emptyResult: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 12 },
+  divider: { backgroundColor: colors.primaryBorder, height: StyleSheet.hairlineWidth, marginVertical: 13 },
   siRow: { flexDirection: "row", justifyContent: "space-between" },
-  siLabel: { color: "#557384", fontSize: 12 },
-  siValue: { color: "#173A4D", flexShrink: 1, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 13, fontWeight: "600", textAlign: "right" },
-  dimensionBadge: { alignSelf: "flex-start", backgroundColor: "#FFFFFF", borderRadius: 8, flexDirection: "row", gap: 6, marginTop: 12, paddingHorizontal: 8, paddingVertical: 5 },
-  dimensionLabel: { color: "#637381", fontSize: 11 },
-  dimensionText: { color: "#173A4D", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 11, fontWeight: "700" },
-  errorText: { color: "#A53B35", fontSize: 12, lineHeight: 18, marginTop: 11 },
-  convertCard: { backgroundColor: "#FFFFFF", borderColor: "#DCE5EA", borderRadius: 18, borderWidth: 1, padding: 15 },
-  unitInput: { borderBottomColor: "#D5E0E6", borderBottomWidth: 1, color: "#17212B", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 17, marginTop: 8, minHeight: 40, paddingHorizontal: 0 },
+  siLabel: { color: colors.muted, fontSize: 12 },
+  siValue: { color: colors.foreground, flexShrink: 1, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 13, fontWeight: "600", textAlign: "right" },
+  dimensionBadge: { alignSelf: "flex-start", backgroundColor: colors.surface, borderRadius: 8, flexDirection: "row", gap: 6, marginTop: 12, paddingHorizontal: 8, paddingVertical: 5 },
+  dimensionLabel: { color: colors.muted, fontSize: 11 },
+  dimensionText: { color: colors.foreground, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 11, fontWeight: "700" },
+  errorText: { color: colors.error, fontSize: 12, lineHeight: 18, marginTop: 11 },
+  convertCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 18, borderWidth: 1, padding: 15 },
+  unitInput: { borderBottomColor: colors.border, borderBottomWidth: 1, color: colors.foreground, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 17, marginTop: 8, minHeight: 40, paddingHorizontal: 0 },
   unitGroupList: { gap: 11, marginTop: 12 },
-  compatibleHint: { color: "#637381", fontSize: 11, lineHeight: 16, marginTop: 10 },
+  compatibleHint: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 10 },
   compatibleGroup: { gap: 3 },
-  unitGroupLabel: { color: "#637381", fontSize: 11, fontWeight: "700" },
+  unitGroupLabel: { color: colors.muted, fontSize: 11, fontWeight: "700" },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 5 },
-  chip: { backgroundColor: "#F2F5F7", borderRadius: 14, paddingHorizontal: 11, paddingVertical: 6 },
-  chipActive: { backgroundColor: "#146C94" },
-  chipText: { color: "#52606D", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, fontWeight: "700" },
-  chipTextActive: { color: "#FFFFFF" },
-  unitPadCard: { backgroundColor: "#FFFFFF", borderColor: "#DCE5EA", borderRadius: 18, borderWidth: 1, padding: 15 },
-  unitPadHint: { color: "#637381", fontSize: 12, lineHeight: 18, marginTop: 7 },
-  unitSearchWrap: { alignItems: "center", backgroundColor: "#F5F8FA", borderColor: "#D5E2E9", borderRadius: 12, borderWidth: 1, flexDirection: "row", marginTop: 13, minHeight: 45, paddingHorizontal: 12 },
-  unitSearchInput: { color: "#17212B", flex: 1, fontSize: 14, marginLeft: 8, paddingVertical: 9 },
-  searchResults: { backgroundColor: "#F8FCFE", borderColor: "#D9EAF1", borderRadius: 12, borderWidth: 1, gap: 2, marginTop: 8, padding: 5 },
+  chip: { backgroundColor: colors.surfaceSecondary, borderRadius: 14, paddingHorizontal: 11, paddingVertical: 6 },
+  chipActive: { backgroundColor: colors.primaryFill },
+  chipText: { color: colors.muted, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, fontWeight: "700" },
+  chipTextActive: { color: colors.onPrimary },
+  unitPadCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 18, borderWidth: 1, padding: 15 },
+  unitPadHint: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 7 },
+  unitSearchWrap: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderColor: colors.border, borderRadius: 12, borderWidth: 1, flexDirection: "row", marginTop: 13, minHeight: 45, paddingHorizontal: 12 },
+  unitSearchInput: { color: colors.foreground, flex: 1, fontSize: 14, marginLeft: 8, paddingVertical: 9 },
+  searchResults: { backgroundColor: colors.background, borderColor: colors.primaryBorder, borderRadius: 12, borderWidth: 1, gap: 2, marginTop: 8, padding: 5 },
   searchResult: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", minHeight: 38, paddingHorizontal: 9 },
-  searchUnit: { color: "#146C94", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 14, fontWeight: "800" },
-  searchGroup: { color: "#637381", fontSize: 12 },
+  searchUnit: { color: colors.primary, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 14, fontWeight: "800" },
+  searchGroup: { color: colors.muted, fontSize: 12 },
   categoryRail: { gap: 7, paddingBottom: 2, paddingTop: 12 },
-  categoryChip: { backgroundColor: "#F2F5F7", borderRadius: 15, paddingHorizontal: 12, paddingVertical: 7 },
-  categoryChipActive: { backgroundColor: "#0E4964" },
-  categoryChipText: { color: "#52606D", fontSize: 12, fontWeight: "700" },
-  categoryChipTextActive: { color: "#FFFFFF" },
-  inputUnitRow: { borderTopColor: "#E4EAEE", borderTopWidth: StyleSheet.hairlineWidth, marginTop: 12, paddingTop: 11 },
-  selectedGroupLabel: { color: "#173A4D", fontSize: 13, fontWeight: "800" },
-  inputUnitChip: { backgroundColor: "#E5F4FB", borderColor: "#C9E7F4", borderRadius: 14, borderWidth: 1, paddingHorizontal: 11, paddingVertical: 7 },
-  inputUnitText: { color: "#146C94", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 13, fontWeight: "800" },
-  favoriteUnitsCard: { backgroundColor: "#FFF9E9", borderColor: "#F0DB9C", borderRadius: 18, borderWidth: 1, padding: 15 },
+  categoryChip: { backgroundColor: colors.surfaceSecondary, borderRadius: 15, paddingHorizontal: 12, paddingVertical: 7 },
+  categoryChipActive: { backgroundColor: colors.primaryFill },
+  categoryChipText: { color: colors.muted, fontSize: 12, fontWeight: "700" },
+  categoryChipTextActive: { color: colors.onPrimary },
+  inputUnitRow: { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth, marginTop: 12, paddingTop: 11 },
+  selectedGroupLabel: { color: colors.foreground, fontSize: 13, fontWeight: "800" },
+  inputUnitChip: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 14, borderWidth: 1, paddingHorizontal: 11, paddingVertical: 7 },
+  inputUnitText: { color: colors.primary, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 13, fontWeight: "800" },
+  favoriteUnitsCard: { backgroundColor: colors.warningSurface, borderColor: colors.warningBorder, borderRadius: 18, borderWidth: 1, padding: 15 },
   favoriteHeader: { alignItems: "center", flexDirection: "row", gap: 7 },
-  proTag: { backgroundColor: "#E0A12C", borderRadius: 7, color: "#FFFFFF", fontSize: 10, fontWeight: "800", overflow: "hidden", paddingHorizontal: 6, paddingVertical: 3 },
-  motionCard: { backgroundColor: "#F3F8FB", borderColor: "#D1E7F1", borderRadius: 18, borderWidth: 1, padding: 15 },
-  motionFormula: { color: "#173A4D", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, fontWeight: "700", lineHeight: 19, marginTop: 8 },
+  proTag: { backgroundColor: colors.warning, borderRadius: 7, color: colors.onPrimary, fontSize: 10, fontWeight: "800", overflow: "hidden", paddingHorizontal: 6, paddingVertical: 3 },
+  motionCard: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 18, borderWidth: 1, padding: 15 },
+  motionFormula: { color: colors.foreground, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, fontWeight: "700", lineHeight: 19, marginTop: 8 },
   motionExamples: { gap: 8, marginTop: 12 },
-  motionButton: { backgroundColor: "#FFFFFF", borderColor: "#D5E7EF", borderRadius: 11, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
-  motionButtonTitle: { color: "#146C94", fontSize: 13, fontWeight: "800" },
-  motionButtonExample: { color: "#52606D", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, marginTop: 3 },
-  motionHint: { color: "#637381", fontSize: 11, lineHeight: 17, marginTop: 11 },
-  messageError: { backgroundColor: "#FDECEB", borderColor: "#F5CBC7", borderRadius: 10, borderWidth: 1, padding: 11 },
-  messageErrorText: { color: "#A53B35", fontSize: 13, lineHeight: 19 },
-  messageSuccess: { backgroundColor: "#E8F6ED", borderColor: "#CBE9D6", borderRadius: 10, borderWidth: 1, padding: 11 },
-  messageSuccessText: { color: "#1D7042", fontSize: 13, lineHeight: 19 },
+  motionButton: { backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 11, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
+  motionButtonTitle: { color: colors.primary, fontSize: 13, fontWeight: "800" },
+  motionButtonExample: { color: colors.muted, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, marginTop: 3 },
+  motionHint: { color: colors.muted, fontSize: 11, lineHeight: 17, marginTop: 11 },
+  messageError: { backgroundColor: colors.errorSurface, borderColor: colors.errorBorder, borderRadius: 10, borderWidth: 1, padding: 11 },
+  messageErrorText: { color: colors.error, fontSize: 13, lineHeight: 19 },
+  messageSuccess: { backgroundColor: colors.successSurface, borderColor: colors.successBorder, borderRadius: 10, borderWidth: 1, padding: 11 },
+  messageSuccessText: { color: colors.success, fontSize: 13, lineHeight: 19 },
   keypad: { gap: 8, flexDirection: "row", flexWrap: "wrap" },
-  key: { alignItems: "center", backgroundColor: "#FFFFFF", borderColor: "#DCE5EA", borderRadius: 12, borderWidth: 1, height: 48, justifyContent: "center", width: "23.4%" },
+  key: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 12, borderWidth: 1, height: 48, justifyContent: "center", width: "23.4%" },
   keyBlank: { backgroundColor: "transparent", borderWidth: 0 },
-  keyOperator: { backgroundColor: "#EEF7FB", borderColor: "#C8E5F1" },
-  keyAction: { backgroundColor: "#146C94", borderColor: "#146C94" },
-  keyText: { color: "#334453", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 19, fontWeight: "600" },
-  keyTextAccent: { color: "#146C94" },
+  keyOperator: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder },
+  keyAction: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
+  keyText: { color: colors.foreground, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 19, fontWeight: "600" },
+  keyTextAccent: { color: colors.primary },
   keyPressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
   pressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
   cardPressed: { opacity: 0.7 },
   history: { marginTop: 6 },
   historyHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 7 },
-  historyTitle: { color: "#637381", fontSize: 12, fontWeight: "700" },
-  historyLimit: { color: "#8A99A6", fontSize: 10, marginTop: 2 },
+  historyTitle: { color: colors.muted, fontSize: 12, fontWeight: "700" },
+  historyLimit: { color: colors.placeholder, fontSize: 10, marginTop: 2 },
   historyActions: { alignItems: "center", flexDirection: "row", gap: 10 },
   exportHistoryButton: { alignItems: "center", flexDirection: "row", gap: 3, paddingHorizontal: 4, paddingVertical: 4 },
-  exportHistoryText: { color: "#146C94", fontSize: 11, fontWeight: "700" },
+  exportHistoryText: { color: colors.primary, fontSize: 11, fontWeight: "700" },
   clearHistoryButton: { paddingHorizontal: 4, paddingVertical: 4 },
-  clearHistoryText: { color: "#A53B35", fontSize: 11, fontWeight: "700" },
-  historyRow: { backgroundColor: "#FFFFFF", borderColor: "#E0E6EB", borderRadius: 11, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", marginBottom: 6, paddingHorizontal: 12, paddingVertical: 10 },
-  historyExpression: { color: "#415160", flex: 1, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, marginRight: 10 },
-  historyResult: { color: "#146C94", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, fontWeight: "700", maxWidth: "45%" },
-  helpBackdrop: { alignItems: "center", backgroundColor: "rgba(23, 33, 43, 0.32)", flex: 1, justifyContent: "center", padding: 24 },
-  helpSheet: { backgroundColor: "#FFFFFF", borderRadius: 20, padding: 20, width: "100%" },
+  clearHistoryText: { color: colors.error, fontSize: 11, fontWeight: "700" },
+  historyRow: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 11, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", marginBottom: 6, paddingHorizontal: 12, paddingVertical: 10 },
+  historyExpression: { color: colors.foreground, flex: 1, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, marginRight: 10 },
+  historyResult: { color: colors.primary, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, fontWeight: "700", maxWidth: "45%" },
+  helpBackdrop: { alignItems: "center", backgroundColor: colors.overlay, flex: 1, justifyContent: "center", padding: 24 },
+  helpSheet: { backgroundColor: colors.surface, borderRadius: 20, padding: 20, width: "100%" },
   helpTitleRow: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 12 },
-  helpTitle: { color: "#17212B", fontSize: 20, fontWeight: "700" },
-  closeHelp: { alignItems: "center", backgroundColor: "#E8EDF1", borderRadius: 16, height: 32, justifyContent: "center", width: 32 },
-  helpText: { color: "#415160", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 13, lineHeight: 25 },
-  helpDone: { alignItems: "center", backgroundColor: "#146C94", borderRadius: 11, marginTop: 18, paddingVertical: 12 },
-  helpDoneText: { color: "#FFFFFF", fontWeight: "700" },
+  helpTitle: { color: colors.foreground, fontSize: 20, fontWeight: "700" },
+  closeHelp: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderRadius: 16, height: 32, justifyContent: "center", width: 32 },
+  helpText: { color: colors.foreground, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 13, lineHeight: 25 },
+  helpDone: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 11, marginTop: 18, paddingVertical: 12 },
+  helpDoneText: { color: colors.onPrimary, fontWeight: "700" },
 });

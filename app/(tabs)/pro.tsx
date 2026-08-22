@@ -1,7 +1,10 @@
+import { useMemo } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { type ThemeColorPalette } from "@/constants/theme";
+import { useColors } from "@/hooks/use-colors";
 import { useCalculatorStore } from "@/lib/calculator-store";
 import { usePro } from "@/lib/revenuecat-provider";
 import { UNIT_GROUPS } from "@/lib/units";
@@ -9,13 +12,15 @@ import { UNIT_GROUPS } from "@/lib/units";
 export default function ProScreen() {
   const { favoriteUnits, toggleFavoriteUnit } = useCalculatorStore();
   const { isPro, isReady, isNativePurchaseAvailable, purchaseMessage, presentPaywall, restorePurchases } = usePro();
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const allUnits = UNIT_GROUPS.flatMap((group) => group.units);
 
   return (
     <ScreenContainer className="px-5" containerClassName="bg-background">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
-          <View style={styles.heroIcon}><IconSymbol name="crown.fill" size={32} color="#FFFFFF" /></View>
+          <View style={styles.heroIcon}><IconSymbol name="crown.fill" size={32} color={colors.onPrimary} /></View>
           <Text style={styles.heroEyebrow}>{isPro ? "PRO ACTIVE" : "UNIT CALCULATOR PRO"}</Text>
           <Text style={styles.heroTitle}>{isPro ? "Proをご利用中です" : "計算を、もっと自在に。"}</Text>
           <Text style={styles.heroText}>{isPro ? "Pro機能がすべて有効です。" : "専門作業に必要な履歴・単位セット・エクスポートをひとつに。"}</Text>
@@ -30,7 +35,7 @@ export default function ProScreen() {
           ))}
         </View>
 
-        {!isReady ? <ActivityIndicator color="#146C94" style={styles.loader} /> : null}
+        {!isReady ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : null}
         {!isPro ? (
           <View style={styles.actionCard}>
             <Text style={styles.actionTitle}>Proにアップグレード</Text>
@@ -61,40 +66,40 @@ export default function ProScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   content: { gap: 14, paddingBottom: 30, paddingTop: 8 },
-  hero: { alignItems: "center", backgroundColor: "#0E4964", borderRadius: 24, paddingHorizontal: 25, paddingVertical: 27 },
-  heroIcon: { alignItems: "center", backgroundColor: "#E0A12C", borderRadius: 24, height: 48, justifyContent: "center", width: 48 },
-  heroEyebrow: { color: "#A7D7EB", fontSize: 11, fontWeight: "800", letterSpacing: 1.1, marginTop: 12 },
-  heroTitle: { color: "#FFFFFF", fontSize: 25, fontWeight: "800", letterSpacing: -0.4, marginTop: 7 },
-  heroText: { color: "#D7EEF7", fontSize: 13, lineHeight: 20, marginTop: 7, textAlign: "center" },
-  featuresCard: { backgroundColor: "#FFFFFF", borderColor: "#DCE5EA", borderRadius: 18, borderWidth: 1, gap: 14, padding: 16 },
+  hero: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 24, paddingHorizontal: 25, paddingVertical: 27 },
+  heroIcon: { alignItems: "center", backgroundColor: colors.warning, borderRadius: 24, height: 48, justifyContent: "center", width: 48 },
+  heroEyebrow: { color: colors.primaryStrong, fontSize: 11, fontWeight: "800", letterSpacing: 1.1, marginTop: 12 },
+  heroTitle: { color: colors.onPrimary, fontSize: 25, fontWeight: "800", letterSpacing: -0.4, marginTop: 7 },
+  heroText: { color: colors.onPrimary, fontSize: 13, lineHeight: 20, marginTop: 7, opacity: 0.88, textAlign: "center" },
+  featuresCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 18, borderWidth: 1, gap: 14, padding: 16 },
   featureRow: { flexDirection: "row" },
-  featureMark: { alignItems: "center", backgroundColor: "#E6F6EC", borderRadius: 11, height: 22, justifyContent: "center", marginRight: 10, width: 22 },
-  featureMarkText: { color: "#1D7A46", fontSize: 13, fontWeight: "800" },
+  featureMark: { alignItems: "center", backgroundColor: colors.successSurface, borderRadius: 11, height: 22, justifyContent: "center", marginRight: 10, width: 22 },
+  featureMarkText: { color: colors.success, fontSize: 13, fontWeight: "800" },
   featureCopy: { flex: 1 },
-  featureTitle: { color: "#17212B", fontSize: 14, fontWeight: "800" },
-  featureDetail: { color: "#637381", fontSize: 12, lineHeight: 18, marginTop: 2 },
+  featureTitle: { color: colors.foreground, fontSize: 14, fontWeight: "800" },
+  featureDetail: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 2 },
   loader: { marginVertical: 5 },
-  actionCard: { backgroundColor: "#F3F8FB", borderColor: "#CEE5F0", borderRadius: 18, borderWidth: 1, padding: 17 },
-  actionTitle: { color: "#173A4D", fontSize: 18, fontWeight: "800" },
-  actionText: { color: "#52606D", fontSize: 13, lineHeight: 20, marginTop: 6 },
-  primaryButton: { alignItems: "center", backgroundColor: "#146C94", borderRadius: 12, marginTop: 16, paddingVertical: 13 },
-  primaryButtonText: { color: "#FFFFFF", fontSize: 15, fontWeight: "800" },
+  actionCard: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 18, borderWidth: 1, padding: 17 },
+  actionTitle: { color: colors.foreground, fontSize: 18, fontWeight: "800" },
+  actionText: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 6 },
+  primaryButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 12, marginTop: 16, paddingVertical: 13 },
+  primaryButtonText: { color: colors.onPrimary, fontSize: 15, fontWeight: "800" },
   restoreButton: { alignItems: "center", marginTop: 12, paddingVertical: 8 },
-  restoreText: { color: "#146C94", fontSize: 13, fontWeight: "700" },
-  previewNote: { color: "#637381", fontSize: 11, lineHeight: 16, marginTop: 8, textAlign: "center" },
-  activeCard: { backgroundColor: "#E8F6ED", borderColor: "#C9E8D4", borderRadius: 18, borderWidth: 1, padding: 17 },
-  activeTitle: { color: "#1D7042", fontSize: 17, fontWeight: "800" },
-  activeText: { color: "#3C7051", fontSize: 13, lineHeight: 20, marginTop: 5 },
-  message: { color: "#A53B35", fontSize: 12, lineHeight: 18, textAlign: "center" },
-  unitsCard: { backgroundColor: "#FFFFFF", borderColor: "#DCE5EA", borderRadius: 18, borderWidth: 1, padding: 16 },
-  unitsTitle: { color: "#17212B", fontSize: 17, fontWeight: "800" },
-  unitsText: { color: "#637381", fontSize: 12, lineHeight: 18, marginTop: 5 },
+  restoreText: { color: colors.primary, fontSize: 13, fontWeight: "700" },
+  previewNote: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 8, textAlign: "center" },
+  activeCard: { backgroundColor: colors.successSurface, borderColor: colors.successBorder, borderRadius: 18, borderWidth: 1, padding: 17 },
+  activeTitle: { color: colors.success, fontSize: 17, fontWeight: "800" },
+  activeText: { color: colors.foreground, fontSize: 13, lineHeight: 20, marginTop: 5 },
+  message: { color: colors.error, fontSize: 12, lineHeight: 18, textAlign: "center" },
+  unitsCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 18, borderWidth: 1, padding: 16 },
+  unitsTitle: { color: colors.foreground, fontSize: 17, fontWeight: "800" },
+  unitsText: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 5 },
   unitsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 13 },
-  unitChip: { backgroundColor: "#F2F5F7", borderRadius: 14, paddingHorizontal: 10, paddingVertical: 7 },
-  unitChipSelected: { backgroundColor: "#146C94" },
-  unitChipText: { color: "#52606D", fontFamily: "monospace", fontSize: 12, fontWeight: "700" },
-  unitChipTextSelected: { color: "#FFFFFF" },
+  unitChip: { backgroundColor: colors.surfaceSecondary, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 7 },
+  unitChipSelected: { backgroundColor: colors.primaryFill },
+  unitChipText: { color: colors.muted, fontFamily: "monospace", fontSize: 12, fontWeight: "700" },
+  unitChipTextSelected: { color: colors.onPrimary },
   pressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
 });
