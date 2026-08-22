@@ -508,3 +508,13 @@ export function getRegionalUnits(group: UnitGroup, system: UnitSystem): UnitOpti
   const selected = priority.map((symbol) => group.units.find((unitOption) => unitOption.symbol === symbol)).filter((unitOption): unitOption is UnitOption => Boolean(unitOption));
   return selected.length ? selected : group.units;
 }
+
+export type UnitSearchResult = { group: UnitGroup; unit: UnitOption };
+
+export function searchUnitOptions(query: string, system: UnitSystem, limit = 12): UnitSearchResult[] {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return [];
+  const results = UNIT_GROUPS.flatMap((group) => getRegionalUnits(group, system).map((unitOption) => ({ group, unit: unitOption })))
+    .filter(({ group, unit: unitOption }) => `${group.id} ${group.label} ${unitOption.symbol} ${unitOption.label}`.toLowerCase().includes(normalized));
+  return results.slice(0, limit);
+}

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import {
   Modal,
@@ -18,7 +19,7 @@ import { exportCalculationHistory } from "@/lib/calculation-export";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { usePro } from "@/lib/revenuecat-provider";
 import { SAMPLE_CALCULATIONS, SAMPLE_CATEGORIES, type SampleCalculation } from "@/lib/sample-calculations";
-import { evaluateExpression, formatDimension, formatQuantity, getCompatibleUnitGroups, getRegionalUnits, parseConstantDefinition, Quantity, UNIT_GROUPS } from "@/lib/units";
+import { evaluateExpression, formatDimension, formatQuantity, getCompatibleUnitGroups, getRegionalUnits, parseConstantDefinition, Quantity, searchUnitOptions, UNIT_GROUPS } from "@/lib/units";
 
 const KEYS = ["(", ")", "÷", "⌫", "7", "8", "9", "×", "4", "5", "6", "-", "1", "2", "3", "+", ".", "0", " ", "="];
 
@@ -35,9 +36,11 @@ export default function CalculatorScreen() {
   const [inputGroupId, setInputGroupId] = useState("length");
   const [sampleCategory, setSampleCategory] = useState("basic");
   const [showHelp, setShowHelp] = useState(false);
+  const [unitSearch, setUnitSearch] = useState("");
 
   const selectedInputGroup = UNIT_GROUPS.find((group) => group.id === inputGroupId) ?? UNIT_GROUPS[0];
   const selectedInputUnits = useMemo(() => getRegionalUnits(selectedInputGroup, unitSystem), [selectedInputGroup, unitSystem]);
+  const searchedUnits = useMemo(() => searchUnitOptions(unitSearch, unitSystem), [unitSearch, unitSystem]);
   const compatibleUnitGroups = useMemo(() => (result ? getCompatibleUnitGroups(result.dimension) : []), [result]);
   const visibleSamples = useMemo(() => SAMPLE_CALCULATIONS.filter((sample) => sample.category === sampleCategory), [sampleCategory]);
   const visibleHistory = isPro ? history : history.slice(0, 5);
@@ -60,9 +63,9 @@ export default function CalculatorScreen() {
   };
 
   const copy = language === "en" ? {
-    definitionHint: "Define a constant: W = 3cm", calculate: "Calculate", siBase: "SI base unit", emptyResult: "Enter an expression, then tap Calculate.", unitPlaceholder: "Choose a compatible unit or enter one", selectAfter: "Compatible units appear here after calculation.", speedTitle: "Distance, time & speed", speedFormula: "Speed = distance ÷ time     Distance = speed × time", findSpeed: "Find speed", findDistance: "Find distance", findTime: "Find time", speedHint: "Mix s, min, h, m, km, and other compatible units freely.", savedHistory: "Saved calculations", clear: "Clear", helpTitle: "Examples", helpDone: "Done",
+    definitionHint: "Define a constant: W = 3cm", calculate: "Calculate", siBase: "SI base unit", emptyResult: "Enter an expression, then tap Calculate.", unitPlaceholder: "Choose a compatible unit or enter one", selectAfter: "Compatible units appear here after calculation.", speedTitle: "Distance, time & speed", speedFormula: "Speed = distance ÷ time     Distance = speed × time", findSpeed: "Find speed", findDistance: "Find distance", findTime: "Find time", speedHint: "Mix s, min, h, m, km, and other compatible units freely.", savedHistory: "Saved calculations", clear: "Clear", helpTitle: "Examples", helpDone: "Done", unitSearch: "Search units or categories", copied: "Calculation copied", copy: "Copy",
   } : {
-    definitionHint: "定数定義：W = 3cm", calculate: "計算", siBase: "SI標準単位", emptyResult: "式を入力して「計算」を押してください。", unitPlaceholder: "候補から選択、または入力", selectAfter: "計算後、次元に合う単位のみをここへ表示します。", speedTitle: "距離・時間・速度", speedFormula: "速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間", findSpeed: "速度を求める", findDistance: "距離を求める", findTime: "時間を求める", speedHint: "時間は s、min、h、距離は m、km などを自由に組み合わせられます。", savedHistory: "保存済みの計算履歴", clear: "消去", helpTitle: "入力例", helpDone: "閉じる",
+    definitionHint: "定数定義：W = 3cm", calculate: "計算", siBase: "SI標準単位", emptyResult: "式を入力して「計算」を押してください。", unitPlaceholder: "候補から選択、または入力", selectAfter: "計算後、次元に合う単位のみをここへ表示します。", speedTitle: "距離・時間・速度", speedFormula: "速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間", findSpeed: "速度を求める", findDistance: "距離を求める", findTime: "時間を求める", speedHint: "時間は s、min、h、距離は m、km などを自由に組み合わせられます。", savedHistory: "保存済みの計算履歴", clear: "消去", helpTitle: "入力例", helpDone: "閉じる", unitSearch: "単位・カテゴリを検索", copied: "計算結果をコピーしました", copy: "コピー",
   };
 
   const display = useMemo(() => {
@@ -180,6 +183,16 @@ export default function CalculatorScreen() {
     }
   };
 
+  const copyCalculation = async () => {
+    if (!display) return;
+    try {
+      await Clipboard.setStringAsync(`${expression} = ${display.value}\n${copy.siBase}: ${display.si}`);
+      setNotice(copy.copied);
+    } catch {
+      setError(language === "en" ? "Could not copy this calculation." : "計算結果をコピーできませんでした。");
+    }
+  };
+
   return (
     <ScreenContainer className="px-5" containerClassName="bg-background">
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -248,7 +261,7 @@ export default function CalculatorScreen() {
         </View>
 
         <View style={styles.resultCard}>
-          <Text style={styles.cardLabel}>{t("result")}</Text>
+          <View style={styles.resultHeader}><Text style={styles.cardLabel}>{t("result")}</Text>{display ? <Pressable accessibilityLabel={copy.copy} onPress={() => void copyCalculation()} style={({ pressed }) => [styles.copyButton, pressed && styles.pressed]}><IconSymbol name="doc.on.doc" size={16} color="#146C94" /><Text style={styles.copyButtonText}>{copy.copy}</Text></Pressable> : null}</View>
           {display ? (
             <>
               <Text numberOfLines={2} adjustsFontSizeToFit style={styles.resultValue}>{display.value}</Text>
@@ -303,6 +316,11 @@ export default function CalculatorScreen() {
         <View style={styles.unitPadCard}>
           <Text style={styles.cardLabel}>{t("enterUnit")}</Text>
           <Text style={styles.unitPadHint}>{t("enterUnitHint")}</Text>
+          <View style={styles.unitSearchWrap}>
+            <IconSymbol name="magnifyingglass" size={18} color="#6D8795" />
+            <TextInput value={unitSearch} onChangeText={setUnitSearch} placeholder={copy.unitSearch} placeholderTextColor="#8A99A6" autoCapitalize="none" autoCorrect={false} style={styles.unitSearchInput} />
+          </View>
+          {searchedUnits.length ? <View style={styles.searchResults}>{searchedUnits.map(({ group, unit }) => <Pressable key={`${group.id}-${unit.symbol}`} onPress={() => { insertUnit(unit.symbol); setUnitSearch(""); }} style={({ pressed }) => [styles.searchResult, pressed && styles.pressed]}><Text style={styles.searchUnit}>{unit.symbol}</Text><Text style={styles.searchGroup}>{unitGroupLabel(group.id)}</Text></Pressable>)}</View> : null}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRail}>
             {UNIT_GROUPS.map((group) => (
               <Pressable key={group.id} onPress={() => setInputGroupId(group.id)} style={({ pressed }) => [styles.categoryChip, inputGroupId === group.id && styles.categoryChipActive, pressed && styles.pressed]}>
@@ -445,6 +463,9 @@ const styles = StyleSheet.create({
   calculateButton: { backgroundColor: "#146C94", borderRadius: 10, paddingHorizontal: 18, paddingVertical: 9 },
   calculateText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
   resultCard: { backgroundColor: "#E5F4FB", borderColor: "#C9E7F4", borderRadius: 18, borderWidth: 1, padding: 16 },
+  resultHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
+  copyButton: { alignItems: "center", backgroundColor: "#FFFFFF", borderRadius: 9, flexDirection: "row", gap: 5, minHeight: 32, paddingHorizontal: 9 },
+  copyButtonText: { color: "#146C94", fontSize: 12, fontWeight: "800" },
   resultValue: { color: "#0E4964", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 30, fontWeight: "700", marginTop: 9, minHeight: 40 },
   emptyResult: { color: "#637381", fontSize: 14, lineHeight: 21, marginTop: 12 },
   divider: { backgroundColor: "#BBDDEB", height: StyleSheet.hairlineWidth, marginVertical: 13 },
@@ -468,6 +489,12 @@ const styles = StyleSheet.create({
   chipTextActive: { color: "#FFFFFF" },
   unitPadCard: { backgroundColor: "#FFFFFF", borderColor: "#DCE5EA", borderRadius: 18, borderWidth: 1, padding: 15 },
   unitPadHint: { color: "#637381", fontSize: 12, lineHeight: 18, marginTop: 7 },
+  unitSearchWrap: { alignItems: "center", backgroundColor: "#F5F8FA", borderColor: "#D5E2E9", borderRadius: 12, borderWidth: 1, flexDirection: "row", marginTop: 13, minHeight: 45, paddingHorizontal: 12 },
+  unitSearchInput: { color: "#17212B", flex: 1, fontSize: 14, marginLeft: 8, paddingVertical: 9 },
+  searchResults: { backgroundColor: "#F8FCFE", borderColor: "#D9EAF1", borderRadius: 12, borderWidth: 1, gap: 2, marginTop: 8, padding: 5 },
+  searchResult: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", minHeight: 38, paddingHorizontal: 9 },
+  searchUnit: { color: "#146C94", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 14, fontWeight: "800" },
+  searchGroup: { color: "#637381", fontSize: 12 },
   categoryRail: { gap: 7, paddingBottom: 2, paddingTop: 12 },
   categoryChip: { backgroundColor: "#F2F5F7", borderRadius: 15, paddingHorizontal: 12, paddingVertical: 7 },
   categoryChipActive: { backgroundColor: "#0E4964" },

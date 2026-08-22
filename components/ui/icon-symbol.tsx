@@ -29,6 +29,8 @@ const MAPPING = {
   "square.and.arrow.up": "ios-share",
   "gearshape.fill": "settings",
   "accessibility": "accessibility",
+  "doc.on.doc": "content-copy",
+  "magnifyingglass": "search",
 } as IconMapping;
 
 /**

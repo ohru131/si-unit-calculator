@@ -8,6 +8,7 @@ import {
   getCompatibleUnitGroups,
   getRegionalUnits,
   parseConstantDefinition,
+  searchUnitOptions,
   type UnitGroup,
   UNIT_GROUPS,
 } from "../lib/units";
@@ -111,6 +112,11 @@ describe("単位付き計算", () => {
   it("ロケール指定時は利用者の小数点表記で結果を整形する", () => {
     expect(formatNumberForLocale(5.1, "en-US")).toBe("5.1");
     expect(formatNumberForLocale(5.1, "de-DE")).toBe("5,1");
+  });
+
+  it("単位検索は地域別プリセット内から記号とカテゴリで候補を返す", () => {
+    expect(searchUnitOptions("psi", "us").map((result) => result.unit.symbol)).toEqual(["psi"]);
+    expect(searchUnitOptions("pressure", "us").map((result) => result.unit.symbol)).toEqual(["psi", "atm"]);
   });
 
   it("異なる次元の加算を拒否する", () => {
