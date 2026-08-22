@@ -17,6 +17,8 @@ export type UnitOption = {
   label: string;
 };
 
+export type UnitSystem = "metric" | "us" | "uk";
+
 export type UnitGroup = {
   id: string;
   label: string;
@@ -27,6 +29,7 @@ export type UnitGroup = {
 type UnitDefinition = {
   scale: number;
   dimension: Dimension;
+  offset?: number;
 };
 
 type Token =
@@ -48,17 +51,18 @@ const DIMENSIONS = {
 } as const satisfies Record<string, Dimension>;
 
 export const UNIT_GROUPS: UnitGroup[] = [
-  { id: "length", label: "長さ", dimension: DIMENSIONS.length, units: [{ symbol: "m", label: "m" }, { symbol: "km", label: "km" }, { symbol: "cm", label: "cm" }, { symbol: "mm", label: "mm" }, { symbol: "µm", label: "µm" }] },
-  { id: "area", label: "面積", dimension: [2, 0, 0, 0, 0, 0, 0], units: [{ symbol: "m²", label: "m²" }, { symbol: "km²", label: "km²" }, { symbol: "cm²", label: "cm²" }, { symbol: "mm²", label: "mm²" }] },
-  { id: "volume", label: "体積", dimension: [3, 0, 0, 0, 0, 0, 0], units: [{ symbol: "m³", label: "m³" }, { symbol: "L", label: "L" }, { symbol: "mL", label: "mL" }, { symbol: "cm³", label: "cm³" }] },
+  { id: "length", label: "長さ", dimension: DIMENSIONS.length, units: [{ symbol: "m", label: "m" }, { symbol: "km", label: "km" }, { symbol: "cm", label: "cm" }, { symbol: "mm", label: "mm" }, { symbol: "µm", label: "µm" }, { symbol: "in", label: "in" }, { symbol: "ft", label: "ft" }, { symbol: "yd", label: "yd" }, { symbol: "mi", label: "mi" }] },
+  { id: "area", label: "面積", dimension: [2, 0, 0, 0, 0, 0, 0], units: [{ symbol: "m²", label: "m²" }, { symbol: "km²", label: "km²" }, { symbol: "cm²", label: "cm²" }, { symbol: "mm²", label: "mm²" }, { symbol: "in²", label: "in²" }, { symbol: "ft²", label: "ft²" }, { symbol: "yd²", label: "yd²" }, { symbol: "acre", label: "acre" }] },
+  { id: "volume", label: "体積", dimension: [3, 0, 0, 0, 0, 0, 0], units: [{ symbol: "m³", label: "m³" }, { symbol: "L", label: "L" }, { symbol: "mL", label: "mL" }, { symbol: "cm³", label: "cm³" }, { symbol: "gal", label: "gal" }, { symbol: "qt", label: "qt" }, { symbol: "pt", label: "pt" }] },
   { id: "time", label: "時間", dimension: DIMENSIONS.time, units: [{ symbol: "s", label: "s" }, { symbol: "ms", label: "ms" }, { symbol: "min", label: "min" }, { symbol: "h", label: "h" }, { symbol: "d", label: "d" }] },
-  { id: "mass", label: "質量", dimension: DIMENSIONS.mass, units: [{ symbol: "kg", label: "kg" }, { symbol: "g", label: "g" }, { symbol: "mg", label: "mg" }, { symbol: "t", label: "t" }] },
-  { id: "velocity", label: "速度", dimension: [1, 0, -1, 0, 0, 0, 0], units: [{ symbol: "m/s", label: "m/s" }, { symbol: "km/s", label: "km/s" }, { symbol: "m/min", label: "m/min" }, { symbol: "km/min", label: "km/min" }, { symbol: "m/h", label: "m/h" }, { symbol: "km/h", label: "km/h" }, { symbol: "cm/s", label: "cm/s" }] },
+  { id: "mass", label: "質量", dimension: DIMENSIONS.mass, units: [{ symbol: "kg", label: "kg" }, { symbol: "g", label: "g" }, { symbol: "mg", label: "mg" }, { symbol: "t", label: "t" }, { symbol: "lb", label: "lb" }, { symbol: "oz", label: "oz" }, { symbol: "st", label: "st" }] },
+  { id: "temperature", label: "温度", dimension: DIMENSIONS.temperature, units: [{ symbol: "K", label: "K" }, { symbol: "°C", label: "°C" }, { symbol: "°F", label: "°F" }] },
+  { id: "velocity", label: "速度", dimension: [1, 0, -1, 0, 0, 0, 0], units: [{ symbol: "m/s", label: "m/s" }, { symbol: "km/s", label: "km/s" }, { symbol: "m/min", label: "m/min" }, { symbol: "km/min", label: "km/min" }, { symbol: "m/h", label: "m/h" }, { symbol: "km/h", label: "km/h" }, { symbol: "cm/s", label: "cm/s" }, { symbol: "ft/s", label: "ft/s" }, { symbol: "mph", label: "mph" }, { symbol: "kt", label: "kt" }] },
   { id: "acceleration", label: "加速度", dimension: [1, 0, -2, 0, 0, 0, 0], units: [{ symbol: "m/s²", label: "m/s²" }, { symbol: "cm/s²", label: "cm/s²" }] },
   { id: "force", label: "力", dimension: [1, 1, -2, 0, 0, 0, 0], units: [{ symbol: "N", label: "N" }, { symbol: "kN", label: "kN" }] },
-  { id: "pressure", label: "圧力", dimension: [-1, 1, -2, 0, 0, 0, 0], units: [{ symbol: "Pa", label: "Pa" }, { symbol: "kPa", label: "kPa" }, { symbol: "MPa", label: "MPa" }, { symbol: "bar", label: "bar" }] },
-  { id: "energy", label: "エネルギー", dimension: [2, 1, -2, 0, 0, 0, 0], units: [{ symbol: "J", label: "J" }, { symbol: "kJ", label: "kJ" }, { symbol: "Wh", label: "Wh" }] },
-  { id: "power", label: "電力", dimension: [2, 1, -3, 0, 0, 0, 0], units: [{ symbol: "W", label: "W" }, { symbol: "kW", label: "kW" }, { symbol: "MW", label: "MW" }] },
+  { id: "pressure", label: "圧力", dimension: [-1, 1, -2, 0, 0, 0, 0], units: [{ symbol: "Pa", label: "Pa" }, { symbol: "kPa", label: "kPa" }, { symbol: "MPa", label: "MPa" }, { symbol: "bar", label: "bar" }, { symbol: "psi", label: "psi" }, { symbol: "atm", label: "atm" }] },
+  { id: "energy", label: "エネルギー", dimension: [2, 1, -2, 0, 0, 0, 0], units: [{ symbol: "J", label: "J" }, { symbol: "kJ", label: "kJ" }, { symbol: "Wh", label: "Wh" }, { symbol: "BTU", label: "BTU" }] },
+  { id: "power", label: "電力", dimension: [2, 1, -3, 0, 0, 0, 0], units: [{ symbol: "W", label: "W" }, { symbol: "kW", label: "kW" }, { symbol: "MW", label: "MW" }, { symbol: "hp", label: "hp" }] },
   { id: "current", label: "電流", dimension: DIMENSIONS.current, units: [{ symbol: "A", label: "A" }, { symbol: "mA", label: "mA" }, { symbol: "µA", label: "µA" }] },
   { id: "voltage", label: "電圧", dimension: [2, 1, -3, -1, 0, 0, 0], units: [{ symbol: "V", label: "V" }, { symbol: "mV", label: "mV" }, { symbol: "kV", label: "kV" }] },
   { id: "frequency", label: "周波数", dimension: [0, 0, -1, 0, 0, 0, 0], units: [{ symbol: "Hz", label: "Hz" }, { symbol: "kHz", label: "kHz" }, { symbol: "MHz", label: "MHz" }] },
@@ -78,7 +82,7 @@ const powerDimension = (dimension: Dimension, power: number): Dimension =>
 const sameDimension = (left: Dimension, right: Dimension) =>
   left.every((value, index) => value === right[index]);
 
-const unit = (scale: number, dimension: Dimension): UnitDefinition => ({ scale, dimension });
+const unit = (scale: number, dimension: Dimension, offset?: number): UnitDefinition => ({ scale, dimension, offset });
 const multipliedUnit = (left: UnitDefinition, right: UnitDefinition): UnitDefinition =>
   unit(left.scale * right.scale, multiplyDimensions(left.dimension, right.dimension));
 const dividedUnit = (left: UnitDefinition, right: UnitDefinition): UnitDefinition =>
@@ -107,6 +111,25 @@ const BASE_UNITS: Record<string, UnitDefinition> = {
   t: unit(1e3, DIMENSIONS.mass),
   bar: unit(1e5, [-1, 1, -2, 0, 0, 0, 0]),
   Wh: unit(3600, [2, 1, -2, 0, 0, 0, 0]),
+  in: unit(0.0254, DIMENSIONS.length),
+  ft: unit(0.3048, DIMENSIONS.length),
+  yd: unit(0.9144, DIMENSIONS.length),
+  mi: unit(1609.344, DIMENSIONS.length),
+  acre: unit(4046.8564224, [2, 0, 0, 0, 0, 0, 0]),
+  gal: unit(0.003785411784, [3, 0, 0, 0, 0, 0, 0]),
+  qt: unit(0.000946352946, [3, 0, 0, 0, 0, 0, 0]),
+  pt: unit(0.000473176473, [3, 0, 0, 0, 0, 0, 0]),
+  lb: unit(0.45359237, DIMENSIONS.mass),
+  oz: unit(0.028349523125, DIMENSIONS.mass),
+  st: unit(6.35029318, DIMENSIONS.mass),
+  mph: unit(0.44704, [1, 0, -1, 0, 0, 0, 0]),
+  kt: unit(0.514444444, [1, 0, -1, 0, 0, 0, 0]),
+  psi: unit(6894.757293168, [-1, 1, -2, 0, 0, 0, 0]),
+  atm: unit(101325, [-1, 1, -2, 0, 0, 0, 0]),
+  BTU: unit(1055.05585262, [2, 1, -2, 0, 0, 0, 0]),
+  hp: unit(745.699871582, [2, 1, -3, 0, 0, 0, 0]),
+  "°C": unit(1, DIMENSIONS.temperature, 273.15),
+  "°F": unit(5 / 9, DIMENSIONS.temperature, 255.3722222222222),
 };
 
 BASE_UNITS.Hz = unit(1, [0, 0, -1, 0, 0, 0, 0]);
@@ -198,7 +221,7 @@ function resolveUnitSymbol(symbol: string): UnitDefinition {
     if (symbol.startsWith(prefix) && symbol.length > prefix.length) {
       const baseSymbol = symbol.slice(prefix.length);
       const base = BASE_UNITS[baseSymbol];
-      if (base && baseSymbol !== "kg") return unit(base.scale * scale, base.dimension);
+      if (base && baseSymbol !== "kg" && base.offset === undefined) return unit(base.scale * scale, base.dimension);
     }
   }
 
@@ -228,7 +251,12 @@ export function parseUnit(input: string): UnitDefinition {
     const [, symbol, rawPower] = match;
     const power = rawPower ? Number(rawPower) : 1;
     const resolved = resolveUnitSymbol(symbol);
-    const powered = unit(resolved.scale ** power, powerDimension(resolved.dimension, power));
+    if (resolved.offset !== undefined && (power !== 1 || factors.length !== 1)) throw new Error("摂氏・華氏は単独の温度値として入力してください。");
+    if (resolved.offset !== undefined) {
+      result = resolved;
+      continue;
+    }
+    const powered = unit(resolved.scale ** power, powerDimension(resolved.dimension, power), resolved.offset);
     result = operation === "multiply" ? multipliedUnit(result, powered) : dividedUnit(result, powered);
   }
 
@@ -315,7 +343,7 @@ function tokenize(input: string): Token[] {
         }
         const unitText = source.slice(unitStart, index);
         const parsed = parseUnit(unitText);
-        tokens.push({ type: "quantity", value: quantity(numericValue * parsed.scale, parsed.dimension) });
+        tokens.push({ type: "quantity", value: quantity(numericValue * parsed.scale + (parsed.offset ?? 0), parsed.dimension) });
       } else {
         index = whitespaceStart;
         tokens.push({ type: "quantity", value: quantity(numericValue) });
@@ -426,6 +454,11 @@ export function formatNumber(value: number): string {
   return Number(value.toPrecision(10)).toString();
 }
 
+export function formatNumberForLocale(value: number, locale?: string): string {
+  if (!locale || Math.abs(value) >= 1e7 || (Math.abs(value) < 1e-6 && value !== 0)) return formatNumber(value);
+  return new Intl.NumberFormat(locale, { maximumSignificantDigits: 10, useGrouping: false }).format(Object.is(value, -0) ? 0 : value);
+}
+
 export function formatDimension(dimension: Dimension): string {
   const labels = ["m", "kg", "s", "A", "K", "mol", "cd"];
   const numerator: string[] = [];
@@ -444,16 +477,16 @@ export function convertQuantity(input: Quantity, targetUnit: string): { value: n
   if (!sameDimension(input.dimension, parsed.dimension)) {
     throw new Error(`結果を「${targetUnit}」へ変換できません。次元が一致していません。`);
   }
-  return { value: input.siValue / parsed.scale, unit: targetUnit.trim() || "無次元" };
+  return { value: (input.siValue - (parsed.offset ?? 0)) / parsed.scale, unit: targetUnit.trim() || "無次元" };
 }
 
-export function formatQuantity(input: Quantity, targetUnit?: string): string {
+export function formatQuantity(input: Quantity, targetUnit?: string, locale?: string): string {
   if (targetUnit?.trim()) {
     const converted = convertQuantity(input, targetUnit);
-    return `${formatNumber(converted.value)} ${converted.unit}`;
+    return `${formatNumberForLocale(converted.value, locale)} ${converted.unit}`;
   }
   const dimension = formatDimension(input.dimension);
-  return dimension === "無次元" ? formatNumber(input.siValue) : `${formatNumber(input.siValue)} ${dimension}`;
+  return dimension === "無次元" ? formatNumberForLocale(input.siValue, locale) : `${formatNumberForLocale(input.siValue, locale)} ${dimension}`;
 }
 
 export function hasSameDimension(left: Quantity, right: Quantity) {
@@ -462,4 +495,16 @@ export function hasSameDimension(left: Quantity, right: Quantity) {
 
 export function getCompatibleUnitGroups(dimension: Dimension): UnitGroup[] {
   return UNIT_GROUPS.filter((group) => sameDimension(group.dimension, dimension));
+}
+
+const REGIONAL_PRIORITY: Record<UnitSystem, Record<string, string[]>> = {
+  metric: { length: ["m", "km", "cm", "mm"], area: ["m²", "km²", "cm²"], volume: ["L", "mL", "m³"], mass: ["kg", "g", "mg"], temperature: ["°C", "K"], velocity: ["m/s", "km/h"], pressure: ["Pa", "kPa", "bar"], energy: ["J", "kJ", "Wh"], power: ["W", "kW"] },
+  us: { length: ["in", "ft", "yd", "mi"], area: ["in²", "ft²", "yd²", "acre"], volume: ["gal", "qt", "pt"], mass: ["lb", "oz"], temperature: ["°F"], velocity: ["mph", "ft/s"], pressure: ["psi", "atm"], energy: ["BTU", "Wh"], power: ["hp", "W"] },
+  uk: { length: ["mm", "m", "km", "mi"], area: ["m²", "acre"], volume: ["L", "pt"], mass: ["kg", "st", "lb"], temperature: ["°C"], velocity: ["mph", "km/h"], pressure: ["bar", "psi"], energy: ["kJ", "Wh"], power: ["kW", "hp"] },
+};
+
+export function getRegionalUnits(group: UnitGroup, system: UnitSystem): UnitOption[] {
+  const priority = REGIONAL_PRIORITY[system][group.id] ?? [];
+  const selected = priority.map((symbol) => group.units.find((unitOption) => unitOption.symbol === symbol)).filter((unitOption): unitOption is UnitOption => Boolean(unitOption));
+  return selected.length ? selected : group.units;
 }

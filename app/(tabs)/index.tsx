@@ -15,9 +15,10 @@ import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useCalculatorStore } from "@/lib/calculator-store";
 import { exportCalculationHistory } from "@/lib/calculation-export";
+import { useGlobalSettings } from "@/lib/global-settings";
 import { usePro } from "@/lib/revenuecat-provider";
 import { SAMPLE_CALCULATIONS, SAMPLE_CATEGORIES, type SampleCalculation } from "@/lib/sample-calculations";
-import { evaluateExpression, formatDimension, formatQuantity, getCompatibleUnitGroups, parseConstantDefinition, Quantity, UNIT_GROUPS } from "@/lib/units";
+import { evaluateExpression, formatDimension, formatQuantity, getCompatibleUnitGroups, getRegionalUnits, parseConstantDefinition, Quantity, UNIT_GROUPS } from "@/lib/units";
 
 const KEYS = ["(", ")", "÷", "⌫", "7", "8", "9", "×", "4", "5", "6", "-", "1", "2", "3", "+", ".", "0", " ", "="];
 
@@ -25,6 +26,7 @@ export default function CalculatorScreen() {
   const router = useRouter();
   const { constants, history, favoriteUnits, upsertConstant, addHistoryEntry, clearHistory } = useCalculatorStore();
   const { isPro } = usePro();
+  const { language, locale, t, unitGroupLabel, unitSystem } = useGlobalSettings();
   const [expression, setExpression] = useState("5cm + 1mm");
   const [targetUnit, setTargetUnit] = useState("cm");
   const [result, setResult] = useState<Quantity | null>(null);
@@ -35,18 +37,42 @@ export default function CalculatorScreen() {
   const [showHelp, setShowHelp] = useState(false);
 
   const selectedInputGroup = UNIT_GROUPS.find((group) => group.id === inputGroupId) ?? UNIT_GROUPS[0];
+  const selectedInputUnits = useMemo(() => getRegionalUnits(selectedInputGroup, unitSystem), [selectedInputGroup, unitSystem]);
   const compatibleUnitGroups = useMemo(() => (result ? getCompatibleUnitGroups(result.dimension) : []), [result]);
   const visibleSamples = useMemo(() => SAMPLE_CALCULATIONS.filter((sample) => sample.category === sampleCategory), [sampleCategory]);
   const visibleHistory = isPro ? history : history.slice(0, 5);
 
+  const targetUnitForSample = (sample: SampleCalculation) => {
+    if (unitSystem === "us") {
+      if (sample.id === "length-add") return "in";
+      if (sample.id === "speed") return "mph";
+      if (sample.id === "distance") return "mi";
+      if (sample.id === "pressure") return "psi";
+      if (sample.id === "work") return "BTU";
+      if (sample.id === "power") return "hp";
+    }
+    if (unitSystem === "uk") {
+      if (sample.id === "speed") return "mph";
+      if (sample.id === "distance") return "mi";
+      if (sample.id === "pressure") return "psi";
+    }
+    return sample.targetUnit;
+  };
+
+  const copy = language === "en" ? {
+    definitionHint: "Define a constant: W = 3cm", calculate: "Calculate", siBase: "SI base unit", emptyResult: "Enter an expression, then tap Calculate.", unitPlaceholder: "Choose a compatible unit or enter one", selectAfter: "Compatible units appear here after calculation.", speedTitle: "Distance, time & speed", speedFormula: "Speed = distance ÷ time     Distance = speed × time", findSpeed: "Find speed", findDistance: "Find distance", findTime: "Find time", speedHint: "Mix s, min, h, m, km, and other compatible units freely.", savedHistory: "Saved calculations", clear: "Clear", helpTitle: "Examples", helpDone: "Done",
+  } : {
+    definitionHint: "定数定義：W = 3cm", calculate: "計算", siBase: "SI標準単位", emptyResult: "式を入力して「計算」を押してください。", unitPlaceholder: "候補から選択、または入力", selectAfter: "計算後、次元に合う単位のみをここへ表示します。", speedTitle: "距離・時間・速度", speedFormula: "速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間", findSpeed: "速度を求める", findDistance: "距離を求める", findTime: "時間を求める", speedHint: "時間は s、min、h、距離は m、km などを自由に組み合わせられます。", savedHistory: "保存済みの計算履歴", clear: "消去", helpTitle: "入力例", helpDone: "閉じる",
+  };
+
   const display = useMemo(() => {
     if (!result) return null;
     try {
-      return { value: formatQuantity(result, targetUnit), si: formatQuantity(result), dimension: formatDimension(result.dimension), error: "" };
+      return { value: formatQuantity(result, targetUnit, locale), si: formatQuantity(result, undefined, locale), dimension: formatDimension(result.dimension), error: "" };
     } catch (cause) {
-      return { value: "—", si: formatQuantity(result), dimension: formatDimension(result.dimension), error: cause instanceof Error ? cause.message : "変換できません。" };
+      return { value: "—", si: formatQuantity(result, undefined, locale), dimension: formatDimension(result.dimension), error: cause instanceof Error ? cause.message : "変換できません。" };
     }
-  }, [result, targetUnit]);
+  }, [locale, result, targetUnit]);
 
   const calculate = async (expressionOverride?: string, targetUnitOverride?: string) => {
     const input = (expressionOverride ?? expression).trim();
@@ -68,7 +94,7 @@ export default function CalculatorScreen() {
       setResult(quantity);
       let output = formatQuantity(quantity);
       try {
-        output = selectedTargetUnit.trim() ? formatQuantity(quantity, selectedTargetUnit) : output;
+        output = selectedTargetUnit.trim() ? formatQuantity(quantity, selectedTargetUnit, locale) : output;
       } catch {
         setNotice("計算しました。表示単位を候補から選ぶと変換できます。");
       }
@@ -132,12 +158,13 @@ export default function CalculatorScreen() {
   };
 
   const applySample = (sample: SampleCalculation) => {
+    const sampleTargetUnit = targetUnitForSample(sample);
     setExpression(sample.expression);
-    setTargetUnit(sample.targetUnit);
+    setTargetUnit(sampleTargetUnit);
     setResult(null);
     setError("");
     setNotice("");
-    void calculate(sample.expression, sample.targetUnit);
+    void calculate(sample.expression, sampleTargetUnit);
   };
 
   const exportHistory = async () => {
@@ -158,8 +185,8 @@ export default function CalculatorScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.title}>単位付き電卓</Text>
-            <Text style={styles.subtitle}>すべてSI標準単位で正しく計算</Text>
+            <Text style={styles.title}>{t("calculator")}</Text>
+            <Text style={styles.subtitle}>{t("calculatorSubtitle")}</Text>
           </View>
           <Pressable accessibilityLabel="入力例を表示" onPress={() => setShowHelp(true)} style={({ pressed }) => [styles.helpButton, pressed && styles.pressed]}>
             <IconSymbol name="questionmark.circle.fill" size={25} color="#146C94" />
@@ -167,12 +194,12 @@ export default function CalculatorScreen() {
         </View>
 
         <View style={styles.samplesCard}>
-          <Text style={styles.cardLabel}>サンプルから始める</Text>
-          <Text style={styles.samplesHint}>気になる例を選ぶと、式・表示単位・計算結果をまとめて設定します。</Text>
+          <Text style={styles.cardLabel}>{t("examples")}</Text>
+          <Text style={styles.samplesHint}>{t("examplesHint")}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sampleCategoryRail}>
             {SAMPLE_CATEGORIES.map((category) => (
               <Pressable key={category.id} onPress={() => setSampleCategory(category.id)} style={({ pressed }) => [styles.sampleCategoryChip, sampleCategory === category.id && styles.sampleCategoryChipActive, pressed && styles.pressed]}>
-                <Text style={[styles.sampleCategoryText, sampleCategory === category.id && styles.sampleCategoryTextActive]}>{category.label}</Text>
+                <Text style={[styles.sampleCategoryText, sampleCategory === category.id && styles.sampleCategoryTextActive]}>{language === "en" ? category.labelEn : category.label}</Text>
               </Pressable>
             ))}
           </ScrollView>
@@ -180,12 +207,12 @@ export default function CalculatorScreen() {
             {visibleSamples.map((sample) => (
               <Pressable key={sample.id} onPress={() => applySample(sample)} style={({ pressed }) => [styles.sampleRow, pressed && styles.cardPressed]}>
                 <View style={styles.sampleCopy}>
-                  <Text style={styles.sampleTitle}>{sample.title}</Text>
-                  <Text style={styles.sampleDescription}>{sample.description}</Text>
+                  <Text style={styles.sampleTitle}>{language === "en" ? sample.titleEn : sample.title}</Text>
+                  <Text style={styles.sampleDescription}>{language === "en" ? sample.descriptionEn : sample.description}</Text>
                 </View>
                 <View style={styles.sampleExpressionWrap}>
                   <Text numberOfLines={1} style={styles.sampleExpression}>{sample.expression}</Text>
-                  <Text style={styles.sampleTarget}>→ {sample.targetUnit}</Text>
+                  <Text style={styles.sampleTarget}>→ {targetUnitForSample(sample)}</Text>
                 </View>
               </Pressable>
             ))}
@@ -194,8 +221,8 @@ export default function CalculatorScreen() {
 
         <View style={styles.inputCard}>
           <View style={styles.inputLabelRow}>
-            <Text style={styles.cardLabel}>式</Text>
-            <Text style={styles.syntaxHint}>×・÷・括弧・定数に対応</Text>
+            <Text style={styles.cardLabel}>{t("expression")}</Text>
+            <Text style={styles.syntaxHint}>{t("expressionHint")}</Text>
           </View>
           <TextInput
             value={expression}
@@ -205,7 +232,7 @@ export default function CalculatorScreen() {
               setNotice("");
             }}
             onSubmitEditing={() => void calculate()}
-            placeholder="例：5cm + 1mm"
+            placeholder={language === "en" ? "Example: 5cm + 1mm" : "例：5cm + 1mm"}
             placeholderTextColor="#91A0AD"
             autoCapitalize="none"
             autoCorrect={false}
@@ -213,21 +240,21 @@ export default function CalculatorScreen() {
             style={styles.expressionInput}
           />
           <View style={styles.inputFooter}>
-            <Text style={styles.definitionHint}>定数定義：W = 3cm</Text>
+            <Text style={styles.definitionHint}>{copy.definitionHint}</Text>
             <Pressable onPress={() => void calculate()} style={({ pressed }) => [styles.calculateButton, pressed && styles.pressed]}>
-              <Text style={styles.calculateText}>計算</Text>
+              <Text style={styles.calculateText}>{copy.calculate}</Text>
             </Pressable>
           </View>
         </View>
 
         <View style={styles.resultCard}>
-          <Text style={styles.cardLabel}>結果</Text>
+          <Text style={styles.cardLabel}>{t("result")}</Text>
           {display ? (
             <>
               <Text numberOfLines={2} adjustsFontSizeToFit style={styles.resultValue}>{display.value}</Text>
               <View style={styles.divider} />
               <View style={styles.siRow}>
-                <Text style={styles.siLabel}>SI標準単位</Text>
+                <Text style={styles.siLabel}>{copy.siBase}</Text>
                 <Text selectable style={styles.siValue}>{display.si}</Text>
               </View>
               <View style={styles.dimensionBadge}>
@@ -237,16 +264,16 @@ export default function CalculatorScreen() {
               {display.error ? <Text style={styles.errorText}>{display.error}</Text> : null}
             </>
           ) : (
-            <Text style={styles.emptyResult}>式を入力して「計算」を押してください。</Text>
+            <Text style={styles.emptyResult}>{copy.emptyResult}</Text>
           )}
         </View>
 
         <View style={styles.convertCard}>
-          <Text style={styles.cardLabel}>表示単位</Text>
+          <Text style={styles.cardLabel}>{t("displayUnit")}</Text>
           <TextInput
             value={targetUnit}
             onChangeText={applyTargetUnit}
-            placeholder="候補から選択、または入力"
+            placeholder={copy.unitPlaceholder}
             placeholderTextColor="#91A0AD"
             autoCapitalize="none"
             autoCorrect={false}
@@ -254,12 +281,12 @@ export default function CalculatorScreen() {
           />
           {compatibleUnitGroups.length ? (
             <View style={styles.unitGroupList}>
-              <Text style={styles.compatibleHint}>計算結果と同じ次元の単位のみ</Text>
+              <Text style={styles.compatibleHint}>{t("compatibleOnly")}</Text>
               {compatibleUnitGroups.map((group) => (
                 <View key={group.id} style={styles.compatibleGroup}>
-                  <Text style={styles.unitGroupLabel}>{group.label}</Text>
+                  <Text style={styles.unitGroupLabel}>{unitGroupLabel(group.id)}</Text>
                   <View style={styles.chips}>
-                    {group.units.map((unit) => (
+                    {getRegionalUnits(group, unitSystem).map((unit) => (
                       <Pressable key={unit.symbol} onPress={() => applyTargetUnit(unit.symbol)} style={({ pressed }) => [styles.chip, targetUnit === unit.symbol && styles.chipActive, pressed && styles.pressed]}>
                         <Text style={[styles.chipText, targetUnit === unit.symbol && styles.chipTextActive]}>{unit.label}</Text>
                       </Pressable>
@@ -269,24 +296,24 @@ export default function CalculatorScreen() {
               ))}
             </View>
           ) : (
-            <Text style={styles.compatibleHint}>計算後、次元に合う単位のみをここへ表示します。</Text>
+            <Text style={styles.compatibleHint}>{copy.selectAfter}</Text>
           )}
         </View>
 
         <View style={styles.unitPadCard}>
-          <Text style={styles.cardLabel}>単位を式に入力</Text>
-          <Text style={styles.unitPadHint}>次元を選択してから、使いたい単位をタップします。</Text>
+          <Text style={styles.cardLabel}>{t("enterUnit")}</Text>
+          <Text style={styles.unitPadHint}>{t("enterUnitHint")}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRail}>
             {UNIT_GROUPS.map((group) => (
               <Pressable key={group.id} onPress={() => setInputGroupId(group.id)} style={({ pressed }) => [styles.categoryChip, inputGroupId === group.id && styles.categoryChipActive, pressed && styles.pressed]}>
-                <Text style={[styles.categoryChipText, inputGroupId === group.id && styles.categoryChipTextActive]}>{group.label}</Text>
+                <Text style={[styles.categoryChipText, inputGroupId === group.id && styles.categoryChipTextActive]}>{unitGroupLabel(group.id)}</Text>
               </Pressable>
             ))}
           </ScrollView>
           <View style={styles.inputUnitRow}>
-            <Text style={styles.selectedGroupLabel}>{selectedInputGroup.label}</Text>
+            <Text style={styles.selectedGroupLabel}>{unitGroupLabel(selectedInputGroup.id)}</Text>
             <View style={styles.chips}>
-              {selectedInputGroup.units.map((unit) => (
+              {selectedInputUnits.map((unit) => (
                 <Pressable key={unit.symbol} onPress={() => insertUnit(unit.symbol)} style={({ pressed }) => [styles.inputUnitChip, pressed && styles.pressed]}>
                   <Text style={styles.inputUnitText}>{unit.label}</Text>
                 </Pressable>
@@ -303,23 +330,23 @@ export default function CalculatorScreen() {
         ) : null}
 
         <View style={styles.motionCard}>
-          <Text style={styles.cardLabel}>距離・時間・速度</Text>
-          <Text style={styles.motionFormula}>速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間</Text>
+          <Text style={styles.cardLabel}>{copy.speedTitle}</Text>
+          <Text style={styles.motionFormula}>{copy.speedFormula}</Text>
           <View style={styles.motionExamples}>
             <Pressable onPress={() => applyMotionExample("1km ÷ 1min", "km/h", "距離と時間から速度を計算する例を入力しました。")} style={({ pressed }) => [styles.motionButton, pressed && styles.pressed]}>
-              <Text style={styles.motionButtonTitle}>速度を求める</Text>
+              <Text style={styles.motionButtonTitle}>{copy.findSpeed}</Text>
               <Text style={styles.motionButtonExample}>1km ÷ 1min</Text>
             </Pressable>
             <Pressable onPress={() => applyMotionExample("10m/s × 2min", "km", "速度と時間から距離を計算する例を入力しました。")} style={({ pressed }) => [styles.motionButton, pressed && styles.pressed]}>
-              <Text style={styles.motionButtonTitle}>距離を求める</Text>
+              <Text style={styles.motionButtonTitle}>{copy.findDistance}</Text>
               <Text style={styles.motionButtonExample}>10m/s × 2min</Text>
             </Pressable>
             <Pressable onPress={() => applyMotionExample("1km ÷ 5m/s", "min", "距離と速度から時間を計算する例を入力しました。")} style={({ pressed }) => [styles.motionButton, pressed && styles.pressed]}>
-              <Text style={styles.motionButtonTitle}>時間を求める</Text>
+              <Text style={styles.motionButtonTitle}>{copy.findTime}</Text>
               <Text style={styles.motionButtonExample}>1km ÷ 5m/s</Text>
             </Pressable>
           </View>
-          <Text style={styles.motionHint}>時間は s、min、h、距離は m、km などを自由に組み合わせられます。</Text>
+          <Text style={styles.motionHint}>{copy.speedHint}</Text>
         </View>
 
         {error ? <View style={styles.messageError}><Text style={styles.messageErrorText}>{error}</Text></View> : null}
@@ -346,10 +373,10 @@ export default function CalculatorScreen() {
         {history.length ? (
           <View style={styles.history}>
             <View style={styles.historyHeader}>
-              <View><Text style={styles.historyTitle}>保存済みの計算履歴</Text>{!isPro && history.length > 5 ? <Text style={styles.historyLimit}>無料版では最新5件を表示</Text> : null}</View>
+              <View><Text style={styles.historyTitle}>{copy.savedHistory}</Text>{!isPro && history.length > 5 ? <Text style={styles.historyLimit}>{language === "en" ? "Free shows the latest 5 entries" : "無料版では最新5件を表示"}</Text> : null}</View>
               <View style={styles.historyActions}>
                 <Pressable onPress={() => void exportHistory()} style={({ pressed }) => [styles.exportHistoryButton, pressed && styles.pressed]}><IconSymbol name="square.and.arrow.up" size={15} color="#146C94" /><Text style={styles.exportHistoryText}>CSV</Text></Pressable>
-                <Pressable onPress={() => void clearHistory()} style={({ pressed }) => [styles.clearHistoryButton, pressed && styles.pressed]}><Text style={styles.clearHistoryText}>消去</Text></Pressable>
+                <Pressable onPress={() => void clearHistory()} style={({ pressed }) => [styles.clearHistoryButton, pressed && styles.pressed]}><Text style={styles.clearHistoryText}>{copy.clear}</Text></Pressable>
               </View>
             </View>
             {visibleHistory.map((entry) => (
@@ -366,7 +393,7 @@ export default function CalculatorScreen() {
         <View style={styles.helpBackdrop}>
           <View style={styles.helpSheet}>
             <View style={styles.helpTitleRow}>
-              <Text style={styles.helpTitle}>入力例</Text>
+              <Text style={styles.helpTitle}>{copy.helpTitle}</Text>
               <Pressable accessibilityLabel="ヘルプを閉じる" onPress={() => setShowHelp(false)} style={({ pressed }) => [styles.closeHelp, pressed && styles.pressed]}>
                 <IconSymbol name="xmark" size={20} color="#52606D" />
               </Pressable>
@@ -378,7 +405,7 @@ export default function CalculatorScreen() {
             <Text style={styles.helpText}>• 0.125 → 表示単位で % または ppm を選択</Text>
             <Text style={styles.helpText}>• 単位入力では、次元を選択して候補を絞り込み</Text>
             <Pressable onPress={() => setShowHelp(false)} style={({ pressed }) => [styles.helpDone, pressed && styles.pressed]}>
-              <Text style={styles.helpDoneText}>閉じる</Text>
+              <Text style={styles.helpDoneText}>{copy.helpDone}</Text>
             </Pressable>
           </View>
         </View>

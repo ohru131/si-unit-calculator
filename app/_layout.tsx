@@ -10,6 +10,7 @@ import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { CalculatorProvider } from "@/lib/calculator-store";
 import { RevenueCatProvider } from "@/lib/revenuecat-provider";
+import { GlobalSettingsProvider } from "@/lib/global-settings";
 import {
   SafeAreaFrameContext,
   SafeAreaInsetsContext,
@@ -84,6 +85,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
+          <GlobalSettingsProvider>
           <RevenueCatProvider>
           <CalculatorProvider>
             {/* Default to hiding native headers so raw route segments don't appear (e.g. "(tabs)", "products/[id]"). */}
@@ -96,6 +98,7 @@ export default function RootLayout() {
             <StatusBar style="auto" />
           </CalculatorProvider>
           </RevenueCatProvider>
+          </GlobalSettingsProvider>
         </QueryClientProvider>
       </trpc.Provider>
     </GestureHandlerRootView>

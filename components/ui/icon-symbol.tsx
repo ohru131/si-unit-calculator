@@ -27,6 +27,8 @@ const MAPPING = {
   "delete.left": "backspace",
   "crown.fill": "workspace-premium",
   "square.and.arrow.up": "ios-share",
+  "gearshape.fill": "settings",
+  "accessibility": "accessibility",
 } as IconMapping;
 
 /**

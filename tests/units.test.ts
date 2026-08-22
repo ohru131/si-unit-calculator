@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   convertQuantity,
   evaluateExpression,
+  formatNumberForLocale,
   formatQuantity,
   getCompatibleUnitGroups,
+  getRegionalUnits,
   parseConstantDefinition,
   type UnitGroup,
+  UNIT_GROUPS,
 } from "../lib/units";
 import { SAMPLE_CALCULATIONS } from "../lib/sample-calculations";
 
@@ -86,6 +89,28 @@ describe("単位付き計算", () => {
       const result = evaluateExpression(sample.expression);
       expect(() => formatQuantity(result, sample.targetUnit)).not.toThrow();
     });
+  });
+
+  it("華氏・摂氏・ケルビンを温度次元として相互変換する", () => {
+    expect(formatQuantity(evaluateExpression("32°F"), "°C")).toBe("0 °C");
+    expect(formatQuantity(evaluateExpression("0°C"), "K")).toBe("273.15 K");
+  });
+
+  it("米国慣用単位をSI経由で正しく換算する", () => {
+    expect(formatQuantity(evaluateExpression("1ft"), "in")).toBe("12 in");
+    expect(formatQuantity(evaluateExpression("1mi ÷ 1h"), "mph")).toBe("1 mph");
+  });
+
+  it("地域別プリセットでは慣用単位を優先表示する", () => {
+    const lengthGroup = UNIT_GROUPS.find((group) => group.id === "length");
+    expect(lengthGroup).toBeDefined();
+    expect(getRegionalUnits(lengthGroup!, "us").map((unit) => unit.symbol)).toEqual(["in", "ft", "yd", "mi"]);
+    expect(getRegionalUnits(lengthGroup!, "metric").map((unit) => unit.symbol)).toEqual(["m", "km", "cm", "mm"]);
+  });
+
+  it("ロケール指定時は利用者の小数点表記で結果を整形する", () => {
+    expect(formatNumberForLocale(5.1, "en-US")).toBe("5.1");
+    expect(formatNumberForLocale(5.1, "de-DE")).toBe("5,1");
   });
 
   it("異なる次元の加算を拒否する", () => {

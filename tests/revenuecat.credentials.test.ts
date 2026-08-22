@@ -16,9 +16,9 @@ async function verifySdkKey(key: string | undefined) {
 describe("RevenueCat SDKキー", () => {
   it("iOSの公開SDKキーを検証する", async () => {
     await verifySdkKey(process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY);
-  });
+  }, 15_000);
 
   it("Androidの公開SDKキーを検証する", async () => {
     await verifySdkKey(process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY);
-  });
+  }, 15_000);
 });
