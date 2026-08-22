@@ -1,0 +1,427 @@
+export type Dimension = [number, number, number, number, number, number, number];
+
+export type Quantity = {
+  siValue: number;
+  dimension: Dimension;
+};
+
+export type SavedConstant = {
+  symbol: string;
+  expression: string;
+  quantity: Quantity;
+  createdAt: string;
+};
+
+type UnitDefinition = {
+  scale: number;
+  dimension: Dimension;
+};
+
+type Token =
+  | { type: "quantity"; value: Quantity }
+  | { type: "identifier"; value: string }
+  | { type: "operator"; value: "+" | "-" | "*" | "/" }
+  | { type: "leftParen" }
+  | { type: "rightParen" };
+
+const ZERO: Dimension = [0, 0, 0, 0, 0, 0, 0];
+const DIMENSIONS = {
+  length: [1, 0, 0, 0, 0, 0, 0],
+  mass: [0, 1, 0, 0, 0, 0, 0],
+  time: [0, 0, 1, 0, 0, 0, 0],
+  current: [0, 0, 0, 1, 0, 0, 0],
+  temperature: [0, 0, 0, 0, 1, 0, 0],
+  amount: [0, 0, 0, 0, 0, 1, 0],
+  luminousIntensity: [0, 0, 0, 0, 0, 0, 1],
+} as const satisfies Record<string, Dimension>;
+
+const multiplyDimensions = (left: Dimension, right: Dimension): Dimension =>
+  left.map((value, index) => value + right[index]) as Dimension;
+
+const divideDimensions = (left: Dimension, right: Dimension): Dimension =>
+  left.map((value, index) => value - right[index]) as Dimension;
+
+const powerDimension = (dimension: Dimension, power: number): Dimension =>
+  dimension.map((value) => value * power) as Dimension;
+
+const sameDimension = (left: Dimension, right: Dimension) =>
+  left.every((value, index) => value === right[index]);
+
+const unit = (scale: number, dimension: Dimension): UnitDefinition => ({ scale, dimension });
+const multipliedUnit = (left: UnitDefinition, right: UnitDefinition): UnitDefinition =>
+  unit(left.scale * right.scale, multiplyDimensions(left.dimension, right.dimension));
+const dividedUnit = (left: UnitDefinition, right: UnitDefinition): UnitDefinition =>
+  unit(left.scale / right.scale, divideDimensions(left.dimension, right.dimension));
+
+const BASE_UNITS: Record<string, UnitDefinition> = {
+  m: unit(1, DIMENSIONS.length),
+  kg: unit(1, DIMENSIONS.mass),
+  g: unit(1e-3, DIMENSIONS.mass),
+  s: unit(1, DIMENSIONS.time),
+  A: unit(1, DIMENSIONS.current),
+  K: unit(1, DIMENSIONS.temperature),
+  mol: unit(1, DIMENSIONS.amount),
+  cd: unit(1, DIMENSIONS.luminousIntensity),
+  rad: unit(1, ZERO),
+  sr: unit(1, ZERO),
+  deg: unit(Math.PI / 180, ZERO),
+  "°": unit(Math.PI / 180, ZERO),
+  "%": unit(1e-2, ZERO),
+  ppm: unit(1e-6, ZERO),
+  min: unit(60, DIMENSIONS.time),
+  h: unit(3600, DIMENSIONS.time),
+  d: unit(86400, DIMENSIONS.time),
+  L: unit(1e-3, [3, 0, 0, 0, 0, 0, 0]),
+  l: unit(1e-3, [3, 0, 0, 0, 0, 0, 0]),
+};
+
+BASE_UNITS.Hz = unit(1, [0, 0, -1, 0, 0, 0, 0]);
+BASE_UNITS.N = unit(1, [1, 1, -2, 0, 0, 0, 0]);
+BASE_UNITS.Pa = unit(1, [-1, 1, -2, 0, 0, 0, 0]);
+BASE_UNITS.J = unit(1, [2, 1, -2, 0, 0, 0, 0]);
+BASE_UNITS.W = unit(1, [2, 1, -3, 0, 0, 0, 0]);
+BASE_UNITS.C = unit(1, [0, 0, 1, 1, 0, 0, 0]);
+BASE_UNITS.V = unit(1, [2, 1, -3, -1, 0, 0, 0]);
+BASE_UNITS.Ohm = unit(1, [2, 1, -3, -2, 0, 0, 0]);
+BASE_UNITS["Ω"] = BASE_UNITS.Ohm;
+BASE_UNITS.S = unit(1, [-2, -1, 3, 2, 0, 0, 0]);
+BASE_UNITS.F = unit(1, [-2, -1, 4, 2, 0, 0, 0]);
+BASE_UNITS.Wb = unit(1, [2, 1, -2, -1, 0, 0, 0]);
+BASE_UNITS.T = unit(1, [0, 1, -2, -1, 0, 0, 0]);
+BASE_UNITS.H = unit(1, [2, 1, -2, -2, 0, 0, 0]);
+BASE_UNITS.lm = unit(1, DIMENSIONS.luminousIntensity);
+BASE_UNITS.lx = unit(1, [-2, 0, 0, 0, 0, 0, 1]);
+BASE_UNITS.Bq = BASE_UNITS.Hz;
+BASE_UNITS.Gy = unit(1, [2, 0, -2, 0, 0, 0, 0]);
+BASE_UNITS.Sv = BASE_UNITS.Gy;
+
+const PREFIXES: Array<[string, number]> = [
+  ["da", 1e1],
+  ["Y", 1e24],
+  ["Z", 1e21],
+  ["E", 1e18],
+  ["P", 1e15],
+  ["T", 1e12],
+  ["G", 1e9],
+  ["M", 1e6],
+  ["k", 1e3],
+  ["h", 1e2],
+  ["d", 1e-1],
+  ["c", 1e-2],
+  ["m", 1e-3],
+  ["u", 1e-6],
+  ["µ", 1e-6],
+  ["μ", 1e-6],
+  ["n", 1e-9],
+  ["p", 1e-12],
+  ["f", 1e-15],
+  ["a", 1e-18],
+  ["z", 1e-21],
+  ["y", 1e-24],
+];
+
+const SUPERSCRIPTS: Record<string, string> = {
+  "⁰": "0",
+  "¹": "1",
+  "²": "2",
+  "³": "3",
+  "⁴": "4",
+  "⁵": "5",
+  "⁶": "6",
+  "⁷": "7",
+  "⁸": "8",
+  "⁹": "9",
+  "⁻": "-",
+};
+
+const toSuperscript = (value: number) =>
+  String(value)
+    .replace(/-/g, "⁻")
+    .replace(/0/g, "⁰")
+    .replace(/1/g, "¹")
+    .replace(/2/g, "²")
+    .replace(/3/g, "³")
+    .replace(/4/g, "⁴")
+    .replace(/5/g, "⁵")
+    .replace(/6/g, "⁶")
+    .replace(/7/g, "⁷")
+    .replace(/8/g, "⁸")
+    .replace(/9/g, "⁹");
+
+const normalize = (input: string) =>
+  input
+    .trim()
+    .replace(/[×·]/g, "*")
+    .replace(/÷/g, "/")
+    .replace(/[−–]/g, "-")
+    .replace(/\s+/g, " ")
+    .replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]/g, (character) => SUPERSCRIPTS[character]);
+
+function resolveUnitSymbol(symbol: string): UnitDefinition {
+  if (BASE_UNITS[symbol]) return BASE_UNITS[symbol];
+
+  for (const [prefix, scale] of PREFIXES) {
+    if (symbol.startsWith(prefix) && symbol.length > prefix.length) {
+      const baseSymbol = symbol.slice(prefix.length);
+      const base = BASE_UNITS[baseSymbol];
+      if (base && baseSymbol !== "kg") return unit(base.scale * scale, base.dimension);
+    }
+  }
+
+  throw new Error(`未対応の単位「${symbol}」です。`);
+}
+
+export function parseUnit(input: string): UnitDefinition {
+  const source = normalize(input).replace(/\*/g, "·");
+  if (!source || source === "1" || source === "無次元") return unit(1, ZERO);
+
+  let result = unit(1, ZERO);
+  let operation: "multiply" | "divide" = "multiply";
+  const factors = source.split(/([/·])/).filter(Boolean);
+
+  for (const factor of factors) {
+    if (factor === "·") {
+      operation = "multiply";
+      continue;
+    }
+    if (factor === "/") {
+      operation = "divide";
+      continue;
+    }
+
+    const match = factor.match(/^([A-Za-zΩµμ%°]+)(?:\^?(-?\d+))?$/);
+    if (!match) throw new Error(`単位「${input}」の書式を解釈できません。`);
+    const [, symbol, rawPower] = match;
+    const power = rawPower ? Number(rawPower) : 1;
+    const resolved = resolveUnitSymbol(symbol);
+    const powered = unit(resolved.scale ** power, powerDimension(resolved.dimension, power));
+    result = operation === "multiply" ? multipliedUnit(result, powered) : dividedUnit(result, powered);
+  }
+
+  return result;
+}
+
+function quantity(value: number, dimension: Dimension = ZERO): Quantity {
+  if (!Number.isFinite(value)) throw new Error("有限の数値を入力してください。");
+  return { siValue: value, dimension: [...dimension] as Dimension };
+}
+
+function add(left: Quantity, right: Quantity): Quantity {
+  if (!sameDimension(left.dimension, right.dimension)) {
+    throw new Error("加算・減算できるのは同じ次元の値だけです。");
+  }
+  return quantity(left.siValue + right.siValue, left.dimension);
+}
+
+function subtract(left: Quantity, right: Quantity): Quantity {
+  if (!sameDimension(left.dimension, right.dimension)) {
+    throw new Error("加算・減算できるのは同じ次元の値だけです。");
+  }
+  return quantity(left.siValue - right.siValue, left.dimension);
+}
+
+function multiply(left: Quantity, right: Quantity): Quantity {
+  return quantity(left.siValue * right.siValue, multiplyDimensions(left.dimension, right.dimension));
+}
+
+function divide(left: Quantity, right: Quantity): Quantity {
+  if (right.siValue === 0) throw new Error("0では割れません。");
+  return quantity(left.siValue / right.siValue, divideDimensions(left.dimension, right.dimension));
+}
+
+function isUnitStart(character: string | undefined) {
+  return Boolean(character && /[A-Za-zΩµμ%°]/.test(character));
+}
+
+function tokenize(input: string): Token[] {
+  const tokens: Token[] = [];
+  const source = normalize(input);
+  let index = 0;
+
+  while (index < source.length) {
+    const current = source[index];
+    if (/\s/.test(current)) {
+      index += 1;
+      continue;
+    }
+
+    if (/[+\-*/]/.test(current)) {
+      tokens.push({ type: "operator", value: current as "+" | "-" | "*" | "/" });
+      index += 1;
+      continue;
+    }
+    if (current === "(") {
+      tokens.push({ type: "leftParen" });
+      index += 1;
+      continue;
+    }
+    if (current === ")") {
+      tokens.push({ type: "rightParen" });
+      index += 1;
+      continue;
+    }
+
+    const numberMatch = source.slice(index).match(/^(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/);
+    if (numberMatch) {
+      const numericValue = Number(numberMatch[0]);
+      index += numberMatch[0].length;
+
+      const whitespaceStart = index;
+      while (/\s/.test(source[index] ?? "")) index += 1;
+      if (isUnitStart(source[index])) {
+        const unitStart = index;
+        while (/[A-Za-zΩµμ%°0-9^*/]/.test(source[index] ?? "")) {
+          if (
+            (source[index] === "/" || source[index] === "*") &&
+            !isUnitStart(source[index + 1])
+          ) {
+            break;
+          }
+          index += 1;
+        }
+        const unitText = source.slice(unitStart, index);
+        const parsed = parseUnit(unitText);
+        tokens.push({ type: "quantity", value: quantity(numericValue * parsed.scale, parsed.dimension) });
+      } else {
+        index = whitespaceStart;
+        tokens.push({ type: "quantity", value: quantity(numericValue) });
+      }
+      continue;
+    }
+
+    const identifierMatch = source.slice(index).match(/^[A-Za-z_][A-Za-z0-9_]*/u);
+    if (identifierMatch) {
+      tokens.push({ type: "identifier", value: identifierMatch[0] });
+      index += identifierMatch[0].length;
+      continue;
+    }
+
+    if (current === "Ω" || current === "%" || current === "°") {
+      tokens.push({ type: "identifier", value: current });
+      index += 1;
+      continue;
+    }
+
+    throw new Error(`「${current}」を解釈できません。`);
+  }
+
+  return tokens;
+}
+
+export function evaluateExpression(input: string, constants: SavedConstant[] = []): Quantity {
+  const tokens = tokenize(input);
+  if (!tokens.length) throw new Error("式を入力してください。");
+  const constantMap = new Map(constants.map((item) => [item.symbol, item.quantity]));
+  let position = 0;
+
+  const parsePrimary = (): Quantity => {
+    const token = tokens[position];
+    if (!token) throw new Error("式が途中で終わっています。");
+    if (token.type === "operator" && (token.value === "+" || token.value === "-")) {
+      position += 1;
+      const inner = parsePrimary();
+      return token.value === "-" ? quantity(-inner.siValue, inner.dimension) : inner;
+    }
+    if (token.type === "quantity") {
+      position += 1;
+      return token.value;
+    }
+    if (token.type === "identifier") {
+      position += 1;
+      const constant = constantMap.get(token.value);
+      if (constant) return constant;
+      try {
+        const parsed = parseUnit(token.value);
+        return quantity(parsed.scale, parsed.dimension);
+      } catch {
+        throw new Error(`定数または単位「${token.value}」が見つかりません。`);
+      }
+    }
+    if (token.type === "leftParen") {
+      position += 1;
+      const inner = parseAddSubtract();
+      if (tokens[position]?.type !== "rightParen") throw new Error("閉じ括弧が不足しています。");
+      position += 1;
+      return inner;
+    }
+    throw new Error("式の構文が正しくありません。");
+  };
+
+  const parseMultiplyDivide = (): Quantity => {
+    let left = parsePrimary();
+    while (true) {
+      const nextToken = tokens[position];
+      if (!nextToken || nextToken.type !== "operator" || !["*", "/"].includes(nextToken.value)) break;
+      const operator = nextToken.value;
+      position += 1;
+      const right = parsePrimary();
+      left = operator === "*" ? multiply(left, right) : divide(left, right);
+    }
+    return left;
+  };
+
+  const parseAddSubtract = (): Quantity => {
+    let left = parseMultiplyDivide();
+    while (true) {
+      const nextToken = tokens[position];
+      if (!nextToken || nextToken.type !== "operator" || !["+", "-"].includes(nextToken.value)) break;
+      const operator = nextToken.value;
+      position += 1;
+      const right = parseMultiplyDivide();
+      left = operator === "+" ? add(left, right) : subtract(left, right);
+    }
+    return left;
+  };
+
+  const result = parseAddSubtract();
+  if (position !== tokens.length) throw new Error("式の構文が正しくありません。");
+  return result;
+}
+
+export function parseConstantDefinition(input: string, constants: SavedConstant[] = []) {
+  const match = input.trim().match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)$/);
+  if (!match) throw new Error("定数は「W = 3cm」の形式で定義してください。");
+  const [, symbol, expression] = match;
+  return { symbol, expression, quantity: evaluateExpression(expression, constants) };
+}
+
+export function formatNumber(value: number): string {
+  if (Object.is(value, -0)) return "0";
+  if (value === 0) return "0";
+  if (Math.abs(value) >= 1e7 || Math.abs(value) < 1e-6) return value.toExponential(6).replace(/\.?(0+)e/, "e");
+  return Number(value.toPrecision(10)).toString();
+}
+
+export function formatDimension(dimension: Dimension): string {
+  const labels = ["m", "kg", "s", "A", "K", "mol", "cd"];
+  const numerator: string[] = [];
+  const denominator: string[] = [];
+  dimension.forEach((power, index) => {
+    if (power > 0) numerator.push(`${labels[index]}${power === 1 ? "" : toSuperscript(power)}`);
+    if (power < 0) denominator.push(`${labels[index]}${power === -1 ? "" : toSuperscript(-power)}`);
+  });
+  if (!numerator.length && !denominator.length) return "無次元";
+  if (!denominator.length) return numerator.join("·");
+  return `${numerator.length ? numerator.join("·") : "1"}/${denominator.join("·")}`;
+}
+
+export function convertQuantity(input: Quantity, targetUnit: string): { value: number; unit: string } {
+  const parsed = parseUnit(targetUnit);
+  if (!sameDimension(input.dimension, parsed.dimension)) {
+    throw new Error(`結果を「${targetUnit}」へ変換できません。次元が一致していません。`);
+  }
+  return { value: input.siValue / parsed.scale, unit: targetUnit.trim() || "無次元" };
+}
+
+export function formatQuantity(input: Quantity, targetUnit?: string): string {
+  if (targetUnit?.trim()) {
+    const converted = convertQuantity(input, targetUnit);
+    return `${formatNumber(converted.value)} ${converted.unit}`;
+  }
+  const dimension = formatDimension(input.dimension);
+  return dimension === "無次元" ? formatNumber(input.siValue) : `${formatNumber(input.siValue)} ${dimension}`;
+}
+
+export function hasSameDimension(left: Quantity, right: Quantity) {
+  return sameDimension(left.dimension, right.dimension);
+}
