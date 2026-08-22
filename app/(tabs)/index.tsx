@@ -113,6 +113,14 @@ export default function CalculatorScreen() {
     setNotice("保存済みの計算結果を復元しました。");
   };
 
+  const applyMotionExample = (nextExpression: string, nextTargetUnit: string, message: string) => {
+    setExpression(nextExpression);
+    setTargetUnit(nextTargetUnit);
+    setResult(null);
+    setError("");
+    setNotice(message);
+  };
+
   return (
     <ScreenContainer className="px-5" containerClassName="bg-background">
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -229,6 +237,26 @@ export default function CalculatorScreen() {
           </View>
         </View>
 
+        <View style={styles.motionCard}>
+          <Text style={styles.cardLabel}>距離・時間・速度</Text>
+          <Text style={styles.motionFormula}>速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間</Text>
+          <View style={styles.motionExamples}>
+            <Pressable onPress={() => applyMotionExample("1km ÷ 1min", "km/h", "距離と時間から速度を計算する例を入力しました。")} style={({ pressed }) => [styles.motionButton, pressed && styles.pressed]}>
+              <Text style={styles.motionButtonTitle}>速度を求める</Text>
+              <Text style={styles.motionButtonExample}>1km ÷ 1min</Text>
+            </Pressable>
+            <Pressable onPress={() => applyMotionExample("10m/s × 2min", "km", "速度と時間から距離を計算する例を入力しました。")} style={({ pressed }) => [styles.motionButton, pressed && styles.pressed]}>
+              <Text style={styles.motionButtonTitle}>距離を求める</Text>
+              <Text style={styles.motionButtonExample}>10m/s × 2min</Text>
+            </Pressable>
+            <Pressable onPress={() => applyMotionExample("1km ÷ 5m/s", "min", "距離と速度から時間を計算する例を入力しました。")} style={({ pressed }) => [styles.motionButton, pressed && styles.pressed]}>
+              <Text style={styles.motionButtonTitle}>時間を求める</Text>
+              <Text style={styles.motionButtonExample}>1km ÷ 5m/s</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.motionHint}>時間は s、min、h、距離は m、km などを自由に組み合わせられます。</Text>
+        </View>
+
         {error ? <View style={styles.messageError}><Text style={styles.messageErrorText}>{error}</Text></View> : null}
         {notice ? <View style={styles.messageSuccess}><Text style={styles.messageSuccessText}>{notice}</Text></View> : null}
 
@@ -341,6 +369,13 @@ const styles = StyleSheet.create({
   selectedGroupLabel: { color: "#173A4D", fontSize: 13, fontWeight: "800" },
   inputUnitChip: { backgroundColor: "#E5F4FB", borderColor: "#C9E7F4", borderRadius: 14, borderWidth: 1, paddingHorizontal: 11, paddingVertical: 7 },
   inputUnitText: { color: "#146C94", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 13, fontWeight: "800" },
+  motionCard: { backgroundColor: "#F3F8FB", borderColor: "#D1E7F1", borderRadius: 18, borderWidth: 1, padding: 15 },
+  motionFormula: { color: "#173A4D", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, fontWeight: "700", lineHeight: 19, marginTop: 8 },
+  motionExamples: { gap: 8, marginTop: 12 },
+  motionButton: { backgroundColor: "#FFFFFF", borderColor: "#D5E7EF", borderRadius: 11, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
+  motionButtonTitle: { color: "#146C94", fontSize: 13, fontWeight: "800" },
+  motionButtonExample: { color: "#52606D", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, marginTop: 3 },
+  motionHint: { color: "#637381", fontSize: 11, lineHeight: 17, marginTop: 11 },
   messageError: { backgroundColor: "#FDECEB", borderColor: "#F5CBC7", borderRadius: 10, borderWidth: 1, padding: 11 },
   messageErrorText: { color: "#A53B35", fontSize: 13, lineHeight: 19 },
   messageSuccess: { backgroundColor: "#E8F6ED", borderColor: "#CBE9D6", borderRadius: 10, borderWidth: 1, padding: 11 },

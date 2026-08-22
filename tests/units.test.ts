@@ -54,6 +54,18 @@ describe("単位付き計算", () => {
     expect(formatQuantity(energy, "J")).toBe("1 J");
   });
 
+  it("距離と秒・分・時から速度を計算し、速度と時間から距離を計算する", () => {
+    const minuteVelocity = evaluateExpression("1km ÷ 1min");
+    expect(convertQuantity(minuteVelocity, "m/min").value).toBeCloseTo(1000);
+    expect(convertQuantity(minuteVelocity, "km/h").value).toBeCloseTo(60);
+
+    const hourVelocity = evaluateExpression("12km ÷ 2h");
+    expect(convertQuantity(hourVelocity, "km/h").value).toBeCloseTo(6);
+
+    const distance = evaluateExpression("10m/s × 2min");
+    expect(formatQuantity(distance, "km")).toBe("1.2 km");
+  });
+
   it("結果と同じ次元の単位グループだけを返す", () => {
     const length = evaluateExpression("5cm");
     const symbols = getCompatibleUnitGroups(length.dimension).flatMap((group: UnitGroup) => group.units.map((unit) => unit.symbol));
