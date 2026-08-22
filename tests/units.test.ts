@@ -4,7 +4,9 @@ import {
   convertQuantity,
   evaluateExpression,
   formatQuantity,
+  getCompatibleUnitGroups,
   parseConstantDefinition,
+  type UnitGroup,
 } from "../lib/units";
 
 describe("単位付き計算", () => {
@@ -50,6 +52,20 @@ describe("単位付き計算", () => {
     expect(convertQuantity(velocity, "km/h").value).toBeCloseTo(3.6);
     const energy = evaluateExpression("1N × 1m");
     expect(formatQuantity(energy, "J")).toBe("1 J");
+  });
+
+  it("結果と同じ次元の単位グループだけを返す", () => {
+    const length = evaluateExpression("5cm");
+    const symbols = getCompatibleUnitGroups(length.dimension).flatMap((group: UnitGroup) => group.units.map((unit) => unit.symbol));
+    expect(symbols).toContain("cm");
+    expect(symbols).toContain("km");
+    expect(symbols).not.toContain("kg");
+
+    const ratio = evaluateExpression("0.25");
+    const ratioSymbols = getCompatibleUnitGroups(ratio.dimension).flatMap((group: UnitGroup) => group.units.map((unit) => unit.symbol));
+    expect(ratioSymbols).toContain("%");
+    expect(ratioSymbols).toContain("ppm");
+    expect(ratioSymbols).not.toContain("cm");
   });
 
   it("異なる次元の加算を拒否する", () => {

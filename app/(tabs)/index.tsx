@@ -13,21 +13,22 @@ import {
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useCalculatorStore } from "@/lib/calculator-store";
-import { evaluateExpression, formatDimension, formatQuantity, parseConstantDefinition, Quantity } from "@/lib/units";
-
-type HistoryEntry = { expression: string; result: string };
+import { evaluateExpression, formatDimension, formatQuantity, getCompatibleUnitGroups, parseConstantDefinition, Quantity, UNIT_GROUPS } from "@/lib/units";
 
 const KEYS = ["(", ")", "÷", "⌫", "7", "8", "9", "×", "4", "5", "6", "-", "1", "2", "3", "+", ".", "0", " ", "="];
 
 export default function CalculatorScreen() {
-  const { constants, upsertConstant } = useCalculatorStore();
+  const { constants, history, upsertConstant, addHistoryEntry, clearHistory } = useCalculatorStore();
   const [expression, setExpression] = useState("5cm + 1mm");
   const [targetUnit, setTargetUnit] = useState("cm");
   const [result, setResult] = useState<Quantity | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [inputGroupId, setInputGroupId] = useState("length");
   const [showHelp, setShowHelp] = useState(false);
+
+  const selectedInputGroup = UNIT_GROUPS.find((group) => group.id === inputGroupId) ?? UNIT_GROUPS[0];
+  const compatibleUnitGroups = useMemo(() => (result ? getCompatibleUnitGroups(result.dimension) : []), [result]);
 
   const display = useMemo(() => {
     if (!result) return null;
@@ -55,8 +56,24 @@ export default function CalculatorScreen() {
         setNotice(`定数 ${next.symbol} を保存しました。`);
       }
       setResult(quantity);
-      const output = targetUnit.trim() ? formatQuantity(quantity, targetUnit) : formatQuantity(quantity);
-      setHistory((previous) => [{ expression: input, result: output }, ...previous.filter((item) => item.expression !== input)].slice(0, 5));
+      let output = formatQuantity(quantity);
+      try {
+        output = targetUnit.trim() ? formatQuantity(quantity, targetUnit) : output;
+      } catch {
+        setNotice("計算しました。表示単位を候補から選ぶと変換できます。");
+      }
+      try {
+        await addHistoryEntry({
+          id: `${Date.now()}-${input}`,
+          expression: input,
+          resultText: output,
+          quantity,
+          targetUnit: targetUnit.trim(),
+          createdAt: new Date().toISOString(),
+        });
+      } catch {
+        setNotice("計算しましたが、履歴を端末内へ保存できませんでした。");
+      }
     } catch (cause) {
       setResult(null);
       setError(cause instanceof Error ? cause.message : "式を計算できませんでした。");
@@ -80,6 +97,20 @@ export default function CalculatorScreen() {
   const applyTargetUnit = (unit: string) => {
     setTargetUnit(unit);
     setError("");
+  };
+
+  const insertUnit = (unit: string) => {
+    setExpression((current) => `${current}${unit}`);
+    setError("");
+    setNotice("");
+  };
+
+  const restoreHistory = (entry: (typeof history)[number]) => {
+    setExpression(entry.expression);
+    setTargetUnit(entry.targetUnit);
+    setResult(entry.quantity);
+    setError("");
+    setNotice("保存済みの計算結果を復元しました。");
   };
 
   return (
@@ -149,18 +180,52 @@ export default function CalculatorScreen() {
           <TextInput
             value={targetUnit}
             onChangeText={applyTargetUnit}
-            placeholder="例：cm、m/s、%、ppm"
+            placeholder="候補から選択、または入力"
             placeholderTextColor="#91A0AD"
             autoCapitalize="none"
             autoCorrect={false}
             style={styles.unitInput}
           />
-          <View style={styles.chips}>
-            {["m", "cm", "mm", "m²", "cm²", "%", "ppm"].map((unit) => (
-              <Pressable key={unit} onPress={() => applyTargetUnit(unit)} style={({ pressed }) => [styles.chip, targetUnit === unit && styles.chipActive, pressed && styles.pressed]}>
-                <Text style={[styles.chipText, targetUnit === unit && styles.chipTextActive]}>{unit}</Text>
+          {compatibleUnitGroups.length ? (
+            <View style={styles.unitGroupList}>
+              <Text style={styles.compatibleHint}>計算結果と同じ次元の単位のみ</Text>
+              {compatibleUnitGroups.map((group) => (
+                <View key={group.id} style={styles.compatibleGroup}>
+                  <Text style={styles.unitGroupLabel}>{group.label}</Text>
+                  <View style={styles.chips}>
+                    {group.units.map((unit) => (
+                      <Pressable key={unit.symbol} onPress={() => applyTargetUnit(unit.symbol)} style={({ pressed }) => [styles.chip, targetUnit === unit.symbol && styles.chipActive, pressed && styles.pressed]}>
+                        <Text style={[styles.chipText, targetUnit === unit.symbol && styles.chipTextActive]}>{unit.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.compatibleHint}>計算後、次元に合う単位のみをここへ表示します。</Text>
+          )}
+        </View>
+
+        <View style={styles.unitPadCard}>
+          <Text style={styles.cardLabel}>単位を式に入力</Text>
+          <Text style={styles.unitPadHint}>次元を選択してから、使いたい単位をタップします。</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRail}>
+            {UNIT_GROUPS.map((group) => (
+              <Pressable key={group.id} onPress={() => setInputGroupId(group.id)} style={({ pressed }) => [styles.categoryChip, inputGroupId === group.id && styles.categoryChipActive, pressed && styles.pressed]}>
+                <Text style={[styles.categoryChipText, inputGroupId === group.id && styles.categoryChipTextActive]}>{group.label}</Text>
               </Pressable>
             ))}
+          </ScrollView>
+          <View style={styles.inputUnitRow}>
+            <Text style={styles.selectedGroupLabel}>{selectedInputGroup.label}</Text>
+            <View style={styles.chips}>
+              {selectedInputGroup.units.map((unit) => (
+                <Pressable key={unit.symbol} onPress={() => insertUnit(unit.symbol)} style={({ pressed }) => [styles.inputUnitChip, pressed && styles.pressed]}>
+                  <Text style={styles.inputUnitText}>{unit.label}</Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
         </View>
 
@@ -187,11 +252,16 @@ export default function CalculatorScreen() {
 
         {history.length ? (
           <View style={styles.history}>
-            <Text style={styles.historyTitle}>このセッションの履歴</Text>
+            <View style={styles.historyHeader}>
+              <Text style={styles.historyTitle}>保存済みの計算履歴</Text>
+              <Pressable onPress={() => void clearHistory()} style={({ pressed }) => [styles.clearHistoryButton, pressed && styles.pressed]}>
+                <Text style={styles.clearHistoryText}>すべて消去</Text>
+              </Pressable>
+            </View>
             {history.map((entry) => (
-              <Pressable key={`${entry.expression}-${entry.result}`} onPress={() => setExpression(entry.expression)} style={({ pressed }) => [styles.historyRow, pressed && styles.cardPressed]}>
+              <Pressable key={entry.id} onPress={() => restoreHistory(entry)} style={({ pressed }) => [styles.historyRow, pressed && styles.cardPressed]}>
                 <Text numberOfLines={1} style={styles.historyExpression}>{entry.expression}</Text>
-                <Text numberOfLines={1} style={styles.historyResult}>{entry.result}</Text>
+                <Text numberOfLines={1} style={styles.historyResult}>{entry.resultText}</Text>
               </Pressable>
             ))}
           </View>
@@ -211,7 +281,8 @@ export default function CalculatorScreen() {
             <Text style={styles.helpText}>• 3cm × 20mm</Text>
             <Text style={styles.helpText}>• W = 3cm　（定数を保存）</Text>
             <Text style={styles.helpText}>• W × H　（保存した定数を使用）</Text>
-            <Text style={styles.helpText}>• 0.125 → 表示単位を % または ppm に変更</Text>
+            <Text style={styles.helpText}>• 0.125 → 表示単位で % または ppm を選択</Text>
+            <Text style={styles.helpText}>• 単位入力では、次元を選択して候補を絞り込み</Text>
             <Pressable onPress={() => setShowHelp(false)} style={({ pressed }) => [styles.helpDone, pressed && styles.pressed]}>
               <Text style={styles.helpDoneText}>閉じる</Text>
             </Pressable>
@@ -250,11 +321,26 @@ const styles = StyleSheet.create({
   errorText: { color: "#A53B35", fontSize: 12, lineHeight: 18, marginTop: 11 },
   convertCard: { backgroundColor: "#FFFFFF", borderColor: "#DCE5EA", borderRadius: 18, borderWidth: 1, padding: 15 },
   unitInput: { borderBottomColor: "#D5E0E6", borderBottomWidth: 1, color: "#17212B", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 17, marginTop: 8, minHeight: 40, paddingHorizontal: 0 },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 12 },
+  unitGroupList: { gap: 11, marginTop: 12 },
+  compatibleHint: { color: "#637381", fontSize: 11, lineHeight: 16, marginTop: 10 },
+  compatibleGroup: { gap: 3 },
+  unitGroupLabel: { color: "#637381", fontSize: 11, fontWeight: "700" },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 5 },
   chip: { backgroundColor: "#F2F5F7", borderRadius: 14, paddingHorizontal: 11, paddingVertical: 6 },
   chipActive: { backgroundColor: "#146C94" },
   chipText: { color: "#52606D", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, fontWeight: "700" },
   chipTextActive: { color: "#FFFFFF" },
+  unitPadCard: { backgroundColor: "#FFFFFF", borderColor: "#DCE5EA", borderRadius: 18, borderWidth: 1, padding: 15 },
+  unitPadHint: { color: "#637381", fontSize: 12, lineHeight: 18, marginTop: 7 },
+  categoryRail: { gap: 7, paddingBottom: 2, paddingTop: 12 },
+  categoryChip: { backgroundColor: "#F2F5F7", borderRadius: 15, paddingHorizontal: 12, paddingVertical: 7 },
+  categoryChipActive: { backgroundColor: "#0E4964" },
+  categoryChipText: { color: "#52606D", fontSize: 12, fontWeight: "700" },
+  categoryChipTextActive: { color: "#FFFFFF" },
+  inputUnitRow: { borderTopColor: "#E4EAEE", borderTopWidth: StyleSheet.hairlineWidth, marginTop: 12, paddingTop: 11 },
+  selectedGroupLabel: { color: "#173A4D", fontSize: 13, fontWeight: "800" },
+  inputUnitChip: { backgroundColor: "#E5F4FB", borderColor: "#C9E7F4", borderRadius: 14, borderWidth: 1, paddingHorizontal: 11, paddingVertical: 7 },
+  inputUnitText: { color: "#146C94", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 13, fontWeight: "800" },
   messageError: { backgroundColor: "#FDECEB", borderColor: "#F5CBC7", borderRadius: 10, borderWidth: 1, padding: 11 },
   messageErrorText: { color: "#A53B35", fontSize: 13, lineHeight: 19 },
   messageSuccess: { backgroundColor: "#E8F6ED", borderColor: "#CBE9D6", borderRadius: 10, borderWidth: 1, padding: 11 },
@@ -270,7 +356,10 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
   cardPressed: { opacity: 0.7 },
   history: { marginTop: 6 },
-  historyTitle: { color: "#637381", fontSize: 12, fontWeight: "700", marginBottom: 7 },
+  historyHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 7 },
+  historyTitle: { color: "#637381", fontSize: 12, fontWeight: "700" },
+  clearHistoryButton: { paddingHorizontal: 4, paddingVertical: 4 },
+  clearHistoryText: { color: "#A53B35", fontSize: 11, fontWeight: "700" },
   historyRow: { backgroundColor: "#FFFFFF", borderColor: "#E0E6EB", borderRadius: 11, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", marginBottom: 6, paddingHorizontal: 12, paddingVertical: 10 },
   historyExpression: { color: "#415160", flex: 1, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, marginRight: 10 },
   historyResult: { color: "#146C94", fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, fontWeight: "700", maxWidth: "45%" },

@@ -1,15 +1,28 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-import { parseConstantDefinition, SavedConstant } from "@/lib/units";
+import { parseConstantDefinition, Quantity, SavedConstant } from "@/lib/units";
 
-const STORAGE_KEY = "si-unit-calculator.constants.v1";
+const CONSTANTS_STORAGE_KEY = "si-unit-calculator.constants.v1";
+const HISTORY_STORAGE_KEY = "si-unit-calculator.history.v1";
+
+export type SavedCalculation = {
+  id: string;
+  expression: string;
+  resultText: string;
+  quantity: Quantity;
+  targetUnit: string;
+  createdAt: string;
+};
 
 type CalculatorStore = {
   constants: SavedConstant[];
+  history: SavedCalculation[];
   isLoading: boolean;
   upsertConstant: (symbol: string, expression: string) => Promise<SavedConstant>;
   removeConstant: (symbol: string) => Promise<void>;
+  addHistoryEntry: (entry: SavedCalculation) => Promise<void>;
+  clearHistory: () => Promise<void>;
 };
 
 const CalculatorContext = createContext<CalculatorStore | null>(null);
@@ -27,25 +40,58 @@ function isSavedConstant(value: unknown): value is SavedConstant {
   );
 }
 
+function isSavedCalculation(value: unknown): value is SavedCalculation {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<SavedCalculation>;
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.expression === "string" &&
+    typeof candidate.resultText === "string" &&
+    typeof candidate.targetUnit === "string" &&
+    typeof candidate.createdAt === "string" &&
+    typeof candidate.quantity?.siValue === "number" &&
+    Array.isArray(candidate.quantity.dimension) &&
+    candidate.quantity.dimension.length === 7
+  );
+}
+
+function parseStoredArray(raw: string | null): unknown[] {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 export function CalculatorProvider({ children }: { children: ReactNode }) {
   const [constants, setConstants] = useState<SavedConstant[]>([]);
+  const [history, setHistory] = useState<SavedCalculation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const persist = useCallback(async (next: SavedConstant[]) => {
+  const persistConstants = useCallback(async (next: SavedConstant[]) => {
     setConstants(next);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    await AsyncStorage.setItem(CONSTANTS_STORAGE_KEY, JSON.stringify(next));
+  }, []);
+
+  const persistHistory = useCallback(async (next: SavedCalculation[]) => {
+    setHistory(next);
+    await AsyncStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(next));
   }, []);
 
   useEffect(() => {
     let active = true;
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((raw) => {
-        if (!active || !raw) return;
-        const parsed: unknown = JSON.parse(raw);
-        if (Array.isArray(parsed)) setConstants(parsed.filter(isSavedConstant));
+    Promise.all([AsyncStorage.getItem(CONSTANTS_STORAGE_KEY), AsyncStorage.getItem(HISTORY_STORAGE_KEY)])
+      .then(([constantsRaw, historyRaw]) => {
+        if (!active) return;
+        setConstants(parseStoredArray(constantsRaw).filter(isSavedConstant));
+        setHistory(parseStoredArray(historyRaw).filter(isSavedCalculation));
       })
       .catch(() => {
-        if (active) setConstants([]);
+        if (!active) return;
+        setConstants([]);
+        setHistory([]);
       })
       .finally(() => {
         if (active) setIsLoading(false);
@@ -66,22 +112,34 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         ...parsed,
         createdAt: existing?.createdAt ?? new Date().toISOString(),
       };
-      await persist([...others, nextItem].sort((left, right) => left.symbol.localeCompare(right.symbol)));
+      await persistConstants([...others, nextItem].sort((left, right) => left.symbol.localeCompare(right.symbol)));
       return nextItem;
     },
-    [constants, persist],
+    [constants, persistConstants],
   );
 
   const removeConstant = useCallback(
     async (symbol: string) => {
-      await persist(constants.filter((item) => item.symbol !== symbol));
+      await persistConstants(constants.filter((item) => item.symbol !== symbol));
     },
-    [constants, persist],
+    [constants, persistConstants],
   );
 
+  const addHistoryEntry = useCallback(
+    async (entry: SavedCalculation) => {
+      const next = [entry, ...history.filter((item) => item.expression !== entry.expression)].slice(0, 20);
+      await persistHistory(next);
+    },
+    [history, persistHistory],
+  );
+
+  const clearHistory = useCallback(async () => {
+    await persistHistory([]);
+  }, [persistHistory]);
+
   const value = useMemo(
-    () => ({ constants, isLoading, upsertConstant, removeConstant }),
-    [constants, isLoading, upsertConstant, removeConstant],
+    () => ({ constants, history, isLoading, upsertConstant, removeConstant, addHistoryEntry, clearHistory }),
+    [constants, history, isLoading, upsertConstant, removeConstant, addHistoryEntry, clearHistory],
   );
 
   return <CalculatorContext.Provider value={value}>{children}</CalculatorContext.Provider>;

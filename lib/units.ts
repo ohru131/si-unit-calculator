@@ -12,6 +12,18 @@ export type SavedConstant = {
   createdAt: string;
 };
 
+export type UnitOption = {
+  symbol: string;
+  label: string;
+};
+
+export type UnitGroup = {
+  id: string;
+  label: string;
+  dimension: Dimension;
+  units: UnitOption[];
+};
+
 type UnitDefinition = {
   scale: number;
   dimension: Dimension;
@@ -34,6 +46,25 @@ const DIMENSIONS = {
   amount: [0, 0, 0, 0, 0, 1, 0],
   luminousIntensity: [0, 0, 0, 0, 0, 0, 1],
 } as const satisfies Record<string, Dimension>;
+
+export const UNIT_GROUPS: UnitGroup[] = [
+  { id: "length", label: "長さ", dimension: DIMENSIONS.length, units: [{ symbol: "m", label: "m" }, { symbol: "km", label: "km" }, { symbol: "cm", label: "cm" }, { symbol: "mm", label: "mm" }, { symbol: "µm", label: "µm" }] },
+  { id: "area", label: "面積", dimension: [2, 0, 0, 0, 0, 0, 0], units: [{ symbol: "m²", label: "m²" }, { symbol: "km²", label: "km²" }, { symbol: "cm²", label: "cm²" }, { symbol: "mm²", label: "mm²" }] },
+  { id: "volume", label: "体積", dimension: [3, 0, 0, 0, 0, 0, 0], units: [{ symbol: "m³", label: "m³" }, { symbol: "L", label: "L" }, { symbol: "mL", label: "mL" }, { symbol: "cm³", label: "cm³" }] },
+  { id: "time", label: "時間", dimension: DIMENSIONS.time, units: [{ symbol: "s", label: "s" }, { symbol: "ms", label: "ms" }, { symbol: "min", label: "min" }, { symbol: "h", label: "h" }, { symbol: "d", label: "d" }] },
+  { id: "mass", label: "質量", dimension: DIMENSIONS.mass, units: [{ symbol: "kg", label: "kg" }, { symbol: "g", label: "g" }, { symbol: "mg", label: "mg" }, { symbol: "t", label: "t" }] },
+  { id: "velocity", label: "速度", dimension: [1, 0, -1, 0, 0, 0, 0], units: [{ symbol: "m/s", label: "m/s" }, { symbol: "km/h", label: "km/h" }, { symbol: "cm/s", label: "cm/s" }] },
+  { id: "acceleration", label: "加速度", dimension: [1, 0, -2, 0, 0, 0, 0], units: [{ symbol: "m/s²", label: "m/s²" }, { symbol: "cm/s²", label: "cm/s²" }] },
+  { id: "force", label: "力", dimension: [1, 1, -2, 0, 0, 0, 0], units: [{ symbol: "N", label: "N" }, { symbol: "kN", label: "kN" }] },
+  { id: "pressure", label: "圧力", dimension: [-1, 1, -2, 0, 0, 0, 0], units: [{ symbol: "Pa", label: "Pa" }, { symbol: "kPa", label: "kPa" }, { symbol: "MPa", label: "MPa" }, { symbol: "bar", label: "bar" }] },
+  { id: "energy", label: "エネルギー", dimension: [2, 1, -2, 0, 0, 0, 0], units: [{ symbol: "J", label: "J" }, { symbol: "kJ", label: "kJ" }, { symbol: "Wh", label: "Wh" }] },
+  { id: "power", label: "電力", dimension: [2, 1, -3, 0, 0, 0, 0], units: [{ symbol: "W", label: "W" }, { symbol: "kW", label: "kW" }, { symbol: "MW", label: "MW" }] },
+  { id: "current", label: "電流", dimension: DIMENSIONS.current, units: [{ symbol: "A", label: "A" }, { symbol: "mA", label: "mA" }, { symbol: "µA", label: "µA" }] },
+  { id: "voltage", label: "電圧", dimension: [2, 1, -3, -1, 0, 0, 0], units: [{ symbol: "V", label: "V" }, { symbol: "mV", label: "mV" }, { symbol: "kV", label: "kV" }] },
+  { id: "frequency", label: "周波数", dimension: [0, 0, -1, 0, 0, 0, 0], units: [{ symbol: "Hz", label: "Hz" }, { symbol: "kHz", label: "kHz" }, { symbol: "MHz", label: "MHz" }] },
+  { id: "angle", label: "角度", dimension: ZERO, units: [{ symbol: "rad", label: "rad" }, { symbol: "deg", label: "deg" }, { symbol: "°", label: "°" }] },
+  { id: "ratio", label: "割合・無次元", dimension: ZERO, units: [{ symbol: "%", label: "%" }, { symbol: "ppm", label: "ppm" }] },
+];
 
 const multiplyDimensions = (left: Dimension, right: Dimension): Dimension =>
   left.map((value, index) => value + right[index]) as Dimension;
@@ -73,6 +104,9 @@ const BASE_UNITS: Record<string, UnitDefinition> = {
   d: unit(86400, DIMENSIONS.time),
   L: unit(1e-3, [3, 0, 0, 0, 0, 0, 0]),
   l: unit(1e-3, [3, 0, 0, 0, 0, 0, 0]),
+  t: unit(1e3, DIMENSIONS.mass),
+  bar: unit(1e5, [-1, 1, -2, 0, 0, 0, 0]),
+  Wh: unit(3600, [2, 1, -2, 0, 0, 0, 0]),
 };
 
 BASE_UNITS.Hz = unit(1, [0, 0, -1, 0, 0, 0, 0]);
@@ -424,4 +458,8 @@ export function formatQuantity(input: Quantity, targetUnit?: string): string {
 
 export function hasSameDimension(left: Quantity, right: Quantity) {
   return sameDimension(left.dimension, right.dimension);
+}
+
+export function getCompatibleUnitGroups(dimension: Dimension): UnitGroup[] {
+  return UNIT_GROUPS.filter((group) => sameDimension(group.dimension, dimension));
 }
