@@ -67,7 +67,7 @@ export default function ParallaxScrollView({
             height: headerHeight,
             paddingTop: insets.top,
           },
-          headerAnimatedStyle,
+          headerAnimatedStyle as never,
         ]}
       >
         {headerImage}

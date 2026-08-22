@@ -19,6 +19,7 @@ import { exportCalculationHistory } from "@/lib/calculation-export";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { getCalculatorQuickShortcut } from "@/lib/quick-shortcuts";
 import { usePro } from "@/lib/revenuecat-provider";
+import UnitCalculatorWidget from "@/widgets/UnitCalculatorWidget";
 import { SAMPLE_CALCULATIONS, SAMPLE_CATEGORIES, type SampleCalculation } from "@/lib/sample-calculations";
 import { evaluateExpression, formatDimension, formatQuantity, getCompatibleUnitGroups, getRegionalUnits, parseConstantDefinition, Quantity, searchUnitOptions, UNIT_GROUPS } from "@/lib/units";
 
@@ -103,6 +104,18 @@ export default function CalculatorScreen() {
         output = selectedTargetUnit.trim() ? formatQuantity(quantity, selectedTargetUnit, locale) : output;
       } catch {
         setNotice("計算しました。表示単位を候補から選ぶと変換できます。");
+      }
+      if (Platform.OS === "ios") {
+        try {
+          UnitCalculatorWidget.updateSnapshot({
+            expression: input,
+            result: output,
+            siResult: formatQuantity(quantity, undefined, locale),
+            locale: language,
+          });
+        } catch {
+          // Widgets require a newly generated iOS development or production build.
+        }
       }
       try {
         await addHistoryEntry({
