@@ -1,4 +1,4 @@
-export type SampleCategory = "basic" | "motion" | "mechanics" | "energy" | "electric" | "ratio";
+export type SampleCategory = "basic" | "motion" | "mechanics" | "energy" | "electric" | "math" | "ratio";
 
 export type SampleCalculation = {
   id: string;
@@ -17,6 +17,7 @@ export const SAMPLE_CATEGORIES: Array<{ id: SampleCategory; label: string; label
   { id: "mechanics", label: "力・圧力", labelEn: "Force & pressure" },
   { id: "energy", label: "エネルギー", labelEn: "Energy" },
   { id: "electric", label: "電気", labelEn: "Electric" },
+  { id: "math", label: "角度・関数", labelEn: "Angles & math" },
   { id: "ratio", label: "割合", labelEn: "Ratios" },
 ];
 
@@ -27,6 +28,9 @@ export const SAMPLE_CALCULATIONS: SampleCalculation[] = [
   { id: "kine", category: "motion", title: "kineを換算", titleEn: "Convert kine", description: "CGS速度単位をSI速度へ", descriptionEn: "Convert the CGS speed unit to SI speed", expression: "100kine", targetUnit: "km/h" },
   { id: "distance", category: "motion", title: "距離を求める", titleEn: "Find distance", description: "速度 × 時間 = 距離", descriptionEn: "Speed × time = distance", expression: "10m/s × 2min", targetUnit: "km" },
   { id: "time", category: "motion", title: "時間を求める", titleEn: "Find time", description: "距離 ÷ 速度 = 時間", descriptionEn: "Distance ÷ speed = time", expression: "1km ÷ 5m/s", targetUnit: "min" },
+  { id: "sine-degrees", category: "math", title: "度数法の正弦", titleEn: "Sine in degrees", description: "30度のsinを無次元値として計算", descriptionEn: "Calculate the dimensionless sine of 30 degrees", expression: "sin(30deg)", targetUnit: "" },
+  { id: "square-root-area", category: "math", title: "面積の平方根", titleEn: "Square root of area", description: "面積から一辺の長さを求める", descriptionEn: "Find a side length from an area", expression: "sqrt(144cm²)", targetUnit: "cm" },
+  { id: "power-length", category: "math", title: "長さのべき乗", titleEn: "Power of length", description: "長さの3乗から体積を求める", descriptionEn: "Find volume by cubing a length", expression: "(2m)^3", targetUnit: "m³" },
   { id: "force", category: "mechanics", title: "力を求める", titleEn: "Find force", description: "質量 × 加速度 = 力", descriptionEn: "Mass × acceleration = force", expression: "2kg × 9.8m/s²", targetUnit: "N" },
   { id: "standard-gravity", category: "mechanics", title: "標準重力を換算", titleEn: "Convert standard gravity", description: "1G を地球物理で用いる Gal へ", descriptionEn: "Convert 1G to Gal for gravimetry", expression: "1G", targetUnit: "Gal" },
   { id: "pressure", category: "mechanics", title: "圧力を求める", titleEn: "Find pressure", description: "力 ÷ 面積 = 圧力", descriptionEn: "Force ÷ area = pressure", expression: "100N ÷ 0.01m²", targetUnit: "kPa" },

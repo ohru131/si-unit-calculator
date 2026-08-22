@@ -88,6 +88,27 @@ describe("単位付き計算", () => {
     expect(getUnitExplanation("m")).toBeUndefined();
   });
 
+  it("角度・三角関数・円周率を無次元結果として正しく計算する", () => {
+    expect(convertQuantity(evaluateExpression("180deg"), "rad").value).toBeCloseTo(Math.PI);
+    expect(evaluateExpression("sin(30deg)").siValue).toBeCloseTo(0.5);
+    expect(evaluateExpression("cos(π)").siValue).toBeCloseTo(-1);
+    expect(evaluateExpression("tan(pi / 4)").siValue).toBeCloseTo(1);
+  });
+
+  it("べき乗と平方根を次元整合性を保って計算する", () => {
+    expect(evaluateExpression("2^3^2").siValue).toBe(512);
+    expect(formatQuantity(evaluateExpression("(3m)^2"), "m²")).toBe("9 m²");
+    expect(formatQuantity(evaluateExpression("sqrt(9m²)"), "m")).toBe("3 m");
+    expect(evaluateExpression("sqrt(81)").siValue).toBe(9);
+  });
+
+  it("三角関数・べき乗・平方根の不正な次元と定義域を拒否する", () => {
+    expect(() => evaluateExpression("sin(1m)")).toThrow("角度または無次元");
+    expect(() => evaluateExpression("(2m)^0.5")).toThrow("整数のべき指数");
+    expect(() => evaluateExpression("sqrt(2m)")).toThrow("指数が偶数");
+    expect(() => evaluateExpression("sqrt(-1)")).toThrow("負の値");
+  });
+
   it("質量と標準重力の乗算から力を計算し、加速度候補を地域別に提示する", () => {
     expect(convertQuantity(evaluateExpression("2kg × 1G"), "N").value).toBeCloseTo(19.6133);
     const accelerationGroup = UNIT_GROUPS.find((group) => group.id === "acceleration");

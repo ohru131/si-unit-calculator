@@ -35,7 +35,7 @@ type UnitDefinition = {
 type Token =
   | { type: "quantity"; value: Quantity }
   | { type: "identifier"; value: string }
-  | { type: "operator"; value: "+" | "-" | "*" | "/" }
+  | { type: "operator"; value: "+" | "-" | "*" | "/" | "^" }
   | { type: "leftParen" }
   | { type: "rightParen" };
 
@@ -75,6 +75,8 @@ const multiplyDimensions = (left: Dimension, right: Dimension): Dimension =>
 
 const divideDimensions = (left: Dimension, right: Dimension): Dimension =>
   left.map((value, index) => value - right[index]) as Dimension;
+
+const isDimensionless = (dimension: Dimension) => dimension.every((value) => value === 0);
 
 const powerDimension = (dimension: Dimension, power: number): Dimension =>
   dimension.map((value) => value * power) as Dimension;
@@ -217,6 +219,7 @@ const normalize = (input: string) =>
     .replace(/[×·]/g, "*")
     .replace(/÷/g, "/")
     .replace(/[−–]/g, "-")
+    .replace(/π/g, "pi")
     .replace(/\s+/g, " ")
     .replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]/g, (character) => SUPERSCRIPTS[character]);
 
@@ -297,6 +300,31 @@ function divide(left: Quantity, right: Quantity): Quantity {
   return quantity(left.siValue / right.siValue, divideDimensions(left.dimension, right.dimension));
 }
 
+function exponentiate(base: Quantity, exponent: Quantity): Quantity {
+  if (!isDimensionless(exponent.dimension)) throw new Error("べき指数は無次元の値にしてください。");
+  if (!Number.isFinite(exponent.siValue)) throw new Error("べき指数は有限の数値にしてください。");
+  if (base.siValue < 0 && !Number.isInteger(exponent.siValue)) throw new Error("負の値には整数のべき指数だけを使用できます。");
+  if (!isDimensionless(base.dimension) && !Number.isInteger(exponent.siValue)) {
+    throw new Error("単位付きの値には整数のべき指数だけを使用できます。");
+  }
+  return quantity(base.siValue ** exponent.siValue, powerDimension(base.dimension, exponent.siValue));
+}
+
+function squareRoot(input: Quantity): Quantity {
+  if (input.siValue < 0) throw new Error("負の値の平方根は計算できません。");
+  if (input.dimension.some((power) => power % 2 !== 0)) throw new Error("単位付きの平方根では、各次元の指数が偶数である必要があります。");
+  return quantity(Math.sqrt(input.siValue), input.dimension.map((power) => power / 2) as Dimension);
+}
+
+function applyMathFunction(name: string, input: Quantity): Quantity {
+  if (name === "sqrt") return squareRoot(input);
+  if (!isDimensionless(input.dimension)) throw new Error(`${name}() の引数は角度または無次元の値にしてください。`);
+  const functions: Record<string, (value: number) => number> = { sin: Math.sin, cos: Math.cos, tan: Math.tan };
+  const evaluator = functions[name];
+  if (!evaluator) throw new Error(`未対応の関数「${name}」です。`);
+  return quantity(evaluator(input.siValue));
+}
+
 function isUnitStart(character: string | undefined) {
   return Boolean(character && /[A-Za-zΩµμ%°]/.test(character));
 }
@@ -313,8 +341,8 @@ function tokenize(input: string): Token[] {
       continue;
     }
 
-    if (/[+\-*/]/.test(current)) {
-      tokens.push({ type: "operator", value: current as "+" | "-" | "*" | "/" });
+    if (/[+\-*/^]/.test(current)) {
+      tokens.push({ type: "operator", value: current as "+" | "-" | "*" | "/" | "^" });
       index += 1;
       continue;
     }
@@ -398,6 +426,16 @@ export function evaluateExpression(input: string, constants: SavedConstant[] = [
       position += 1;
       const constant = constantMap.get(token.value);
       if (constant) return constant;
+      if (["sin", "cos", "tan", "sqrt"].includes(token.value)) {
+        if (tokens[position]?.type !== "leftParen") throw new Error(`${token.value}() の後に括弧を付けてください。`);
+        position += 1;
+        const inner = parseAddSubtract();
+        if (tokens[position]?.type !== "rightParen") throw new Error(`${token.value}() の閉じ括弧が不足しています。`);
+        position += 1;
+        return applyMathFunction(token.value, inner);
+      }
+      if (token.value === "pi") return quantity(Math.PI);
+      if (token.value === "e") return quantity(Math.E);
       try {
         const parsed = parseUnit(token.value);
         return quantity(parsed.scale, parsed.dimension);
@@ -415,14 +453,24 @@ export function evaluateExpression(input: string, constants: SavedConstant[] = [
     throw new Error("式の構文が正しくありません。");
   };
 
+  const parsePower = (): Quantity => {
+    const left = parsePrimary();
+    const nextToken = tokens[position];
+    if (nextToken?.type === "operator" && nextToken.value === "^") {
+      position += 1;
+      return exponentiate(left, parsePower());
+    }
+    return left;
+  };
+
   const parseMultiplyDivide = (): Quantity => {
-    let left = parsePrimary();
+    let left = parsePower();
     while (true) {
       const nextToken = tokens[position];
       if (!nextToken || nextToken.type !== "operator" || !["*", "/"].includes(nextToken.value)) break;
       const operator = nextToken.value;
       position += 1;
-      const right = parsePrimary();
+      const right = parsePower();
       left = operator === "*" ? multiply(left, right) : divide(left, right);
     }
     return left;

@@ -5,13 +5,16 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import { UnitSystem } from "@/lib/units";
 
 export type AppLanguage = "en" | "ja";
+export type CalculatorMode = "simple" | "advanced";
 
 type GlobalSettings = {
   language: AppLanguage;
   locale: string;
   unitSystem: UnitSystem;
+  calculatorMode: CalculatorMode;
   setLanguage: (language: AppLanguage) => Promise<void>;
   setUnitSystem: (system: UnitSystem) => Promise<void>;
+  setCalculatorMode: (mode: CalculatorMode) => Promise<void>;
   t: (key: TranslationKey) => string;
   unitGroupLabel: (groupId: string) => string;
 };
@@ -20,6 +23,7 @@ type TranslationKey = keyof typeof COPY.en;
 
 const LANGUAGE_KEY = "si-unit-calculator.language.v1";
 const UNIT_SYSTEM_KEY = "si-unit-calculator.unit-system.v1";
+const CALCULATOR_MODE_KEY = "si-unit-calculator.calculator-mode.v1";
 
 const COPY = {
   en: {
@@ -30,7 +34,7 @@ const COPY = {
     examples: "Start with examples",
     examplesHint: "Choose an example to load the expression, display unit, and result.",
     expression: "Expression",
-    expressionHint: "Supports ×, ÷, parentheses, and constants",
+    expressionHint: "Supports ×, ÷, parentheses, constants, and advanced math",
     result: "Result",
     displayUnit: "Display unit",
     compatibleOnly: "Only units with the same dimension are shown.",
@@ -44,6 +48,10 @@ const COPY = {
     systemUS: "US customary",
     systemUK: "Imperial / UK",
     systemHint: "Your preference prioritizes familiar units without changing SI calculation accuracy.",
+    displayMode: "Calculator display",
+    simpleMode: "Simple",
+    advancedMode: "Advanced",
+    displayModeHint: "Simple keeps uncommon units and functions out of view. Advanced shows angles, scientific units, and math functions.",
     accessibility: "Accessible by design",
     accessibilityHint: "VoiceOver and TalkBack labels describe controls; text follows your device size settings.",
     region: "Region",
@@ -59,7 +67,7 @@ const COPY = {
     examples: "サンプルから始める",
     examplesHint: "例を選ぶと、式・表示単位・結果をまとめて設定します。",
     expression: "式",
-    expressionHint: "×・÷・括弧・定数に対応",
+    expressionHint: "×・÷・括弧・定数・上級関数に対応",
     result: "結果",
     displayUnit: "表示単位",
     compatibleOnly: "計算結果と同じ次元の単位のみ表示します。",
@@ -73,6 +81,10 @@ const COPY = {
     systemUS: "米国慣用単位",
     systemUK: "英・帝国単位",
     systemHint: "SIによる正確な計算は維持したまま、慣用的な単位を先に表示します。",
+    displayMode: "電卓の表示モード",
+    simpleMode: "シンプル",
+    advancedMode: "上級",
+    displayModeHint: "シンプルでは一般的でない単位・関数を隠します。上級では角度、科学単位、数学関数も表示します。",
     accessibility: "アクセシビリティ",
     accessibilityHint: "VoiceOver・TalkBack向けの説明を付け、端末の文字サイズ設定に対応します。",
     region: "地域",
@@ -101,11 +113,13 @@ export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
   const defaultLanguage: AppLanguage = deviceLocale?.languageCode === "ja" ? "ja" : "en";
   const [language, setLanguageState] = useState<AppLanguage>(defaultLanguage);
   const [unitSystem, setUnitSystemState] = useState<UnitSystem>(() => defaultUnitSystem(deviceLocale));
+  const [calculatorMode, setCalculatorModeState] = useState<CalculatorMode>("simple");
 
   useEffect(() => {
-    Promise.all([AsyncStorage.getItem(LANGUAGE_KEY), AsyncStorage.getItem(UNIT_SYSTEM_KEY)]).then(([storedLanguage, storedUnitSystem]) => {
+    Promise.all([AsyncStorage.getItem(LANGUAGE_KEY), AsyncStorage.getItem(UNIT_SYSTEM_KEY), AsyncStorage.getItem(CALCULATOR_MODE_KEY)]).then(([storedLanguage, storedUnitSystem, storedCalculatorMode]) => {
       if (storedLanguage === "en" || storedLanguage === "ja") setLanguageState(storedLanguage);
       if (storedUnitSystem === "metric" || storedUnitSystem === "us" || storedUnitSystem === "uk") setUnitSystemState(storedUnitSystem);
+      if (storedCalculatorMode === "simple" || storedCalculatorMode === "advanced") setCalculatorModeState(storedCalculatorMode);
     }).catch(() => undefined);
   }, []);
 
@@ -119,16 +133,23 @@ export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.setItem(UNIT_SYSTEM_KEY, nextSystem);
   }, []);
 
+  const setCalculatorMode = useCallback(async (nextMode: CalculatorMode) => {
+    setCalculatorModeState(nextMode);
+    await AsyncStorage.setItem(CALCULATOR_MODE_KEY, nextMode);
+  }, []);
+
   const locale = language === "ja" ? "ja-JP" : deviceLocale?.languageTag?.startsWith("en") ? deviceLocale.languageTag : "en-US";
   const value = useMemo<GlobalSettings>(() => ({
     language,
     locale,
     unitSystem,
+    calculatorMode,
     setLanguage,
     setUnitSystem,
+    setCalculatorMode,
     t: (key) => COPY[language][key],
     unitGroupLabel: (groupId) => GROUP_NAMES[groupId]?.[language] ?? groupId,
-  }), [language, locale, setLanguage, setUnitSystem, unitSystem]);
+  }), [calculatorMode, language, locale, setCalculatorMode, setLanguage, setUnitSystem, unitSystem]);
 
   return <GlobalSettingsContext.Provider value={value}>{children}</GlobalSettingsContext.Provider>;
 }

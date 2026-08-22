@@ -16,6 +16,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
+import { isSampleCategoryVisible, isUnitGroupVisible, visibleUnits } from "@/lib/advanced-display";
 import { useCalculatorStore } from "@/lib/calculator-store";
 import { exportCalculationHistory } from "@/lib/calculation-export";
 import { useGlobalSettings } from "@/lib/global-settings";
@@ -27,6 +28,7 @@ import { SAMPLE_CALCULATIONS, SAMPLE_CATEGORIES, type SampleCalculation } from "
 import { evaluateExpression, formatDimension, formatQuantity, getCompatibleUnitGroups, getRegionalUnits, parseConstantDefinition, Quantity, searchUnitOptions, UNIT_GROUPS } from "@/lib/units";
 
 const KEYS = ["(", ")", "÷", "⌫", "7", "8", "9", "×", "4", "5", "6", "-", "1", "2", "3", "+", ".", "0", " ", "="];
+const ADVANCED_KEYS = ["sin(", "cos(", "tan(", "sqrt(", "^", "π", "e"];
 
 export default function CalculatorScreen() {
   const router = useRouter();
@@ -35,7 +37,7 @@ export default function CalculatorScreen() {
   const { quick } = useLocalSearchParams<{ quick?: string | string[] }>();
   const { constants, history, favoriteUnits, upsertConstant, addHistoryEntry, clearHistory } = useCalculatorStore();
   const { isPro } = usePro();
-  const { language, locale, t, unitGroupLabel, unitSystem } = useGlobalSettings();
+  const { calculatorMode, language, locale, t, unitGroupLabel, unitSystem } = useGlobalSettings();
   const [expression, setExpression] = useState("5cm + 1mm");
   const [targetUnit, setTargetUnit] = useState("cm");
   const [result, setResult] = useState<Quantity | null>(null);
@@ -48,13 +50,21 @@ export default function CalculatorScreen() {
   const [unitSearch, setUnitSearch] = useState("");
   const unitSearchRef = useRef<TextInput>(null);
 
-  const selectedInputGroup = UNIT_GROUPS.find((group) => group.id === inputGroupId) ?? UNIT_GROUPS[0];
-  const selectedInputUnits = useMemo(() => getRegionalUnits(selectedInputGroup, unitSystem), [selectedInputGroup, unitSystem]);
-  const searchedUnits = useMemo(() => searchUnitOptions(unitSearch, unitSystem), [unitSearch, unitSystem]);
-  const compatibleUnitGroups = useMemo(() => (result ? getCompatibleUnitGroups(result.dimension) : []), [result]);
-  const visibleSamples = useMemo(() => SAMPLE_CALCULATIONS.filter((sample) => sample.category === sampleCategory), [sampleCategory]);
+  const isAdvancedMode = calculatorMode === "advanced";
+  const visibleInputGroups = useMemo(() => UNIT_GROUPS.filter((group) => isUnitGroupVisible(group, isAdvancedMode)), [isAdvancedMode]);
+  const selectedInputGroup = visibleInputGroups.find((group) => group.id === inputGroupId) ?? visibleInputGroups[0] ?? UNIT_GROUPS[0];
+  const selectedInputUnits = useMemo(() => visibleUnits(getRegionalUnits(selectedInputGroup, unitSystem), isAdvancedMode), [isAdvancedMode, selectedInputGroup, unitSystem]);
+  const searchedUnits = useMemo(() => searchUnitOptions(unitSearch, unitSystem).filter(({ group, unit }) => isUnitGroupVisible(group, isAdvancedMode) && visibleUnits([unit], isAdvancedMode).length > 0), [isAdvancedMode, unitSearch, unitSystem]);
+  const compatibleUnitGroups = useMemo(() => (result ? getCompatibleUnitGroups(result.dimension).filter((group) => isUnitGroupVisible(group, isAdvancedMode) && visibleUnits(getRegionalUnits(group, unitSystem), isAdvancedMode).length > 0) : []), [isAdvancedMode, result, unitSystem]);
+  const visibleSampleCategories = useMemo(() => SAMPLE_CATEGORIES.filter((category) => isSampleCategoryVisible(category.id, isAdvancedMode)), [isAdvancedMode]);
+  const visibleSamples = useMemo(() => SAMPLE_CALCULATIONS.filter((sample) => sample.category === sampleCategory && isSampleCategoryVisible(sample.category, isAdvancedMode)), [isAdvancedMode, sampleCategory]);
   const visibleHistory = isPro ? history : history.slice(0, 5);
   const unitInfo = useMemo(() => getUnitExplanation(unitInfoSymbol ?? ""), [unitInfoSymbol]);
+
+  useEffect(() => {
+    if (!isAdvancedMode && !isUnitGroupVisible(UNIT_GROUPS.find((group) => group.id === inputGroupId) ?? UNIT_GROUPS[0], false)) setInputGroupId("length");
+    if (!isAdvancedMode && !isSampleCategoryVisible(sampleCategory as SampleCalculation["category"], false)) setSampleCategory("basic");
+  }, [inputGroupId, isAdvancedMode, sampleCategory]);
 
   const targetUnitForSample = (sample: SampleCalculation) => {
     if (unitSystem === "us") {
@@ -74,9 +84,9 @@ export default function CalculatorScreen() {
   };
 
   const copy = language === "en" ? {
-    definitionHint: "Define a constant: W = 3cm", calculate: "Calculate", siBase: "SI base unit", emptyResult: "Enter an expression, then tap Calculate.", unitPlaceholder: "Choose a compatible unit or enter one", selectAfter: "Compatible units appear here after calculation.", speedTitle: "Distance, time & speed", speedFormula: "Speed = distance ÷ time     Distance = speed × time", findSpeed: "Find speed", findDistance: "Find distance", findTime: "Find time", speedHint: "Mix s, min, h, m, km, and other compatible units freely.", savedHistory: "Saved calculations", clear: "Clear", helpTitle: "Examples", helpDone: "Done", unitSearch: "Search units or categories", copied: "Calculation copied", copy: "Copy", unitDetails: "Unit details", siConversion: "SI conversion", commonUse: "Common use", close: "Close",
+    definitionHint: "Define a constant: W = 3cm", calculate: "Calculate", siBase: "SI base unit", emptyResult: "Enter an expression, then tap Calculate.", unitPlaceholder: "Choose a compatible unit or enter one", selectAfter: "Compatible units appear here after calculation.", speedTitle: "Distance, time & speed", speedFormula: "Speed = distance ÷ time     Distance = speed × time", findSpeed: "Find speed", findDistance: "Find distance", findTime: "Find time", speedHint: "Mix s, min, h, m, km, and other compatible units freely.", savedHistory: "Saved calculations", clear: "Clear", helpTitle: "Examples", helpDone: "Done", unitSearch: "Search units or categories", copied: "Calculation copied", copy: "Copy", unitDetails: "Unit details", siConversion: "SI conversion", commonUse: "Common use", close: "Close", advancedMath: "Advanced math", advancedMathHint: "Angles use rad, deg, or °. Trig returns a dimensionless value.",
   } : {
-    definitionHint: "定数定義：W = 3cm", calculate: "計算", siBase: "SI標準単位", emptyResult: "式を入力して「計算」を押してください。", unitPlaceholder: "候補から選択、または入力", selectAfter: "計算後、次元に合う単位のみをここへ表示します。", speedTitle: "距離・時間・速度", speedFormula: "速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間", findSpeed: "速度を求める", findDistance: "距離を求める", findTime: "時間を求める", speedHint: "時間は s、min、h、距離は m、km などを自由に組み合わせられます。", savedHistory: "保存済みの計算履歴", clear: "消去", helpTitle: "入力例", helpDone: "閉じる", unitSearch: "単位・カテゴリを検索", copied: "計算結果をコピーしました", copy: "コピー", unitDetails: "単位の説明", siConversion: "SI換算", commonUse: "主な利用分野", close: "閉じる",
+    definitionHint: "定数定義：W = 3cm", calculate: "計算", siBase: "SI標準単位", emptyResult: "式を入力して「計算」を押してください。", unitPlaceholder: "候補から選択、または入力", selectAfter: "計算後、次元に合う単位のみをここへ表示します。", speedTitle: "距離・時間・速度", speedFormula: "速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間", findSpeed: "速度を求める", findDistance: "距離を求める", findTime: "時間を求める", speedHint: "時間は s、min、h、距離は m、km などを自由に組み合わせられます。", savedHistory: "保存済みの計算履歴", clear: "消去", helpTitle: "入力例", helpDone: "閉じる", unitSearch: "単位・カテゴリを検索", copied: "計算結果をコピーしました", copy: "コピー", unitDetails: "単位の説明", siConversion: "SI換算", commonUse: "主な利用分野", close: "閉じる", advancedMath: "上級の数学機能", advancedMathHint: "角度は rad・deg・° で入力します。三角関数の結果は無次元です。",
   };
 
   const display = useMemo(() => {
@@ -253,7 +263,7 @@ export default function CalculatorScreen() {
           <Text style={styles.cardLabel}>{t("examples")}</Text>
           <Text style={styles.samplesHint}>{t("examplesHint")}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sampleCategoryRail}>
-            {SAMPLE_CATEGORIES.map((category) => (
+            {visibleSampleCategories.map((category) => (
               <Pressable key={category.id} onPress={() => setSampleCategory(category.id)} style={({ pressed }) => [styles.sampleCategoryChip, sampleCategory === category.id && styles.sampleCategoryChipActive, pressed && styles.pressed]}>
                 <Text style={[styles.sampleCategoryText, sampleCategory === category.id && styles.sampleCategoryTextActive]}>{language === "en" ? category.labelEn : category.label}</Text>
               </Pressable>
@@ -342,7 +352,7 @@ export default function CalculatorScreen() {
                 <View key={group.id} style={styles.compatibleGroup}>
                   <Text style={styles.unitGroupLabel}>{unitGroupLabel(group.id)}</Text>
                   <View style={styles.chips}>
-                    {getRegionalUnits(group, unitSystem).map((unit) => {
+                    {visibleUnits(getRegionalUnits(group, unitSystem), isAdvancedMode).map((unit) => {
                       const explanation = getUnitExplanation(unit.symbol);
                       return (
                         <View key={unit.symbol} style={styles.unitChoice}>
@@ -374,7 +384,7 @@ export default function CalculatorScreen() {
             return <View key={`${group.id}-${unit.symbol}`} style={styles.searchResult}><Pressable onPress={() => { insertUnit(unit.symbol); setUnitSearch(""); }} style={({ pressed }) => [styles.searchResultButton, pressed && styles.pressed]}><Text style={styles.searchUnit}>{unit.symbol}</Text><Text style={styles.searchGroup}>{unitGroupLabel(group.id)}</Text></Pressable>{explanation ? <Pressable accessibilityLabel={`${unit.symbol} ${copy.unitDetails}`} onPress={() => setUnitInfoSymbol(unit.symbol)} style={({ pressed }) => [styles.unitInfoButton, pressed && styles.iconPressed]}><IconSymbol name="info.circle" size={16} color={colors.primary} /></Pressable> : null}</View>;
           })}</View> : null}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRail}>
-            {UNIT_GROUPS.map((group) => (
+            {visibleInputGroups.map((group) => (
               <Pressable key={group.id} onPress={() => setInputGroupId(group.id)} style={({ pressed }) => [styles.categoryChip, inputGroupId === group.id && styles.categoryChipActive, pressed && styles.pressed]}>
                 <Text style={[styles.categoryChipText, inputGroupId === group.id && styles.categoryChipTextActive]}>{unitGroupLabel(group.id)}</Text>
               </Pressable>
@@ -420,6 +430,14 @@ export default function CalculatorScreen() {
 
         {error ? <View style={styles.messageError}><Text style={styles.messageErrorText}>{error}</Text></View> : null}
         {notice ? <View style={styles.messageSuccess}><Text style={styles.messageSuccessText}>{notice}</Text></View> : null}
+
+        {isAdvancedMode ? <View style={styles.advancedMathCard}>
+          <Text style={styles.cardLabel}>{copy.advancedMath}</Text>
+          <Text style={styles.advancedMathHint}>{copy.advancedMathHint}</Text>
+          <View style={styles.advancedKeyRow}>
+            {ADVANCED_KEYS.map((key) => <Pressable accessibilityLabel={key} key={key} onPress={() => pressKey(key)} style={({ pressed }) => [styles.advancedKey, pressed && styles.pressed]}><Text style={styles.advancedKeyText}>{key}</Text></Pressable>)}
+          </View>
+        </View> : null}
 
         <View style={styles.keypad}>
           {KEYS.map((key, index) => {
@@ -601,6 +619,11 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   messageErrorText: { color: colors.error, fontSize: 13, lineHeight: 19 },
   messageSuccess: { backgroundColor: colors.successSurface, borderColor: colors.successBorder, borderRadius: 10, borderWidth: 1, padding: 11 },
   messageSuccessText: { color: colors.success, fontSize: 13, lineHeight: 19 },
+  advancedMathCard: { backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 18, borderWidth: 1, padding: 15 },
+  advancedMathHint: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 7 },
+  advancedKeyRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
+  advancedKey: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 10, borderWidth: 1, minHeight: 38, minWidth: 54, paddingHorizontal: 10, justifyContent: "center" },
+  advancedKeyText: { color: colors.primary, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 13, fontWeight: "800" },
   keypad: { gap: 8, flexDirection: "row", flexWrap: "wrap" },
   key: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 12, borderWidth: 1, height: 48, justifyContent: "center", width: "23.4%" },
   keyBlank: { backgroundColor: "transparent", borderWidth: 0 },
