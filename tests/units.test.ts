@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  canonicalUnitSymbol,
   convertQuantity,
   evaluateExpression,
   formatNumberForLocale,
@@ -196,8 +197,37 @@ describe("単位付き計算", () => {
 
   it("候補への登録済み・計算可能な候補外・未対応の単位を区別する", () => {
     expect(getUnitRegistration("cm").status).toBe("registered");
-    expect(getUnitRegistration("g0").status).toBe("supported");
+    expect(getUnitRegistration("Sv").status).toBe("supported");
     expect(getUnitRegistration("madeUpUnit").status).toBe("unknown");
+  });
+
+  it("別表記も登録済み候補として扱い、正式な記号へ寄せる", () => {
+    const hour = getUnitRegistration("hour");
+    expect(hour.status).toBe("registered");
+    expect(hour.canonical).toBe("h");
+    expect(hour.matchedAlias).toBe("hour");
+    expect(getUnitRegistration("g0").canonical).toBe("G");
+    expect(canonicalUnitSymbol("SEC")).toBe("s");
+    expect(canonicalUnitSymbol("cm")).toBe("cm");
+    expect(canonicalUnitSymbol("madeUpUnit")).toBe("madeUpUnit");
+  });
+
+  it("sec・hour など英語表記の時間単位でも計算できる", () => {
+    expect(formatQuantity(evaluateExpression("90sec"), "min")).toBe("1.5 min");
+    expect(formatQuantity(evaluateExpression("1hour"), "min")).toBe("60 min");
+    expect(formatQuantity(evaluateExpression("2hours + 30min"), "h")).toBe("2.5 h");
+    expect(formatQuantity(evaluateExpression("120km ÷ 2hour"), "km/h")).toBe("60 km/h");
+    expect(formatQuantity(evaluateExpression("100m ÷ 10sec"), "m/s")).toBe("10 m/s");
+    expect(formatQuantity(evaluateExpression("1day"), "hour")).toBe("24 hour");
+    expect(formatQuantity(evaluateExpression("500msec"), "s")).toBe("0.5 s");
+  });
+
+  it("時間単位には読みと別表記を持たせ、min だけが浮かないようにする", () => {
+    const timeGroup = UNIT_GROUPS.find((group) => group.id === "time");
+    expect(timeGroup?.units.map((unitOption) => unitOption.name?.ja)).toEqual(["秒", "ミリ秒", "分", "時間", "日"]);
+    expect(timeGroup?.units.find((unitOption) => unitOption.symbol === "h")?.aliases).toContain("hour");
+    expect(searchUnitOptions("hour", "metric")[0].unit.symbol).toBe("h");
+    expect(searchUnitOptions("秒", "metric").map((result) => result.unit.symbol)).toContain("s");
   });
 
   it("異なる次元の加算を拒否する", () => {
