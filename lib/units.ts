@@ -12,6 +12,12 @@ export type SavedConstant = {
   createdAt: string;
 };
 
+export type CustomFunctionDefinition = {
+  name: string;
+  parameters: string[];
+  expression: string;
+};
+
 export type UnitOption = {
   symbol: string;
   label: string;
@@ -36,6 +42,7 @@ type Token =
   | { type: "quantity"; value: Quantity }
   | { type: "identifier"; value: string }
   | { type: "operator"; value: "+" | "-" | "*" | "/" | "^" }
+  | { type: "comma" }
   | { type: "leftParen" }
   | { type: "rightParen" };
 
@@ -319,7 +326,17 @@ function squareRoot(input: Quantity): Quantity {
 function applyMathFunction(name: string, input: Quantity): Quantity {
   if (name === "sqrt") return squareRoot(input);
   if (!isDimensionless(input.dimension)) throw new Error(`${name}() の引数は角度または無次元の値にしてください。`);
-  const functions: Record<string, (value: number) => number> = { sin: Math.sin, cos: Math.cos, tan: Math.tan };
+  if (["asin", "acos"].includes(name) && (input.siValue < -1 || input.siValue > 1)) {
+    throw new Error(`${name}() の引数は -1 から 1 の範囲にしてください。`);
+  }
+  if (["ln", "log", "log2"].includes(name) && input.siValue <= 0) {
+    throw new Error(`${name}() の引数は0より大きい値にしてください。`);
+  }
+  const functions: Record<string, (value: number) => number> = {
+    sin: Math.sin, cos: Math.cos, tan: Math.tan,
+    asin: Math.asin, acos: Math.acos, atan: Math.atan,
+    ln: Math.log, log: Math.log10, log2: Math.log2,
+  };
   const evaluator = functions[name];
   if (!evaluator) throw new Error(`未対応の関数「${name}」です。`);
   return quantity(evaluator(input.siValue));
@@ -353,6 +370,11 @@ function tokenize(input: string): Token[] {
     }
     if (current === ")") {
       tokens.push({ type: "rightParen" });
+      index += 1;
+      continue;
+    }
+    if (current === ",") {
+      tokens.push({ type: "comma" });
       index += 1;
       continue;
     }
@@ -404,7 +426,12 @@ function tokenize(input: string): Token[] {
   return tokens;
 }
 
-export function evaluateExpression(input: string, constants: SavedConstant[] = []): Quantity {
+export function evaluateExpression(
+  input: string,
+  constants: SavedConstant[] = [],
+  customFunctions: CustomFunctionDefinition[] = [],
+  activeFunctionNames: string[] = [],
+): Quantity {
   const tokens = tokenize(input);
   if (!tokens.length) throw new Error("式を入力してください。");
   const constantMap = new Map(constants.map((item) => [item.symbol, item.quantity]));
@@ -426,7 +453,44 @@ export function evaluateExpression(input: string, constants: SavedConstant[] = [
       position += 1;
       const constant = constantMap.get(token.value);
       if (constant) return constant;
-      if (["sin", "cos", "tan", "sqrt"].includes(token.value)) {
+      const customFunction = customFunctions.find((item) => item.name === token.value);
+      if (customFunction && tokens[position]?.type === "leftParen") {
+        if (activeFunctionNames.includes(customFunction.name)) throw new Error(`自作関数「${customFunction.name}」が再帰的に呼び出されています。`);
+        position += 1;
+        const argumentsList: Quantity[] = [];
+        if (tokens[position]?.type !== "rightParen") {
+          while (true) {
+            argumentsList.push(parseAddSubtract());
+            if (tokens[position]?.type !== "comma") break;
+            position += 1;
+          }
+        }
+        if (tokens[position]?.type !== "rightParen") throw new Error(`自作関数「${customFunction.name}」の閉じ括弧が不足しています。`);
+        position += 1;
+        if (argumentsList.length !== customFunction.parameters.length) {
+          throw new Error(`自作関数「${customFunction.name}」は${customFunction.parameters.length}個の引数を必要とします。`);
+        }
+        const parameterConstants: SavedConstant[] = customFunction.parameters.map((symbol, index) => ({
+          symbol,
+          expression: "",
+          quantity: argumentsList[index],
+          createdAt: "",
+        }));
+        return evaluateExpression(customFunction.expression, [...constants, ...parameterConstants], customFunctions, [...activeFunctionNames, customFunction.name]);
+      }
+      if (token.value === "atan2") {
+        if (tokens[position]?.type !== "leftParen") throw new Error("atan2() の後に括弧を付けてください。");
+        position += 1;
+        const y = parseAddSubtract();
+        if (tokens[position]?.type !== "comma") throw new Error("atan2() は atan2(y, x) の形式で入力してください。");
+        position += 1;
+        const x = parseAddSubtract();
+        if (tokens[position]?.type !== "rightParen") throw new Error("atan2() の閉じ括弧が不足しています。");
+        position += 1;
+        if (!sameDimension(y.dimension, x.dimension)) throw new Error("atan2() の2つの引数は同じ次元にしてください。");
+        return quantity(Math.atan2(y.siValue, x.siValue));
+      }
+      if (["sin", "cos", "tan", "asin", "acos", "atan", "sqrt", "ln", "log", "log2"].includes(token.value)) {
         if (tokens[position]?.type !== "leftParen") throw new Error(`${token.value}() の後に括弧を付けてください。`);
         position += 1;
         const inner = parseAddSubtract();

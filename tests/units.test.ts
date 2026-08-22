@@ -109,6 +109,33 @@ describe("単位付き計算", () => {
     expect(() => evaluateExpression("sqrt(-1)")).toThrow("負の値");
   });
 
+  it("逆三角関数・対数・atan2を計算し、角度へ変換する", () => {
+    expect(convertQuantity(evaluateExpression("asin(0.5)"), "deg").value).toBeCloseTo(30);
+    expect(convertQuantity(evaluateExpression("acos(0)"), "deg").value).toBeCloseTo(90);
+    expect(convertQuantity(evaluateExpression("atan(1)"), "deg").value).toBeCloseTo(45);
+    expect(convertQuantity(evaluateExpression("atan2(1m, 1m)"), "deg").value).toBeCloseTo(45);
+    expect(evaluateExpression("ln(e)").siValue).toBeCloseTo(1);
+    expect(evaluateExpression("log(1000)").siValue).toBeCloseTo(3);
+    expect(evaluateExpression("log2(8)").siValue).toBeCloseTo(3);
+  });
+
+  it("逆三角関数・対数・atan2の不正な引数を拒否する", () => {
+    expect(() => evaluateExpression("asin(2)")).toThrow("-1 から 1");
+    expect(() => evaluateExpression("log(0)")).toThrow("0より大きい");
+    expect(() => evaluateExpression("ln(1m)")).toThrow("角度または無次元");
+    expect(() => evaluateExpression("atan2(1m, 1s)")).toThrow("同じ次元");
+  });
+
+  it("自作関数を引数付きで呼び出し、次元演算を再利用する", () => {
+    const functions = [{ name: "circleArea", parameters: ["r"], expression: "pi × r^2" }];
+    expect(convertQuantity(evaluateExpression("circleArea(3m)", [], functions), "m²").value).toBeCloseTo(9 * Math.PI);
+  });
+
+  it("自作関数の引数数と再帰呼び出しを拒否する", () => {
+    expect(() => evaluateExpression("circleArea()", [], [{ name: "circleArea", parameters: ["r"], expression: "pi × r^2" }])).toThrow("1個の引数");
+    expect(() => evaluateExpression("loop(1)", [], [{ name: "loop", parameters: ["x"], expression: "loop(x)" }])).toThrow("再帰的");
+  });
+
   it("質量と標準重力の乗算から力を計算し、加速度候補を地域別に提示する", () => {
     expect(convertQuantity(evaluateExpression("2kg × 1G"), "N").value).toBeCloseTo(19.6133);
     const accelerationGroup = UNIT_GROUPS.find((group) => group.id === "acceleration");

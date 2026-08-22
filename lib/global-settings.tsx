@@ -29,7 +29,7 @@ const COPY = {
   en: {
     calculator: "Unit Calculator",
     calculatorSubtitle: "Calculate in SI. Display in compatible units.",
-    constants: "Constants",
+    constants: "Library",
     pro: "Pro",
     examples: "Start with examples",
     examplesHint: "Choose an example to load the expression, display unit, and result.",
@@ -62,7 +62,7 @@ const COPY = {
   ja: {
     calculator: "単位付き電卓",
     calculatorSubtitle: "SIで計算し、互換性のある単位で表示します。",
-    constants: "定数",
+    constants: "ライブラリ",
     pro: "Pro",
     examples: "サンプルから始める",
     examplesHint: "例を選ぶと、式・表示単位・結果をまとめて設定します。",

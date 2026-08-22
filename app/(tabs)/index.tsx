@@ -28,14 +28,14 @@ import { SAMPLE_CALCULATIONS, SAMPLE_CATEGORIES, type SampleCalculation } from "
 import { evaluateExpression, formatDimension, formatQuantity, getCompatibleUnitGroups, getRegionalUnits, parseConstantDefinition, Quantity, searchUnitOptions, UNIT_GROUPS } from "@/lib/units";
 
 const KEYS = ["(", ")", "÷", "⌫", "7", "8", "9", "×", "4", "5", "6", "-", "1", "2", "3", "+", ".", "0", " ", "="];
-const ADVANCED_KEYS = ["sin(", "cos(", "tan(", "sqrt(", "^", "π", "e"];
+const ADVANCED_KEYS = ["sin(", "cos(", "tan(", "asin(", "acos(", "atan(", "atan2(", "ln(", "log(", "log2(", "sqrt(", "^", "π", "e"];
 
 export default function CalculatorScreen() {
   const router = useRouter();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { quick } = useLocalSearchParams<{ quick?: string | string[] }>();
-  const { constants, history, favoriteUnits, upsertConstant, addHistoryEntry, clearHistory } = useCalculatorStore();
+  const { quick, presetExpression, presetUnit } = useLocalSearchParams<{ quick?: string | string[]; presetExpression?: string | string[]; presetUnit?: string | string[] }>();
+  const { constants, customFunctions, history, favoriteUnits, upsertConstant, addHistoryEntry, clearHistory } = useCalculatorStore();
   const { isPro } = usePro();
   const { calculatorMode, language, locale, t, unitGroupLabel, unitSystem } = useGlobalSettings();
   const [expression, setExpression] = useState("5cm + 1mm");
@@ -84,9 +84,9 @@ export default function CalculatorScreen() {
   };
 
   const copy = language === "en" ? {
-    definitionHint: "Define a constant: W = 3cm", calculate: "Calculate", siBase: "SI base unit", emptyResult: "Enter an expression, then tap Calculate.", unitPlaceholder: "Choose a compatible unit or enter one", selectAfter: "Compatible units appear here after calculation.", speedTitle: "Distance, time & speed", speedFormula: "Speed = distance ÷ time     Distance = speed × time", findSpeed: "Find speed", findDistance: "Find distance", findTime: "Find time", speedHint: "Mix s, min, h, m, km, and other compatible units freely.", savedHistory: "Saved calculations", clear: "Clear", helpTitle: "Examples", helpDone: "Done", unitSearch: "Search units or categories", copied: "Calculation copied", copy: "Copy", unitDetails: "Unit details", siConversion: "SI conversion", commonUse: "Common use", close: "Close", advancedMath: "Advanced math", advancedMathHint: "Angles use rad, deg, or °. Trig returns a dimensionless value.",
+    definitionHint: "Define a constant: W = 3cm", calculate: "Calculate", siBase: "SI base unit", emptyResult: "Enter an expression, then tap Calculate.", unitPlaceholder: "Choose a compatible unit or enter one", selectAfter: "Compatible units appear here after calculation.", speedTitle: "Distance, time & speed", speedFormula: "Speed = distance ÷ time     Distance = speed × time", findSpeed: "Find speed", findDistance: "Find distance", findTime: "Find time", speedHint: "Mix s, min, h, m, km, and other compatible units freely.", savedHistory: "Saved calculations", clear: "Clear", helpTitle: "Examples", helpDone: "Done", unitSearch: "Search units or categories", copied: "Calculation copied", copy: "Copy", unitDetails: "Unit details", siConversion: "SI conversion", commonUse: "Common use", close: "Close", advancedMath: "Advanced math", advancedMathHint: "Angles use rad, deg, or °. Includes inverse trig, logs, and atan2(y, x).", saveTemplate: "Save as template",
   } : {
-    definitionHint: "定数定義：W = 3cm", calculate: "計算", siBase: "SI標準単位", emptyResult: "式を入力して「計算」を押してください。", unitPlaceholder: "候補から選択、または入力", selectAfter: "計算後、次元に合う単位のみをここへ表示します。", speedTitle: "距離・時間・速度", speedFormula: "速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間", findSpeed: "速度を求める", findDistance: "距離を求める", findTime: "時間を求める", speedHint: "時間は s、min、h、距離は m、km などを自由に組み合わせられます。", savedHistory: "保存済みの計算履歴", clear: "消去", helpTitle: "入力例", helpDone: "閉じる", unitSearch: "単位・カテゴリを検索", copied: "計算結果をコピーしました", copy: "コピー", unitDetails: "単位の説明", siConversion: "SI換算", commonUse: "主な利用分野", close: "閉じる", advancedMath: "上級の数学機能", advancedMathHint: "角度は rad・deg・° で入力します。三角関数の結果は無次元です。",
+    definitionHint: "定数定義：W = 3cm", calculate: "計算", siBase: "SI標準単位", emptyResult: "式を入力して「計算」を押してください。", unitPlaceholder: "候補から選択、または入力", selectAfter: "計算後、次元に合う単位のみをここへ表示します。", speedTitle: "距離・時間・速度", speedFormula: "速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間", findSpeed: "速度を求める", findDistance: "距離を求める", findTime: "時間を求める", speedHint: "時間は s、min、h、距離は m、km などを自由に組み合わせられます。", savedHistory: "保存済みの計算履歴", clear: "消去", helpTitle: "入力例", helpDone: "閉じる", unitSearch: "単位・カテゴリを検索", copied: "計算結果をコピーしました", copy: "コピー", unitDetails: "単位の説明", siConversion: "SI換算", commonUse: "主な利用分野", close: "閉じる", advancedMath: "上級の数学機能", advancedMathHint: "角度は rad・deg・° で入力します。逆三角・対数・atan2(y, x)にも対応します。", saveTemplate: "テンプレートに保存",
   };
 
   const display = useMemo(() => {
@@ -110,7 +110,7 @@ export default function CalculatorScreen() {
     try {
       const assignment = input.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=/);
       const next = assignment ? parseConstantDefinition(input, constants) : null;
-      const quantity = next?.quantity ?? evaluateExpression(input, constants);
+      const quantity = next?.quantity ?? evaluateExpression(input, constants, customFunctions);
       if (next) {
         await upsertConstant(next.symbol, next.expression);
         setNotice(`定数 ${next.symbol} を保存しました。`);
@@ -213,6 +213,17 @@ export default function CalculatorScreen() {
     }
   }, [language, quick]);
 
+  useEffect(() => {
+    const nextExpression = Array.isArray(presetExpression) ? presetExpression[0] : presetExpression;
+    const nextUnit = Array.isArray(presetUnit) ? presetUnit[0] : presetUnit;
+    if (!nextExpression) return;
+    setExpression(nextExpression);
+    setTargetUnit(nextUnit ?? "");
+    setResult(null);
+    setError("");
+    setNotice(language === "en" ? "Saved item loaded. Tap Calculate to run it." : "保存した項目を読み込みました。「計算」を押して実行できます。");
+  }, [language, presetExpression, presetUnit]);
+
   const applySample = (sample: SampleCalculation) => {
     const sampleTargetUnit = targetUnitForSample(sample);
     setExpression(sample.expression);
@@ -314,7 +325,7 @@ export default function CalculatorScreen() {
         </View>
 
         <View style={styles.resultCard}>
-          <View style={styles.resultHeader}><Text style={styles.cardLabel}>{t("result")}</Text>{display ? <Pressable accessibilityLabel={copy.copy} onPress={() => void copyCalculation()} style={({ pressed }) => [styles.copyButton, pressed && styles.pressed]}><IconSymbol name="doc.on.doc" size={16} color={colors.primary} /><Text style={styles.copyButtonText}>{copy.copy}</Text></Pressable> : null}</View>
+              <View style={styles.resultHeader}><Text style={styles.cardLabel}>{t("result")}</Text>{display ? <View style={styles.resultActions}><Pressable accessibilityLabel={copy.saveTemplate} onPress={() => router.push({ pathname: "/constants", params: { templateExpression: expression, templateUnit: targetUnit } })} style={({ pressed }) => [styles.copyButton, pressed && styles.pressed]}><IconSymbol name="bookmark.fill" size={14} color={colors.primary} /><Text style={styles.copyButtonText}>{copy.saveTemplate}</Text></Pressable><Pressable accessibilityLabel={copy.copy} onPress={() => void copyCalculation()} style={({ pressed }) => [styles.copyButton, pressed && styles.pressed]}><IconSymbol name="doc.on.doc" size={16} color={colors.primary} /><Text style={styles.copyButtonText}>{copy.copy}</Text></Pressable></View> : null}</View>
           {display ? (
             <>
               <Text numberOfLines={2} adjustsFontSizeToFit style={styles.resultValue}>{display.value}</Text>
@@ -561,7 +572,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   calculateButton: { backgroundColor: colors.primaryFill, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 9 },
   calculateText: { color: colors.onPrimary, fontSize: 14, fontWeight: "700" },
   resultCard: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 18, borderWidth: 1, padding: 16 },
-  resultHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
+  resultHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" }, resultActions: { alignItems: "center", flexDirection: "row", gap: 8 },
   copyButton: { alignItems: "center", backgroundColor: colors.surface, borderRadius: 9, flexDirection: "row", gap: 5, minHeight: 32, paddingHorizontal: 9 },
   copyButtonText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
   resultValue: { color: colors.primaryStrong, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 30, fontWeight: "700", marginTop: 9, minHeight: 40 },
