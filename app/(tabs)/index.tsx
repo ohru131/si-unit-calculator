@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -26,10 +26,21 @@ import { usePro } from "@/lib/revenuecat-provider";
 import { getUnitExplanation } from "@/lib/unit-explanations";
 import UnitCalculatorWidget from "@/widgets/UnitCalculatorWidget";
 import { SAMPLE_CALCULATIONS, SAMPLE_CATEGORIES, type SampleCalculation } from "@/lib/sample-calculations";
-import { evaluateExpression, formatDimension, formatQuantity, getCompatibleUnitGroups, getRegionalUnits, getUnitRegistration, parseConstantDefinition, Quantity, searchUnitOptions, UNIT_GROUPS } from "@/lib/units";
+import {
+  analyzeExpression,
+  getUnitInputHint,
+  getUnitSuggestions,
+  replaceExpressionRange,
+  type ExpressionSegment,
+  type UnitInputHint,
+  type UnitSuggestion,
+} from "@/lib/unit-input";
+import { evaluateExpression, formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, getRegionalUnits, getUnitRegistration, parseConstantDefinition, Quantity, UNIT_GROUPS, type UnitGroup, type UnitOption } from "@/lib/units";
 
 const KEYS = ["(", ")", "÷", "⌫", "7", "8", "9", "×", "4", "5", "6", "-", "1", "2", "3", "+", ".", "0", " ", "="];
 const ADVANCED_KEYS = ["sin(", "cos(", "tan(", "asin(", "acos(", "atan(", "atan2(", "ln(", "log(", "log2(", "sqrt(", "^", "π", "e"];
+const RAIL_LIMIT = 8;
+const RECENT_UNIT_LIMIT = 8;
 
 export default function CalculatorScreen() {
   const router = useRouter();
@@ -55,13 +66,19 @@ export default function CalculatorScreen() {
   const [unitPickerMode, setUnitPickerMode] = useState<"insert" | "target">("insert");
   const [unitInfoSymbol, setUnitInfoSymbol] = useState<string | null>(null);
   const [unitSearch, setUnitSearch] = useState("");
+  const [recentUnits, setRecentUnits] = useState<string[]>([]);
+  const [fixSelection, setFixSelection] = useState<{ start: number; end: number; text: string } | null>(null);
   const unitSearchRef = useRef<TextInput>(null);
 
   const isAdvancedMode = calculatorMode === "advanced";
+  const includeUnit = useCallback(
+    (group: UnitGroup, unitOption: UnitOption) => isUnitGroupVisible(group, isAdvancedMode) && visibleUnits([unitOption], isAdvancedMode).length > 0,
+    [isAdvancedMode],
+  );
   const visibleInputGroups = useMemo(() => UNIT_GROUPS.filter((group) => isUnitGroupVisible(group, isAdvancedMode)), [isAdvancedMode]);
   const selectedInputGroup = visibleInputGroups.find((group) => group.id === inputGroupId) ?? visibleInputGroups[0] ?? UNIT_GROUPS[0];
-  const selectedInputUnits = useMemo(() => visibleUnits(getRegionalUnits(selectedInputGroup, unitSystem), isAdvancedMode), [isAdvancedMode, selectedInputGroup, unitSystem]);
-  const searchedUnits = useMemo(() => searchUnitOptions(unitSearch, unitSystem).filter(({ group, unit }) => isUnitGroupVisible(group, isAdvancedMode) && visibleUnits([unit], isAdvancedMode).length > 0), [isAdvancedMode, unitSearch, unitSystem]);
+  const selectedInputUnits = useMemo(() => getGroupUnitsForSystem(selectedInputGroup, unitSystem).filter((unitOption) => includeUnit(selectedInputGroup, unitOption)), [includeUnit, selectedInputGroup, unitSystem]);
+  const searchSuggestions = useMemo(() => getUnitSuggestions(unitSearch, { system: unitSystem, limit: 24, includeUnit }), [includeUnit, unitSearch, unitSystem]);
   const compatibleUnitGroups = useMemo(() => (result ? getCompatibleUnitGroups(result.dimension).filter((group) => isUnitGroupVisible(group, isAdvancedMode) && visibleUnits(getRegionalUnits(group, unitSystem), isAdvancedMode).length > 0) : []), [isAdvancedMode, result, unitSystem]);
   const visibleSampleCategories = useMemo(() => SAMPLE_CATEGORIES.filter((category) => isSampleCategoryVisible(category.id, isAdvancedMode)), [isAdvancedMode]);
   const visibleSamples = useMemo(() => SAMPLE_CALCULATIONS.filter((sample) => sample.category === sampleCategory && isSampleCategoryVisible(sample.category, isAdvancedMode)), [isAdvancedMode, sampleCategory]);
@@ -70,6 +87,31 @@ export default function CalculatorScreen() {
   const unitInfo = useMemo(() => getUnitExplanation(unitInfoSymbol ?? ""), [unitInfoSymbol]);
   const targetUnitRegistration = useMemo(() => getUnitRegistration(targetUnit), [targetUnit]);
   const searchedUnitRegistration = useMemo(() => getUnitRegistration(unitSearch), [unitSearch]);
+
+  const identifiers = useMemo(
+    () => [...constants.map((item) => item.symbol), ...autoConstants.map((item) => item.symbol), ...customFunctions.map((item) => item.name)],
+    [autoConstants, constants, customFunctions],
+  );
+  const analysis = useMemo(() => analyzeExpression(expression, identifiers), [expression, identifiers]);
+  const hint = useMemo<UnitInputHint>(() => {
+    if (fixSelection) {
+      return { kind: "fix", fragment: fixSelection.text, start: fixSelection.start, end: fixSelection.end, candidates: getUnitSuggestions(fixSelection.text, { system: unitSystem, limit: RAIL_LIMIT, includeUnit }) };
+    }
+    return getUnitInputHint(expression, { system: unitSystem, recentUnits, identifiers, includeUnit, limit: RAIL_LIMIT });
+  }, [expression, fixSelection, identifiers, includeUnit, recentUnits, unitSystem]);
+
+  /** 結果のすぐ横で切り替えられる、同じ次元の単位。 */
+  const conversionUnits = useMemo(() => {
+    const symbols: string[] = [];
+    const current = targetUnit.trim();
+    if (current) symbols.push(current);
+    compatibleUnitGroups.forEach((group) => {
+      getGroupUnitsForSystem(group, unitSystem).forEach((unitOption) => {
+        if (includeUnit(group, unitOption) && !symbols.includes(unitOption.symbol)) symbols.push(unitOption.symbol);
+      });
+    });
+    return symbols.slice(0, 10);
+  }, [compatibleUnitGroups, includeUnit, targetUnit, unitSystem]);
 
   useEffect(() => {
     if (!isAdvancedMode && !isUnitGroupVisible(UNIT_GROUPS.find((group) => group.id === inputGroupId) ?? UNIT_GROUPS[0], false)) setInputGroupId("length");
@@ -94,25 +136,51 @@ export default function CalculatorScreen() {
   };
 
   const copy = language === "en" ? {
-    definitionHint: "Define a constant: W = 3cm", calculate: "Calculate", siBase: "SI base unit", emptyResult: "Enter an expression, then tap Calculate.", unitPlaceholder: "Choose a compatible unit or enter one", selectAfter: "Compatible units appear here after calculation.", speedTitle: "Distance, time & speed", speedFormula: "Speed = distance ÷ time     Distance = speed × time", findSpeed: "Find speed", findDistance: "Find distance", findTime: "Find time", speedHint: "Mix s, min, h, m, km, and other compatible units freely.", savedHistory: "Saved calculations", historyHint: "Latest answers are available as a1, a2, and so on.", clear: "Clear", helpTitle: "Examples", helpDone: "Done", unitSearch: "Search units or categories", copied: "Calculation copied", copy: "Copy", unitDetails: "Unit details", siConversion: "SI conversion", commonUse: "Common use", close: "Close", advancedMath: "Advanced math", advancedMathHint: "Angles use rad, deg, or °. Includes inverse trig, logs, and atan2(y, x).", saveTemplate: "Save as template", tools: "Tools", samples: "Examples", units: "Units", shortcuts: "Speed", math: "Math", outputUnit: "Output unit", insertUnit: "Insert unit", pickUnit: "Choose a registered unit", registered: "Registered candidate", supported: "Supported, but not listed", unknown: "Not registered or supported", unknownHint: "Check the symbol or choose a registered candidate below.", history: "History", latest: "Latest", use: "Use", noUnit: "No output unit", compatible: "Compatible candidates", allCandidates: "All registered candidates",
+    definitionHint: "Define a constant: W = 3cm", calculate: "=", siBase: "SI base", emptyResult: "Enter an expression, then tap =.", pickUnit: "Choose a registered unit", speedTitle: "Distance, time & speed", speedFormula: "Speed = distance ÷ time     Distance = speed × time", findSpeed: "Find speed", findDistance: "Find distance", findTime: "Find time", savedHistory: "Saved calculations", historyHint: "Latest answers are available as a1, a2, and so on.", clear: "Clear", helpTitle: "Examples", helpDone: "Done", unitSearch: "Search units, names, or categories", copied: "Calculation copied", copy: "Copy", unitDetails: "Unit details", siConversion: "SI conversion", commonUse: "Common use", close: "Close", advancedMath: "Advanced math", advancedMathHint: "Angles use rad, deg, or °. Includes inverse trig, logs, and atan2(y, x).", saveTemplate: "Save", samples: "Examples", units: "Units", shortcuts: "Speed", math: "Math", outputUnit: "Display unit", insertUnit: "Insert unit", registered: "Registered", supported: "Supported, not listed", unknown: "Not a usable unit", unknownHint: "Check the symbol or pick a candidate below.", history: "History", use: "Use", noUnit: "SI base", compatible: "Fits this result", allCandidates: "Closest candidates", hintFix: "Fix", hintComplete: "Finish", hintAttach: "Add unit", hintInsert: "Insert", more: "More", showAs: "Show as", fixTap: "Tap the red unit to fix it.", noCandidates: "No candidate found. Check the symbol.", aliasNote: "same as",
   } : {
-    definitionHint: "定数定義：W = 3cm", calculate: "計算", siBase: "SI標準単位", emptyResult: "式を入力して「計算」を押してください。", unitPlaceholder: "候補から選択、または入力", selectAfter: "計算後、次元に合う単位のみをここへ表示します。", speedTitle: "距離・時間・速度", speedFormula: "速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間", findSpeed: "速度を求める", findDistance: "距離を求める", findTime: "時間を求める", speedHint: "時間は s、min、h、距離は m、km などを自由に組み合わせられます。", savedHistory: "保存済みの計算履歴", historyHint: "最新の結果は a1、a2… として次の式で使えます。", clear: "消去", helpTitle: "入力例", helpDone: "閉じる", unitSearch: "単位・カテゴリを検索", copied: "計算結果をコピーしました", copy: "コピー", unitDetails: "単位の説明", siConversion: "SI換算", commonUse: "主な利用分野", close: "閉じる", advancedMath: "上級の数学機能", advancedMathHint: "角度は rad・deg・° で入力します。逆三角・対数・atan2(y, x)にも対応します。", saveTemplate: "テンプレートに保存", tools: "ツール", samples: "サンプル", units: "単位", shortcuts: "速度", math: "数学", outputUnit: "表示単位", insertUnit: "単位を挿入", pickUnit: "登録済み単位から選択", registered: "登録済み候補", supported: "計算対応（候補外）", unknown: "未登録・未対応", unknownHint: "記号を確認するか、下の登録済み候補から選んでください。", history: "履歴", latest: "最新", use: "使う", noUnit: "表示単位なし", compatible: "結果に合う候補", allCandidates: "すべての登録済み候補",
+    definitionHint: "定数定義：W = 3cm", calculate: "=", siBase: "SI標準", emptyResult: "式を入力して「=」を押してください。", pickUnit: "登録済み単位から選択", speedTitle: "距離・時間・速度", speedFormula: "速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間", findSpeed: "速度を求める", findDistance: "距離を求める", findTime: "時間を求める", savedHistory: "保存済みの計算履歴", historyHint: "最新の結果は a1、a2… として次の式で使えます。", clear: "消去", helpTitle: "入力例", helpDone: "閉じる", unitSearch: "単位・読み・カテゴリを検索", copied: "計算結果をコピーしました", copy: "コピー", unitDetails: "単位の説明", siConversion: "SI換算", commonUse: "主な利用分野", close: "閉じる", advancedMath: "上級の数学機能", advancedMathHint: "角度は rad・deg・° で入力します。逆三角・対数・atan2(y, x)にも対応します。", saveTemplate: "保存", samples: "サンプル", units: "単位", shortcuts: "速度", math: "数学", outputUnit: "表示単位", insertUnit: "単位を挿入", registered: "登録済み", supported: "計算対応（候補外）", unknown: "使えない単位", unknownHint: "記号を確認するか、下の候補から選んでください。", history: "履歴", use: "使う", noUnit: "SI標準", compatible: "この結果に合う単位", allCandidates: "近い候補", hintFix: "要修正", hintComplete: "確定", hintAttach: "単位付け", hintInsert: "単位挿入", more: "他", showAs: "表示単位", fixTap: "赤い単位をタップすると修正できます。", noCandidates: "候補が見つかりません。記号を確認してください。", aliasNote: "＝",
   };
+
+  const hintLabel = hint.kind === "fix" ? copy.hintFix : hint.kind === "complete" ? copy.hintComplete : hint.kind === "attach" ? copy.hintAttach : copy.hintInsert;
 
   const display = useMemo(() => {
     if (!result) return null;
     try {
-      return { value: formatQuantity(result, targetUnit, locale), si: formatQuantity(result, undefined, locale), dimension: formatDimension(result.dimension), error: "" };
-    } catch (cause) {
-      return { value: "—", si: formatQuantity(result, undefined, locale), dimension: formatDimension(result.dimension), error: cause instanceof Error ? cause.message : "変換できません。" };
+      return { value: formatQuantity(result, targetUnit, locale), si: formatQuantity(result, undefined, locale), error: "" };
+    } catch {
+      const mismatch = language === "en"
+        ? `This result cannot be shown in ${targetUnit.trim()} — the dimension differs.`
+        : `この結果は「${targetUnit.trim()}」では表示できません（次元が違います）。`;
+      return { value: "—", si: formatQuantity(result, undefined, locale), error: mismatch };
     }
-  }, [locale, result, targetUnit]);
+  }, [language, locale, result, targetUnit]);
+
+  const rememberUnit = (symbol: string) => {
+    const trimmed = symbol.trim();
+    if (!trimmed) return;
+    setRecentUnits((current) => [trimmed, ...current.filter((unitSymbol) => unitSymbol !== trimmed)].slice(0, RECENT_UNIT_LIMIT));
+  };
+
+  const describeUnresolved = (segment: ExpressionSegment) => {
+    const suggestion = getUnitSuggestions(segment.text, { system: unitSystem, limit: 1, includeUnit })[0];
+    const canonical = segment.canonical ?? suggestion?.unit.symbol;
+    if (language === "en") return canonical ? `“${segment.text}” is not a usable unit. Did you mean ${canonical}?` : `“${segment.text}” is not a registered or supported unit.`;
+    return canonical ? `「${segment.text}」は使えません。${canonical} に修正できます。` : `「${segment.text}」は未登録・未対応の単位です。`;
+  };
 
   const calculate = async (expressionOverride?: string, targetUnitOverride?: string) => {
     const input = (expressionOverride ?? expression).trim();
     const selectedTargetUnit = targetUnitOverride ?? targetUnit;
     if (!input) {
-      setError("式を入力してください。");
+      setError(language === "en" ? "Enter an expression." : "式を入力してください。");
+      return;
+    }
+    // 未登録の単位はどこが問題かを示し、修正候補へ誘導する。
+    const unresolved = analyzeExpression(input, identifiers).unresolved[0];
+    if (unresolved && !expressionOverride) {
+      setResult(null);
+      setError(describeUnresolved(unresolved));
+      setFixSelection({ start: unresolved.start, end: unresolved.end, text: unresolved.text });
       return;
     }
     setError("");
@@ -127,11 +195,19 @@ export default function CalculatorScreen() {
         setNotice(`定数 ${next.symbol} を保存しました。`);
       }
       setResult(quantity);
-      let output = formatQuantity(quantity);
-      try {
-        output = selectedTargetUnit.trim() ? formatQuantity(quantity, selectedTargetUnit, locale) : output;
-      } catch {
-        setNotice("計算しました。表示単位を候補から選ぶと変換できます。");
+      // 表示単位が結果に合わないときは、行き止まりにせずSI標準へ戻す。
+      let usedTargetUnit = selectedTargetUnit.trim();
+      let output = formatQuantity(quantity, undefined, locale);
+      if (usedTargetUnit) {
+        try {
+          output = formatQuantity(quantity, usedTargetUnit, locale);
+        } catch {
+          usedTargetUnit = "";
+          setTargetUnit("");
+          setNotice(language === "en"
+            ? `“${selectedTargetUnit.trim()}” does not fit — showing the SI base value.`
+            : `「${selectedTargetUnit.trim()}」は合わないため、SI標準で表示しました。`);
+        }
       }
       if (Platform.OS === "ios") {
         try {
@@ -151,7 +227,7 @@ export default function CalculatorScreen() {
           expression: input,
           resultText: output,
           quantity,
-          targetUnit: selectedTargetUnit.trim(),
+          targetUnit: usedTargetUnit,
           createdAt: new Date().toISOString(),
         });
       } catch {
@@ -170,20 +246,26 @@ export default function CalculatorScreen() {
     }
     if (key === "⌫") {
       setExpression((current) => current.slice(0, -1));
+      setFixSelection(null);
       return;
     }
     if (key === " ") return;
     const inserted = key === "×" ? "×" : key === "÷" ? "÷" : key;
     setExpression((current) => `${current}${inserted}`);
+    setFixSelection(null);
   };
 
   const applyTargetUnit = (unit: string) => {
     setTargetUnit(unit);
+    rememberUnit(unit);
     setError("");
   };
 
-  const insertUnit = (unit: string) => {
-    setExpression((current) => `${current}${unit}`);
+  /** 補完・修正・挿入のいずれでも、案内した範囲をそのまま置き換える。 */
+  const applyUnitCandidate = (symbol: string) => {
+    setExpression((current) => replaceExpressionRange(current, Math.min(hint.start, current.length), Math.min(hint.end, current.length), symbol));
+    setFixSelection(null);
+    rememberUnit(symbol);
     setError("");
     setNotice("");
   };
@@ -196,7 +278,7 @@ export default function CalculatorScreen() {
 
   const chooseUnit = (unit: string) => {
     if (unitPickerMode === "target") applyTargetUnit(unit);
-    else insertUnit(unit);
+    else applyUnitCandidate(unit);
     setUnitSearch("");
     setShowUnitPicker(false);
   };
@@ -205,6 +287,7 @@ export default function CalculatorScreen() {
     setExpression(entry.expression);
     setTargetUnit(entry.targetUnit);
     setResult(entry.quantity);
+    setFixSelection(null);
     setError("");
     setNotice("保存済みの計算結果を復元しました。");
   };
@@ -213,6 +296,7 @@ export default function CalculatorScreen() {
     setExpression(nextExpression);
     setTargetUnit(nextTargetUnit);
     setResult(null);
+    setFixSelection(null);
     setError("");
     setNotice(message);
   };
@@ -246,7 +330,7 @@ export default function CalculatorScreen() {
     setTargetUnit(nextUnit ?? "");
     setResult(null);
     setError("");
-    setNotice(language === "en" ? "Saved item loaded. Tap Calculate to run it." : "保存した項目を読み込みました。「計算」を押して実行できます。");
+    setNotice(language === "en" ? "Saved item loaded. Tap = to run it." : "保存した項目を読み込みました。「=」を押して実行できます。");
   }, [language, presetExpression, presetUnit]);
 
   const applySample = (sample: SampleCalculation) => {
@@ -254,6 +338,7 @@ export default function CalculatorScreen() {
     setExpression(sample.expression);
     setTargetUnit(sampleTargetUnit);
     setResult(null);
+    setFixSelection(null);
     setError("");
     setNotice("");
     void calculate(sample.expression, sampleTargetUnit);
@@ -282,122 +367,290 @@ export default function CalculatorScreen() {
     }
   };
 
-  return (
-    <ScreenContainer className="px-5" containerClassName="bg-background">
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>{t("calculator")}</Text>
-            <Text style={styles.subtitle}>{t("calculatorSubtitle")}</Text>
-          </View>
-          <Pressable accessibilityLabel="入力例を表示" onPress={() => setShowHelp(true)} style={({ pressed }) => [styles.helpButton, pressed && styles.pressed]}>
-            <IconSymbol name="questionmark.circle.fill" size={25} color={colors.primary} />
-          </Pressable>
-        </View>
+  const suggestionLabel = (suggestion: UnitSuggestion) => (language === "en" ? suggestion.unit.name?.en : suggestion.unit.name?.ja) ?? unitGroupLabel(suggestion.group.id);
 
-        <View style={styles.inputCard}>
-          <View style={styles.inputLabelRow}>
-            <Text style={styles.cardLabel}>{t("expression")}</Text>
-            <Text style={styles.syntaxHint}>{t("expressionHint")}</Text>
-          </View>
-          <TextInput
-            value={expression}
-            onChangeText={(text) => {
-              setExpression(text);
-              setError("");
-              setNotice("");
-            }}
-            onSubmitEditing={() => void calculate()}
-            placeholder={language === "en" ? "Example: 5cm + 1mm" : "例：5cm + 1mm"}
-            placeholderTextColor={colors.placeholder}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="done"
-            style={styles.expressionInput}
-          />
-          <View style={styles.inputFooter}>
-            <Text style={styles.definitionHint}>{copy.definitionHint}</Text>
-            <Pressable onPress={() => void calculate()} style={({ pressed }) => [styles.calculateButton, pressed && styles.pressed]}>
-              <Text style={styles.calculateText}>{copy.calculate}</Text>
+  const renderUnitChip = (suggestion: UnitSuggestion, onPress: () => void, active = false) => (
+    <Pressable
+      accessibilityLabel={`${suggestion.unit.symbol} ${suggestionLabel(suggestion)}`}
+      key={`${suggestion.group.id}-${suggestion.unit.symbol}`}
+      onPress={onPress}
+      style={({ pressed }) => [styles.unitChip, active && styles.unitChipActive, pressed && styles.pressed]}
+    >
+      <Text style={[styles.unitChipSymbol, active && styles.unitChipSymbolActive]}>{suggestion.unit.symbol}</Text>
+      <Text numberOfLines={1} style={[styles.unitChipName, active && styles.unitChipNameActive]}>{suggestionLabel(suggestion)}</Text>
+    </Pressable>
+  );
+
+  return (
+    <ScreenContainer className="px-4" containerClassName="bg-background">
+      <View style={styles.screen}>
+        <View style={styles.header}>
+          <Text style={styles.title}>{t("calculator")}</Text>
+          <View style={styles.headerActions}>
+            <Pressable accessibilityLabel={copy.samples} onPress={() => setShowSamples(true)} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
+              <IconSymbol name="list.bullet" size={18} color={colors.primary} />
+            </Pressable>
+            <Pressable accessibilityLabel={copy.helpTitle} onPress={() => setShowHelp(true)} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
+              <IconSymbol name="questionmark.circle.fill" size={20} color={colors.primary} />
             </Pressable>
           </View>
         </View>
 
-        <View style={styles.toolRow}>
+        <View style={styles.inputCard}>
+          <View style={styles.inputRow}>
+            <TextInput
+              value={expression}
+              onChangeText={(text) => {
+                setExpression(text);
+                setFixSelection(null);
+                setError("");
+                setNotice("");
+              }}
+              onSubmitEditing={() => void calculate()}
+              placeholder={language === "en" ? "Example: 5cm + 1mm" : "例：5cm + 1mm"}
+              placeholderTextColor={colors.placeholder}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="done"
+              accessibilityLabel={t("expression")}
+              style={styles.expressionInput}
+            />
+            <Pressable accessibilityLabel={t("result")} onPress={() => void calculate()} style={({ pressed }) => [styles.calculateButton, pressed && styles.pressed]}>
+              <Text style={styles.calculateText}>{copy.calculate}</Text>
+            </Pressable>
+          </View>
+
+          {expression.trim() ? (
+            <View style={styles.previewRow}>
+              {analysis.segments.map((segment, index) => {
+                const isUnresolved = segment.kind === "unknown-unit" || segment.kind === "unknown-identifier";
+                const style = segment.kind === "unit" ? styles.previewUnit
+                  : isUnresolved ? styles.previewUnknown
+                  : segment.kind === "identifier" ? styles.previewIdentifier
+                  : segment.kind === "number" ? styles.previewNumber
+                  : styles.previewOperator;
+                if (!isUnresolved) return <Text key={`${segment.start}-${index}`} style={style}>{segment.text}</Text>;
+                return (
+                  <Pressable
+                    accessibilityLabel={`${segment.text} ${copy.unknown}`}
+                    key={`${segment.start}-${index}`}
+                    onPress={() => setFixSelection({ start: segment.start, end: segment.end, text: segment.text })}
+                    style={({ pressed }) => [styles.previewUnknownWrap, pressed && styles.pressed]}
+                  >
+                    <Text style={style}>{segment.text}</Text>
+                    <IconSymbol name="exclamationmark.triangle.fill" size={11} color={colors.error} />
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+
+          <View style={styles.hintRow}>
+            <Text numberOfLines={1} style={[styles.hintLabel, hint.kind === "fix" && styles.hintLabelAlert]}>{hintLabel}</Text>
+            {hint.candidates.length ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hintRail} keyboardShouldPersistTaps="handled">
+                {hint.candidates.map((suggestion) => renderUnitChip(suggestion, () => applyUnitCandidate(suggestion.unit.symbol)))}
+              </ScrollView>
+            ) : (
+              <Text style={styles.hintEmpty}>{copy.noCandidates}</Text>
+            )}
+            <Pressable accessibilityLabel={copy.insertUnit} onPress={() => openUnitPicker("insert")} style={({ pressed }) => [styles.hintSearchButton, pressed && styles.pressed]}>
+              <IconSymbol name="magnifyingglass" size={16} color={colors.primary} />
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.middle}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.middleContent} keyboardShouldPersistTaps="handled">
+            {error ? (
+              <View style={styles.messageError}>
+                <Text style={styles.messageErrorText}>{error}</Text>
+                {analysis.unresolved.length ? <Text style={styles.messageHint}>{copy.fixTap}</Text> : null}
+              </View>
+            ) : null}
+
+            <View style={styles.resultCard}>
+              <View style={styles.resultHeader}>
+                <Text style={styles.cardLabel}>{t("result")}</Text>
+                {display ? (
+                  <View style={styles.resultActions}>
+                    <Pressable accessibilityLabel={copy.saveTemplate} onPress={() => router.push({ pathname: "/constants", params: { templateExpression: expression, templateUnit: targetUnit } })} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
+                      <IconSymbol name="bookmark.fill" size={14} color={colors.primary} />
+                    </Pressable>
+                    <Pressable accessibilityLabel={copy.copy} onPress={() => void copyCalculation()} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
+                      <IconSymbol name="doc.on.doc" size={14} color={colors.primary} />
+                    </Pressable>
+                  </View>
+                ) : null}
+              </View>
+              {display ? (
+                <>
+                  <Text numberOfLines={2} adjustsFontSizeToFit style={styles.resultValue}>{display.value}</Text>
+                  <View style={styles.conversionRow}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.conversionRail} keyboardShouldPersistTaps="handled">
+                      <Pressable accessibilityLabel={copy.noUnit} onPress={() => applyTargetUnit("")} style={({ pressed }) => [styles.convertChip, !targetUnit.trim() && styles.convertChipActive, pressed && styles.pressed]}>
+                        <Text style={[styles.convertChipText, !targetUnit.trim() && styles.convertChipTextActive]}>SI</Text>
+                      </Pressable>
+                      {conversionUnits.map((symbol) => (
+                        <Pressable accessibilityLabel={symbol} key={symbol} onPress={() => applyTargetUnit(symbol)} style={({ pressed }) => [styles.convertChip, targetUnit.trim() === symbol && styles.convertChipActive, pressed && styles.pressed]}>
+                          <Text style={[styles.convertChipText, targetUnit.trim() === symbol && styles.convertChipTextActive]}>{symbol}</Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                    <Pressable accessibilityLabel={copy.outputUnit} onPress={() => openUnitPicker("target")} style={({ pressed }) => [styles.convertMore, pressed && styles.pressed]}>
+                      <Text style={styles.convertMoreText}>{copy.more}</Text>
+                      <IconSymbol name="chevron.right" size={11} color={colors.primary} />
+                    </Pressable>
+                  </View>
+                  <View style={styles.siRow}>
+                    <Text style={styles.siLabel}>{copy.siBase}</Text>
+                    <Text numberOfLines={1} selectable style={styles.siValue}>{display.si}</Text>
+                  </View>
+                  {targetUnit.trim() && targetUnitRegistration.status !== "registered" ? (
+                    <Text style={styles.registrationNote}>{targetUnitRegistration.status === "supported" ? `${targetUnit} · ${copy.supported}` : `${targetUnit} · ${copy.unknown}`}</Text>
+                  ) : null}
+                  {display.error ? <Text style={styles.errorText}>{display.error}</Text> : null}
+                </>
+              ) : (
+                <Text style={styles.emptyResult}>{copy.emptyResult}</Text>
+              )}
+            </View>
+
+            {notice ? <View style={styles.messageSuccess}><Text style={styles.messageSuccessText}>{notice}</Text></View> : null}
+
+            {history.length ? (
+              <View style={styles.historyList}>
+                <View style={styles.historyListHeader}>
+                  <Text style={styles.cardLabel}>{copy.history}</Text>
+                  <Pressable accessibilityLabel={copy.savedHistory} onPress={() => setShowHistory(true)} style={({ pressed }) => [styles.historyOpenAll, pressed && styles.pressed]}>
+                    <Text style={styles.historyOpenAllText}>{history.length} ›</Text>
+                  </Pressable>
+                </View>
+                {visibleHistory.slice(0, 4).map((entry, index) => (
+                  <Pressable accessibilityLabel={`a${index + 1} ${entry.expression}`} key={entry.id} onPress={() => restoreHistory(entry)} style={({ pressed }) => [styles.historyRowCompact, pressed && styles.cardPressed]}>
+                    <Text style={styles.historyAutoSymbol}>a{index + 1}</Text>
+                    <Text numberOfLines={1} style={styles.historyExpression}>{entry.expression}</Text>
+                    <Text numberOfLines={1} style={styles.historyResult}>{entry.resultText}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+          </ScrollView>
+        </View>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.toolRail} keyboardShouldPersistTaps="handled">
           <Pressable onPress={() => setShowSamples(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.samples}</Text></Pressable>
-          <Pressable onPress={() => openUnitPicker("insert")} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.insertUnit}</Text></Pressable>
+          <Pressable onPress={() => openUnitPicker("insert")} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.units}</Text></Pressable>
           <Pressable onPress={() => setShowShortcuts(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.shortcuts}</Text></Pressable>
           {isAdvancedMode ? <Pressable onPress={() => setShowAdvancedKeys(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.math}</Text></Pressable> : null}
-        </View>
-
-        <View style={styles.resultCard}>
-              <View style={styles.resultHeader}><Text style={styles.cardLabel}>{t("result")}</Text>{display ? <View style={styles.resultActions}><Pressable accessibilityLabel={copy.saveTemplate} onPress={() => router.push({ pathname: "/constants", params: { templateExpression: expression, templateUnit: targetUnit } })} style={({ pressed }) => [styles.copyButton, pressed && styles.pressed]}><IconSymbol name="bookmark.fill" size={14} color={colors.primary} /><Text style={styles.copyButtonText}>{copy.saveTemplate}</Text></Pressable><Pressable accessibilityLabel={copy.copy} onPress={() => void copyCalculation()} style={({ pressed }) => [styles.copyButton, pressed && styles.pressed]}><IconSymbol name="doc.on.doc" size={16} color={colors.primary} /><Text style={styles.copyButtonText}>{copy.copy}</Text></Pressable></View> : null}</View>
-          {display ? (
-            <>
-              <Text numberOfLines={2} adjustsFontSizeToFit style={styles.resultValue}>{display.value}</Text>
-              <View style={styles.divider} />
-              <View style={styles.siRow}>
-                <Text style={styles.siLabel}>{copy.siBase}</Text>
-                <Text selectable style={styles.siValue}>{display.si}</Text>
-              </View>
-              <View style={styles.dimensionBadge}>
-                <Text style={styles.dimensionLabel}>次元</Text>
-                <Text style={styles.dimensionText}>{display.dimension}</Text>
-              </View>
-              {display.error ? <Text style={styles.errorText}>{display.error}</Text> : null}
-            </>
-          ) : (
-            <Text style={styles.emptyResult}>{copy.emptyResult}</Text>
-          )}
-        </View>
-
-        <Pressable onPress={() => openUnitPicker("target")} style={({ pressed }) => [styles.outputSelector, pressed && styles.pressed]}>
-          <View><Text style={styles.cardLabel}>{copy.outputUnit}</Text><Text style={styles.outputUnitValue}>{targetUnit || copy.noUnit}</Text></View>
-          {targetUnit.trim() ? <View style={[styles.registrationBadge, targetUnitRegistration.status === "unknown" && styles.registrationUnknown, targetUnitRegistration.status === "supported" && styles.registrationSupported]}><Text style={styles.registrationText}>{targetUnitRegistration.status === "registered" ? copy.registered : targetUnitRegistration.status === "supported" ? copy.supported : copy.unknown}</Text></View> : <Text style={styles.outputPickHint}>{copy.pickUnit}</Text>}
-        </Pressable>
-
-        {error ? <View style={styles.messageError}><Text style={styles.messageErrorText}>{error}</Text></View> : null}
-        {notice ? <View style={styles.messageSuccess}><Text style={styles.messageSuccessText}>{notice}</Text></View> : null}
+        </ScrollView>
 
         <View style={styles.keypad}>
           {KEYS.map((key, index) => {
             const isAction = key === "=";
             const isOperator = ["×", "÷", "+", "-"].includes(key);
-            const isBlank = key === " ";
+            if (key === " ") return <View key={`blank-${index}`} style={styles.keyCell} />;
             return (
-              <Pressable
-                key={`${key}-${index}`}
-                disabled={isBlank}
-                onPress={() => pressKey(key)}
-                style={({ pressed }) => [styles.key, isAction && styles.keyAction, isOperator && styles.keyOperator, isBlank && styles.keyBlank, pressed && !isBlank && styles.keyPressed]}
-              >
-                {key === "⌫" ? <IconSymbol name="delete.left" size={22} color={colors.muted} /> : <Text style={[styles.keyText, (isAction || isOperator) && styles.keyTextAccent, isAction && { color: colors.onPrimary }]}>{key}</Text>}
-              </Pressable>
+              <View key={`${key}-${index}`} style={styles.keyCell}>
+                <Pressable
+                  accessibilityLabel={key === "⌫" ? (language === "en" ? "Delete" : "一文字削除") : key}
+                  onPress={() => pressKey(key)}
+                  style={({ pressed }) => [styles.key, isAction && styles.keyAction, isOperator && styles.keyOperator, pressed && styles.keyPressed]}
+                >
+                  {key === "⌫" ? <IconSymbol name="delete.left" size={20} color={colors.muted} /> : <Text style={[styles.keyText, (isAction || isOperator) && styles.keyTextAccent, isAction && { color: colors.onPrimary }]}>{key}</Text>}
+                </Pressable>
+              </View>
             );
           })}
         </View>
-
-        {history.length ? <Pressable onPress={() => setShowHistory(true)} style={({ pressed }) => [styles.historySummary, pressed && styles.pressed]}><View style={styles.historySummaryMain}><Text style={styles.cardLabel}>{copy.history}</Text><Text numberOfLines={1} style={styles.historySummaryExpression}><Text style={styles.historyAutoSymbol}>a1</Text> {history[0].expression}</Text></View><View style={styles.historySummaryRight}><Text numberOfLines={1} style={styles.historySummaryResult}>{history[0].resultText}</Text><Text style={styles.historyOpenText}>{history.length} ›</Text></View></Pressable> : null}
-      </ScrollView>
+      </View>
 
       <Modal visible={showSamples} transparent animationType="slide" onRequestClose={() => setShowSamples(false)}>
-        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><Text style={styles.sheetTitle}>{copy.samples}</Text><Pressable onPress={() => setShowSamples(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sampleCategoryRail}>{visibleSampleCategories.map((category) => <Pressable key={category.id} onPress={() => setSampleCategory(category.id)} style={({ pressed }) => [styles.sampleCategoryChip, sampleCategory === category.id && styles.sampleCategoryChipActive, pressed && styles.pressed]}><Text style={[styles.sampleCategoryText, sampleCategory === category.id && styles.sampleCategoryTextActive]}>{language === "en" ? category.labelEn : category.label}</Text></Pressable>)}</ScrollView><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleSamples.map((sample) => <Pressable key={sample.id} onPress={() => { applySample(sample); setShowSamples(false); }} style={({ pressed }) => [styles.sampleRow, pressed && styles.cardPressed]}><View style={styles.sampleCopy}><Text style={styles.sampleTitle}>{language === "en" ? sample.titleEn : sample.title}</Text><Text style={styles.sampleDescription}>{language === "en" ? sample.descriptionEn : sample.description}</Text></View><View style={styles.sampleExpressionWrap}><Text numberOfLines={1} style={styles.sampleExpression}>{sample.expression}</Text><Text style={styles.sampleTarget}>→ {targetUnitForSample(sample)}</Text></View></Pressable>)}</ScrollView></View></View>
+        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><Text style={styles.sheetTitle}>{copy.samples}</Text><Pressable accessibilityLabel={copy.close} onPress={() => setShowSamples(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRail}>{visibleSampleCategories.map((category) => <Pressable key={category.id} onPress={() => setSampleCategory(category.id)} style={({ pressed }) => [styles.categoryChip, sampleCategory === category.id && styles.categoryChipActive, pressed && styles.pressed]}><Text style={[styles.categoryChipText, sampleCategory === category.id && styles.categoryChipTextActive]}>{language === "en" ? category.labelEn : category.label}</Text></Pressable>)}</ScrollView><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleSamples.map((sample) => <Pressable key={sample.id} onPress={() => { applySample(sample); setShowSamples(false); }} style={({ pressed }) => [styles.sampleRow, pressed && styles.cardPressed]}><View style={styles.sampleCopy}><Text style={styles.sampleTitle}>{language === "en" ? sample.titleEn : sample.title}</Text><Text style={styles.sampleDescription}>{language === "en" ? sample.descriptionEn : sample.description}</Text></View><View style={styles.sampleExpressionWrap}><Text numberOfLines={1} style={styles.sampleExpression}>{sample.expression}</Text><Text style={styles.sampleTarget}>→ {targetUnitForSample(sample)}</Text></View></Pressable>)}</ScrollView></View></View>
       </Modal>
 
       <Modal visible={showUnitPicker} transparent animationType="slide" onRequestClose={() => setShowUnitPicker(false)}>
-        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>{unitPickerMode === "target" ? copy.outputUnit : copy.insertUnit}</Text><Text style={styles.sheetSubtitle}>{copy.pickUnit}</Text></View><Pressable onPress={() => setShowUnitPicker(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.unitSearchWrap}><IconSymbol name="magnifyingglass" size={18} color={colors.muted} /><TextInput ref={unitSearchRef} value={unitSearch} onChangeText={setUnitSearch} placeholder={copy.unitSearch} placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.unitSearchInput} /></View>{unitSearch.trim() ? <View style={[styles.registrationCard, searchedUnitRegistration.status === "unknown" && styles.registrationCardUnknown, searchedUnitRegistration.status === "supported" && styles.registrationCardSupported]}><Text style={styles.registrationCardTitle}>{searchedUnitRegistration.status === "registered" ? copy.registered : searchedUnitRegistration.status === "supported" ? copy.supported : copy.unknown}</Text><Text style={styles.registrationCardHint}>{searchedUnitRegistration.status === "registered" ? `${unitSearch} · ${unitGroupLabel(searchedUnitRegistration.group?.id ?? "")}` : searchedUnitRegistration.status === "supported" ? unitSearch : copy.unknownHint}</Text>{searchedUnitRegistration.status !== "unknown" ? <Pressable onPress={() => chooseUnit(unitSearch.trim())} style={({ pressed }) => [styles.useTypedUnitButton, pressed && styles.pressed]}><Text style={styles.useTypedUnitText}>{copy.use} “{unitSearch.trim()}”</Text></Pressable> : null}</View> : null}<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRail}>{visibleInputGroups.map((group) => <Pressable key={group.id} onPress={() => { setInputGroupId(group.id); setUnitSearch(""); }} style={({ pressed }) => [styles.categoryChip, inputGroupId === group.id && styles.categoryChipActive, pressed && styles.pressed]}><Text style={[styles.categoryChipText, inputGroupId === group.id && styles.categoryChipTextActive]}>{unitGroupLabel(group.id)}</Text></Pressable>)}</ScrollView><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{unitPickerMode === "target" && compatibleUnitGroups.length ? <><Text style={styles.pickerSectionLabel}>{copy.compatible}</Text>{compatibleUnitGroups.map((group) => <View key={group.id} style={styles.pickerGroup}><Text style={styles.unitGroupLabel}>{unitGroupLabel(group.id)}</Text><View style={styles.chips}>{visibleUnits(getRegionalUnits(group, unitSystem), isAdvancedMode).map((unit) => <Pressable key={unit.symbol} onPress={() => chooseUnit(unit.symbol)} style={({ pressed }) => [styles.inputUnitChip, pressed && styles.pressed]}><Text style={styles.inputUnitText}>{unit.label}</Text></Pressable>)}</View></View>)}</> : <><Text style={styles.pickerSectionLabel}>{unitSearch.trim() ? copy.allCandidates : unitGroupLabel(selectedInputGroup.id)}</Text>{searchedUnits.length ? searchedUnits.map(({ group, unit }) => <Pressable key={`${group.id}-${unit.symbol}`} onPress={() => chooseUnit(unit.symbol)} style={({ pressed }) => [styles.pickerRow, pressed && styles.cardPressed]}><Text style={styles.searchUnit}>{unit.label}</Text><Text style={styles.searchGroup}>{unitGroupLabel(group.id)}</Text></Pressable>) : <View style={styles.chips}>{selectedInputUnits.map((unit) => <Pressable key={unit.symbol} onPress={() => chooseUnit(unit.symbol)} style={({ pressed }) => [styles.inputUnitChip, pressed && styles.pressed]}><Text style={styles.inputUnitText}>{unit.label}</Text></Pressable>)}</View>}{isPro && favoriteUnits.length ? <View style={styles.favoritePicker}><Text style={styles.pickerSectionLabel}>PRO</Text><View style={styles.chips}>{favoriteUnits.map((unit) => <Pressable key={unit} onPress={() => chooseUnit(unit)} style={({ pressed }) => [styles.inputUnitChip, pressed && styles.pressed]}><Text style={styles.inputUnitText}>{unit}</Text></Pressable>)}</View></View> : null}</>}</ScrollView></View></View>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.compactSheet}>
+            <View style={styles.sheetHeader}>
+              <View style={styles.sheetHeaderMain}>
+                <Text style={styles.sheetTitle}>{unitPickerMode === "target" ? copy.outputUnit : copy.insertUnit}</Text>
+                <Text style={styles.sheetSubtitle}>{copy.pickUnit}</Text>
+              </View>
+              <Pressable accessibilityLabel={copy.close} onPress={() => setShowUnitPicker(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable>
+            </View>
+            <View style={styles.unitSearchWrap}>
+              <IconSymbol name="magnifyingglass" size={18} color={colors.muted} />
+              <TextInput ref={unitSearchRef} value={unitSearch} onChangeText={setUnitSearch} placeholder={copy.unitSearch} placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.unitSearchInput} />
+            </View>
+            {unitSearch.trim() ? (
+              <View style={[styles.registrationCard, searchedUnitRegistration.status === "unknown" && styles.registrationCardUnknown, searchedUnitRegistration.status === "supported" && styles.registrationCardSupported]}>
+                <Text style={styles.registrationCardTitle}>{searchedUnitRegistration.status === "registered" ? copy.registered : searchedUnitRegistration.status === "supported" ? copy.supported : copy.unknown}</Text>
+                <Text style={styles.registrationCardHint}>
+                  {searchedUnitRegistration.status === "registered"
+                    ? `${unitSearch.trim()}${searchedUnitRegistration.matchedAlias ? ` ${copy.aliasNote} ${searchedUnitRegistration.canonical}` : ""} · ${unitGroupLabel(searchedUnitRegistration.group?.id ?? "")}`
+                    : searchedUnitRegistration.status === "supported" ? unitSearch.trim() : copy.unknownHint}
+                </Text>
+                {searchedUnitRegistration.status !== "unknown" ? (
+                  <Pressable onPress={() => chooseUnit(searchedUnitRegistration.canonical ?? unitSearch.trim())} style={({ pressed }) => [styles.useTypedUnitButton, pressed && styles.pressed]}>
+                    <Text style={styles.useTypedUnitText}>{copy.use} “{searchedUnitRegistration.canonical ?? unitSearch.trim()}”</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
+            {unitSearch.trim() ? null : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRail}>
+                {visibleInputGroups.map((group) => (
+                  <Pressable key={group.id} onPress={() => setInputGroupId(group.id)} style={({ pressed }) => [styles.categoryChip, inputGroupId === group.id && styles.categoryChipActive, pressed && styles.pressed]}>
+                    <Text style={[styles.categoryChipText, inputGroupId === group.id && styles.categoryChipTextActive]}>{unitGroupLabel(group.id)}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )}
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
+              {unitSearch.trim() ? (
+                <>
+                  <Text style={styles.pickerSectionLabel}>{copy.allCandidates}</Text>
+                  <View style={styles.chips}>{searchSuggestions.map((suggestion) => renderUnitChip(suggestion, () => chooseUnit(suggestion.unit.symbol), targetUnit.trim() === suggestion.unit.symbol && unitPickerMode === "target"))}</View>
+                </>
+              ) : (
+                <>
+                  {unitPickerMode === "target" && compatibleUnitGroups.length ? (
+                    <>
+                      <Text style={styles.pickerSectionLabel}>{copy.compatible}</Text>
+                      {compatibleUnitGroups.map((group) => (
+                        <View key={group.id} style={styles.pickerGroup}>
+                          <Text style={styles.unitGroupLabel}>{unitGroupLabel(group.id)}</Text>
+                          <View style={styles.chips}>{getGroupUnitsForSystem(group, unitSystem).filter((unitOption) => includeUnit(group, unitOption)).map((unitOption) => renderUnitChip({ group, unit: unitOption }, () => chooseUnit(unitOption.symbol), targetUnit.trim() === unitOption.symbol))}</View>
+                        </View>
+                      ))}
+                    </>
+                  ) : null}
+                  <Text style={styles.pickerSectionLabel}>{unitGroupLabel(selectedInputGroup.id)}</Text>
+                  <View style={styles.chips}>{selectedInputUnits.map((unitOption) => renderUnitChip({ group: selectedInputGroup, unit: unitOption }, () => chooseUnit(unitOption.symbol), unitPickerMode === "target" && targetUnit.trim() === unitOption.symbol))}</View>
+                  {isPro && favoriteUnits.length ? (
+                    <View style={styles.favoritePicker}>
+                      <Text style={styles.pickerSectionLabel}>PRO</Text>
+                      <View style={styles.chips}>{favoriteUnits.map((unit) => <Pressable key={unit} onPress={() => chooseUnit(unit)} style={({ pressed }) => [styles.unitChip, pressed && styles.pressed]}><Text style={styles.unitChipSymbol}>{unit}</Text></Pressable>)}</View>
+                    </View>
+                  ) : null}
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
 
       <Modal visible={showShortcuts} transparent animationType="fade" onRequestClose={() => setShowShortcuts(false)}>
-        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>{copy.speedTitle}</Text><Text style={styles.sheetSubtitle}>{copy.speedFormula}</Text></View><Pressable onPress={() => setShowShortcuts(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.modalList}>{[[copy.findSpeed, "1km ÷ 1min", "km/h"], [copy.findDistance, "10m/s × 2min", "km"], [copy.findTime, "1km ÷ 5m/s", "min"]].map(([label, nextExpression, nextUnit]) => <Pressable key={String(label)} onPress={() => { applyMotionExample(String(nextExpression), String(nextUnit), language === "en" ? "Example loaded." : "計算例を入力しました。" ); setShowShortcuts(false); }} style={({ pressed }) => [styles.shortcutRow, pressed && styles.cardPressed]}><Text style={styles.shortcutTitle}>{label}</Text><Text style={styles.shortcutExpression}>{nextExpression} → {nextUnit}</Text></Pressable>)}</View></View></View>
+        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><View style={styles.sheetHeaderMain}><Text style={styles.sheetTitle}>{copy.speedTitle}</Text><Text style={styles.sheetSubtitle}>{copy.speedFormula}</Text></View><Pressable accessibilityLabel={copy.close} onPress={() => setShowShortcuts(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.modalList}>{[[copy.findSpeed, "1km ÷ 1min", "km/h"], [copy.findDistance, "10m/s × 2min", "km"], [copy.findTime, "1km ÷ 5m/s", "min"]].map(([label, nextExpression, nextUnit]) => <Pressable key={String(label)} onPress={() => { applyMotionExample(String(nextExpression), String(nextUnit), language === "en" ? "Example loaded." : "計算例を入力しました。" ); setShowShortcuts(false); }} style={({ pressed }) => [styles.shortcutRow, pressed && styles.cardPressed]}><Text style={styles.shortcutTitle}>{label}</Text><Text style={styles.shortcutExpression}>{nextExpression} → {nextUnit}</Text></Pressable>)}</View></View></View>
       </Modal>
 
       <Modal visible={showAdvancedKeys} transparent animationType="fade" onRequestClose={() => setShowAdvancedKeys(false)}>
-        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>{copy.advancedMath}</Text><Text style={styles.sheetSubtitle}>{copy.advancedMathHint}</Text></View><Pressable onPress={() => setShowAdvancedKeys(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.advancedKeyRow}>{ADVANCED_KEYS.map((key) => <Pressable accessibilityLabel={key} key={key} onPress={() => { pressKey(key); setShowAdvancedKeys(false); }} style={({ pressed }) => [styles.advancedKey, pressed && styles.pressed]}><Text style={styles.advancedKeyText}>{key}</Text></Pressable>)}</View></View></View>
+        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><View style={styles.sheetHeaderMain}><Text style={styles.sheetTitle}>{copy.advancedMath}</Text><Text style={styles.sheetSubtitle}>{copy.advancedMathHint}</Text></View><Pressable accessibilityLabel={copy.close} onPress={() => setShowAdvancedKeys(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.advancedKeyRow}>{ADVANCED_KEYS.map((key) => <Pressable accessibilityLabel={key} key={key} onPress={() => { pressKey(key); setShowAdvancedKeys(false); }} style={({ pressed }) => [styles.advancedKey, pressed && styles.pressed]}><Text style={styles.advancedKeyText}>{key}</Text></Pressable>)}</View></View></View>
       </Modal>
 
       <Modal visible={showHistory} transparent animationType="slide" onRequestClose={() => setShowHistory(false)}>
-        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>{copy.savedHistory}</Text><Text style={styles.sheetSubtitle}>{copy.historyHint}</Text></View><Pressable onPress={() => setShowHistory(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.historyActions}><Pressable onPress={() => void exportHistory()} style={({ pressed }) => [styles.exportHistoryButton, pressed && styles.pressed]}><IconSymbol name="square.and.arrow.up" size={15} color={colors.primary} /><Text style={styles.exportHistoryText}>CSV</Text></Pressable><Pressable onPress={() => void clearHistory()} style={({ pressed }) => [styles.clearHistoryButton, pressed && styles.pressed]}><Text style={styles.clearHistoryText}>{copy.clear}</Text></Pressable></View><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleHistory.map((entry, index) => <Pressable key={entry.id} onPress={() => { restoreHistory(entry); setShowHistory(false); }} style={({ pressed }) => [styles.historyRow, pressed && styles.cardPressed]}><View style={styles.historyExpressionWrap}><Text style={styles.historyAutoSymbol}>a{index + 1}</Text><Text numberOfLines={1} style={styles.historyExpression}>{entry.expression}</Text></View><Text numberOfLines={1} style={styles.historyResult}>{entry.resultText}</Text></Pressable>)}</ScrollView></View></View>
+        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><View style={styles.sheetHeaderMain}><Text style={styles.sheetTitle}>{copy.savedHistory}</Text><Text style={styles.sheetSubtitle}>{copy.historyHint}</Text></View><Pressable accessibilityLabel={copy.close} onPress={() => setShowHistory(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.historyActions}><Pressable onPress={() => void exportHistory()} style={({ pressed }) => [styles.exportHistoryButton, pressed && styles.pressed]}><IconSymbol name="square.and.arrow.up" size={15} color={colors.primary} /><Text style={styles.exportHistoryText}>CSV</Text></Pressable><Pressable onPress={() => void clearHistory()} style={({ pressed }) => [styles.clearHistoryButton, pressed && styles.pressed]}><Text style={styles.clearHistoryText}>{copy.clear}</Text></Pressable></View><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleHistory.map((entry, index) => <Pressable key={entry.id} onPress={() => { restoreHistory(entry); setShowHistory(false); }} style={({ pressed }) => [styles.historyRow, pressed && styles.cardPressed]}><View style={styles.historyExpressionWrap}><Text style={styles.historyAutoSymbol}>a{index + 1}</Text><Text numberOfLines={1} style={styles.historyExpression}>{entry.expression}</Text></View><Text numberOfLines={1} style={styles.historyResult}>{entry.resultText}</Text></Pressable>)}</ScrollView></View></View>
       </Modal>
 
       <Modal visible={showHelp} transparent animationType="fade" onRequestClose={() => setShowHelp(false)}>
@@ -405,16 +658,17 @@ export default function CalculatorScreen() {
           <View style={styles.helpSheet}>
             <View style={styles.helpTitleRow}>
               <Text style={styles.helpTitle}>{copy.helpTitle}</Text>
-              <Pressable accessibilityLabel="ヘルプを閉じる" onPress={() => setShowHelp(false)} style={({ pressed }) => [styles.closeHelp, pressed && styles.pressed]}>
+              <Pressable accessibilityLabel={copy.close} onPress={() => setShowHelp(false)} style={({ pressed }) => [styles.closeHelp, pressed && styles.pressed]}>
                 <IconSymbol name="xmark" size={20} color={colors.muted} />
               </Pressable>
             </View>
             <Text style={styles.helpText}>• 5cm + 1mm</Text>
             <Text style={styles.helpText}>• 3cm × 20mm</Text>
-            <Text style={styles.helpText}>• W = 3cm　（定数を保存）</Text>
-            <Text style={styles.helpText}>• W × H　（保存した定数を使用）</Text>
-            <Text style={styles.helpText}>• 0.125 → 表示単位で % または ppm を選択</Text>
-            <Text style={styles.helpText}>• 単位入力では、次元を選択して候補を絞り込み</Text>
+            <Text style={styles.helpText}>• 90sec / 1hour / 2days</Text>
+            <Text style={styles.helpText}>• {copy.definitionHint}</Text>
+            <Text style={styles.helpText}>• W × H</Text>
+            <Text style={styles.helpText}>• 0.125 → % / ppm</Text>
+            <Text style={styles.helpHint}>{copy.fixTap}</Text>
             <Pressable onPress={() => setShowHelp(false)} style={({ pressed }) => [styles.helpDone, pressed && styles.pressed]}>
               <Text style={styles.helpDoneText}>{copy.helpDone}</Text>
             </Pressable>
@@ -454,144 +708,172 @@ export default function CalculatorScreen() {
   );
 }
 
+const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" });
+
 const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
-  content: { gap: 14, paddingBottom: 28, paddingTop: 8 },
-  header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
-  title: { color: colors.foreground, fontSize: 29, fontWeight: "700", letterSpacing: -0.7 },
-  subtitle: { color: colors.muted, fontSize: 13, marginTop: 3 },
-  helpButton: { alignItems: "center", backgroundColor: colors.primarySurface, borderRadius: 20, height: 40, justifyContent: "center", width: 40 },
-  toolRow: { flexDirection: "row", flexWrap: "wrap", gap: 7 }, toolButton: { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, borderRadius: 10, borderWidth: 1, minHeight: 36, paddingHorizontal: 11, justifyContent: "center" }, toolButtonText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
-  samplesCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 18, borderWidth: 1, padding: 15 },
-  samplesHint: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 7 },
-  sampleCategoryRail: { gap: 7, paddingBottom: 2, paddingTop: 12 },
-  sampleCategoryChip: { backgroundColor: colors.surfaceSecondary, borderRadius: 15, paddingHorizontal: 12, paddingVertical: 7 },
-  sampleCategoryChipActive: { backgroundColor: colors.primaryFill },
-  sampleCategoryText: { color: colors.muted, fontSize: 12, fontWeight: "700" },
-  sampleCategoryTextActive: { color: colors.onPrimary },
-  sampleList: { gap: 7, marginTop: 11 },
-  sampleRow: { alignItems: "center", backgroundColor: colors.background, borderColor: colors.border, borderRadius: 11, borderWidth: 1, flexDirection: "row", paddingHorizontal: 11, paddingVertical: 10 },
-  sampleCopy: { flex: 1, marginRight: 10 },
-  sampleTitle: { color: colors.foreground, fontSize: 13, fontWeight: "800" },
-  sampleDescription: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 2 },
-  sampleExpressionWrap: { alignItems: "flex-end", maxWidth: "48%" },
-  sampleExpression: { color: colors.primary, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, fontWeight: "700" },
-  sampleTarget: { color: colors.muted, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 11, marginTop: 2 },
-  inputCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 18, borderWidth: 1, padding: 15 },
-  inputLabelRow: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
-  cardLabel: { color: colors.muted, fontSize: 12, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase" },
-  syntaxHint: { color: colors.placeholder, fontSize: 11 },
-  expressionInput: { color: colors.foreground, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 20, fontWeight: "600", minHeight: 57, paddingHorizontal: 0 },
-  inputFooter: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
-  definitionHint: { color: colors.placeholder, fontSize: 11 },
-  calculateButton: { backgroundColor: colors.primaryFill, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 9 },
-  calculateText: { color: colors.onPrimary, fontSize: 14, fontWeight: "700" },
-  resultCard: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 18, borderWidth: 1, padding: 16 },
-  resultHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" }, resultActions: { alignItems: "center", flexDirection: "row", gap: 8 },
-  copyButton: { alignItems: "center", backgroundColor: colors.surface, borderRadius: 9, flexDirection: "row", gap: 5, minHeight: 32, paddingHorizontal: 9 },
-  copyButtonText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
-  resultValue: { color: colors.primaryStrong, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 30, fontWeight: "700", marginTop: 9, minHeight: 40 },
-  emptyResult: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 12 },
-  divider: { backgroundColor: colors.primaryBorder, height: StyleSheet.hairlineWidth, marginVertical: 13 },
-  siRow: { flexDirection: "row", justifyContent: "space-between" },
-  siLabel: { color: colors.muted, fontSize: 12 },
-  siValue: { color: colors.foreground, flexShrink: 1, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 13, fontWeight: "600", textAlign: "right" },
-  dimensionBadge: { alignSelf: "flex-start", backgroundColor: colors.surface, borderRadius: 8, flexDirection: "row", gap: 6, marginTop: 12, paddingHorizontal: 8, paddingVertical: 5 },
-  dimensionLabel: { color: colors.muted, fontSize: 11 },
-  dimensionText: { color: colors.foreground, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 11, fontWeight: "700" },
-  errorText: { color: colors.error, fontSize: 12, lineHeight: 18, marginTop: 11 },
-  outputSelector: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 14, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", minHeight: 58, paddingHorizontal: 14 }, outputUnitValue: { color: colors.primary, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 15, fontWeight: "800", marginTop: 3 }, outputPickHint: { color: colors.primary, fontSize: 11, fontWeight: "800" }, registrationBadge: { backgroundColor: colors.successSurface, borderColor: colors.successBorder, borderRadius: 9, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 5 }, registrationSupported: { backgroundColor: colors.warningSurface, borderColor: colors.warningBorder }, registrationUnknown: { backgroundColor: colors.errorSurface, borderColor: colors.errorBorder }, registrationText: { color: colors.foreground, fontSize: 10, fontWeight: "800" },
-  convertCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 18, borderWidth: 1, padding: 15 },
-  unitInput: { borderBottomColor: colors.border, borderBottomWidth: 1, color: colors.foreground, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 17, marginTop: 8, minHeight: 40, paddingHorizontal: 0 },
-  unitGroupList: { gap: 11, marginTop: 12 },
-  compatibleHint: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 10 },
-  compatibleGroup: { gap: 3 },
-  unitGroupLabel: { color: colors.muted, fontSize: 11, fontWeight: "700" },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 5 },
-  unitChoice: { alignItems: "center", flexDirection: "row", gap: 3 },
-  unitInfoButton: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 13, borderWidth: 1, height: 26, justifyContent: "center", width: 26 },
-  chip: { backgroundColor: colors.surfaceSecondary, borderRadius: 14, paddingHorizontal: 11, paddingVertical: 6 },
-  chipActive: { backgroundColor: colors.primaryFill },
-  chipText: { color: colors.muted, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, fontWeight: "700" },
-  chipTextActive: { color: colors.onPrimary },
-  unitPadCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 18, borderWidth: 1, padding: 15 },
-  unitPadHint: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 7 },
-  unitSearchWrap: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderColor: colors.border, borderRadius: 12, borderWidth: 1, flexDirection: "row", marginTop: 13, minHeight: 45, paddingHorizontal: 12 },
-  unitSearchInput: { color: colors.foreground, flex: 1, fontSize: 14, marginLeft: 8, paddingVertical: 9 },
-  searchResults: { backgroundColor: colors.background, borderColor: colors.primaryBorder, borderRadius: 12, borderWidth: 1, gap: 2, marginTop: 8, padding: 5 },
-  searchResult: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", minHeight: 38, paddingHorizontal: 9 },
-  searchResultButton: { alignItems: "center", flex: 1, flexDirection: "row", justifyContent: "space-between", minHeight: 38 },
-  searchUnit: { color: colors.primary, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 14, fontWeight: "800" },
-  searchGroup: { color: colors.muted, fontSize: 12 },
-  categoryRail: { gap: 7, paddingBottom: 2, paddingTop: 12 },
-  categoryChip: { backgroundColor: colors.surfaceSecondary, borderRadius: 15, paddingHorizontal: 12, paddingVertical: 7 },
-  categoryChipActive: { backgroundColor: colors.primaryFill },
-  categoryChipText: { color: colors.muted, fontSize: 12, fontWeight: "700" },
-  categoryChipTextActive: { color: colors.onPrimary },
-  inputUnitRow: { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth, marginTop: 12, paddingTop: 11 },
-  selectedGroupLabel: { color: colors.foreground, fontSize: 13, fontWeight: "800" },
-  inputUnitChip: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 14, borderWidth: 1, paddingHorizontal: 11, paddingVertical: 7 },
-  inputUnitText: { color: colors.primary, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 13, fontWeight: "800" },
-  favoriteUnitsCard: { backgroundColor: colors.warningSurface, borderColor: colors.warningBorder, borderRadius: 18, borderWidth: 1, padding: 15 },
-  favoriteHeader: { alignItems: "center", flexDirection: "row", gap: 7 },
-  proTag: { backgroundColor: colors.warning, borderRadius: 7, color: colors.onPrimary, fontSize: 10, fontWeight: "800", overflow: "hidden", paddingHorizontal: 6, paddingVertical: 3 },
-  motionCard: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 18, borderWidth: 1, padding: 15 },
-  motionFormula: { color: colors.foreground, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, fontWeight: "700", lineHeight: 19, marginTop: 8 },
-  motionExamples: { gap: 8, marginTop: 12 },
-  motionButton: { backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 11, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
-  motionButtonTitle: { color: colors.primary, fontSize: 13, fontWeight: "800" },
-  motionButtonExample: { color: colors.muted, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, marginTop: 3 },
-  motionHint: { color: colors.muted, fontSize: 11, lineHeight: 17, marginTop: 11 },
-  messageError: { backgroundColor: colors.errorSurface, borderColor: colors.errorBorder, borderRadius: 10, borderWidth: 1, padding: 11 },
-  messageErrorText: { color: colors.error, fontSize: 13, lineHeight: 19 },
-  messageSuccess: { backgroundColor: colors.successSurface, borderColor: colors.successBorder, borderRadius: 10, borderWidth: 1, padding: 11 },
-  messageSuccessText: { color: colors.success, fontSize: 13, lineHeight: 19 },
-  advancedMathCard: { backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 18, borderWidth: 1, padding: 15 },
-  advancedMathHint: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 7 },
-  advancedKeyRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
-  advancedKey: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 10, borderWidth: 1, minHeight: 38, minWidth: 54, paddingHorizontal: 10, justifyContent: "center" },
-  advancedKeyText: { color: colors.primary, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 13, fontWeight: "800" },
-  keypad: { gap: 8, flexDirection: "row", flexWrap: "wrap" },
-  key: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 12, borderWidth: 1, height: 48, justifyContent: "center", width: "23.4%" },
-  keyBlank: { backgroundColor: "transparent", borderWidth: 0 },
+  // 画面全体を一枚に収め、縦スクロールを起こさない構成にする。
+  screen: { flex: 1, gap: 6, paddingBottom: 4, paddingTop: 2 },
+  header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
+  title: { color: colors.foreground, fontSize: 22, fontWeight: "700", letterSpacing: -0.5 },
+  headerActions: { alignItems: "center", flexDirection: "row", gap: 6 },
+  headerButton: { alignItems: "center", backgroundColor: colors.primarySurface, borderRadius: 16, height: 32, justifyContent: "center", width: 32 },
+
+  inputCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, gap: 5, paddingHorizontal: 12, paddingVertical: 8 },
+  inputRow: { alignItems: "center", flexDirection: "row", gap: 10 },
+  expressionInput: { color: colors.foreground, flex: 1, fontFamily: mono, fontSize: 19, fontWeight: "600", minHeight: 44, paddingHorizontal: 0 },
+  calculateButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 11, height: 44, justifyContent: "center", width: 52 },
+  calculateText: { color: colors.onPrimary, fontFamily: mono, fontSize: 20, fontWeight: "800" },
+
+  // 式のどこが数値・単位・未登録なのかを一目で見分けられるようにする。
+  previewRow: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", rowGap: 2 },
+  previewNumber: { color: colors.foreground, fontFamily: mono, fontSize: 13 },
+  previewUnit: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },
+  previewIdentifier: { color: colors.warning, fontFamily: mono, fontSize: 13, fontWeight: "700" },
+  previewOperator: { color: colors.muted, fontFamily: mono, fontSize: 13 },
+  previewUnknownWrap: { alignItems: "center", backgroundColor: colors.errorSurface, borderColor: colors.errorBorder, borderRadius: 6, borderWidth: 1, flexDirection: "row", gap: 3, paddingHorizontal: 4 },
+  previewUnknown: { color: colors.error, fontFamily: mono, fontSize: 13, fontWeight: "800", textDecorationLine: "underline" },
+
+  hintRow: { alignItems: "center", flexDirection: "row", gap: 7 },
+  hintLabel: { color: colors.muted, flexShrink: 0, fontSize: 10, fontWeight: "800", width: 58 },
+  hintLabelAlert: { color: colors.error },
+  hintRail: { alignItems: "center", gap: 6, paddingRight: 4 },
+  hintEmpty: { color: colors.muted, flex: 1, fontSize: 11 },
+  hintSearchButton: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 9, borderWidth: 1, height: 32, justifyContent: "center", width: 34 },
+
+  unitChip: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 10, borderWidth: 1, minWidth: 46, paddingHorizontal: 9, paddingVertical: 4 },
+  unitChipActive: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
+  unitChipSymbol: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },
+  unitChipSymbolActive: { color: colors.onPrimary },
+  unitChipName: { color: colors.muted, fontSize: 9, maxWidth: 92 },
+  unitChipNameActive: { color: colors.onPrimary },
+
+  middle: { flexGrow: 1, flexShrink: 1, minHeight: 84 },
+  middleContent: { gap: 7 },
+  resultCard: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 16, borderWidth: 1, paddingHorizontal: 13, paddingVertical: 10 },
+  resultHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
+  cardLabel: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase" },
+  resultActions: { alignItems: "center", flexDirection: "row", gap: 6 },
+  iconButton: { alignItems: "center", backgroundColor: colors.surface, borderRadius: 8, height: 28, justifyContent: "center", width: 32 },
+  resultValue: { color: colors.primaryStrong, fontFamily: mono, fontSize: 28, fontWeight: "700", marginTop: 2, minHeight: 34 },
+  emptyResult: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 6 },
+
+  // 結果のすぐ下で単位を切り替えられるようにする。
+  conversionRow: { alignItems: "center", flexDirection: "row", gap: 6, marginTop: 4 },
+  conversionRail: { alignItems: "center", gap: 6, paddingRight: 4 },
+  convertChip: { backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 9, borderWidth: 1, minHeight: 30, justifyContent: "center", paddingHorizontal: 10 },
+  convertChipActive: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
+  convertChipText: { color: colors.primary, fontFamily: mono, fontSize: 12, fontWeight: "800" },
+  convertChipTextActive: { color: colors.onPrimary },
+  convertMore: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 9, borderWidth: 1, flexDirection: "row", gap: 2, minHeight: 30, paddingHorizontal: 8 },
+  convertMoreText: { color: colors.primary, fontSize: 11, fontWeight: "800" },
+
+  siRow: { alignItems: "center", flexDirection: "row", gap: 8, justifyContent: "space-between", marginTop: 7 },
+  siLabel: { color: colors.muted, fontSize: 11 },
+  siValue: { color: colors.foreground, flexShrink: 1, fontFamily: mono, fontSize: 12, fontWeight: "600", textAlign: "right" },
+  registrationNote: { color: colors.warning, fontSize: 10, marginTop: 4 },
+  errorText: { color: colors.error, fontSize: 11, lineHeight: 16, marginTop: 6 },
+
+  messageError: { backgroundColor: colors.errorSurface, borderColor: colors.errorBorder, borderRadius: 10, borderWidth: 1, paddingHorizontal: 11, paddingVertical: 8 },
+  messageErrorText: { color: colors.error, fontSize: 12, lineHeight: 17 },
+  messageHint: { color: colors.muted, fontSize: 10, marginTop: 3 },
+  messageSuccess: { backgroundColor: colors.successSurface, borderColor: colors.successBorder, borderRadius: 10, borderWidth: 1, paddingHorizontal: 11, paddingVertical: 8 },
+  messageSuccessText: { color: colors.success, fontSize: 12, lineHeight: 17 },
+
+  toolRail: { alignItems: "center", gap: 6, paddingRight: 4 },
+  toolButton: { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, borderRadius: 9, borderWidth: 1, justifyContent: "center", minHeight: 32, paddingHorizontal: 11 },
+  toolButtonText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
+  historyList: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 14, borderWidth: 1, paddingHorizontal: 11, paddingVertical: 9 },
+  historyListHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
+  historyOpenAll: { paddingHorizontal: 4, paddingVertical: 2 },
+  historyOpenAllText: { color: colors.primary, fontSize: 11, fontWeight: "800" },
+  historyRowCompact: { alignItems: "center", borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row", gap: 7, minHeight: 32, paddingTop: 4 },
+
+  // 画面幅に関係なく必ず4列で並ぶよう、25%幅のセルに収める。
+  keypad: { flexDirection: "row", flexWrap: "wrap", marginHorizontal: -3 },
+  keyCell: { padding: 3, width: "25%" },
+  key: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 12, borderWidth: 1, height: 42, justifyContent: "center" },
   keyOperator: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder },
   keyAction: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
-  keyText: { color: colors.foreground, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 19, fontWeight: "600" },
+  keyText: { color: colors.foreground, fontFamily: mono, fontSize: 18, fontWeight: "600" },
   keyTextAccent: { color: colors.primary },
   keyPressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
   pressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
   iconPressed: { opacity: 0.55 },
   cardPressed: { opacity: 0.7 },
-  history: { marginTop: 6 },
-  historyHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 7 },
-  historyTitle: { color: colors.muted, fontSize: 12, fontWeight: "700" }, historyHint: { color: colors.placeholder, fontSize: 10, lineHeight: 15, marginTop: 2 },
-  historyLimit: { color: colors.placeholder, fontSize: 10, marginTop: 2 },
+
+  sampleRow: { alignItems: "center", backgroundColor: colors.background, borderColor: colors.border, borderRadius: 11, borderWidth: 1, flexDirection: "row", paddingHorizontal: 11, paddingVertical: 10 },
+  sampleCopy: { flex: 1, marginRight: 10 },
+  sampleTitle: { color: colors.foreground, fontSize: 13, fontWeight: "800" },
+  sampleDescription: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 2 },
+  sampleExpressionWrap: { alignItems: "flex-end", maxWidth: "48%" },
+  sampleExpression: { color: colors.primary, fontFamily: mono, fontSize: 12, fontWeight: "700" },
+  sampleTarget: { color: colors.muted, fontFamily: mono, fontSize: 11, marginTop: 2 },
+
+  unitSearchWrap: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderColor: colors.border, borderRadius: 12, borderWidth: 1, flexDirection: "row", marginTop: 4, minHeight: 45, paddingHorizontal: 12 },
+  unitSearchInput: { color: colors.foreground, flex: 1, fontSize: 14, marginLeft: 8, paddingVertical: 9 },
+  categoryRail: { gap: 7, paddingBottom: 2, paddingTop: 10 },
+  categoryChip: { backgroundColor: colors.surfaceSecondary, borderRadius: 15, paddingHorizontal: 12, paddingVertical: 7 },
+  categoryChipActive: { backgroundColor: colors.primaryFill },
+  categoryChipText: { color: colors.muted, fontSize: 12, fontWeight: "700" },
+  categoryChipTextActive: { color: colors.onPrimary },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 5 },
+  unitGroupLabel: { color: colors.muted, fontSize: 11, fontWeight: "700" },
+  favoritePicker: { backgroundColor: colors.warningSurface, borderColor: colors.warningBorder, borderRadius: 12, borderWidth: 1, marginTop: 6, padding: 10 },
+
+  advancedKeyRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
+  advancedKey: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 10, borderWidth: 1, justifyContent: "center", minHeight: 38, minWidth: 54, paddingHorizontal: 10 },
+  advancedKeyText: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },
+
   historyActions: { alignItems: "center", flexDirection: "row", gap: 10 },
-  exportHistoryButton: { alignItems: "center", flexDirection: "row", gap: 3, paddingHorizontal: 4, paddingVertical: 4 },
+  exportHistoryButton: { alignItems: "center", flexDirection: "row", gap: 3, padding: 4 },
   exportHistoryText: { color: colors.primary, fontSize: 11, fontWeight: "700" },
-  clearHistoryButton: { paddingHorizontal: 4, paddingVertical: 4 },
+  clearHistoryButton: { padding: 4 },
   clearHistoryText: { color: colors.error, fontSize: 11, fontWeight: "700" },
   historyRow: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 11, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", marginBottom: 6, paddingHorizontal: 12, paddingVertical: 10 },
-  historyExpressionWrap: { alignItems: "center", flex: 1, flexDirection: "row", marginRight: 10 }, historyAutoSymbol: { color: colors.primary, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 11, fontWeight: "800", marginRight: 7 }, historyExpression: { color: colors.foreground, flex: 1, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12 },
-  historyResult: { color: colors.primary, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, fontWeight: "700", maxWidth: "45%" },
-  historySummary: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 12, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", minHeight: 54, paddingHorizontal: 12 }, historySummaryMain: { flex: 1, marginRight: 12 }, historySummaryExpression: { color: colors.foreground, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, marginTop: 3 }, historySummaryRight: { alignItems: "flex-end", maxWidth: "45%" }, historySummaryResult: { color: colors.primary, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, fontWeight: "800" }, historyOpenText: { color: colors.muted, fontSize: 11, marginTop: 2 },
-  modalBackdrop: { backgroundColor: colors.overlay, flex: 1, justifyContent: "flex-end" }, compactSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "86%", paddingBottom: 28, paddingHorizontal: 18, paddingTop: 12 }, sheetHeader: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between", marginBottom: 10 }, sheetTitle: { color: colors.foreground, fontSize: 20, fontWeight: "800" }, sheetSubtitle: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 3, maxWidth: "88%" }, modalList: { gap: 8, paddingBottom: 18, paddingTop: 10 }, registrationCard: { backgroundColor: colors.successSurface, borderColor: colors.successBorder, borderRadius: 12, borderWidth: 1, marginTop: 9, padding: 10 }, registrationCardSupported: { backgroundColor: colors.warningSurface, borderColor: colors.warningBorder }, registrationCardUnknown: { backgroundColor: colors.errorSurface, borderColor: colors.errorBorder }, registrationCardTitle: { color: colors.foreground, fontSize: 12, fontWeight: "800" }, registrationCardHint: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 3 }, useTypedUnitButton: { alignSelf: "flex-start", backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, marginTop: 8, paddingHorizontal: 9, paddingVertical: 6 }, useTypedUnitText: { color: colors.primary, fontSize: 12, fontWeight: "800" }, pickerSectionLabel: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.4, textTransform: "uppercase" }, pickerGroup: { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 9 }, pickerRow: { alignItems: "center", backgroundColor: colors.background, borderColor: colors.border, borderRadius: 10, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", minHeight: 44, paddingHorizontal: 12 }, favoritePicker: { backgroundColor: colors.warningSurface, borderColor: colors.warningBorder, borderRadius: 12, borderWidth: 1, padding: 10 }, shortcutRow: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 12, borderWidth: 1, padding: 12 }, shortcutTitle: { color: colors.primary, fontSize: 14, fontWeight: "800" }, shortcutExpression: { color: colors.foreground, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 12, marginTop: 4 },
+  historyExpressionWrap: { alignItems: "center", flex: 1, flexDirection: "row", marginRight: 10 },
+  historyAutoSymbol: { color: colors.primary, fontFamily: mono, fontSize: 11, fontWeight: "800", marginRight: 7 },
+  historyExpression: { color: colors.foreground, flex: 1, fontFamily: mono, fontSize: 12 },
+  historyResult: { color: colors.primary, fontFamily: mono, fontSize: 12, fontWeight: "700", maxWidth: "45%" },
+
+  modalBackdrop: { backgroundColor: colors.overlay, flex: 1, justifyContent: "flex-end" },
+  compactSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "86%", paddingBottom: 28, paddingHorizontal: 18, paddingTop: 12 },
+  sheetHeader: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
+  sheetTitle: { color: colors.foreground, fontSize: 20, fontWeight: "800" },
+  sheetHeaderMain: { flex: 1, paddingRight: 10 },
+  sheetSubtitle: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 3 },
+  modalList: { gap: 8, paddingBottom: 18, paddingTop: 10 },
+  registrationCard: { backgroundColor: colors.successSurface, borderColor: colors.successBorder, borderRadius: 12, borderWidth: 1, marginTop: 9, padding: 10 },
+  registrationCardSupported: { backgroundColor: colors.warningSurface, borderColor: colors.warningBorder },
+  registrationCardUnknown: { backgroundColor: colors.errorSurface, borderColor: colors.errorBorder },
+  registrationCardTitle: { color: colors.foreground, fontSize: 12, fontWeight: "800" },
+  registrationCardHint: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 3 },
+  useTypedUnitButton: { alignSelf: "flex-start", backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, marginTop: 8, paddingHorizontal: 9, paddingVertical: 6 },
+  useTypedUnitText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
+  pickerSectionLabel: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.4, textTransform: "uppercase" },
+  pickerGroup: { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 9 },
+  shortcutRow: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 12, borderWidth: 1, padding: 12 },
+  shortcutTitle: { color: colors.primary, fontSize: 14, fontWeight: "800" },
+  shortcutExpression: { color: colors.foreground, fontFamily: mono, fontSize: 12, marginTop: 4 },
+
   helpBackdrop: { alignItems: "center", backgroundColor: colors.overlay, flex: 1, justifyContent: "center", padding: 24 },
   helpSheet: { backgroundColor: colors.surface, borderRadius: 20, padding: 20, width: "100%" },
   helpTitleRow: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 12 },
   helpTitle: { color: colors.foreground, fontSize: 20, fontWeight: "700" },
   closeHelp: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderRadius: 16, height: 32, justifyContent: "center", width: 32 },
-  helpText: { color: colors.foreground, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 13, lineHeight: 25 },
-  helpDone: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 11, marginTop: 18, paddingVertical: 12 },
+  helpText: { color: colors.foreground, fontFamily: mono, fontSize: 13, lineHeight: 24 },
+  helpHint: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 10 },
+  helpDone: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 11, marginTop: 16, paddingVertical: 12 },
   helpDoneText: { color: colors.onPrimary, fontWeight: "700" },
+
   unitInfoBackdrop: { alignItems: "center", backgroundColor: colors.overlay, flex: 1, justifyContent: "center", padding: 24 },
   unitInfoSheet: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 20, borderWidth: 1, maxWidth: 520, padding: 20, width: "100%" },
   unitInfoHeader: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between" },
-  unitInfoSymbol: { color: colors.primary, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 26, fontWeight: "800" },
+  unitInfoSymbol: { color: colors.primary, fontFamily: mono, fontSize: 26, fontWeight: "800" },
   unitInfoTitle: { color: colors.foreground, fontSize: 18, fontWeight: "800", marginTop: 2 },
   unitInfoSummary: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 13 },
   unitInfoFact: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 11, borderWidth: 1, marginTop: 14, padding: 12 },
   unitInfoFactLabel: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.4, textTransform: "uppercase" },
-  unitInfoFactValue: { color: colors.foreground, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }), fontSize: 14, fontWeight: "700", marginTop: 4 },
+  unitInfoFactValue: { color: colors.foreground, fontFamily: mono, fontSize: 14, fontWeight: "700", marginTop: 4 },
   unitInfoUsage: { color: colors.foreground, fontSize: 13, lineHeight: 19, marginTop: 4 },
   unitInfoDone: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 11, marginTop: 18, paddingVertical: 12 },
   unitInfoDoneText: { color: colors.onPrimary, fontWeight: "700" },

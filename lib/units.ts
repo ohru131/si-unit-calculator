@@ -21,6 +21,10 @@ export type CustomFunctionDefinition = {
 export type UnitOption = {
   symbol: string;
   label: string;
+  /** 同じ単位を指す別表記。入力の解釈、検索、表記ゆれの修正候補に使う。 */
+  aliases?: string[];
+  /** 記号だけでは分かりにくい単位に添える読み。 */
+  name?: { en: string; ja: string };
 };
 
 export type UnitSystem = "metric" | "us" | "uk";
@@ -36,6 +40,10 @@ export type UnitRegistration = {
   status: "registered" | "supported" | "unknown";
   group?: UnitGroup;
   unit?: UnitOption;
+  /** 別表記で入力された場合の正式な記号。 */
+  canonical?: string;
+  /** 一致した別表記そのもの。 */
+  matchedAlias?: string;
 };
 
 type UnitDefinition = {
@@ -63,7 +71,7 @@ const DIMENSIONS = {
   luminousIntensity: [0, 0, 0, 0, 0, 0, 1],
 } as const satisfies Record<string, Dimension>;
 
-export const UNIT_GROUPS: UnitGroup[] = [
+const BASE_UNIT_GROUPS: UnitGroup[] = [
   { id: "length", label: "長さ", dimension: DIMENSIONS.length, units: [{ symbol: "m", label: "m" }, { symbol: "km", label: "km" }, { symbol: "cm", label: "cm" }, { symbol: "mm", label: "mm" }, { symbol: "µm", label: "µm" }, { symbol: "in", label: "in" }, { symbol: "ft", label: "ft" }, { symbol: "yd", label: "yd" }, { symbol: "mi", label: "mi" }] },
   { id: "area", label: "面積", dimension: [2, 0, 0, 0, 0, 0, 0], units: [{ symbol: "m²", label: "m²" }, { symbol: "km²", label: "km²" }, { symbol: "cm²", label: "cm²" }, { symbol: "mm²", label: "mm²" }, { symbol: "in²", label: "in²" }, { symbol: "ft²", label: "ft²" }, { symbol: "yd²", label: "yd²" }, { symbol: "acre", label: "acre" }] },
   { id: "volume", label: "体積", dimension: [3, 0, 0, 0, 0, 0, 0], units: [{ symbol: "m³", label: "m³" }, { symbol: "L", label: "L" }, { symbol: "mL", label: "mL" }, { symbol: "cm³", label: "cm³" }, { symbol: "gal", label: "gal" }, { symbol: "qt", label: "qt" }, { symbol: "pt", label: "pt" }] },
@@ -82,6 +90,137 @@ export const UNIT_GROUPS: UnitGroup[] = [
   { id: "angle", label: "角度", dimension: ZERO, units: [{ symbol: "rad", label: "rad" }, { symbol: "deg", label: "deg" }, { symbol: "°", label: "°" }] },
   { id: "ratio", label: "割合・無次元", dimension: ZERO, units: [{ symbol: "%", label: "%" }, { symbol: "ppm", label: "ppm" }] },
 ];
+
+type UnitMeta = { aliases?: string[]; name?: { en: string; ja: string } };
+
+/**
+ * 記号だけでは伝わりにくい単位に読みと別表記を添える。
+ * aliases は入力の表記ゆれ検索・修正候補に使い、name は候補一覧の説明に使う。
+ */
+const UNIT_META: Record<string, UnitMeta> = {
+  m: { aliases: ["meter", "metre", "meters", "メートル"], name: { en: "meter", ja: "メートル" } },
+  km: { aliases: ["kilometer", "kilometre", "kilometers", "キロメートル"], name: { en: "kilometer", ja: "キロメートル" } },
+  cm: { aliases: ["centimeter", "centimetre", "centimeters", "センチメートル"], name: { en: "centimeter", ja: "センチメートル" } },
+  mm: { aliases: ["millimeter", "millimetre", "millimeters", "ミリメートル"], name: { en: "millimeter", ja: "ミリメートル" } },
+  "µm": { aliases: ["um", "micrometer", "micron", "マイクロメートル"], name: { en: "micrometer", ja: "マイクロメートル" } },
+  in: { aliases: ["inch", "inches", "インチ"], name: { en: "inch", ja: "インチ" } },
+  ft: { aliases: ["foot", "feet", "フィート"], name: { en: "foot", ja: "フィート" } },
+  yd: { aliases: ["yard", "yards", "ヤード"], name: { en: "yard", ja: "ヤード" } },
+  mi: { aliases: ["mile", "miles", "マイル"], name: { en: "mile", ja: "マイル" } },
+  "m²": { aliases: ["m2", "m^2", "sqm", "平方メートル"], name: { en: "square meter", ja: "平方メートル" } },
+  "km²": { aliases: ["km2", "km^2", "平方キロメートル"], name: { en: "square kilometer", ja: "平方キロメートル" } },
+  "cm²": { aliases: ["cm2", "cm^2", "平方センチメートル"], name: { en: "square centimeter", ja: "平方センチメートル" } },
+  "mm²": { aliases: ["mm2", "mm^2", "平方ミリメートル"], name: { en: "square millimeter", ja: "平方ミリメートル" } },
+  "in²": { aliases: ["in2", "in^2", "sqin", "平方インチ"], name: { en: "square inch", ja: "平方インチ" } },
+  "ft²": { aliases: ["ft2", "ft^2", "sqft", "平方フィート"], name: { en: "square foot", ja: "平方フィート" } },
+  "yd²": { aliases: ["yd2", "yd^2", "平方ヤード"], name: { en: "square yard", ja: "平方ヤード" } },
+  acre: { aliases: ["acres", "エーカー"], name: { en: "acre", ja: "エーカー" } },
+  "m³": { aliases: ["m3", "m^3", "立方メートル"], name: { en: "cubic meter", ja: "立方メートル" } },
+  L: { aliases: ["l", "liter", "litre", "liters", "リットル"], name: { en: "liter", ja: "リットル" } },
+  mL: { aliases: ["ml", "milliliter", "millilitre", "ミリリットル"], name: { en: "milliliter", ja: "ミリリットル" } },
+  "cm³": { aliases: ["cm3", "cm^3", "cc", "立方センチメートル"], name: { en: "cubic centimeter", ja: "立方センチメートル" } },
+  gal: { aliases: ["gallon", "gallons", "ガロン"], name: { en: "gallon", ja: "ガロン" } },
+  qt: { aliases: ["quart", "quarts", "クォート"], name: { en: "quart", ja: "クォート" } },
+  pt: { aliases: ["pint", "pints", "パイント"], name: { en: "pint", ja: "パイント" } },
+  s: { aliases: ["sec", "secs", "second", "seconds", "秒"], name: { en: "second", ja: "秒" } },
+  ms: { aliases: ["msec", "msecs", "millisecond", "milliseconds", "ミリ秒"], name: { en: "millisecond", ja: "ミリ秒" } },
+  min: { aliases: ["mins", "minute", "minutes", "分"], name: { en: "minute", ja: "分" } },
+  h: { aliases: ["hr", "hrs", "hour", "hours", "時間"], name: { en: "hour", ja: "時間" } },
+  d: { aliases: ["day", "days", "日"], name: { en: "day", ja: "日" } },
+  kg: { aliases: ["kilogram", "kilograms", "キログラム"], name: { en: "kilogram", ja: "キログラム" } },
+  g: { aliases: ["gram", "grams", "グラム"], name: { en: "gram", ja: "グラム" } },
+  mg: { aliases: ["milligram", "milligrams", "ミリグラム"], name: { en: "milligram", ja: "ミリグラム" } },
+  t: { aliases: ["ton", "tonne", "tons", "トン"], name: { en: "tonne", ja: "トン" } },
+  lb: { aliases: ["lbs", "pound", "pounds", "ポンド"], name: { en: "pound", ja: "ポンド" } },
+  oz: { aliases: ["ounce", "ounces", "オンス"], name: { en: "ounce", ja: "オンス" } },
+  st: { aliases: ["stone", "stones", "ストーン"], name: { en: "stone", ja: "ストーン" } },
+  K: { aliases: ["kelvin", "ケルビン"], name: { en: "kelvin", ja: "ケルビン" } },
+  "°C": { aliases: ["degC", "celsius", "摂氏"], name: { en: "degree Celsius", ja: "摂氏" } },
+  "°F": { aliases: ["degF", "fahrenheit", "華氏"], name: { en: "degree Fahrenheit", ja: "華氏" } },
+  "m/s": { aliases: ["m/sec", "mps", "メートル毎秒"], name: { en: "meter per second", ja: "メートル毎秒" } },
+  "km/h": { aliases: ["km/hr", "km/hour", "kph", "kmh", "キロメートル毎時"], name: { en: "kilometer per hour", ja: "キロメートル毎時" } },
+  "m/min": { aliases: ["m/minute", "メートル毎分"], name: { en: "meter per minute", ja: "メートル毎分" } },
+  "km/min": { aliases: ["キロメートル毎分"], name: { en: "kilometer per minute", ja: "キロメートル毎分" } },
+  "km/s": { aliases: ["km/sec", "キロメートル毎秒"], name: { en: "kilometer per second", ja: "キロメートル毎秒" } },
+  "m/h": { aliases: ["m/hr", "m/hour", "メートル毎時"], name: { en: "meter per hour", ja: "メートル毎時" } },
+  "cm/s": { aliases: ["cm/sec", "センチメートル毎秒"], name: { en: "centimeter per second", ja: "センチメートル毎秒" } },
+  "ft/s": { aliases: ["ft/sec", "fps", "フィート毎秒"], name: { en: "foot per second", ja: "フィート毎秒" } },
+  mph: { aliases: ["mi/h", "mi/hr", "マイル毎時"], name: { en: "mile per hour", ja: "マイル毎時" } },
+  kt: { aliases: ["knot", "knots", "ノット"], name: { en: "knot", ja: "ノット" } },
+  "m/s²": { aliases: ["m/s2", "m/s^2", "メートル毎秒毎秒"], name: { en: "meter per second squared", ja: "メートル毎秒毎秒" } },
+  "cm/s²": { aliases: ["cm/s2", "cm/s^2"], name: { en: "centimeter per second squared", ja: "センチメートル毎秒毎秒" } },
+  "ft/s²": { aliases: ["ft/s2", "ft/s^2"], name: { en: "foot per second squared", ja: "フィート毎秒毎秒" } },
+  N: { aliases: ["newton", "newtons", "ニュートン"], name: { en: "newton", ja: "ニュートン" } },
+  kN: { aliases: ["kilonewton", "キロニュートン"], name: { en: "kilonewton", ja: "キロニュートン" } },
+  Pa: { aliases: ["pascal", "pascals", "パスカル"], name: { en: "pascal", ja: "パスカル" } },
+  kPa: { aliases: ["kilopascal", "キロパスカル"], name: { en: "kilopascal", ja: "キロパスカル" } },
+  MPa: { aliases: ["megapascal", "メガパスカル"], name: { en: "megapascal", ja: "メガパスカル" } },
+  bar: { aliases: ["bars", "バール"], name: { en: "bar", ja: "バール" } },
+  psi: { aliases: ["lbf/in²"], name: { en: "pound per square inch", ja: "重量ポンド毎平方インチ" } },
+  atm: { aliases: ["atmosphere", "気圧"], name: { en: "standard atmosphere", ja: "気圧" } },
+  J: { aliases: ["joule", "joules", "ジュール"], name: { en: "joule", ja: "ジュール" } },
+  kJ: { aliases: ["kilojoule", "キロジュール"], name: { en: "kilojoule", ja: "キロジュール" } },
+  Wh: { aliases: ["watthour", "ワット時"], name: { en: "watt hour", ja: "ワット時" } },
+  BTU: { aliases: ["btu"], name: { en: "British thermal unit", ja: "英熱量" } },
+  W: { aliases: ["watt", "watts", "ワット"], name: { en: "watt", ja: "ワット" } },
+  kW: { aliases: ["kilowatt", "キロワット"], name: { en: "kilowatt", ja: "キロワット" } },
+  MW: { aliases: ["megawatt", "メガワット"], name: { en: "megawatt", ja: "メガワット" } },
+  hp: { aliases: ["horsepower", "馬力"], name: { en: "horsepower", ja: "馬力" } },
+  A: { aliases: ["amp", "ampere", "amps", "アンペア"], name: { en: "ampere", ja: "アンペア" } },
+  mA: { aliases: ["milliamp", "milliampere", "ミリアンペア"], name: { en: "milliampere", ja: "ミリアンペア" } },
+  "µA": { aliases: ["uA", "microampere", "マイクロアンペア"], name: { en: "microampere", ja: "マイクロアンペア" } },
+  V: { aliases: ["volt", "volts", "ボルト"], name: { en: "volt", ja: "ボルト" } },
+  mV: { aliases: ["millivolt", "ミリボルト"], name: { en: "millivolt", ja: "ミリボルト" } },
+  kV: { aliases: ["kilovolt", "キロボルト"], name: { en: "kilovolt", ja: "キロボルト" } },
+  Hz: { aliases: ["hertz", "ヘルツ"], name: { en: "hertz", ja: "ヘルツ" } },
+  kHz: { aliases: ["kilohertz", "キロヘルツ"], name: { en: "kilohertz", ja: "キロヘルツ" } },
+  MHz: { aliases: ["megahertz", "メガヘルツ"], name: { en: "megahertz", ja: "メガヘルツ" } },
+  rad: { aliases: ["radian", "radians", "ラジアン"], name: { en: "radian", ja: "ラジアン" } },
+  deg: { aliases: ["degree", "degrees", "度"], name: { en: "degree", ja: "度" } },
+  "°": { aliases: ["degree", "度"], name: { en: "degree", ja: "度" } },
+  "%": { aliases: ["percent", "パーセント"], name: { en: "percent", ja: "パーセント" } },
+  ppm: { aliases: ["partspermillion", "百万分率"], name: { en: "parts per million", ja: "百万分率" } },
+  Gal: { aliases: ["gal(acceleration)"], name: { en: "gal", ja: "ガル" } },
+  mGal: { name: { en: "milligal", ja: "ミリガル" } },
+  "µGal": { aliases: ["uGal"], name: { en: "microgal", ja: "マイクロガル" } },
+  G: { aliases: ["g0"], name: { en: "standard gravity", ja: "標準重力" } },
+  kine: { name: { en: "kine", ja: "カイン" } },
+};
+
+export const UNIT_GROUPS: UnitGroup[] = BASE_UNIT_GROUPS.map((group) => ({
+  ...group,
+  units: group.units.map((unitOption) => ({ ...unitOption, ...UNIT_META[unitOption.symbol] })),
+}));
+
+/** 記号・別表記のどちらからでも登録済み単位を引く。 */
+export function findRegisteredUnit(input: string): { group: UnitGroup; unit: UnitOption; matchedAlias?: string } | undefined {
+  const source = input.trim();
+  if (!source) return undefined;
+  for (const group of UNIT_GROUPS) {
+    const exact = group.units.find((unitOption) => unitOption.symbol === source);
+    if (exact) return { group, unit: exact };
+  }
+  const lowered = source.toLowerCase();
+  for (const group of UNIT_GROUPS) {
+    for (const unitOption of group.units) {
+      const matchedAlias = unitOption.aliases?.find((alias) => alias.toLowerCase() === lowered);
+      if (matchedAlias) return { group, unit: unitOption, matchedAlias };
+    }
+  }
+  return undefined;
+}
+
+/** 単位の別表記を正式な記号へ寄せる。未知の入力はそのまま返す。 */
+export function canonicalUnitSymbol(input: string): string {
+  const source = input.trim();
+  const found = findRegisteredUnit(source);
+  return found ? found.unit.symbol : source;
+}
+
+/** 候補一覧に使う検索用テキスト。記号・読み・別表記・カテゴリ名をまとめる。 */
+export function unitSearchText(group: UnitGroup, unitOption: UnitOption): string {
+  return [group.id, group.label, unitOption.symbol, unitOption.label, unitOption.name?.en, unitOption.name?.ja, ...(unitOption.aliases ?? [])].filter(Boolean).join(" ").toLowerCase();
+}
 
 const multiplyDimensions = (left: Dimension, right: Dimension): Dimension =>
   left.map((value, index) => value + right[index]) as Dimension;
@@ -118,9 +257,22 @@ const BASE_UNITS: Record<string, UnitDefinition> = {
   "°": unit(Math.PI / 180, ZERO),
   "%": unit(1e-2, ZERO),
   ppm: unit(1e-6, ZERO),
+  sec: unit(1, DIMENSIONS.time),
+  secs: unit(1, DIMENSIONS.time),
+  second: unit(1, DIMENSIONS.time),
+  seconds: unit(1, DIMENSIONS.time),
   min: unit(60, DIMENSIONS.time),
+  mins: unit(60, DIMENSIONS.time),
+  minute: unit(60, DIMENSIONS.time),
+  minutes: unit(60, DIMENSIONS.time),
   h: unit(3600, DIMENSIONS.time),
+  hr: unit(3600, DIMENSIONS.time),
+  hrs: unit(3600, DIMENSIONS.time),
+  hour: unit(3600, DIMENSIONS.time),
+  hours: unit(3600, DIMENSIONS.time),
   d: unit(86400, DIMENSIONS.time),
+  day: unit(86400, DIMENSIONS.time),
+  days: unit(86400, DIMENSIONS.time),
   L: unit(1e-3, [3, 0, 0, 0, 0, 0, 0]),
   l: unit(1e-3, [3, 0, 0, 0, 0, 0, 0]),
   t: unit(1e3, DIMENSIONS.mass),
@@ -288,8 +440,8 @@ export function parseUnit(input: string): UnitDefinition {
 export function getUnitRegistration(input: string): UnitRegistration {
   const source = input.trim();
   if (!source) return { status: "unknown" };
-  const group = UNIT_GROUPS.find((candidate) => candidate.units.some((option) => option.symbol === source));
-  if (group) return { status: "registered", group, unit: group.units.find((option) => option.symbol === source) };
+  const found = findRegisteredUnit(source);
+  if (found) return { status: "registered", group: found.group, unit: found.unit, canonical: found.unit.symbol, matchedAlias: found.matchedAlias };
   try {
     parseUnit(source);
     return { status: "supported" };
@@ -640,6 +792,13 @@ const REGIONAL_PRIORITY: Record<UnitSystem, Record<string, string[]>> = {
   uk: { length: ["mm", "m", "km", "mi"], area: ["m²", "acre"], volume: ["L", "pt"], mass: ["kg", "st", "lb"], temperature: ["°C"], velocity: ["mph", "km/h", "kt", "m/s"], acceleration: ["m/s²", "G", "Gal"], pressure: ["bar", "psi"], energy: ["kJ", "Wh"], power: ["kW", "hp"] },
 };
 
+/** 地域の優先単位を先頭に置きつつ、そのカテゴリの全単位を返す。 */
+export function getGroupUnitsForSystem(group: UnitGroup, system: UnitSystem): UnitOption[] {
+  const prioritized = getRegionalUnits(group, system);
+  const rest = group.units.filter((unitOption) => !prioritized.includes(unitOption));
+  return [...prioritized, ...rest];
+}
+
 export function getRegionalUnits(group: UnitGroup, system: UnitSystem): UnitOption[] {
   const priority = REGIONAL_PRIORITY[system][group.id] ?? [];
   const selected = priority.map((symbol) => group.units.find((unitOption) => unitOption.symbol === symbol)).filter((unitOption): unitOption is UnitOption => Boolean(unitOption));
@@ -652,6 +811,6 @@ export function searchUnitOptions(query: string, system: UnitSystem, limit = 12)
   const normalized = query.trim().toLowerCase();
   if (!normalized) return [];
   const results = UNIT_GROUPS.flatMap((group) => getRegionalUnits(group, system).map((unitOption) => ({ group, unit: unitOption })))
-    .filter(({ group, unit: unitOption }) => `${group.id} ${group.label} ${unitOption.symbol} ${unitOption.label}`.toLowerCase().includes(normalized));
+    .filter(({ group, unit: unitOption }) => unitSearchText(group, unitOption).includes(normalized));
   return results.slice(0, limit);
 }

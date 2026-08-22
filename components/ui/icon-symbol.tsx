@@ -32,6 +32,8 @@ const MAPPING = {
   "accessibility": "accessibility",
   "doc.on.doc": "content-copy",
   "magnifyingglass": "search",
+  "list.bullet": "list",
+  "exclamationmark.triangle.fill": "warning",
 } satisfies IconMapping;
 
 /**
