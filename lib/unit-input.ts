@@ -61,7 +61,7 @@ export type UnitInputHint = {
 const BUILT_IN_IDENTIFIERS = ["sin", "cos", "tan", "asin", "acos", "atan", "atan2", "sqrt", "ln", "log", "log2", "pi", "e"];
 
 const WORD_START_PATTERN = /[A-Za-zΩµμ%°_]/;
-const WORD_BODY_PATTERN = /[A-Za-zΩµμ%°_0-9⁰¹²³⁴⁵⁶⁷⁸⁹⁻]/;
+const WORD_BODY_PATTERN = /[A-Za-zΩµμ%°_0-9⁰¹²³⁴⁵⁶⁷⁸⁹⁻^]/;
 const NUMBER_PATTERN = /[0-9.]/;
 const DEFINITION_PATTERN = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=/;
 
@@ -232,10 +232,10 @@ export function getCommonUnitSuggestions(system: UnitSystem, recentUnits: string
  */
 export function getUnitInputHint(
   expression: string,
-  options: { system: UnitSystem; recentUnits?: string[]; identifiers?: string[]; includeUnit?: UnitFilter; limit?: number },
+  options: { system: UnitSystem; recentUnits?: string[]; identifiers?: string[]; includeUnit?: UnitFilter; limit?: number; analysis?: ExpressionAnalysis },
 ): UnitInputHint {
   const { system, recentUnits = [], identifiers = [], includeUnit, limit = 8 } = options;
-  const analysis = analyzeExpression(expression, identifiers);
+  const analysis = options.analysis ?? analyzeExpression(expression, identifiers);
   const caret = expression.length;
   const insertHint = (start: number, kind: UnitInputHintKind): UnitInputHint => ({
     kind,
@@ -245,7 +245,10 @@ export function getUnitInputHint(
     candidates: getCommonUnitSuggestions(system, recentUnits, { limit, includeUnit }),
   });
 
-  const unresolved = analysis.unresolved[analysis.unresolved.length - 1];
+  // 未定義の定数・関数参照（例: 履歴がまだ無い状態の a1）は「間違った単位」ではないため、
+  // 単位の修正候補には含めない。
+  const unresolvedUnits = analysis.unresolved.filter((segment) => segment.kind === "unknown-unit");
+  const unresolved = unresolvedUnits[unresolvedUnits.length - 1];
   if (unresolved) {
     const candidates = getUnitSuggestions(unresolved.text, { system, limit, includeUnit });
     // 末尾の書きかけは「間違い」ではなく補完として案内する。

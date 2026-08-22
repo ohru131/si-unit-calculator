@@ -9,8 +9,12 @@ export function isUnitGroupVisible(group: UnitGroup, isAdvancedMode: boolean) {
   return isAdvancedMode || !ADVANCED_GROUP_IDS.has(group.id);
 }
 
+export function isUnitVisible(unit: UnitOption, isAdvancedMode: boolean) {
+  return isAdvancedMode || !ADVANCED_UNIT_SYMBOLS.has(unit.symbol);
+}
+
 export function visibleUnits(units: UnitOption[], isAdvancedMode: boolean) {
-  return isAdvancedMode ? units : units.filter((unit) => !ADVANCED_UNIT_SYMBOLS.has(unit.symbol));
+  return units.filter((unit) => isUnitVisible(unit, isAdvancedMode));
 }
 
 export function isSampleCategoryVisible(category: SampleCategory, isAdvancedMode: boolean) {
