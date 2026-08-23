@@ -16,7 +16,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
-import { isSampleCategoryVisible, isUnitGroupVisible, visibleUnits } from "@/lib/advanced-display";
+import { isSampleCategoryVisible, isUnitGroupVisible, isUnitVisible, visibleUnits } from "@/lib/advanced-display";
 import { useCalculatorStore } from "@/lib/calculator-store";
 import { exportCalculationHistory } from "@/lib/calculation-export";
 import { useGlobalSettings } from "@/lib/global-settings";
@@ -72,12 +72,17 @@ export default function CalculatorScreen() {
 
   const isAdvancedMode = calculatorMode === "advanced";
   const includeUnit = useCallback(
-    (group: UnitGroup, unitOption: UnitOption) => isUnitGroupVisible(group, isAdvancedMode) && visibleUnits([unitOption], isAdvancedMode).length > 0,
+    (group: UnitGroup, unitOption: UnitOption) => isUnitGroupVisible(group, isAdvancedMode) && isUnitVisible(unitOption, isAdvancedMode),
     [isAdvancedMode],
+  );
+  /** そのカテゴリの単位を、地域優先順のうえで現在の表示モードに合わせて絞り込む。 */
+  const visibleGroupUnits = useCallback(
+    (group: UnitGroup) => getGroupUnitsForSystem(group, unitSystem).filter((unitOption) => includeUnit(group, unitOption)),
+    [includeUnit, unitSystem],
   );
   const visibleInputGroups = useMemo(() => UNIT_GROUPS.filter((group) => isUnitGroupVisible(group, isAdvancedMode)), [isAdvancedMode]);
   const selectedInputGroup = visibleInputGroups.find((group) => group.id === inputGroupId) ?? visibleInputGroups[0] ?? UNIT_GROUPS[0];
-  const selectedInputUnits = useMemo(() => getGroupUnitsForSystem(selectedInputGroup, unitSystem).filter((unitOption) => includeUnit(selectedInputGroup, unitOption)), [includeUnit, selectedInputGroup, unitSystem]);
+  const selectedInputUnits = useMemo(() => visibleGroupUnits(selectedInputGroup), [selectedInputGroup, visibleGroupUnits]);
   const searchSuggestions = useMemo(() => getUnitSuggestions(unitSearch, { system: unitSystem, limit: 24, includeUnit }), [includeUnit, unitSearch, unitSystem]);
   const compatibleUnitGroups = useMemo(() => (result ? getCompatibleUnitGroups(result.dimension).filter((group) => isUnitGroupVisible(group, isAdvancedMode) && visibleUnits(getRegionalUnits(group, unitSystem), isAdvancedMode).length > 0) : []), [isAdvancedMode, result, unitSystem]);
   const visibleSampleCategories = useMemo(() => SAMPLE_CATEGORIES.filter((category) => isSampleCategoryVisible(category.id, isAdvancedMode)), [isAdvancedMode]);
@@ -97,8 +102,9 @@ export default function CalculatorScreen() {
     if (fixSelection) {
       return { kind: "fix", fragment: fixSelection.text, start: fixSelection.start, end: fixSelection.end, candidates: getUnitSuggestions(fixSelection.text, { system: unitSystem, limit: RAIL_LIMIT, includeUnit }) };
     }
-    return getUnitInputHint(expression, { system: unitSystem, recentUnits, identifiers, includeUnit, limit: RAIL_LIMIT });
-  }, [expression, fixSelection, identifiers, includeUnit, recentUnits, unitSystem]);
+    // 直前に計算済みの analysis を渡して、同じ式をもう一度解析しないようにする。
+    return getUnitInputHint(expression, { system: unitSystem, recentUnits, identifiers, includeUnit, limit: RAIL_LIMIT, analysis });
+  }, [analysis, expression, fixSelection, identifiers, includeUnit, recentUnits, unitSystem]);
 
   /** 結果のすぐ横で切り替えられる、同じ次元の単位。 */
   const conversionUnits = useMemo(() => {
@@ -106,12 +112,12 @@ export default function CalculatorScreen() {
     const current = targetUnit.trim();
     if (current) symbols.push(current);
     compatibleUnitGroups.forEach((group) => {
-      getGroupUnitsForSystem(group, unitSystem).forEach((unitOption) => {
-        if (includeUnit(group, unitOption) && !symbols.includes(unitOption.symbol)) symbols.push(unitOption.symbol);
+      visibleGroupUnits(group).forEach((unitOption) => {
+        if (!symbols.includes(unitOption.symbol)) symbols.push(unitOption.symbol);
       });
     });
     return symbols.slice(0, 10);
-  }, [compatibleUnitGroups, includeUnit, targetUnit, unitSystem]);
+  }, [compatibleUnitGroups, targetUnit, visibleGroupUnits]);
 
   useEffect(() => {
     if (!isAdvancedMode && !isUnitGroupVisible(UNIT_GROUPS.find((group) => group.id === inputGroupId) ?? UNIT_GROUPS[0], false)) setInputGroupId("length");
@@ -147,11 +153,11 @@ export default function CalculatorScreen() {
     if (!result) return null;
     try {
       return { value: formatQuantity(result, targetUnit, locale), si: formatQuantity(result, undefined, locale), error: "" };
-    } catch {
-      const mismatch = language === "en"
-        ? `This result cannot be shown in ${targetUnit.trim()} — the dimension differs.`
-        : `この結果は「${targetUnit.trim()}」では表示できません（次元が違います）。`;
-      return { value: "—", si: formatQuantity(result, undefined, locale), error: mismatch };
+    } catch (cause) {
+      // 次元不一致だけでなく、不正な単位文字列（例: プリセットの presetUnit パラメータ）など
+      // 実際の失敗理由をそのまま見せる。決め打ちの「次元が違う」で握りつぶさない。
+      const fallback = language === "en" ? "Could not convert to this unit." : "この単位へは変換できません。";
+      return { value: "—", si: formatQuantity(result, undefined, locale), error: cause instanceof Error ? cause.message : fallback };
     }
   }, [language, locale, result, targetUnit]);
 
@@ -175,12 +181,15 @@ export default function CalculatorScreen() {
       setError(language === "en" ? "Enter an expression." : "式を入力してください。");
       return;
     }
-    // 未登録の単位はどこが問題かを示し、修正候補へ誘導する。
-    const unresolved = analyzeExpression(input, identifiers).unresolved[0];
-    if (unresolved && !expressionOverride) {
+    // 使えない単位だけを修正候補へ誘導する（未定義の定数・関数参照はここでは扱わず、下の計算エラーに任せる）。
+    // 既に計算済みの analysis（生の expression 基準）を使い、トリム済み文字列を再解析して
+    // インデックスがずれる（例: 先頭に空白がある式）ことを避ける。
+    const unresolvedUnits = expressionOverride ? [] : analysis.unresolved.filter((segment) => segment.kind === "unknown-unit");
+    const unresolvedUnit = unresolvedUnits[unresolvedUnits.length - 1];
+    if (unresolvedUnit) {
       setResult(null);
-      setError(describeUnresolved(unresolved));
-      setFixSelection({ start: unresolved.start, end: unresolved.end, text: unresolved.text });
+      setError(describeUnresolved(unresolvedUnit));
+      setFixSelection({ start: unresolvedUnit.start, end: unresolvedUnit.end, text: unresolvedUnit.text });
       return;
     }
     setError("");
@@ -261,9 +270,20 @@ export default function CalculatorScreen() {
     setError("");
   };
 
-  /** 補完・修正・挿入のいずれでも、案内した範囲をそのまま置き換える。 */
+  /** 入力補助バーの候補をタップしたとき、案内した範囲（修正・補完・単位付けの対象）をそのまま置き換える。 */
   const applyUnitCandidate = (symbol: string) => {
     setExpression((current) => replaceExpressionRange(current, Math.min(hint.start, current.length), Math.min(hint.end, current.length), symbol));
+    setFixSelection(null);
+    rememberUnit(symbol);
+    setError("");
+    setNotice("");
+  };
+
+  /** 単位シート（検索・カテゴリ一覧）から選んだときは、常に式の末尾へ追加する。
+   * 入力補助バーの hint とは無関係な操作のため、hint の範囲を置き換えてはならない
+   * （式のどこかに未解決の単位があると、無関係な箇所を上書きしてしまうため）。 */
+  const appendUnit = (symbol: string) => {
+    setExpression((current) => `${current}${symbol}`);
     setFixSelection(null);
     rememberUnit(symbol);
     setError("");
@@ -278,7 +298,7 @@ export default function CalculatorScreen() {
 
   const chooseUnit = (unit: string) => {
     if (unitPickerMode === "target") applyTargetUnit(unit);
-    else applyUnitCandidate(unit);
+    else appendUnit(unit);
     setUnitSearch("");
     setShowUnitPicker(false);
   };
@@ -309,6 +329,7 @@ export default function CalculatorScreen() {
       setExpression(shortcut.expression);
       setTargetUnit(shortcut.targetUnit);
       setResult(null);
+      setFixSelection(null);
       setError("");
       setNotice(action === "speed" ? (language === "en" ? "Speed example ready: distance ÷ time." : "速度の例を準備しました：距離 ÷ 時間") : (language === "en" ? "Pressure example ready: force ÷ area." : "圧力の例を準備しました：力 ÷ 面積"));
     }
@@ -329,6 +350,7 @@ export default function CalculatorScreen() {
     setExpression(nextExpression);
     setTargetUnit(nextUnit ?? "");
     setResult(null);
+    setFixSelection(null);
     setError("");
     setNotice(language === "en" ? "Saved item loaded. Tap = to run it." : "保存した項目を読み込みました。「=」を押して実行できます。");
   }, [language, presetExpression, presetUnit]);
@@ -430,6 +452,16 @@ export default function CalculatorScreen() {
                   : segment.kind === "number" ? styles.previewNumber
                   : styles.previewOperator;
                 if (!isUnresolved) return <Text key={`${segment.start}-${index}`} style={style}>{segment.text}</Text>;
+                // 単位の書き間違いだけをタップで修正できるようにする。定数・関数の未定義参照は
+                // 単位の候補を出しても意味がないため、見た目だけ知らせてタップ操作は付けない。
+                if (segment.kind !== "unknown-unit") {
+                  return (
+                    <View key={`${segment.start}-${index}`} style={styles.previewUnknownWrap}>
+                      <Text style={style}>{segment.text}</Text>
+                      <IconSymbol name="exclamationmark.triangle.fill" size={11} color={colors.error} />
+                    </View>
+                  );
+                }
                 return (
                   <Pressable
                     accessibilityLabel={`${segment.text} ${copy.unknown}`}
@@ -512,7 +544,16 @@ export default function CalculatorScreen() {
                   {display.error ? <Text style={styles.errorText}>{display.error}</Text> : null}
                 </>
               ) : (
-                <Text style={styles.emptyResult}>{copy.emptyResult}</Text>
+                <>
+                  <Text style={styles.emptyResult}>{copy.emptyResult}</Text>
+                  <Pressable accessibilityLabel={copy.outputUnit} onPress={() => openUnitPicker("target")} style={({ pressed }) => [styles.presetOutputUnit, pressed && styles.pressed]}>
+                    <Text style={styles.presetOutputUnitLabel}>{copy.outputUnit}</Text>
+                    <View style={styles.presetOutputUnitValueWrap}>
+                      <Text style={styles.presetOutputUnitValue}>{targetUnit.trim() || "SI"}</Text>
+                      <IconSymbol name="chevron.right" size={11} color={colors.primary} />
+                    </View>
+                  </Pressable>
+                </>
               )}
             </View>
 
@@ -621,21 +662,22 @@ export default function CalculatorScreen() {
                       {compatibleUnitGroups.map((group) => (
                         <View key={group.id} style={styles.pickerGroup}>
                           <Text style={styles.unitGroupLabel}>{unitGroupLabel(group.id)}</Text>
-                          <View style={styles.chips}>{getGroupUnitsForSystem(group, unitSystem).filter((unitOption) => includeUnit(group, unitOption)).map((unitOption) => renderUnitChip({ group, unit: unitOption }, () => chooseUnit(unitOption.symbol), targetUnit.trim() === unitOption.symbol))}</View>
+                          <View style={styles.chips}>{visibleGroupUnits(group).map((unitOption) => renderUnitChip({ group, unit: unitOption }, () => chooseUnit(unitOption.symbol), targetUnit.trim() === unitOption.symbol))}</View>
                         </View>
                       ))}
                     </>
                   ) : null}
                   <Text style={styles.pickerSectionLabel}>{unitGroupLabel(selectedInputGroup.id)}</Text>
                   <View style={styles.chips}>{selectedInputUnits.map((unitOption) => renderUnitChip({ group: selectedInputGroup, unit: unitOption }, () => chooseUnit(unitOption.symbol), unitPickerMode === "target" && targetUnit.trim() === unitOption.symbol))}</View>
-                  {isPro && favoriteUnits.length ? (
-                    <View style={styles.favoritePicker}>
-                      <Text style={styles.pickerSectionLabel}>PRO</Text>
-                      <View style={styles.chips}>{favoriteUnits.map((unit) => <Pressable key={unit} onPress={() => chooseUnit(unit)} style={({ pressed }) => [styles.unitChip, pressed && styles.pressed]}><Text style={styles.unitChipSymbol}>{unit}</Text></Pressable>)}</View>
-                    </View>
-                  ) : null}
                 </>
               )}
+              {/* 検索中でも、Pro のお気に入り単位は隠さず常に選べるようにする。 */}
+              {isPro && favoriteUnits.length ? (
+                <View style={styles.favoritePicker}>
+                  <Text style={styles.pickerSectionLabel}>PRO</Text>
+                  <View style={styles.chips}>{favoriteUnits.map((unit) => <Pressable key={unit} onPress={() => chooseUnit(unit)} style={({ pressed }) => [styles.unitChip, pressed && styles.pressed]}><Text style={styles.unitChipSymbol}>{unit}</Text></Pressable>)}</View>
+                </View>
+              ) : null}
             </ScrollView>
           </View>
         </View>
@@ -756,6 +798,10 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   iconButton: { alignItems: "center", backgroundColor: colors.surface, borderRadius: 8, height: 28, justifyContent: "center", width: 32 },
   resultValue: { color: colors.primaryStrong, fontFamily: mono, fontSize: 28, fontWeight: "700", marginTop: 2, minHeight: 34 },
   emptyResult: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 6 },
+  presetOutputUnit: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
+  presetOutputUnitLabel: { color: colors.muted, fontSize: 11, fontWeight: "700" },
+  presetOutputUnitValueWrap: { alignItems: "center", flexDirection: "row", gap: 2 },
+  presetOutputUnitValue: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },
 
   // 結果のすぐ下で単位を切り替えられるようにする。
   conversionRow: { alignItems: "center", flexDirection: "row", gap: 6, marginTop: 4 },

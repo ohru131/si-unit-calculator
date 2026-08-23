@@ -113,4 +113,24 @@ describe("入力補助の切り替え", () => {
     expect(hint.start).toBe(6);
     expect(hint.candidates[0].unit.symbol).toBe("cm");
   });
+
+  it("未定義の定数・関数参照は単位の修正候補として扱わない", () => {
+    // a1 は履歴が無い段階では未定義の識別子であり、「使えない単位」ではない。
+    const hint = getUnitInputHint("a1 + 2cm", { system: "metric" });
+    expect(hint.kind).not.toBe("fix");
+    expect(hint.kind).not.toBe("complete");
+  });
+
+  it("同じ式の解析結果を渡せば再解析せずそのまま使う", () => {
+    const analysis = analyzeExpression("5kmh + 1cm");
+    const hint = getUnitInputHint("5kmh + 1cm", { system: "metric", analysis });
+    expect(hint.kind).toBe("fix");
+    expect(hint.fragment).toBe("kmh");
+  });
+});
+
+describe("べき乗を含む複合単位", () => {
+  it("m/s^2 のような ^ を含む別表記も一つの単位として認識する", () => {
+    expect(kinds("10m/s^2")).toEqual(["10:number", "m/s^2:unit"]);
+  });
 });
