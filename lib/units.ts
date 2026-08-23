@@ -257,22 +257,9 @@ const BASE_UNITS: Record<string, UnitDefinition> = {
   "°": unit(Math.PI / 180, ZERO),
   "%": unit(1e-2, ZERO),
   ppm: unit(1e-6, ZERO),
-  sec: unit(1, DIMENSIONS.time),
-  secs: unit(1, DIMENSIONS.time),
-  second: unit(1, DIMENSIONS.time),
-  seconds: unit(1, DIMENSIONS.time),
   min: unit(60, DIMENSIONS.time),
-  mins: unit(60, DIMENSIONS.time),
-  minute: unit(60, DIMENSIONS.time),
-  minutes: unit(60, DIMENSIONS.time),
   h: unit(3600, DIMENSIONS.time),
-  hr: unit(3600, DIMENSIONS.time),
-  hrs: unit(3600, DIMENSIONS.time),
-  hour: unit(3600, DIMENSIONS.time),
-  hours: unit(3600, DIMENSIONS.time),
   d: unit(86400, DIMENSIONS.time),
-  day: unit(86400, DIMENSIONS.time),
-  days: unit(86400, DIMENSIONS.time),
   L: unit(1e-3, [3, 0, 0, 0, 0, 0, 0]),
   l: unit(1e-3, [3, 0, 0, 0, 0, 0, 0]),
   t: unit(1e3, DIMENSIONS.mass),
@@ -387,6 +374,24 @@ const normalize = (input: string) =>
     .replace(/π/g, "pi")
     .replace(/\s+/g, " ")
     .replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]/g, (character) => SUPERSCRIPTS[character]);
+
+// UNIT_META の英字の別表記（sec, hour, millisecond など）を、計算にも使える表記として自動登録する。
+// ms のように接頭辞から導かれる単位も resolveUnitSymbol で解決してから登録する。
+// 日本語の読みなど計算式に入力できない別表記はここでは対象外にする。
+const ALIAS_SYMBOL_PATTERN = /^[A-Za-z][A-Za-z0-9]*$/;
+Object.entries(UNIT_META).forEach(([symbol, meta]) => {
+  if (!meta.aliases) return;
+  let base: UnitDefinition;
+  try {
+    base = resolveUnitSymbol(symbol);
+  } catch {
+    return;
+  }
+  meta.aliases.forEach((alias) => {
+    if (!ALIAS_SYMBOL_PATTERN.test(alias) || BASE_UNITS[alias]) return;
+    BASE_UNITS[alias] = base;
+  });
+});
 
 function resolveUnitSymbol(symbol: string): UnitDefinition {
   if (BASE_UNITS[symbol]) return BASE_UNITS[symbol];
