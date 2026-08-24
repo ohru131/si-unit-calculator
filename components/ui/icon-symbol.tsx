@@ -33,6 +33,7 @@ const MAPPING = {
   "doc.on.doc": "content-copy",
   "magnifyingglass": "search",
   "list.bullet": "list",
+  "clock": "schedule",
   "exclamationmark.triangle.fill": "warning",
 } satisfies IconMapping;
 
