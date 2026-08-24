@@ -35,6 +35,7 @@ export type CalculationTemplate = {
   description: string;
   expression: string;
   targetUnit: string;
+  pinned: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -74,8 +75,9 @@ type CalculatorStore = {
   toggleFavoriteUnit: (unit: string) => Promise<void>;
   upsertCustomFunction: (input: Omit<SavedCustomFunction, "id" | "createdAt" | "updatedAt"> & { id?: string }) => Promise<SavedCustomFunction>;
   removeCustomFunction: (id: string) => Promise<void>;
-  upsertTemplate: (input: Omit<CalculationTemplate, "id" | "createdAt" | "updatedAt"> & { id?: string }) => Promise<CalculationTemplate>;
+  upsertTemplate: (input: Omit<CalculationTemplate, "id" | "createdAt" | "updatedAt" | "pinned"> & { id?: string }) => Promise<CalculationTemplate>;
   removeTemplate: (id: string) => Promise<void>;
+  toggleTemplatePinned: (id: string) => Promise<void>;
   upsertNote: (input: Omit<CalculationNote, "id" | "createdAt" | "updatedAt"> & { id?: string }) => Promise<CalculationNote>;
   removeNote: (id: string) => Promise<void>;
 };
@@ -179,7 +181,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         setHistory(parseStoredArray(historyRaw).filter(isSavedCalculation));
         setFavoriteUnits(parseStoredArray(favoriteUnitsRaw).filter((unit): unit is string => typeof unit === "string"));
         setCustomFunctions(parseStoredArray(customFunctionsRaw).filter(isSavedCustomFunction));
-        setTemplates(parseStoredArray(templatesRaw).filter(isCalculationTemplate));
+        setTemplates(parseStoredArray(templatesRaw).filter(isCalculationTemplate).map((item) => ({ ...item, pinned: item.pinned === true })));
         setNotes(parseStoredArray(notesRaw).filter(isCalculationNote));
         setClearedConstants(parseStoredArray(clearedConstantsRaw).filter(isSavedConstant));
       })
@@ -285,10 +287,10 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     await persistCustomFunctions(customFunctions.filter((item) => item.id !== id));
   }, [customFunctions, persistCustomFunctions]);
 
-  const upsertTemplate = useCallback(async (input: Omit<CalculationTemplate, "id" | "createdAt" | "updatedAt"> & { id?: string }) => {
+  const upsertTemplate = useCallback(async (input: Omit<CalculationTemplate, "id" | "createdAt" | "updatedAt" | "pinned"> & { id?: string }) => {
     const now = new Date().toISOString();
     const existing = input.id ? templates.find((item) => item.id === input.id) : undefined;
-    const item: CalculationTemplate = { ...input, id: existing?.id ?? `template-${Date.now()}`, createdAt: existing?.createdAt ?? now, updatedAt: now };
+    const item: CalculationTemplate = { ...input, id: existing?.id ?? `template-${Date.now()}`, pinned: existing?.pinned ?? false, createdAt: existing?.createdAt ?? now, updatedAt: now };
     const next = [...templates.filter((entry) => entry.id !== item.id), item].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
     await persistTemplates(next);
     return item;
@@ -296,6 +298,10 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
 
   const removeTemplate = useCallback(async (id: string) => {
     await persistTemplates(templates.filter((item) => item.id !== id));
+  }, [persistTemplates, templates]);
+
+  const toggleTemplatePinned = useCallback(async (id: string) => {
+    await persistTemplates(templates.map((item) => (item.id === id ? { ...item, pinned: !item.pinned } : item)));
   }, [persistTemplates, templates]);
 
   const upsertNote = useCallback(async (input: Omit<CalculationNote, "id" | "createdAt" | "updatedAt"> & { id?: string }) => {
@@ -312,8 +318,8 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
   }, [notes, persistNotes]);
 
   const value = useMemo(
-    () => ({ constants, history, favoriteUnits, customFunctions, templates, notes, hasRestorableConstants: clearedConstants.length > 0, isLoading, upsertConstant, removeConstant, importConstants, clearConstants, restoreClearedConstants, addHistoryEntry, clearHistory, toggleFavoriteUnit, upsertCustomFunction, removeCustomFunction, upsertTemplate, removeTemplate, upsertNote, removeNote }),
-    [constants, history, favoriteUnits, customFunctions, templates, notes, clearedConstants.length, isLoading, upsertConstant, removeConstant, importConstants, clearConstants, restoreClearedConstants, addHistoryEntry, clearHistory, toggleFavoriteUnit, upsertCustomFunction, removeCustomFunction, upsertTemplate, removeTemplate, upsertNote, removeNote],
+    () => ({ constants, history, favoriteUnits, customFunctions, templates, notes, hasRestorableConstants: clearedConstants.length > 0, isLoading, upsertConstant, removeConstant, importConstants, clearConstants, restoreClearedConstants, addHistoryEntry, clearHistory, toggleFavoriteUnit, upsertCustomFunction, removeCustomFunction, upsertTemplate, removeTemplate, toggleTemplatePinned, upsertNote, removeNote }),
+    [constants, history, favoriteUnits, customFunctions, templates, notes, clearedConstants.length, isLoading, upsertConstant, removeConstant, importConstants, clearConstants, restoreClearedConstants, addHistoryEntry, clearHistory, toggleFavoriteUnit, upsertCustomFunction, removeCustomFunction, upsertTemplate, removeTemplate, toggleTemplatePinned, upsertNote, removeNote],
   );
 
   return <CalculatorContext.Provider value={value}>{children}</CalculatorContext.Provider>;

@@ -34,6 +34,7 @@ const MAPPING = {
   "magnifyingglass": "search",
   "list.bullet": "list",
   "clock": "schedule",
+  "pin.fill": "push-pin",
   "exclamationmark.triangle.fill": "warning",
 } satisfies IconMapping;
 

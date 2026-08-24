@@ -55,6 +55,7 @@ export default function ConstantsScreen() {
     removeTemplate,
     restoreClearedConstants,
     templates,
+    toggleTemplatePinned,
     upsertConstant,
     upsertCustomFunction,
     upsertNote,
@@ -78,7 +79,7 @@ export default function ConstantsScreen() {
   const copy = language === "en" ? {
     title: "Library", subtitle: "Save reusable templates, functions, and calculation notes on this device.",
     templates: "Templates", notes: "Notes", functions: "Functions", constants: "Constants", add: "Add", close: "Close", save: "Save", saving: "Saving…", delete: "Delete", cancel: "Cancel",
-    templateEmpty: "No templates yet", templateEmptyHint: "Save a familiar calculation so you can start with it next time.",
+    templateEmpty: "No templates yet", templateEmptyHint: "Save a familiar calculation so you can start with it next time.", pin: "Pin to calculator", unpin: "Unpin from calculator",
     noteEmpty: "No calculation notes yet", noteEmptyHint: "Use notes to keep the steps of a repeatable calculation together.",
     functionEmpty: "No custom functions yet", functionEmptyHint: "Define a reusable formula such as circleArea(r) = pi × r^2.",
     constantEmpty: "No constants yet", constantEmptyHint: "Store a reusable value such as W = 3cm.",
@@ -87,13 +88,18 @@ export default function ConstantsScreen() {
   } : {
     title: "ライブラリ", subtitle: "よく使う式・関数・計算手順を、この端末に保存して再利用できます。",
     templates: "テンプレート", notes: "計算ノート", functions: "自作関数", constants: "定数", add: "追加", close: "閉じる", save: "保存", saving: "保存中…", delete: "削除", cancel: "キャンセル",
-    templateEmpty: "テンプレートはまだありません", templateEmptyHint: "よく使う計算を保存すると、次回すぐに呼び出せます。",
+    templateEmpty: "テンプレートはまだありません", templateEmptyHint: "よく使う計算を保存すると、次回すぐに呼び出せます。", pin: "電卓画面にピン留め", unpin: "ピン留めを解除",
     noteEmpty: "計算ノートはまだありません", noteEmptyHint: "繰り返す計算の手順を、まとめて残せます。",
     functionEmpty: "自作関数はまだありません", functionEmptyHint: "例：circleArea(r) = pi × r^2 のように式を再利用できます。",
     constantEmpty: "定数はまだありません", constantEmptyHint: "例：W = 3cm のように、よく使う値を保存できます。",
     titleLabel: "名前", descriptionLabel: "説明", expressionLabel: "式", outputUnitLabel: "表示単位（任意）", symbolLabel: "記号", functionNameLabel: "関数名", parametersLabel: "引数（カンマ区切り）", stepsLabel: "計算手順", stepName: "手順", addStep: "手順を追加", runStep: "この手順を使う", deleteStep: "削除", useTemplate: "この式を使う",
     templateEditor: "テンプレートを保存", noteEditor: "工程計算ノート", functionEditor: "自作関数", constantEditor: "定数", signature: "呼び出し方", deleteConfirm: "この項目を削除しますか？", validation: "必須項目を入力してください。", backup: "バックアップ", export: "書き出す", import: "読み込む", clearAll: "すべて消去", restore: "復活", exportDone: "定数バックアップを書き出しました。", importMode: "読み込む定数をどのように反映しますか？", merge: "追加・同名は置換", replace: "すべての定数を置換", importDone: "{count}件の定数を読み込みました。", clearConfirm: "保存済みの定数をすべて消去しますか？直前に消去した一覧は復活できます。", cleared: "定数を消去しました。この端末上で復活できます。", restored: "消去した定数を復活しました。",
   };
+
+  const sortedTemplates = useMemo(
+    () => [...templates].sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.updatedAt.localeCompare(left.updatedAt)),
+    [templates],
+  );
 
   const sectionItems: Array<{ id: LibrarySection; label: string }> = [
     { id: "templates", label: copy.templates },
@@ -226,7 +232,7 @@ export default function ConstantsScreen() {
   const renderEmpty = (titleText: string, hint: string) => <View style={styles.emptyCard}><IconSymbol name="bookmark.fill" size={30} color={colors.primary} /><Text style={styles.emptyTitle}>{titleText}</Text><Text style={styles.emptyText}>{hint}</Text></View>;
 
   const renderContent = () => {
-    if (section === "templates") return <FlatList data={templates} keyExtractor={(item) => item.id} contentContainerStyle={templates.length ? styles.list : styles.emptyList} ListEmptyComponent={renderEmpty(copy.templateEmpty, copy.templateEmptyHint)} renderItem={({ item }) => <View style={styles.libraryCard}><Pressable onPress={() => loadExpression(item.expression, item.targetUnit)} style={({ pressed }) => [styles.libraryMain, pressed && styles.cardPressed]}><Text style={styles.libraryTitle}>{item.title}</Text>{item.description ? <Text numberOfLines={1} style={styles.libraryDescription}>{item.description}</Text> : null}<Text numberOfLines={1} style={styles.libraryExpression}>{item.expression}{item.targetUnit ? ` → ${item.targetUnit}` : ""}</Text></Pressable><Pressable accessibilityLabel={copy.delete} onPress={() => confirmDelete("templates", item.id)} style={({ pressed }) => [styles.deleteButton, pressed && styles.iconPressed]}><IconSymbol name="trash" size={20} color={colors.error} /></Pressable></View>} />;
+    if (section === "templates") return <FlatList data={sortedTemplates} keyExtractor={(item) => item.id} contentContainerStyle={templates.length ? styles.list : styles.emptyList} ListEmptyComponent={renderEmpty(copy.templateEmpty, copy.templateEmptyHint)} renderItem={({ item }) => <View style={styles.libraryCard}><Pressable onPress={() => loadExpression(item.expression, item.targetUnit)} style={({ pressed }) => [styles.libraryMain, pressed && styles.cardPressed]}><Text style={styles.libraryTitle}>{item.title}</Text>{item.description ? <Text numberOfLines={1} style={styles.libraryDescription}>{item.description}</Text> : null}<Text numberOfLines={1} style={styles.libraryExpression}>{item.expression}{item.targetUnit ? ` → ${item.targetUnit}` : ""}</Text></Pressable><Pressable accessibilityLabel={item.pinned ? copy.unpin : copy.pin} onPress={() => void toggleTemplatePinned(item.id)} style={({ pressed }) => [styles.deleteButton, pressed && styles.iconPressed]}><IconSymbol name="pin.fill" size={20} color={item.pinned ? colors.primary : colors.muted} /></Pressable><Pressable accessibilityLabel={copy.delete} onPress={() => confirmDelete("templates", item.id)} style={({ pressed }) => [styles.deleteButton, pressed && styles.iconPressed]}><IconSymbol name="trash" size={20} color={colors.error} /></Pressable></View>} />;
     if (section === "functions") return <FlatList data={customFunctions} keyExtractor={(item) => item.id} contentContainerStyle={customFunctions.length ? styles.list : styles.emptyList} ListEmptyComponent={renderEmpty(copy.functionEmpty, copy.functionEmptyHint)} renderItem={({ item }) => <View style={styles.libraryCard}><Pressable onPress={() => openEditor("functions", item)} style={({ pressed }) => [styles.libraryMain, pressed && styles.cardPressed]}><Text style={styles.libraryTitle}>{item.title}</Text><Text style={styles.libraryExpression}>{item.name}({item.parameters.join(", ")}) = {item.expression}</Text>{item.description ? <Text numberOfLines={1} style={styles.libraryDescription}>{item.description}</Text> : null}</Pressable><Pressable accessibilityLabel={copy.delete} onPress={() => confirmDelete("functions", item.id)} style={({ pressed }) => [styles.deleteButton, pressed && styles.iconPressed]}><IconSymbol name="trash" size={20} color={colors.error} /></Pressable></View>} />;
     if (section === "notes") return <FlatList data={notes} keyExtractor={(item) => item.id} contentContainerStyle={notes.length ? styles.list : styles.emptyList} ListEmptyComponent={renderEmpty(copy.noteEmpty, copy.noteEmptyHint)} renderItem={({ item }) => <View style={styles.libraryCard}><Pressable onPress={() => openEditor("notes", item)} style={({ pressed }) => [styles.libraryMain, pressed && styles.cardPressed]}><Text style={styles.libraryTitle}>{item.title}</Text>{item.description ? <Text numberOfLines={1} style={styles.libraryDescription}>{item.description}</Text> : null}<Text style={styles.libraryMeta}>{item.steps.length} {language === "en" ? "steps" : "手順"}</Text></Pressable><Pressable accessibilityLabel={copy.delete} onPress={() => confirmDelete("notes", item.id)} style={({ pressed }) => [styles.deleteButton, pressed && styles.iconPressed]}><IconSymbol name="trash" size={20} color={colors.error} /></Pressable></View>} />;
     return <FlatList data={constants} keyExtractor={(item) => item.symbol} contentContainerStyle={constants.length ? styles.list : styles.emptyList} ListEmptyComponent={renderEmpty(copy.constantEmpty, copy.constantEmptyHint)} renderItem={({ item }) => <View style={styles.libraryCard}><Pressable onPress={() => openEditor("constants", item)} style={({ pressed }) => [styles.libraryMain, pressed && styles.cardPressed]}><Text style={styles.libraryTitle}>{item.symbol} = {item.expression}</Text><Text style={styles.libraryExpression}>{formatQuantity(item.quantity)}</Text></Pressable><Pressable accessibilityLabel={copy.delete} onPress={() => confirmDelete("constants", item.symbol)} style={({ pressed }) => [styles.deleteButton, pressed && styles.iconPressed]}><IconSymbol name="trash" size={20} color={colors.error} /></Pressable></View>} />;
