@@ -51,7 +51,8 @@ export default function CalculatorScreen() {
   const { quick, presetExpression, presetUnit } = useLocalSearchParams<{ quick?: string | string[]; presetExpression?: string | string[]; presetUnit?: string | string[] }>();
   const { constants, customFunctions, history, favoriteUnits, templates, upsertConstant, addHistoryEntry, clearHistory } = useCalculatorStore();
   const { isPro } = usePro();
-  const { calculatorMode, language, locale, t, unitGroupLabel, unitSystem } = useGlobalSettings();
+  const { calculatorMode, completeOnboarding, hasSeenOnboarding, isReady, language, locale, t, unitGroupLabel, unitSystem } = useGlobalSettings();
+  const [onboardingStep, setOnboardingStep] = useState(0);
   const [expression, setExpression] = useState("5cm + 1mm");
   const [targetUnit, setTargetUnit] = useState("cm");
   const [result, setResult] = useState<Quantity | null>(null);
@@ -187,6 +188,17 @@ export default function CalculatorScreen() {
   };
 
   const hintLabel = hint.kind === "fix" ? copy.hintFix : hint.kind === "complete" ? copy.hintComplete : hint.kind === "attach" ? copy.hintAttach : copy.hintInsert;
+
+  const onboardingSlides = language === "en" ? [
+    { title: "Calculate with units, directly", body: "Type an expression with units, such as 5cm + 1mm. The app normalizes it to SI before calculating.", example: "5cm + 1mm" },
+    { title: "Tap a red unit to fix it", body: "Unknown or mistyped units turn red in the preview. Tap one to pick the closest match.", example: "5cm + 1mn" },
+    { title: "Switch units in one tap", body: "Choose any compatible display unit right under the result, and pin your favorite calculations to the top of this screen.", example: "cm → m → ft" },
+  ] : [
+    { title: "単位のまま計算できます", body: "5cm + 1mm のように単位を含む式を入力するだけです。計算前にSI標準へ正規化されます。", example: "5cm + 1mm" },
+    { title: "赤い単位はタップで修正", body: "未登録・入力ミスの単位はプレビューで赤く表示されます。タップすると近い候補を選べます。", example: "5cm + 1mn" },
+    { title: "結果はワンタップで単位切替", body: "結果のすぐ下で表示単位を選べます。よく使う計算はピン留めして画面上部から呼び出せます。", example: "cm → m → ft" },
+  ];
+  const isLastOnboardingSlide = onboardingStep === onboardingSlides.length - 1;
 
   const display = useMemo(() => {
     if (!result) return null;
@@ -828,6 +840,32 @@ export default function CalculatorScreen() {
           </View> : null}
         </View>
       </Modal>
+
+      <Modal visible={isReady && !hasSeenOnboarding} transparent animationType="fade" onRequestClose={() => void completeOnboarding()}>
+        <View style={styles.helpBackdrop}>
+          <View style={styles.onboardingSheet}>
+            <Text style={styles.onboardingExample}>{onboardingSlides[onboardingStep].example}</Text>
+            <Text style={styles.onboardingTitle}>{onboardingSlides[onboardingStep].title}</Text>
+            <Text style={styles.onboardingBody}>{onboardingSlides[onboardingStep].body}</Text>
+            <View style={styles.onboardingDots}>
+              {onboardingSlides.map((slide, index) => (
+                <View key={slide.title} style={[styles.onboardingDot, index === onboardingStep && styles.onboardingDotActive]} />
+              ))}
+            </View>
+            <View style={styles.onboardingActions}>
+              <Pressable onPress={() => void completeOnboarding()} style={({ pressed }) => [styles.onboardingSkip, pressed && styles.pressed]}>
+                <Text style={styles.onboardingSkipText}>{language === "en" ? "Skip" : "スキップ"}</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => (isLastOnboardingSlide ? void completeOnboarding() : setOnboardingStep((step) => step + 1))}
+                style={({ pressed }) => [styles.onboardingNext, pressed && styles.pressed]}
+              >
+                <Text style={styles.onboardingNextText}>{isLastOnboardingSlide ? (language === "en" ? "Get started" : "はじめる") : (language === "en" ? "Next" : "次へ")}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -999,6 +1037,19 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   helpHint: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 10 },
   helpDone: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 11, marginTop: 16, paddingVertical: 12 },
   helpDoneText: { color: colors.onPrimary, fontWeight: "700" },
+
+  onboardingSheet: { backgroundColor: colors.surface, borderRadius: 22, padding: 22, width: "100%" },
+  onboardingExample: { alignSelf: "flex-start", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 10, borderWidth: 1, color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800", paddingHorizontal: 10, paddingVertical: 5 },
+  onboardingTitle: { color: colors.foreground, fontSize: 21, fontWeight: "800", marginTop: 16 },
+  onboardingBody: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 8 },
+  onboardingDots: { flexDirection: "row", gap: 6, justifyContent: "center", marginTop: 22 },
+  onboardingDot: { backgroundColor: colors.border, borderRadius: 3, height: 6, width: 6 },
+  onboardingDotActive: { backgroundColor: colors.primary, width: 18 },
+  onboardingActions: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginTop: 20 },
+  onboardingSkip: { paddingVertical: 10 },
+  onboardingSkipText: { color: colors.muted, fontSize: 13, fontWeight: "700" },
+  onboardingNext: { backgroundColor: colors.primaryFill, borderRadius: 11, paddingHorizontal: 22, paddingVertical: 12 },
+  onboardingNextText: { color: colors.onPrimary, fontSize: 14, fontWeight: "800" },
 
   unitInfoBackdrop: { alignItems: "center", backgroundColor: colors.overlay, flex: 1, justifyContent: "center", padding: 24 },
   unitInfoSheet: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 20, borderWidth: 1, maxWidth: 520, padding: 20, width: "100%" },
