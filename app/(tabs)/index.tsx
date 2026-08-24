@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
+import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   Modal,
@@ -11,6 +12,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from "react-native-reanimated";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -69,6 +71,42 @@ export default function CalculatorScreen() {
   const [recentUnits, setRecentUnits] = useState<string[]>([]);
   const [fixSelection, setFixSelection] = useState<{ start: number; end: number; text: string } | null>(null);
   const unitSearchRef = useRef<TextInput>(null);
+
+  // 結果が更新された瞬間・単位を切り替えた瞬間に軽く跳ねさせ、次元不整合時は横に揺らして知らせる。
+  const resultOpacity = useSharedValue(1);
+  const resultScale = useSharedValue(1);
+  const errorShake = useSharedValue(0);
+  const resultAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: resultOpacity.value,
+    transform: [{ scale: resultScale.value }],
+  }));
+  const errorAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: errorShake.value }],
+  }));
+  // Reanimatedのshared valueはレンダー外での代入が正規の使い方だが、
+  // React Compilerのeslintルールは通常のstateと区別できず誤検知するため個別に無効化する。
+  const playResultReveal = useCallback(() => {
+    // eslint-disable-next-line react-hooks/immutability -- Reanimated shared value
+    resultOpacity.value = 0;
+    // eslint-disable-next-line react-hooks/immutability -- Reanimated shared value
+    resultScale.value = 0.94;
+    resultOpacity.value = withTiming(1, { duration: 220 });
+    resultScale.value = withSpring(1, { damping: 14, mass: 0.6, stiffness: 180 });
+  }, [resultOpacity, resultScale]);
+  const playResultPulse = useCallback(() => {
+    // eslint-disable-next-line react-hooks/immutability -- Reanimated shared value
+    resultScale.value = withSequence(withTiming(1.04, { duration: 90 }), withSpring(1, { damping: 12, mass: 0.6, stiffness: 200 }));
+  }, [resultScale]);
+  const playErrorShake = useCallback(() => {
+    // eslint-disable-next-line react-hooks/immutability -- Reanimated shared value
+    errorShake.value = withSequence(
+      withTiming(-6, { duration: 45 }),
+      withTiming(6, { duration: 45 }),
+      withTiming(-4, { duration: 45 }),
+      withTiming(4, { duration: 45 }),
+      withTiming(0, { duration: 45 }),
+    );
+  }, [errorShake]);
 
   const isAdvancedMode = calculatorMode === "advanced";
   const includeUnit = useCallback(
@@ -190,6 +228,8 @@ export default function CalculatorScreen() {
       setResult(null);
       setError(describeUnresolved(unresolvedUnit));
       setFixSelection({ start: unresolvedUnit.start, end: unresolvedUnit.end, text: unresolvedUnit.text });
+      playErrorShake();
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
     setError("");
@@ -204,6 +244,8 @@ export default function CalculatorScreen() {
         setNotice(`定数 ${next.symbol} を保存しました。`);
       }
       setResult(quantity);
+      playResultReveal();
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       // 表示単位が結果に合わないときは、行き止まりにせずSI標準へ戻す。
       let usedTargetUnit = selectedTargetUnit.trim();
       let output = formatQuantity(quantity, undefined, locale);
@@ -245,6 +287,8 @@ export default function CalculatorScreen() {
     } catch (cause) {
       setResult(null);
       setError(cause instanceof Error ? cause.message : "式を計算できませんでした。");
+      playErrorShake();
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   };
 
@@ -268,15 +312,22 @@ export default function CalculatorScreen() {
     setTargetUnit(unit);
     rememberUnit(unit);
     setError("");
+    if (result) {
+      playResultPulse();
+      void Haptics.selectionAsync();
+    }
   };
 
   /** 入力補助バーの候補をタップしたとき、案内した範囲（修正・補完・単位付けの対象）をそのまま置き換える。 */
   const applyUnitCandidate = (symbol: string) => {
+    const wasFixingError = hint.kind === "fix";
     setExpression((current) => replaceExpressionRange(current, Math.min(hint.start, current.length), Math.min(hint.end, current.length), symbol));
     setFixSelection(null);
     rememberUnit(symbol);
     setError("");
     setNotice("");
+    if (wasFixingError) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    else void Haptics.selectionAsync();
   };
 
   /** 単位シート（検索・カテゴリ一覧）から選んだときは、常に式の末尾へ追加する。
@@ -495,10 +546,10 @@ export default function CalculatorScreen() {
         <View style={styles.middle}>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.middleContent} keyboardShouldPersistTaps="handled">
             {error ? (
-              <View style={styles.messageError}>
+              <Animated.View style={[styles.messageError, errorAnimatedStyle]}>
                 <Text style={styles.messageErrorText}>{error}</Text>
                 {analysis.unresolved.length ? <Text style={styles.messageHint}>{copy.fixTap}</Text> : null}
-              </View>
+              </Animated.View>
             ) : null}
 
             <View style={styles.resultCard}>
@@ -517,7 +568,7 @@ export default function CalculatorScreen() {
               </View>
               {display ? (
                 <>
-                  <Text numberOfLines={2} adjustsFontSizeToFit style={styles.resultValue}>{display.value}</Text>
+                  <Animated.Text numberOfLines={2} adjustsFontSizeToFit style={[styles.resultValue, resultAnimatedStyle]}>{display.value}</Animated.Text>
                   <View style={styles.conversionRow}>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.conversionRail} keyboardShouldPersistTaps="handled">
                       <Pressable accessibilityLabel={copy.noUnit} onPress={() => applyTargetUnit("")} style={({ pressed }) => [styles.convertChip, !targetUnit.trim() && styles.convertChipActive, pressed && styles.pressed]}>
