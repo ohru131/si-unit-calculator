@@ -58,7 +58,7 @@ export function notebookStepSymbol(index: number): string {
 export function evaluateNotebookSteps(
   steps: CalculationNoteStep[],
   pool: SavedConstant[],
-  customFunctions: CustomFunctionDefinition[],
+  customFunctions: CustomFunctionDefinition[] = [],
   locale?: string,
 ): NotebookStepResult[] {
   const availableConstants = [...pool];

@@ -5,27 +5,29 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } fr
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
-import { type CalculationNotebook, type NotebookLocalConstant, type SavedCustomFunction } from "@/lib/calculator-store";
+import { type CalculationNotebook, type NotebookLocalConstant } from "@/lib/calculator-store";
 import { evaluateNotebookSteps, resolveNotebookLocalConstants } from "@/lib/notebook-engine";
-import { type SavedConstant } from "@/lib/units";
+import { formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, type Quantity, type SavedConstant, type UnitSystem } from "@/lib/units";
 
 const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" });
 
 type Props = {
   language: "en" | "ja";
   locale?: string;
+  unitSystem: UnitSystem;
   notebook: CalculationNotebook;
   globalConstants: SavedConstant[];
-  customFunctions: SavedCustomFunction[];
   onBack: () => void;
   onEdit: () => void;
+  onTogglePinned: () => void;
   onSaveValues: (localConstants: NotebookLocalConstant[]) => void;
 };
 
-export function NotebookDetail({ language, locale, notebook, globalConstants, customFunctions, onBack, onEdit, onSaveValues }: Props) {
+export function NotebookDetail({ language, locale, unitSystem, notebook, globalConstants, onBack, onEdit, onTogglePinned, onSaveValues }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [editableConstants, setEditableConstants] = useState<NotebookLocalConstant[]>(() => notebook.localConstants.map((item) => ({ ...item })));
+  const [unitOverrides, setUnitOverrides] = useState<Record<string, string>>({});
 
   // notebook.localConstants は編集シートで構成が変わることがあるため、
   // このコンポーネントが再マウントされずに新しいノートを受け取っても追従させる。
@@ -33,14 +35,21 @@ export function NotebookDetail({ language, locale, notebook, globalConstants, cu
     setEditableConstants(notebook.localConstants.map((item) => ({ ...item })));
   }, [notebook.localConstants]);
 
+  // 別のノートを開いたときは、前のノートで選んだ表示単位を引き継がない。
+  useEffect(() => {
+    setUnitOverrides({});
+  }, [notebook.id]);
+
   const copy = language === "en" ? {
     edit: "Edit", save: "Save values", copy: "Copy", copied: "Copied",
     inputs: "Inputs", results: "Results", noInputs: "This notebook has no local constants.", noSteps: "This notebook has no steps yet.",
-    si: "SI base",
+    si: "SI base", finalResult: "Final result", referenceHint: "Use {symbol} in a later step.",
+    pin: "Pin to calculator", unpin: "Unpin from calculator",
   } : {
     edit: "編集", save: "値を保存", copy: "コピー", copied: "コピーしました",
     inputs: "定数（入力値）", results: "結果", noInputs: "このノートにはローカル定数がありません。", noSteps: "このノートにはまだ手順がありません。",
-    si: "SI標準",
+    si: "SI標準", finalResult: "最終結果", referenceHint: "後の手順で {symbol} として使えます。",
+    pin: "電卓画面にピン留め", unpin: "ピン留めを解除",
   };
 
   const isDirty = useMemo(
@@ -50,7 +59,7 @@ export function NotebookDetail({ language, locale, notebook, globalConstants, cu
 
   const { resolved, errors } = useMemo(() => resolveNotebookLocalConstants(editableConstants, globalConstants), [editableConstants, globalConstants]);
   const pool = useMemo(() => [...globalConstants, ...resolved], [globalConstants, resolved]);
-  const stepResults = useMemo(() => evaluateNotebookSteps(notebook.steps, pool, customFunctions, locale), [customFunctions, locale, notebook.steps, pool]);
+  const stepResults = useMemo(() => evaluateNotebookSteps(notebook.steps, pool, [], locale), [locale, notebook.steps, pool]);
 
   const updateValue = (id: string, expression: string) => {
     setEditableConstants((current) => current.map((item) => (item.id === id ? { ...item, expression } : item)));
@@ -58,6 +67,17 @@ export function NotebookDetail({ language, locale, notebook, globalConstants, cu
 
   const copyResult = async (title: string, formatted: string) => {
     await Clipboard.setStringAsync(`${title} = ${formatted}`);
+  };
+
+  const compatibleUnitsFor = (quantity: Quantity | undefined) => {
+    if (!quantity) return [] as string[];
+    const symbols: string[] = [];
+    getCompatibleUnitGroups(quantity.dimension).forEach((group) => {
+      getGroupUnitsForSystem(group, unitSystem).forEach((unitOption) => {
+        if (!symbols.includes(unitOption.symbol)) symbols.push(unitOption.symbol);
+      });
+    });
+    return symbols.slice(0, 8);
   };
 
   return (
@@ -72,9 +92,14 @@ export function NotebookDetail({ language, locale, notebook, globalConstants, cu
           <Text style={styles.title}>{notebook.title}</Text>
           {notebook.description ? <Text style={styles.description}>{notebook.description}</Text> : null}
         </View>
-        <Pressable accessibilityLabel={copy.edit} onPress={onEdit} style={({ pressed }) => [styles.editButton, pressed && styles.pressed]}>
-          <IconSymbol name="pencil" size={17} color={colors.primary} />
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable accessibilityLabel={notebook.pinned ? copy.unpin : copy.pin} onPress={onTogglePinned} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
+            <IconSymbol name="pin.fill" size={16} color={notebook.pinned ? colors.primary : colors.muted} />
+          </Pressable>
+          <Pressable accessibilityLabel={copy.edit} onPress={onEdit} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
+            <IconSymbol name="pencil" size={16} color={colors.primary} />
+          </Pressable>
+        </View>
       </View>
 
       {isDirty ? (
@@ -107,27 +132,66 @@ export function NotebookDetail({ language, locale, notebook, globalConstants, cu
       <Text style={styles.sectionLabel}>{copy.results}</Text>
       {stepResults.length ? (
         <View style={styles.resultsList}>
-          {stepResults.map((result) => (
-            <View key={result.step.id} style={styles.resultCard}>
-              <View style={styles.resultHeader}>
-                <Text style={styles.resultTitle}>{result.step.title}</Text>
-                {result.formatted ? (
-                  <Pressable accessibilityLabel={copy.copy} onPress={() => void copyResult(result.step.title, result.formatted!)} style={({ pressed }) => [styles.copyButton, pressed && styles.pressed]}>
-                    <IconSymbol name="doc.on.doc" size={14} color={colors.primary} />
-                  </Pressable>
+          {stepResults.map((result, index) => {
+            const isFinalStep = index === stepResults.length - 1;
+            const overrideUnit = unitOverrides[result.step.id];
+            let displayValue = result.formatted;
+            let displayError = result.error;
+            if (result.quantity && overrideUnit !== undefined) {
+              if (overrideUnit === "") {
+                displayValue = result.siFallback;
+                displayError = undefined;
+              } else {
+                try {
+                  displayValue = formatQuantity(result.quantity, overrideUnit, locale);
+                  displayError = undefined;
+                } catch (cause) {
+                  displayValue = result.siFallback;
+                  displayError = cause instanceof Error ? cause.message : displayError;
+                }
+              }
+            }
+            const compatibleUnits = compatibleUnitsFor(result.quantity);
+            const effectiveUnit = overrideUnit ?? result.step.targetUnit.trim();
+            return (
+              <View key={result.step.id} style={[styles.resultCard, isFinalStep && result.quantity ? styles.resultCardFinal : null]}>
+                <View style={styles.resultHeader}>
+                  <View style={styles.resultHeaderMain}>
+                    {isFinalStep && result.quantity ? <Text style={styles.finalBadge}>{copy.finalResult}</Text> : null}
+                    <Text style={styles.resultTitle}>{result.step.title}</Text>
+                    <Text style={styles.resultSymbol}>{result.symbol}</Text>
+                  </View>
+                  {displayValue ? (
+                    <Pressable accessibilityLabel={copy.copy} onPress={() => void copyResult(result.step.title, displayValue!)} style={({ pressed }) => [styles.copyButton, pressed && styles.pressed]}>
+                      <IconSymbol name="doc.on.doc" size={14} color={colors.primary} />
+                    </Pressable>
+                  ) : null}
+                </View>
+                {displayError && !displayValue ? (
+                  <Text style={styles.resultError}>{displayError}</Text>
+                ) : (
+                  <>
+                    <Text numberOfLines={2} adjustsFontSizeToFit style={styles.resultValue}>{displayValue}</Text>
+                    {displayError ? <Text style={styles.resultWarning}>{displayError}</Text> : null}
+                  </>
+                )}
+                {compatibleUnits.length ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.unitRail}>
+                    <Pressable onPress={() => setUnitOverrides((current) => ({ ...current, [result.step.id]: "" }))} style={({ pressed }) => [styles.unitChip, !effectiveUnit && styles.unitChipActive, pressed && styles.pressed]}>
+                      <Text style={[styles.unitChipText, !effectiveUnit && styles.unitChipTextActive]}>{copy.si}</Text>
+                    </Pressable>
+                    {compatibleUnits.map((symbolOption) => (
+                      <Pressable key={symbolOption} onPress={() => setUnitOverrides((current) => ({ ...current, [result.step.id]: symbolOption }))} style={({ pressed }) => [styles.unitChip, effectiveUnit === symbolOption && styles.unitChipActive, pressed && styles.pressed]}>
+                        <Text style={[styles.unitChipText, effectiveUnit === symbolOption && styles.unitChipTextActive]}>{symbolOption}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
                 ) : null}
+                <Text numberOfLines={1} style={styles.resultExpression}>{result.step.expression}</Text>
+                {!isFinalStep && result.quantity ? <Text style={styles.resultReferenceHint}>{copy.referenceHint.replace("{symbol}", result.symbol)}</Text> : null}
               </View>
-              {result.error && !result.formatted ? (
-                <Text style={styles.resultError}>{result.error}</Text>
-              ) : (
-                <>
-                  <Text numberOfLines={2} adjustsFontSizeToFit style={styles.resultValue}>{result.formatted}</Text>
-                  {result.error ? <Text style={styles.resultWarning}>{result.error}</Text> : null}
-                </>
-              )}
-              <Text numberOfLines={1} style={styles.resultExpression}>{result.step.expression}</Text>
-            </View>
-          ))}
+            );
+          })}
         </View>
       ) : (
         <Text style={styles.emptyHint}>{copy.noSteps}</Text>
@@ -144,7 +208,8 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   headerMain: { flex: 1, paddingRight: 10 },
   title: { color: colors.foreground, fontSize: 21, fontWeight: "800" },
   description: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 4 },
-  editButton: { alignItems: "center", backgroundColor: colors.primarySurface, borderRadius: 18, height: 36, justifyContent: "center", width: 36 },
+  headerActions: { flexDirection: "row", gap: 8 },
+  headerButton: { alignItems: "center", backgroundColor: colors.primarySurface, borderRadius: 18, height: 36, justifyContent: "center", width: 36 },
   saveBar: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 12, paddingVertical: 12 },
   saveBarText: { color: colors.onPrimary, fontSize: 14, fontWeight: "800" },
   sectionLabel: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.4, textTransform: "uppercase" },
@@ -157,12 +222,22 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   inputError: { color: colors.error, fontSize: 11, lineHeight: 15 },
   resultsList: { gap: 10 },
   resultCard: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 16, borderWidth: 1, padding: 13 },
-  resultHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
+  resultCardFinal: { borderColor: colors.primary, borderWidth: 2 },
+  resultHeader: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between" },
+  resultHeaderMain: { flex: 1, paddingRight: 8 },
+  finalBadge: { color: colors.primary, fontSize: 10, fontWeight: "800", letterSpacing: 0.5, marginBottom: 3, textTransform: "uppercase" },
   resultTitle: { color: colors.foreground, fontSize: 13, fontWeight: "800" },
+  resultSymbol: { backgroundColor: colors.surfaceSecondary, alignSelf: "flex-start", borderRadius: 6, color: colors.primary, fontFamily: mono, fontSize: 10, fontWeight: "800", marginTop: 4, paddingHorizontal: 6, paddingVertical: 1 },
   copyButton: { alignItems: "center", height: 26, justifyContent: "center", width: 30 },
   resultValue: { color: colors.primaryStrong, fontFamily: mono, fontSize: 24, fontWeight: "700", marginTop: 4 },
   resultExpression: { color: colors.muted, fontFamily: mono, fontSize: 11, marginTop: 6 },
   resultError: { color: colors.error, fontSize: 12, lineHeight: 17, marginTop: 4 },
   resultWarning: { color: colors.warning, fontSize: 11, lineHeight: 15, marginTop: 4 },
+  resultReferenceHint: { color: colors.muted, fontSize: 10, marginTop: 5 },
+  unitRail: { gap: 6, paddingTop: 9 },
+  unitChip: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, paddingHorizontal: 9, paddingVertical: 5 },
+  unitChipActive: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
+  unitChipText: { color: colors.primary, fontFamily: mono, fontSize: 11, fontWeight: "800" },
+  unitChipTextActive: { color: colors.onPrimary },
   pressed: { opacity: 0.72 },
 });
