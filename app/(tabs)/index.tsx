@@ -610,11 +610,18 @@ export default function CalculatorScreen() {
               </View>
 
               {inlineUnitQuery.trim() ? (
-                <Text style={styles.inlinePanelStatus}>
-                  {inlineUnitRegistration.status === "registered"
-                    ? `${copy.registered}${inlineUnitRegistration.matchedAlias ? ` · ${copy.aliasNote} ${inlineUnitRegistration.canonical}` : ""}`
-                    : inlineUnitRegistration.status === "supported" ? copy.supported : copy.unknownHint}
-                </Text>
+                <View style={styles.inlinePanelStatusRow}>
+                  <Text style={styles.inlinePanelStatus}>
+                    {inlineUnitRegistration.status === "registered"
+                      ? `${copy.registered}${inlineUnitRegistration.matchedAlias ? ` · ${copy.aliasNote} ${inlineUnitRegistration.canonical}` : ""}`
+                      : inlineUnitRegistration.status === "supported" ? copy.supported : copy.unknownHint}
+                  </Text>
+                  {inlineUnitRegistration.status === "supported" ? (
+                    <Pressable onPress={() => pickInlineUnit(inlineUnitQuery.trim())} style={({ pressed }) => [styles.inlinePanelUseButton, pressed && styles.pressed]}>
+                      <Text style={styles.inlinePanelUseButtonText}>{copy.use} “{inlineUnitQuery.trim()}”</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
               ) : (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRailCompact} keyboardShouldPersistTaps="handled">
                   {visibleInputGroups.map((group) => (
@@ -629,7 +636,7 @@ export default function CalculatorScreen() {
                 {inlineUnitSuggestions.map((suggestion) => renderUnitChip(suggestion, () => pickInlineUnit(suggestion.unit.symbol)))}
               </ScrollView>
 
-              <Pressable onPress={() => { openUnitPicker("insert"); setShowInlineUnitSearch(false); }} style={({ pressed }) => [styles.inlinePanelMore, pressed && styles.pressed]}>
+              <Pressable onPress={() => { openUnitPicker("insert"); setShowInlineUnitSearch(false); setInlineUnitQuery(""); }} style={({ pressed }) => [styles.inlinePanelMore, pressed && styles.pressed]}>
                 <Text style={styles.inlinePanelMoreText}>{copy.browseUnits}</Text>
                 <IconSymbol name="chevron.right" size={11} color={colors.primary} />
               </Pressable>
@@ -960,7 +967,10 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   // 単位挿入をモーダルなしその場で完結させる、入力欄直下のインクリメンタルサーチ。
   inlineUnitPanel: { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth, gap: 6, marginTop: 2, paddingTop: 7 },
   inlinePanelClear: { padding: 2 },
+  inlinePanelStatusRow: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "space-between" },
   inlinePanelStatus: { color: colors.muted, fontSize: 11, paddingTop: 2 },
+  inlinePanelUseButton: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, paddingHorizontal: 9, paddingVertical: 5 },
+  inlinePanelUseButtonText: { color: colors.primary, fontSize: 11, fontWeight: "800" },
   categoryRailCompact: { gap: 6, paddingVertical: 2 },
   categoryChipSmall: { backgroundColor: colors.surfaceSecondary, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5 },
   inlineUnitResults: { maxHeight: 118 },
