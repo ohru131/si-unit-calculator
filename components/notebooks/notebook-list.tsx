@@ -38,14 +38,19 @@ export function NotebookList({ language, locale, categoryLabel, notebooks, globa
     pin: "電卓画面にピン留め", unpin: "ピン留めを解除", builtIn: "プリセット",
   };
 
-  const previewFor = (notebook: CalculationNotebook) => {
-    const { resolved } = resolveNotebookLocalConstants(notebook.localConstants, globalConstants);
-    const pool = [...globalConstants, ...resolved];
-    const results = evaluateNotebookSteps(notebook.steps, pool, [], locale);
-    const finalResult = [...results].reverse().find((result) => result.quantity);
-    if (!finalResult?.quantity) return "";
-    return finalResult.formatted ?? formatQuantity(finalResult.quantity, undefined, locale);
-  };
+  // ノートごとの最終結果プレビューは再計算のコストがあるため、notebooksや
+  // globalConstantsが変わらない限り（無関係な再描画のたびには）作り直さない。
+  const previews = useMemo(() => {
+    const map = new Map<string, string>();
+    notebooks.forEach((notebook) => {
+      const { resolved } = resolveNotebookLocalConstants(notebook.localConstants, globalConstants);
+      const pool = [...globalConstants, ...resolved];
+      const results = evaluateNotebookSteps(notebook.steps, pool, [], locale);
+      const finalResult = [...results].reverse().find((result) => result.quantity);
+      map.set(notebook.id, finalResult?.quantity ? (finalResult.formatted ?? formatQuantity(finalResult.quantity, undefined, locale)) : "");
+    });
+    return map;
+  }, [globalConstants, locale, notebooks]);
 
   return (
     <View style={styles.container}>
@@ -59,7 +64,7 @@ export function NotebookList({ language, locale, categoryLabel, notebooks, globa
         contentContainerStyle={notebooks.length ? styles.list : styles.emptyList}
         ListEmptyComponent={<View style={styles.emptyCard}><IconSymbol name="book.fill" size={28} color={colors.primary} /><Text style={styles.emptyTitle}>{copy.empty}</Text><Text style={styles.emptyText}>{copy.emptyHint}</Text></View>}
         renderItem={({ item }) => {
-          const preview = previewFor(item);
+          const preview = previews.get(item.id) ?? "";
           return (
             <View style={styles.card}>
               <Pressable onPress={() => onOpen(item.id)} style={({ pressed }) => [styles.cardMain, pressed && styles.pressed]}>
