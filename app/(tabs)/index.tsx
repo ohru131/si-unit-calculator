@@ -49,7 +49,7 @@ export default function CalculatorScreen() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { quick, presetExpression, presetUnit } = useLocalSearchParams<{ quick?: string | string[]; presetExpression?: string | string[]; presetUnit?: string | string[] }>();
-  const { constants, customFunctions, history, favoriteUnits, templates, upsertConstant, addHistoryEntry, clearHistory } = useCalculatorStore();
+  const { constants, history, favoriteUnits, notebooks, upsertConstant, addHistoryEntry, clearHistory } = useCalculatorStore();
   const { isPro } = usePro();
   const { calculatorMode, completeOnboarding, hasSeenOnboarding, isReady, language, locale, t, unitGroupLabel, unitSystem } = useGlobalSettings();
   const [onboardingStep, setOnboardingStep] = useState(0);
@@ -136,15 +136,15 @@ export default function CalculatorScreen() {
   const visibleSampleCategories = useMemo(() => SAMPLE_CATEGORIES.filter((category) => isSampleCategoryVisible(category.id, isAdvancedMode)), [isAdvancedMode]);
   const visibleSamples = useMemo(() => SAMPLE_CALCULATIONS.filter((sample) => sample.category === sampleCategory && isSampleCategoryVisible(sample.category, isAdvancedMode)), [isAdvancedMode, sampleCategory]);
   const visibleHistory = isPro ? history : history.slice(0, 5);
-  const pinnedTemplates = useMemo(() => templates.filter((template) => template.pinned), [templates]);
+  const pinnedNotebooks = useMemo(() => notebooks.filter((notebook) => notebook.pinned), [notebooks]);
   const autoConstants = useMemo(() => historyToAutoConstants(history), [history]);
   const unitInfo = useMemo(() => getUnitExplanation(unitInfoSymbol ?? ""), [unitInfoSymbol]);
   const targetUnitRegistration = useMemo(() => getUnitRegistration(targetUnit), [targetUnit]);
   const searchedUnitRegistration = useMemo(() => getUnitRegistration(unitSearch), [unitSearch]);
 
   const identifiers = useMemo(
-    () => [...constants.map((item) => item.symbol), ...autoConstants.map((item) => item.symbol), ...customFunctions.map((item) => item.name)],
-    [autoConstants, constants, customFunctions],
+    () => [...constants.map((item) => item.symbol), ...autoConstants.map((item) => item.symbol)],
+    [autoConstants, constants],
   );
   const analysis = useMemo(() => analyzeExpression(expression, identifiers), [expression, identifiers]);
   const hint = useMemo<UnitInputHint>(() => {
@@ -260,7 +260,7 @@ export default function CalculatorScreen() {
       const assignment = input.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=/);
       const availableConstants = [...constants, ...autoConstants];
       const next = assignment ? parseConstantDefinition(input, availableConstants) : null;
-      const quantity = next?.quantity ?? evaluateExpression(input, availableConstants, customFunctions);
+      const quantity = next?.quantity ?? evaluateExpression(input, availableConstants);
       if (next) {
         await upsertConstant(next.symbol, next.expression);
         setNotice(`定数 ${next.symbol} を保存しました。`);
@@ -444,15 +444,9 @@ export default function CalculatorScreen() {
     void calculate(sample.expression, sampleTargetUnit);
   };
 
-  const applyPinnedTemplate = (template: (typeof pinnedTemplates)[number]) => {
-    setExpression(template.expression);
-    setTargetUnit(template.targetUnit);
-    setResult(null);
-    setFixSelection(null);
-    setError("");
-    setNotice("");
+  const openPinnedNotebook = (notebook: (typeof pinnedNotebooks)[number]) => {
     void Haptics.selectionAsync();
-    void calculate(template.expression, template.targetUnit);
+    router.push({ pathname: "/constants", params: { openNotebookId: notebook.id } });
   };
 
   const exportHistory = async () => {
@@ -504,12 +498,12 @@ export default function CalculatorScreen() {
           </View>
         </View>
 
-        {pinnedTemplates.length ? (
+        {pinnedNotebooks.length ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pinnedRail} keyboardShouldPersistTaps="handled">
-            {pinnedTemplates.map((template) => (
-              <Pressable accessibilityLabel={`${copy.pinned} ${template.title}`} key={template.id} onPress={() => applyPinnedTemplate(template)} style={({ pressed }) => [styles.pinnedChip, pressed && styles.pressed]}>
+            {pinnedNotebooks.map((notebook) => (
+              <Pressable accessibilityLabel={`${copy.pinned} ${notebook.title}`} key={notebook.id} onPress={() => openPinnedNotebook(notebook)} style={({ pressed }) => [styles.pinnedChip, pressed && styles.pressed]}>
                 <IconSymbol name="pin.fill" size={11} color={colors.primary} />
-                <Text numberOfLines={1} style={styles.pinnedChipText}>{template.title}</Text>
+                <Text numberOfLines={1} style={styles.pinnedChipText}>{notebook.title}</Text>
               </Pressable>
             ))}
           </ScrollView>
@@ -658,7 +652,7 @@ export default function CalculatorScreen() {
                 <Text style={styles.cardLabel}>{t("result")}</Text>
                 {display ? (
                   <View style={styles.resultActions}>
-                    <Pressable accessibilityLabel={copy.saveTemplate} onPress={() => router.push({ pathname: "/constants", params: { templateExpression: expression, templateUnit: targetUnit } })} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
+                    <Pressable accessibilityLabel={copy.saveTemplate} onPress={() => router.push({ pathname: "/constants", params: { notebookExpression: expression, notebookUnit: targetUnit } })} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
                       <IconSymbol name="bookmark.fill" size={14} color={colors.primary} />
                     </Pressable>
                     <Pressable accessibilityLabel={copy.copy} onPress={() => void copyCalculation()} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>

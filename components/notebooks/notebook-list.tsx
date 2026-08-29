@@ -1,39 +1,50 @@
-import { useMemo } from "react";
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { useMemo, useState } from "react";
+import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { type CalculationNotebook } from "@/lib/calculator-store";
+import { evaluateNotebookSteps, resolveNotebookLocalConstants } from "@/lib/notebook-engine";
+import { formatQuantity, type SavedConstant } from "@/lib/units";
 
 type Props = {
   language: "en" | "ja";
+  locale?: string;
   categoryLabel: string;
   notebooks: CalculationNotebook[];
+  globalConstants: SavedConstant[];
   onBack: () => void;
   onOpen: (notebookId: string) => void;
   onDelete: (notebookId: string) => void;
+  onTogglePinned: (notebookId: string) => void;
 };
 
-export function NotebookList({ language, categoryLabel, notebooks, onBack, onOpen, onDelete }: Props) {
+export function NotebookList({ language, locale, categoryLabel, notebooks, globalConstants, onBack, onOpen, onDelete, onTogglePinned }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const copy = language === "en" ? {
     empty: "No notebooks in this category yet", emptyHint: "Tap the + button to add one.",
     steps: (count: number) => `${count} step${count === 1 ? "" : "s"}`,
-    delete: "Delete", deleteConfirm: "Delete this notebook?", cancel: "Cancel",
+    delete: "Delete", deleteConfirm: "Delete this notebook? This cannot be undone.", cancel: "Cancel",
+    pin: "Pin to calculator", unpin: "Unpin from calculator", builtIn: "Built-in",
   } : {
     empty: "このカテゴリにはまだノートがありません", emptyHint: "右上の＋ボタンから追加できます。",
     steps: (count: number) => `${count}件の手順`,
-    delete: "削除", deleteConfirm: "このノートを削除しますか？", cancel: "キャンセル",
+    delete: "削除", deleteConfirm: "このノートを削除しますか？元に戻せません。", cancel: "キャンセル",
+    pin: "電卓画面にピン留め", unpin: "ピン留めを解除", builtIn: "プリセット",
   };
 
-  const confirmDelete = (id: string) => {
-    Alert.alert(copy.delete, copy.deleteConfirm, [
-      { text: copy.cancel, style: "cancel" },
-      { text: copy.delete, style: "destructive", onPress: () => onDelete(id) },
-    ]);
+  const previewFor = (notebook: CalculationNotebook) => {
+    const { resolved } = resolveNotebookLocalConstants(notebook.localConstants, globalConstants);
+    const pool = [...globalConstants, ...resolved];
+    const results = evaluateNotebookSteps(notebook.steps, pool, [], locale);
+    const finalResult = [...results].reverse().find((result) => result.quantity);
+    if (!finalResult?.quantity) return "";
+    return finalResult.formatted ?? formatQuantity(finalResult.quantity, undefined, locale);
   };
 
   return (
@@ -47,18 +58,45 @@ export function NotebookList({ language, categoryLabel, notebooks, onBack, onOpe
         keyExtractor={(item) => item.id}
         contentContainerStyle={notebooks.length ? styles.list : styles.emptyList}
         ListEmptyComponent={<View style={styles.emptyCard}><IconSymbol name="book.fill" size={28} color={colors.primary} /><Text style={styles.emptyTitle}>{copy.empty}</Text><Text style={styles.emptyText}>{copy.emptyHint}</Text></View>}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Pressable onPress={() => onOpen(item.id)} style={({ pressed }) => [styles.cardMain, pressed && styles.pressed]}>
-              <Text style={styles.cardTitle}>{item.title}</Text>
-              {item.description ? <Text numberOfLines={1} style={styles.cardDescription}>{item.description}</Text> : null}
-              <Text style={styles.cardMeta}>{copy.steps(item.steps.length)}</Text>
-            </Pressable>
-            <Pressable accessibilityLabel={copy.delete} onPress={() => confirmDelete(item.id)} style={({ pressed }) => [styles.deleteButton, pressed && styles.iconPressed]}>
-              <IconSymbol name="trash" size={19} color={colors.error} />
-            </Pressable>
-          </View>
-        )}
+        renderItem={({ item }) => {
+          const preview = previewFor(item);
+          return (
+            <View style={styles.card}>
+              <Pressable onPress={() => onOpen(item.id)} style={({ pressed }) => [styles.cardMain, pressed && styles.pressed]}>
+                <View style={styles.cardTitleRow}>
+                  <Text numberOfLines={1} style={styles.cardTitle}>{item.title}</Text>
+                  {item.isPreset ? <View style={styles.builtInBadge}><Text style={styles.builtInBadgeText}>{copy.builtIn}</Text></View> : null}
+                </View>
+                {item.description ? <Text numberOfLines={1} style={styles.cardDescription}>{item.description}</Text> : null}
+                <View style={styles.cardMetaRow}>
+                  <Text style={styles.cardMeta}>{copy.steps(item.steps.length)}</Text>
+                  {preview ? <Text numberOfLines={1} style={styles.cardPreview}>→ {preview}</Text> : null}
+                </View>
+              </Pressable>
+              <Pressable accessibilityLabel={item.pinned ? copy.unpin : copy.pin} onPress={() => onTogglePinned(item.id)} style={({ pressed }) => [styles.actionButton, pressed && styles.iconPressed]}>
+                <IconSymbol name="pin.fill" size={18} color={item.pinned ? colors.primary : colors.muted} />
+              </Pressable>
+              {!item.isPreset ? (
+                <Pressable accessibilityLabel={copy.delete} onPress={() => setPendingDeleteId(item.id)} style={({ pressed }) => [styles.actionButton, pressed && styles.iconPressed]}>
+                  <IconSymbol name="trash" size={19} color={colors.error} />
+                </Pressable>
+              ) : null}
+            </View>
+          );
+        }}
+      />
+      <ConfirmDialog
+        visible={Boolean(pendingDeleteId)}
+        title={copy.delete}
+        message={copy.deleteConfirm}
+        cancelLabel={copy.cancel}
+        confirmLabel={copy.delete}
+        destructive
+        onCancel={() => setPendingDeleteId(null)}
+        onConfirm={() => {
+          if (pendingDeleteId) onDelete(pendingDeleteId);
+          setPendingDeleteId(null);
+        }}
       />
     </View>
   );
@@ -75,10 +113,15 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   emptyText: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 6, textAlign: "center" },
   card: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, flexDirection: "row", minHeight: 76, paddingHorizontal: 13, paddingVertical: 12 },
   cardMain: { flex: 1, gap: 3 },
-  cardTitle: { color: colors.foreground, fontSize: 15, fontWeight: "800" },
+  cardTitleRow: { alignItems: "center", flexDirection: "row", gap: 7 },
+  cardTitle: { color: colors.foreground, flexShrink: 1, fontSize: 15, fontWeight: "800" },
+  builtInBadge: { backgroundColor: colors.surfaceSecondary, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 },
+  builtInBadgeText: { color: colors.muted, fontSize: 9, fontWeight: "800", letterSpacing: 0.3, textTransform: "uppercase" },
   cardDescription: { color: colors.muted, fontSize: 12 },
-  cardMeta: { color: colors.placeholder, fontSize: 11, marginTop: 2 },
-  deleteButton: { alignItems: "center", height: 38, justifyContent: "center", width: 38 },
+  cardMetaRow: { alignItems: "center", flexDirection: "row", gap: 8, marginTop: 2 },
+  cardMeta: { color: colors.placeholder, fontSize: 11 },
+  cardPreview: { color: colors.primary, flexShrink: 1, fontSize: 11, fontWeight: "700" },
+  actionButton: { alignItems: "center", height: 38, justifyContent: "center", width: 34 },
   pressed: { opacity: 0.72 },
   iconPressed: { opacity: 0.55 },
 });
