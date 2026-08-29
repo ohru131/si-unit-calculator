@@ -1,8 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
-  FlatList,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -19,15 +17,16 @@ import { NotebookCategoryGrid } from "@/components/notebooks/notebook-category-g
 import { NotebookDetail } from "@/components/notebooks/notebook-detail";
 import { NotebookList } from "@/components/notebooks/notebook-list";
 import { ScreenContainer } from "@/components/screen-container";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
+import { type ImportedConstant } from "@/lib/constants-backup";
 import { exportConstantsBackup, pickConstantsBackup } from "@/lib/constants-backup-file";
 import {
   type CalculationNotebook,
   type CalculationNoteStep,
   type NotebookLocalConstant,
-  type SavedCustomFunction,
   UNCATEGORIZED_CATEGORY_ID,
   useCalculatorStore,
 } from "@/lib/calculator-store";
@@ -35,10 +34,8 @@ import { useGlobalSettings } from "@/lib/global-settings";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
 import { formatQuantity, SavedConstant } from "@/lib/units";
 
-type TopSection = "templates" | "notebooks" | "constants" | "functions";
-type LegacyEditorKind = "constants" | "functions" | null;
+type TopSection = "notebooks" | "constants";
 
-const FUNCTION_NAMES = new Set(["sin", "cos", "tan", "asin", "acos", "atan", "atan2", "sqrt", "ln", "log", "log2", "pi", "e"]);
 const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" });
 
 let localConstantSeq = 0;
@@ -48,59 +45,43 @@ const nextStepId = () => `step-${Date.now()}-${stepSeq++}`;
 
 export default function ConstantsScreen() {
   const router = useRouter();
-  const { templateExpression, templateUnit } = useLocalSearchParams<{ templateExpression?: string | string[]; templateUnit?: string | string[] }>();
+  const { notebookExpression, notebookUnit, openNotebookId } = useLocalSearchParams<{ notebookExpression?: string | string[]; notebookUnit?: string | string[]; openNotebookId?: string | string[] }>();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { language, locale } = useGlobalSettings();
+  const { language, locale, unitSystem } = useGlobalSettings();
   const {
     constants,
     clearConstants,
-    customFunctions,
     hasRestorableConstants,
     importConstants,
     isLoading,
     notebooks,
     notebookCategories,
     removeConstant,
-    removeCustomFunction,
     removeNotebook,
     removeNotebookCategory,
-    removeTemplate,
     restoreClearedConstants,
-    templates,
-    toggleTemplatePinned,
+    toggleNotebookPinned,
     upsertConstant,
-    upsertCustomFunction,
     upsertNotebook,
     upsertNotebookCategory,
-    upsertTemplate,
   } = useCalculatorStore();
 
-  const [topSection, setTopSection] = useState<TopSection>("templates");
+  const [topSection, setTopSection] = useState<TopSection>("notebooks");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedNotebookId, setSelectedNotebookId] = useState<string | null>(null);
 
-  // 定数・自作関数（両方ともグローバル、ノートとは別枠）の従来通りの編集シート。
-  const [legacyEditorKind, setLegacyEditorKind] = useState<LegacyEditorKind>(null);
-  const [editingId, setEditingId] = useState<string | undefined>();
-  const [symbol, setSymbol] = useState("");
-  const [functionName, setFunctionName] = useState("");
-  const [parameters, setParameters] = useState("");
-  const [functionTitle, setFunctionTitle] = useState("");
-  const [functionDescription, setFunctionDescription] = useState("");
-  const [legacyExpression, setLegacyExpression] = useState("");
-  const [legacyError, setLegacyError] = useState("");
+  // グローバル定数の編集シート。
+  const [constantEditorVisible, setConstantEditorVisible] = useState(false);
+  const [editingConstantSymbol, setEditingConstantSymbol] = useState<string | undefined>();
+  const [constantSymbolInput, setConstantSymbolInput] = useState("");
+  const [constantExpressionInput, setConstantExpressionInput] = useState("");
+  const [constantError, setConstantError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [backupNotice, setBackupNotice] = useState("");
-
-  // テンプレート（電卓画面にピン留めできる単一式）の編集シート。
-  const [templateEditorVisible, setTemplateEditorVisible] = useState(false);
-  const [editingTemplateId, setEditingTemplateId] = useState<string | undefined>();
-  const [templateTitle, setTemplateTitle] = useState("");
-  const [templateDescription, setTemplateDescription] = useState("");
-  const [templateExpressionInput, setTemplateExpressionInput] = useState("");
-  const [templateTargetUnit, setTemplateTargetUnit] = useState("");
-  const [templateError, setTemplateError] = useState("");
+  const [pendingDeleteConstant, setPendingDeleteConstant] = useState<string | null>(null);
+  const [pendingClearConstants, setPendingClearConstants] = useState(false);
+  const [pendingReplaceImport, setPendingReplaceImport] = useState<ImportedConstant[] | null>(null);
 
   // 計算ノートの編集シート。
   const [notebookEditorVisible, setNotebookEditorVisible] = useState(false);
@@ -115,42 +96,38 @@ export default function ConstantsScreen() {
   const [newCategoryName, setNewCategoryName] = useState("");
 
   const copy = language === "en" ? {
-    title: "Library", subtitle: "Save reusable templates, calculation notebooks, functions, and constants on this device.",
-    templatesTab: "Templates", notebooksTab: "Notebooks", constantsTab: "Global constants", functionsTab: "Functions",
+    title: "Library", subtitle: "Save reusable calculation notebooks and global constants on this device.",
+    notebooksTab: "Notebooks", constantsTab: "Global constants",
     add: "Add", close: "Close", save: "Save", saving: "Saving…", delete: "Delete", cancel: "Cancel",
-    templateEmpty: "No templates yet", templateEmptyHint: "Save a familiar calculation so you can start with it next time.", pin: "Pin to calculator", unpin: "Unpin from calculator", templateEditor: "Save template",
-    functionEmpty: "No custom functions yet", functionEmptyHint: "Define a reusable formula such as circleArea(r) = pi × r^2.",
     constantEmpty: "No constants yet", constantEmptyHint: "Store a reusable value such as W = 3cm.",
     titleLabel: "Name", descriptionLabel: "Description", expressionLabel: "Expression", symbolLabel: "Symbol",
-    functionNameLabel: "Function name", parametersLabel: "Parameters, comma-separated",
-    functionEditor: "Custom function", constantEditor: "Constant",
-    deleteConfirm: "Delete this item?", validation: "Please fill in the required fields.",
-    backup: "Backup", export: "Export", import: "Import", clearAll: "Clear all", restore: "Restore",
-    exportDone: "Constants backup exported.", importMode: "How should imported constants be applied?",
+    constantEditor: "Constant",
+    deleteConfirm: "Delete this item? This cannot be undone.", validation: "Please fill in the required fields.",
+    backup: "Backup", export: "Export", clearAll: "Clear all", restore: "Restore",
+    exportDone: "Constants backup exported.",
     merge: "Merge and replace matches", replace: "Replace all constants", importDone: "{count} constants imported.",
     clearConfirm: "Clear all saved constants? You can restore the latest cleared set.",
     cleared: "Constants cleared. You can restore them from this device.", restored: "Cleared constants restored.",
+    replaceImportConfirm: "Replace all saved constants with the ones in this file? This cannot be undone.",
     notebookNew: "New notebook", notebookEdit: "Edit notebook", notebookTitleLabel: "Title", notebookDescriptionLabel: "Description",
     category: "Category", newCategory: "New category", categoryName: "Category name", uncategorized: "Uncategorized",
     localConstants: "Local constants (inputs)", localConstantsHint: "e.g. W, H, span. Later rows can reference earlier ones.",
     addLocalConstant: "Add constant", steps: "Steps", addStep: "Add step", stepTitlePlaceholder: "Step name",
     outputUnitLabel: "Display unit (optional)", removeRow: "Remove",
   } : {
-    title: "ライブラリ", subtitle: "よく使うテンプレート・計算ノート・自作関数・定数を、この端末に保存して再利用できます。",
-    templatesTab: "テンプレート", notebooksTab: "計算ノート", constantsTab: "グローバル定数", functionsTab: "自作関数",
+    title: "ライブラリ", subtitle: "よく使う計算ノート・グローバル定数を、この端末に保存して再利用できます。",
+    notebooksTab: "計算ノート", constantsTab: "グローバル定数",
     add: "追加", close: "閉じる", save: "保存", saving: "保存中…", delete: "削除", cancel: "キャンセル",
-    templateEmpty: "テンプレートはまだありません", templateEmptyHint: "よく使う計算を保存すると、次回すぐに呼び出せます。", pin: "電卓画面にピン留め", unpin: "ピン留めを解除", templateEditor: "テンプレートを保存",
-    functionEmpty: "自作関数はまだありません", functionEmptyHint: "例：circleArea(r) = pi × r^2 のように式を再利用できます。",
     constantEmpty: "定数はまだありません", constantEmptyHint: "例：W = 3cm のように、よく使う値を保存できます。",
     titleLabel: "名前", descriptionLabel: "説明", expressionLabel: "式", symbolLabel: "記号",
-    functionNameLabel: "関数名", parametersLabel: "引数（カンマ区切り）",
-    functionEditor: "自作関数", constantEditor: "定数",
-    deleteConfirm: "この項目を削除しますか？", validation: "必須項目を入力してください。",
-    backup: "バックアップ", export: "書き出す", import: "読み込む", clearAll: "すべて消去", restore: "復活",
-    exportDone: "定数バックアップを書き出しました。", importMode: "読み込む定数をどのように反映しますか？",
+    constantEditor: "定数",
+    deleteConfirm: "この項目を削除しますか？元に戻せません。", validation: "必須項目を入力してください。",
+    backup: "バックアップ", export: "書き出す", clearAll: "すべて消去", restore: "復活",
+    exportDone: "定数バックアップを書き出しました。",
     merge: "追加・同名は置換", replace: "すべての定数を置換", importDone: "{count}件の定数を読み込みました。",
     clearConfirm: "保存済みの定数をすべて消去しますか？直前に消去した一覧は復活できます。",
     cleared: "定数を消去しました。この端末上で復活できます。", restored: "消去した定数を復活しました。",
+    replaceImportConfirm: "保存済みの定数をすべて、このファイルの内容へ置き換えますか？元に戻せません。",
     notebookNew: "新しい計算ノート", notebookEdit: "計算ノートを編集", notebookTitleLabel: "タイトル", notebookDescriptionLabel: "説明",
     category: "カテゴリ", newCategory: "新しいカテゴリ", categoryName: "カテゴリ名", uncategorized: "未分類",
     localConstants: "ローカル定数（入力値）", localConstantsHint: "例：W, H, スパン。後の行で前の行を参照できます。",
@@ -158,15 +135,8 @@ export default function ConstantsScreen() {
     outputUnitLabel: "表示単位（任意）", removeRow: "削除",
   };
 
-  const sortedTemplates = useMemo(
-    () => [...templates].sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.updatedAt.localeCompare(left.updatedAt)),
-    [templates],
-  );
-
   const sectionItems: Array<{ id: TopSection; label: string }> = [
-    { id: "templates", label: copy.templatesTab },
     { id: "notebooks", label: copy.notebooksTab },
-    { id: "functions", label: copy.functionsTab },
     { id: "constants", label: copy.constantsTab },
   ];
 
@@ -178,55 +148,30 @@ export default function ConstantsScreen() {
 
   const categoryLabel = (categoryId: string) => categoryOptions.find((item) => item.id === categoryId)?.label ?? copy.uncategorized;
 
-  const resetLegacyEditor = () => {
-    setEditingId(undefined); setSymbol(""); setFunctionName(""); setParameters(""); setFunctionTitle(""); setFunctionDescription(""); setLegacyExpression(""); setLegacyError("");
+  const resetConstantEditor = () => {
+    setEditingConstantSymbol(undefined); setConstantSymbolInput(""); setConstantExpressionInput(""); setConstantError("");
   };
 
-  const openLegacyEditor = (kind: "constants" | "functions", item?: SavedConstant | SavedCustomFunction) => {
-    resetLegacyEditor();
-    setLegacyEditorKind(kind);
+  const openConstantEditor = (item?: SavedConstant) => {
+    resetConstantEditor();
+    setConstantEditorVisible(true);
     if (!item) return;
-    if (kind === "constants") {
-      const constant = item as SavedConstant;
-      setEditingId(constant.symbol); setSymbol(constant.symbol); setLegacyExpression(constant.expression);
-    }
-    if (kind === "functions") {
-      const fn = item as SavedCustomFunction;
-      setEditingId(fn.id); setFunctionName(fn.name); setParameters(fn.parameters.join(", ")); setFunctionTitle(fn.title); setFunctionDescription(fn.description); setLegacyExpression(fn.expression);
-    }
+    setEditingConstantSymbol(item.symbol); setConstantSymbolInput(item.symbol); setConstantExpressionInput(item.expression);
   };
 
-  const closeLegacyEditor = () => { if (!isSaving) setLegacyEditorKind(null); };
+  const closeConstantEditor = () => { if (!isSaving) setConstantEditorVisible(false); };
 
-  const saveLegacy = async () => {
-    if (!legacyEditorKind) return;
-    setLegacyError(""); setIsSaving(true);
+  const saveConstant = async () => {
+    setConstantError(""); setIsSaving(true);
     try {
-      if (legacyEditorKind === "constants") {
-        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(symbol.trim()) || !legacyExpression.trim()) throw new Error(copy.validation);
-        if (editingId && editingId !== symbol.trim()) await removeConstant(editingId);
-        await upsertConstant(symbol.trim(), legacyExpression.trim());
-      }
-      if (legacyEditorKind === "functions") {
-        const name = functionName.trim();
-        const normalizedParameters = parameters.split(",").map((item) => item.trim()).filter(Boolean);
-        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) || FUNCTION_NAMES.has(name) || !functionTitle.trim() || !legacyExpression.trim() || normalizedParameters.some((parameter) => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(parameter)) || new Set(normalizedParameters).size !== normalizedParameters.length) throw new Error(copy.validation);
-        await upsertCustomFunction({ id: editingId, name, parameters: normalizedParameters, title: functionTitle.trim(), description: functionDescription.trim(), expression: legacyExpression.trim() });
-      }
-      setLegacyEditorKind(null);
+      const symbol = constantSymbolInput.trim();
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(symbol) || !constantExpressionInput.trim()) throw new Error(copy.validation);
+      if (editingConstantSymbol && editingConstantSymbol !== symbol) await removeConstant(editingConstantSymbol);
+      await upsertConstant(symbol, constantExpressionInput.trim());
+      setConstantEditorVisible(false);
     } catch (cause) {
-      setLegacyError(cause instanceof Error ? cause.message : copy.validation);
+      setConstantError(cause instanceof Error ? cause.message : copy.validation);
     } finally { setIsSaving(false); }
-  };
-
-  const confirmDeleteLegacy = (kind: "constants" | "functions", id: string) => {
-    Alert.alert(copy.delete, copy.deleteConfirm, [
-      { text: copy.cancel, style: "cancel" },
-      { text: copy.delete, style: "destructive", onPress: () => {
-        const action = kind === "constants" ? removeConstant(id) : removeCustomFunction(id);
-        action.catch(() => Alert.alert("Error", "Could not delete this item."));
-      } },
-    ]);
   };
 
   const handleExportConstants = async () => {
@@ -238,25 +183,37 @@ export default function ConstantsScreen() {
     }
   };
 
-  const handleImportConstants = async () => {
+  const handleImportConstants = async (mode: "merge" | "replace") => {
     try {
       const entries = await pickConstantsBackup();
       if (!entries) return;
-      Alert.alert(copy.import, copy.importMode, [
-        { text: copy.cancel, style: "cancel" },
-        { text: copy.merge, onPress: () => { void importConstants(entries, "merge").then((count) => setBackupNotice(copy.importDone.replace("{count}", String(count)))).catch((cause) => setBackupNotice(cause instanceof Error ? cause.message : copy.validation)); } },
-        { text: copy.replace, style: "destructive", onPress: () => { void importConstants(entries, "replace").then((count) => setBackupNotice(copy.importDone.replace("{count}", String(count)))).catch((cause) => setBackupNotice(cause instanceof Error ? cause.message : copy.validation)); } },
-      ]);
+      if (mode === "replace") { setPendingReplaceImport(entries); return; }
+      const count = await importConstants(entries, "merge");
+      setBackupNotice(copy.importDone.replace("{count}", String(count)));
     } catch (cause) {
       setBackupNotice(cause instanceof Error ? cause.message : copy.validation);
     }
   };
 
-  const handleClearConstants = () => {
-    Alert.alert(copy.clearAll, copy.clearConfirm, [
-      { text: copy.cancel, style: "cancel" },
-      { text: copy.clearAll, style: "destructive", onPress: () => { void clearConstants().then(() => setBackupNotice(copy.cleared)).catch((cause) => setBackupNotice(cause instanceof Error ? cause.message : copy.validation)); } },
-    ]);
+  const confirmReplaceImport = async () => {
+    const entries = pendingReplaceImport;
+    setPendingReplaceImport(null);
+    if (!entries) return;
+    try {
+      const count = await importConstants(entries, "replace");
+      setBackupNotice(copy.importDone.replace("{count}", String(count)));
+    } catch (cause) {
+      setBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+    }
+  };
+
+  const handleClearConstants = async () => {
+    try {
+      await clearConstants();
+      setBackupNotice(copy.cleared);
+    } catch (cause) {
+      setBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+    }
   };
 
   const handleRestoreConstants = async () => {
@@ -265,49 +222,6 @@ export default function ConstantsScreen() {
     } catch (cause) {
       setBackupNotice(cause instanceof Error ? cause.message : copy.validation);
     }
-  };
-
-  // テンプレート：編集シートの開閉。タップした行はそのまま電卓へ読み込まれるため、
-  // ここでは新規作成（電卓画面からのピン留め・ライブラリの＋ボタン）のみ扱う。
-  const resetTemplateEditor = () => {
-    setEditingTemplateId(undefined); setTemplateTitle(""); setTemplateDescription("");
-    setTemplateExpressionInput(""); setTemplateTargetUnit(""); setTemplateError("");
-  };
-
-  const openNewTemplateEditor = (presetExpression?: string, presetTargetUnit?: string) => {
-    resetTemplateEditor();
-    if (presetExpression) setTemplateExpressionInput(presetExpression);
-    if (presetTargetUnit) setTemplateTargetUnit(presetTargetUnit);
-    setTemplateEditorVisible(true);
-  };
-
-  const closeTemplateEditor = () => { if (!isSaving) setTemplateEditorVisible(false); };
-
-  const loadExpression = (nextExpression: string, nextTargetUnit: string) => {
-    router.push({ pathname: "/", params: { presetExpression: nextExpression, presetUnit: nextTargetUnit } });
-  };
-
-  const saveTemplate = async () => {
-    setTemplateError("");
-    if (!templateTitle.trim() || !templateExpressionInput.trim()) { setTemplateError(copy.validation); return; }
-    setIsSaving(true);
-    try {
-      await upsertTemplate({ id: editingTemplateId, title: templateTitle.trim(), description: templateDescription.trim(), expression: templateExpressionInput.trim(), targetUnit: templateTargetUnit.trim() });
-      setTemplateEditorVisible(false);
-    } catch (cause) {
-      setTemplateError(cause instanceof Error ? cause.message : copy.validation);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const confirmDeleteTemplate = (id: string) => {
-    Alert.alert(copy.delete, copy.deleteConfirm, [
-      { text: copy.cancel, style: "cancel" },
-      { text: copy.delete, style: "destructive", onPress: () => {
-        removeTemplate(id).catch(() => Alert.alert("Error", "Could not delete this item."));
-      } },
-    ]);
   };
 
   // 計算ノート：編集シートの開閉。
@@ -336,16 +250,41 @@ export default function ConstantsScreen() {
     setNotebookEditorVisible(true);
   };
 
-  // ルートパラメータ（電卓画面のピン留めボタン）は常にテンプレートを開く契約。
+  // ルートパラメータ（電卓画面の「保存」ボタン）は常に新規ノートを開く契約。
+  // 同じ値を持つパラメータで再実行されないよう、処理済みの値をrefで覚えておく。
+  const handledNotebookParamRef = useRef<string | null>(null);
   useEffect(() => {
-    const nextExpression = Array.isArray(templateExpression) ? templateExpression[0] : templateExpression;
-    const nextUnit = Array.isArray(templateUnit) ? templateUnit[0] : templateUnit;
+    const nextExpression = Array.isArray(notebookExpression) ? notebookExpression[0] : notebookExpression;
+    const nextUnit = Array.isArray(notebookUnit) ? notebookUnit[0] : notebookUnit;
     if (!nextExpression) return;
-    setTopSection("templates");
-    openNewTemplateEditor(nextExpression, nextUnit);
-    // ルートパラメータはナビゲーションのたびに一度だけ処理する。
+    const token = `${nextExpression}|${nextUnit ?? ""}`;
+    if (handledNotebookParamRef.current === token) return;
+    handledNotebookParamRef.current = token;
+    setTopSection("notebooks");
+    openNewNotebook(nextExpression, nextUnit);
+    // パラメータを消費済みにしておく。消さないままだと、同じ式をもう一度
+    // 保存しようとしたとき（値が変わらない）に何も起きなくなる。
+    router.setParams({ notebookExpression: undefined, notebookUnit: undefined });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [templateExpression, templateUnit]);
+  }, [notebookExpression, notebookUnit]);
+
+  // ルートパラメータ（電卓画面のピン留めチップ）でノート詳細を直接開く。
+  // notebooksの読み込み完了前は見つからないため、読み込み完了後の再実行で開けるようにする。
+  const handledOpenNotebookIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const id = Array.isArray(openNotebookId) ? openNotebookId[0] : openNotebookId;
+    if (!id || handledOpenNotebookIdRef.current === id) return;
+    const notebook = notebooks.find((item) => item.id === id);
+    if (!notebook) return;
+    handledOpenNotebookIdRef.current = id;
+    setTopSection("notebooks");
+    setSelectedCategoryId(notebook.categoryId);
+    setSelectedNotebookId(notebook.id);
+    // パラメータを消費済みにしておく。消さないままだと、一度戻ってから同じ
+    // ピン留めチップをもう一度押しても（値が変わらない）再度開けなくなる。
+    router.setParams({ openNotebookId: undefined });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openNotebookId, notebooks]);
 
   const closeNotebookEditor = () => setNotebookEditorVisible(false);
 
@@ -389,11 +328,12 @@ export default function ConstantsScreen() {
         <NotebookDetail
           language={language}
           locale={locale}
+          unitSystem={unitSystem}
           notebook={selectedNotebook}
           globalConstants={constants}
-          customFunctions={customFunctions}
           onBack={() => setSelectedNotebookId(null)}
           onEdit={() => openEditNotebook(selectedNotebook)}
+          onTogglePinned={() => void toggleNotebookPinned(selectedNotebook.id)}
           onSaveValues={(nextLocalConstants) => { void upsertNotebook({ id: selectedNotebook.id, title: selectedNotebook.title, description: selectedNotebook.description, categoryId: selectedNotebook.categoryId, localConstants: nextLocalConstants, steps: selectedNotebook.steps }); }}
         />
       );
@@ -402,11 +342,14 @@ export default function ConstantsScreen() {
       return (
         <NotebookList
           language={language}
+          locale={locale}
           categoryLabel={categoryLabel(selectedCategoryId)}
           notebooks={notebooksInCategory}
+          globalConstants={constants}
           onBack={() => setSelectedCategoryId(null)}
           onOpen={setSelectedNotebookId}
           onDelete={(id) => void removeNotebook(id)}
+          onTogglePinned={(id) => void toggleNotebookPinned(id)}
         />
       );
     }
@@ -425,56 +368,41 @@ export default function ConstantsScreen() {
 
   const renderEmpty = (titleText: string, hint: string) => <View style={styles.emptyCard}><IconSymbol name="bookmark.fill" size={30} color={colors.primary} /><Text style={styles.emptyTitle}>{titleText}</Text><Text style={styles.emptyText}>{hint}</Text></View>;
 
-  const renderTemplatesSection = () => (
-    <FlatList
-      data={sortedTemplates}
-      keyExtractor={(item) => item.id}
-      contentContainerStyle={templates.length ? styles.list : styles.emptyList}
-      ListEmptyComponent={renderEmpty(copy.templateEmpty, copy.templateEmptyHint)}
-      renderItem={({ item }) => (
-        <View style={styles.libraryCard}>
-          <Pressable onPress={() => loadExpression(item.expression, item.targetUnit)} style={({ pressed }) => [styles.libraryMain, pressed && styles.cardPressed]}>
-            <Text style={styles.libraryTitle}>{item.title}</Text>
-            {item.description ? <Text numberOfLines={1} style={styles.libraryDescription}>{item.description}</Text> : null}
-            <Text numberOfLines={1} style={styles.libraryExpression}>{item.expression}{item.targetUnit ? ` → ${item.targetUnit}` : ""}</Text>
-          </Pressable>
-          <Pressable accessibilityLabel={item.pinned ? copy.unpin : copy.pin} onPress={() => void toggleTemplatePinned(item.id)} style={({ pressed }) => [styles.deleteButton, pressed && styles.iconPressed]}>
-            <IconSymbol name="pin.fill" size={20} color={item.pinned ? colors.primary : colors.muted} />
-          </Pressable>
-          <Pressable accessibilityLabel={copy.delete} onPress={() => confirmDeleteTemplate(item.id)} style={({ pressed }) => [styles.deleteButton, pressed && styles.iconPressed]}>
-            <IconSymbol name="trash" size={20} color={colors.error} />
-          </Pressable>
-        </View>
+  const renderConstantsSection = () => (
+    <>
+      {constants.length ? (
+        <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+          {constants.map((item) => (
+            <View key={item.symbol} style={styles.libraryCard}>
+              <Pressable onPress={() => openConstantEditor(item)} style={({ pressed }) => [styles.libraryMain, pressed && styles.cardPressed]}>
+                <Text style={styles.libraryTitle}>{item.symbol} = {item.expression}</Text>
+                <Text style={styles.libraryExpression}>{formatQuantity(item.quantity)}</Text>
+              </Pressable>
+              <Pressable accessibilityLabel={copy.delete} onPress={() => setPendingDeleteConstant(item.symbol)} style={({ pressed }) => [styles.deleteButton, pressed && styles.iconPressed]}>
+                <IconSymbol name="trash" size={20} color={colors.error} />
+              </Pressable>
+            </View>
+          ))}
+        </ScrollView>
+      ) : (
+        <View style={styles.emptyList}>{renderEmpty(copy.constantEmpty, copy.constantEmptyHint)}</View>
       )}
-    />
+    </>
   );
 
-  const renderLegacySection = () => {
-    if (topSection === "functions") return <FlatList data={customFunctions} keyExtractor={(item) => item.id} contentContainerStyle={customFunctions.length ? styles.list : styles.emptyList} ListEmptyComponent={renderEmpty(copy.functionEmpty, copy.functionEmptyHint)} renderItem={({ item }) => <View style={styles.libraryCard}><Pressable onPress={() => openLegacyEditor("functions", item)} style={({ pressed }) => [styles.libraryMain, pressed && styles.cardPressed]}><Text style={styles.libraryTitle}>{item.title}</Text><Text style={styles.libraryExpression}>{item.name}({item.parameters.join(", ")}) = {item.expression}</Text>{item.description ? <Text numberOfLines={1} style={styles.libraryDescription}>{item.description}</Text> : null}</Pressable><Pressable accessibilityLabel={copy.delete} onPress={() => confirmDeleteLegacy("functions", item.id)} style={({ pressed }) => [styles.deleteButton, pressed && styles.iconPressed]}><IconSymbol name="trash" size={20} color={colors.error} /></Pressable></View>} />;
-    return <FlatList data={constants} keyExtractor={(item) => item.symbol} contentContainerStyle={constants.length ? styles.list : styles.emptyList} ListEmptyComponent={renderEmpty(copy.constantEmpty, copy.constantEmptyHint)} renderItem={({ item }) => <View style={styles.libraryCard}><Pressable onPress={() => openLegacyEditor("constants", item)} style={({ pressed }) => [styles.libraryMain, pressed && styles.cardPressed]}><Text style={styles.libraryTitle}>{item.symbol} = {item.expression}</Text><Text style={styles.libraryExpression}>{formatQuantity(item.quantity)}</Text></Pressable><Pressable accessibilityLabel={copy.delete} onPress={() => confirmDeleteLegacy("constants", item.symbol)} style={({ pressed }) => [styles.deleteButton, pressed && styles.iconPressed]}><IconSymbol name="trash" size={20} color={colors.error} /></Pressable></View>} />;
-  };
-
-  const renderContent = () => {
-    if (topSection === "templates") return renderTemplatesSection();
-    if (topSection === "notebooks") return renderNotebooksSection();
-    return renderLegacySection();
-  };
+  const renderContent = () => (topSection === "notebooks" ? renderNotebooksSection() : renderConstantsSection());
 
   const handleAddPress = () => {
-    if (topSection === "constants") openLegacyEditor("constants");
-    else if (topSection === "functions") openLegacyEditor("functions");
-    else if (topSection === "templates") openNewTemplateEditor();
-    else if (selectedNotebook) openEditNotebook(selectedNotebook);
-    else if (selectedCategoryId) openNewNotebook();
-    // カテゴリ一覧を見ているときは、カード内の「＋新しいカテゴリ」から作成する。
+    if (topSection === "constants") openConstantEditor();
+    else openNewNotebook();
   };
 
-  const showAddButton = topSection !== "notebooks" || Boolean(selectedCategoryId) || Boolean(selectedNotebook);
+  const showAddButton = topSection !== "notebooks" || !selectedNotebook;
 
   return <ScreenContainer className="px-5" containerClassName="bg-background">
     <View style={styles.header}>
       <View><Text style={styles.title}>{copy.title}</Text><Text style={styles.subtitle}>{copy.subtitle}</Text></View>
-      {showAddButton ? <Pressable accessibilityLabel={copy.add} onPress={handleAddPress} style={({ pressed }) => [styles.addButton, pressed && styles.buttonPressed]}><IconSymbol name={selectedNotebook ? "pencil" : "plus.circle.fill"} size={selectedNotebook ? 20 : 28} color={colors.primary} /></Pressable> : null}
+      {showAddButton ? <Pressable accessibilityLabel={copy.add} onPress={handleAddPress} style={({ pressed }) => [styles.addButton, pressed && styles.buttonPressed]}><IconSymbol name="plus.circle.fill" size={28} color={colors.primary} /></Pressable> : null}
     </View>
     <View style={styles.sectionRail}>
       {sectionItems.map((item) => (
@@ -483,37 +411,20 @@ export default function ConstantsScreen() {
         </Pressable>
       ))}
     </View>
-    {topSection === "constants" ? <View style={styles.backupCard}><Text style={styles.backupTitle}>{copy.backup}</Text><View style={styles.backupActions}><Pressable onPress={() => void handleExportConstants()} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.export}</Text></Pressable><Pressable onPress={() => void handleImportConstants()} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.import}</Text></Pressable><Pressable onPress={handleClearConstants} style={({ pressed }) => [styles.clearButton, pressed && styles.buttonPressed]}><Text style={styles.clearButtonText}>{copy.clearAll}</Text></Pressable>{hasRestorableConstants ? <Pressable onPress={() => void handleRestoreConstants()} style={({ pressed }) => [styles.restoreButton, pressed && styles.buttonPressed]}><Text style={styles.restoreButtonText}>{copy.restore}</Text></Pressable> : null}</View>{backupNotice ? <Text style={styles.backupNotice}>{backupNotice}</Text> : null}</View> : null}
+    {topSection === "constants" ? <View style={styles.backupCard}><Text style={styles.backupTitle}>{copy.backup}</Text><View style={styles.backupActions}><Pressable onPress={() => void handleExportConstants()} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.export}</Text></Pressable><Pressable onPress={() => void handleImportConstants("merge")} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.merge}</Text></Pressable><Pressable onPress={() => void handleImportConstants("replace")} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.replace}</Text></Pressable><Pressable onPress={() => setPendingClearConstants(true)} style={({ pressed }) => [styles.clearButton, pressed && styles.buttonPressed]}><Text style={styles.clearButtonText}>{copy.clearAll}</Text></Pressable>{hasRestorableConstants ? <Pressable onPress={() => void handleRestoreConstants()} style={({ pressed }) => [styles.restoreButton, pressed && styles.buttonPressed]}><Text style={styles.restoreButtonText}>{copy.restore}</Text></Pressable> : null}</View>{backupNotice ? <Text style={styles.backupNotice}>{backupNotice}</Text> : null}</View> : null}
 
     {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /></View> : renderContent()}
 
-    <Modal visible={Boolean(legacyEditorKind)} transparent animationType="slide" onRequestClose={closeLegacyEditor}>
+    <Modal visible={constantEditorVisible} transparent animationType="slide" onRequestClose={closeConstantEditor}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalBackdrop}>
-        <View style={styles.sheet}><View style={styles.sheetHandle} /><View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>{legacyEditorKind === "functions" ? copy.functionEditor : copy.constantEditor}</Text><Text style={styles.sheetDescription}>{copy.subtitle}</Text></View><Pressable accessibilityLabel={copy.close} onPress={closeLegacyEditor} style={({ pressed }) => [styles.closeButton, pressed && styles.iconPressed]}><IconSymbol name="xmark" size={21} color={colors.muted} /></Pressable></View>
+        <View style={styles.sheet}><View style={styles.sheetHandle} /><View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>{copy.constantEditor}</Text></View><Pressable accessibilityLabel={copy.close} onPress={closeConstantEditor} style={({ pressed }) => [styles.closeButton, pressed && styles.iconPressed]}><IconSymbol name="xmark" size={21} color={colors.muted} /></Pressable></View>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            {legacyEditorKind === "constants" ? <><Text style={styles.fieldLabel}>{copy.symbolLabel}</Text><TextInput value={symbol} onChangeText={setSymbol} placeholder="W" placeholderTextColor={colors.placeholder} autoCapitalize="characters" autoCorrect={false} style={styles.input} /><Text style={styles.fieldLabel}>{copy.expressionLabel}</Text><TextInput value={legacyExpression} onChangeText={setLegacyExpression} placeholder="3cm" placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.input} /></> : null}
-            {legacyEditorKind === "functions" ? <><Text style={styles.fieldLabel}>{copy.titleLabel}</Text><TextInput value={functionTitle} onChangeText={setFunctionTitle} placeholder={language === "en" ? "Circle area" : "円の面積"} placeholderTextColor={colors.placeholder} style={styles.input} /><Text style={styles.fieldLabel}>{copy.functionNameLabel}</Text><TextInput value={functionName} onChangeText={setFunctionName} placeholder="circleArea" placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.input} /><Text style={styles.fieldLabel}>{copy.parametersLabel}</Text><TextInput value={parameters} onChangeText={setParameters} placeholder="r" placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.input} /><Text style={styles.fieldLabel}>{copy.expressionLabel}</Text><TextInput value={legacyExpression} onChangeText={setLegacyExpression} placeholder="pi × r^2" placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.input} /><Text style={styles.fieldLabel}>{copy.descriptionLabel}</Text><TextInput value={functionDescription} onChangeText={setFunctionDescription} placeholder={language === "en" ? "Reusable geometry formula" : "繰り返し使う幾何の式"} placeholderTextColor={colors.placeholder} style={styles.input} /></> : null}
-            {legacyError ? <Text style={styles.error}>{legacyError}</Text> : null}
-            <Pressable disabled={isSaving} onPress={() => void saveLegacy()} style={({ pressed }) => [styles.saveButton, (pressed || isSaving) && styles.buttonPressed]}><Text style={styles.saveText}>{isSaving ? copy.saving : copy.save}</Text></Pressable>
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
-
-    <Modal visible={templateEditorVisible} transparent animationType="slide" onRequestClose={closeTemplateEditor}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalBackdrop}>
-        <View style={styles.sheet}><View style={styles.sheetHandle} /><View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>{copy.templateEditor}</Text></View><Pressable accessibilityLabel={copy.close} onPress={closeTemplateEditor} style={({ pressed }) => [styles.closeButton, pressed && styles.iconPressed]}><IconSymbol name="xmark" size={21} color={colors.muted} /></Pressable></View>
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            <Text style={styles.fieldLabel}>{copy.titleLabel}</Text>
-            <TextInput value={templateTitle} onChangeText={setTemplateTitle} placeholder={language === "en" ? "Walking speed" : "歩行速度"} placeholderTextColor={colors.placeholder} style={styles.input} />
+            <Text style={styles.fieldLabel}>{copy.symbolLabel}</Text>
+            <TextInput value={constantSymbolInput} onChangeText={setConstantSymbolInput} placeholder="W" placeholderTextColor={colors.placeholder} autoCapitalize="characters" autoCorrect={false} style={styles.input} />
             <Text style={styles.fieldLabel}>{copy.expressionLabel}</Text>
-            <TextInput value={templateExpressionInput} onChangeText={setTemplateExpressionInput} placeholder="1km ÷ 12min" placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.input} />
-            <Text style={styles.fieldLabel}>{copy.outputUnitLabel}</Text>
-            <TextInput value={templateTargetUnit} onChangeText={setTemplateTargetUnit} placeholder="km/h" placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.input} />
-            <Text style={styles.fieldLabel}>{copy.descriptionLabel}</Text>
-            <TextInput value={templateDescription} onChangeText={setTemplateDescription} placeholder={language === "en" ? "Optional note" : "任意のメモ"} placeholderTextColor={colors.placeholder} style={styles.input} />
-            {templateError ? <Text style={styles.error}>{templateError}</Text> : null}
-            <Pressable disabled={isSaving} onPress={() => void saveTemplate()} style={({ pressed }) => [styles.saveButton, (pressed || isSaving) && styles.buttonPressed]}><Text style={styles.saveText}>{isSaving ? copy.saving : copy.save}</Text></Pressable>
+            <TextInput value={constantExpressionInput} onChangeText={setConstantExpressionInput} placeholder="3cm" placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.input} />
+            {constantError ? <Text style={styles.error}>{constantError}</Text> : null}
+            <Pressable disabled={isSaving} onPress={() => void saveConstant()} style={({ pressed }) => [styles.saveButton, (pressed || isSaving) && styles.buttonPressed]}><Text style={styles.saveText}>{isSaving ? copy.saving : copy.save}</Text></Pressable>
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -578,6 +489,45 @@ export default function ConstantsScreen() {
         </View>
       </KeyboardAvoidingView>
     </Modal>
+
+    <ConfirmDialog
+      visible={Boolean(pendingDeleteConstant)}
+      title={copy.delete}
+      message={copy.deleteConfirm}
+      cancelLabel={copy.cancel}
+      confirmLabel={copy.delete}
+      destructive
+      onCancel={() => setPendingDeleteConstant(null)}
+      onConfirm={() => {
+        if (pendingDeleteConstant) void removeConstant(pendingDeleteConstant);
+        setPendingDeleteConstant(null);
+      }}
+    />
+
+    <ConfirmDialog
+      visible={pendingClearConstants}
+      title={copy.clearAll}
+      message={copy.clearConfirm}
+      cancelLabel={copy.cancel}
+      confirmLabel={copy.clearAll}
+      destructive
+      onCancel={() => setPendingClearConstants(false)}
+      onConfirm={() => {
+        setPendingClearConstants(false);
+        void handleClearConstants();
+      }}
+    />
+
+    <ConfirmDialog
+      visible={Boolean(pendingReplaceImport)}
+      title={copy.replace}
+      message={copy.replaceImportConfirm}
+      cancelLabel={copy.cancel}
+      confirmLabel={copy.replace}
+      destructive
+      onCancel={() => setPendingReplaceImport(null)}
+      onConfirm={() => void confirmReplaceImport()}
+    />
   </ScreenContainer>;
 }
 
@@ -588,9 +538,9 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   sectionRail: { flexDirection: "row", flexWrap: "wrap", gap: 7, paddingBottom: 14 }, sectionChip: { backgroundColor: colors.surfaceSecondary, borderRadius: 14, paddingHorizontal: 11, paddingVertical: 8 }, sectionChipActive: { backgroundColor: colors.primaryFill }, sectionChipText: { color: colors.muted, fontSize: 12, fontWeight: "700" }, sectionChipTextActive: { color: colors.onPrimary },
   backupCard: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 14, borderWidth: 1, marginBottom: 12, padding: 12 }, backupTitle: { color: colors.foreground, fontSize: 13, fontWeight: "800" }, backupActions: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 9 }, backupButton: { backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 9, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 8 }, backupButtonText: { color: colors.primary, fontSize: 12, fontWeight: "800" }, clearButton: { backgroundColor: colors.errorSurface, borderColor: colors.errorBorder, borderRadius: 9, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 8 }, clearButtonText: { color: colors.error, fontSize: 12, fontWeight: "800" }, restoreButton: { backgroundColor: colors.successSurface, borderColor: colors.successBorder, borderRadius: 9, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 8 }, restoreButtonText: { color: colors.success, fontSize: 12, fontWeight: "800" }, backupNotice: { color: colors.muted, fontSize: 11, lineHeight: 17, marginTop: 8 },
   loading: { alignItems: "center", flex: 1, justifyContent: "center" }, list: { gap: 10, paddingBottom: 30 }, emptyList: { flexGrow: 1, justifyContent: "center", paddingBottom: 96 }, emptyCard: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 20, borderWidth: 1, paddingHorizontal: 30, paddingVertical: 32 }, emptyTitle: { color: colors.foreground, fontSize: 17, fontWeight: "700", marginTop: 12 }, emptyText: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 7, textAlign: "center" },
-  libraryCard: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, flexDirection: "row", minHeight: 82, paddingHorizontal: 13, paddingVertical: 12 }, libraryMain: { flex: 1 }, libraryTitle: { color: colors.foreground, fontSize: 15, fontWeight: "800" }, libraryDescription: { color: colors.muted, fontSize: 12, marginTop: 3 }, libraryExpression: { color: colors.primary, fontFamily: mono, fontSize: 12, fontWeight: "700", marginTop: 5 }, deleteButton: { alignItems: "center", height: 38, justifyContent: "center", width: 38 },
+  libraryCard: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, flexDirection: "row", minHeight: 82, paddingHorizontal: 13, paddingVertical: 12 }, libraryMain: { flex: 1 }, libraryTitle: { color: colors.foreground, fontSize: 15, fontWeight: "800" }, libraryExpression: { color: colors.primary, fontFamily: mono, fontSize: 12, fontWeight: "700", marginTop: 5 }, deleteButton: { alignItems: "center", height: 38, justifyContent: "center", width: 38 },
   buttonPressed: { opacity: 0.72, transform: [{ scale: 0.97 }] }, cardPressed: { opacity: 0.74 }, iconPressed: { opacity: 0.55 },
-  modalBackdrop: { backgroundColor: colors.overlay, flex: 1, justifyContent: "flex-end" }, sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 26, borderTopRightRadius: 26, maxHeight: "92%", paddingBottom: 36, paddingHorizontal: 22, paddingTop: 10 }, sheetHandle: { alignSelf: "center", backgroundColor: colors.border, borderRadius: 3, height: 5, width: 42 }, sheetHeader: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between", paddingBottom: 16, paddingTop: 17 }, sheetTitle: { color: colors.foreground, fontSize: 21, fontWeight: "700" }, sheetDescription: { color: colors.muted, fontSize: 13, lineHeight: 18, marginTop: 3, maxWidth: "88%" }, closeButton: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderRadius: 18, height: 36, justifyContent: "center", width: 36 },
+  modalBackdrop: { backgroundColor: colors.overlay, flex: 1, justifyContent: "flex-end" }, sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 26, borderTopRightRadius: 26, maxHeight: "92%", paddingBottom: 36, paddingHorizontal: 22, paddingTop: 10 }, sheetHandle: { alignSelf: "center", backgroundColor: colors.border, borderRadius: 3, height: 5, width: 42 }, sheetHeader: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between", paddingBottom: 16, paddingTop: 17 }, sheetTitle: { color: colors.foreground, fontSize: 21, fontWeight: "700" }, closeButton: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderRadius: 18, height: 36, justifyContent: "center", width: 36 },
   fieldLabel: { color: colors.foreground, fontSize: 13, fontWeight: "700", marginBottom: 7, marginTop: 12 }, hintText: { color: colors.muted, fontSize: 11, lineHeight: 16, marginBottom: 8, marginTop: -4 }, input: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 12, borderWidth: 1, color: colors.foreground, fontFamily: mono, fontSize: 16, minHeight: 48, paddingHorizontal: 14 }, error: { color: colors.error, fontSize: 13, lineHeight: 19, marginTop: 11 }, saveButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 13, marginTop: 22, minHeight: 52, justifyContent: "center" }, saveText: { color: colors.onPrimary, fontSize: 16, fontWeight: "700" },
   categoryPicker: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
   inlineCategoryRow: { flexDirection: "row", gap: 8, marginTop: 8 },
