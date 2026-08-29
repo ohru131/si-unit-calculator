@@ -176,7 +176,7 @@ function parseStoredArray(raw: string | null): unknown[] {
 }
 
 export function CalculatorProvider({ children }: { children: ReactNode }) {
-  const { language } = useGlobalSettings();
+  const { language, isReady: isGlobalSettingsReady } = useGlobalSettings();
   const [constants, setConstants] = useState<SavedConstant[]>([]);
   const [history, setHistory] = useState<SavedCalculation[]>([]);
   const [favoriteUnits, setFavoriteUnits] = useState<string[]>([]);
@@ -223,6 +223,10 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // GlobalSettingsProviderの永続化された言語設定を読み込み終えるまで待つ。ここで待たずに
+    // 実行すると、端末言語とアプリ内で選んだ言語が異なる場合にプリセットの文言が誤った言語で
+    // 一度きり焼き込まれ、seededPresetIdsの永続化により二度と直せなくなる。
+    if (!isGlobalSettingsReady) return;
     let active = true;
     (async () => {
       try {
@@ -336,9 +340,9 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-    // 起動時に一度だけ実行する（language は初回マウント時点の値でプリセットの文言を焼き込む）。
+    // 設定の読み込み完了後に一度だけ実行する（以降のlanguage変更ではプリセットの文言を焼き直さない）。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isGlobalSettingsReady]);
 
   const upsertConstant = useCallback(
     async (symbolInput: string, expressionInput: string) => {
