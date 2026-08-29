@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as Clipboard from "expo-clipboard";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
@@ -26,6 +26,12 @@ export function NotebookDetail({ language, locale, notebook, globalConstants, cu
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [editableConstants, setEditableConstants] = useState<NotebookLocalConstant[]>(() => notebook.localConstants.map((item) => ({ ...item })));
+
+  // notebook.localConstants は編集シートで構成が変わることがあるため、
+  // このコンポーネントが再マウントされずに新しいノートを受け取っても追従させる。
+  useEffect(() => {
+    setEditableConstants(notebook.localConstants.map((item) => ({ ...item })));
+  }, [notebook.localConstants]);
 
   const copy = language === "en" ? {
     edit: "Edit", save: "Save values", copy: "Copy", copied: "Copied",
