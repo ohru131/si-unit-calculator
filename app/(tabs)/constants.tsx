@@ -11,7 +11,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { NotebookCategoryGrid } from "@/components/notebooks/notebook-category-grid";
 import { NotebookDetail } from "@/components/notebooks/notebook-detail";
@@ -44,6 +44,7 @@ const nextLocalConstantId = () => `local-${Date.now()}-${localConstantSeq++}`;
 const nextStepId = () => `step-${Date.now()}-${stepSeq++}`;
 
 export default function ConstantsScreen() {
+  const router = useRouter();
   const { notebookExpression, notebookUnit, openNotebookId } = useLocalSearchParams<{ notebookExpression?: string | string[]; notebookUnit?: string | string[]; openNotebookId?: string | string[] }>();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -261,6 +262,9 @@ export default function ConstantsScreen() {
     handledNotebookParamRef.current = token;
     setTopSection("notebooks");
     openNewNotebook(nextExpression, nextUnit);
+    // パラメータを消費済みにしておく。消さないままだと、同じ式をもう一度
+    // 保存しようとしたとき（値が変わらない）に何も起きなくなる。
+    router.setParams({ notebookExpression: undefined, notebookUnit: undefined });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notebookExpression, notebookUnit]);
 
@@ -276,6 +280,10 @@ export default function ConstantsScreen() {
     setTopSection("notebooks");
     setSelectedCategoryId(notebook.categoryId);
     setSelectedNotebookId(notebook.id);
+    // パラメータを消費済みにしておく。消さないままだと、一度戻ってから同じ
+    // ピン留めチップをもう一度押しても（値が変わらない）再度開けなくなる。
+    router.setParams({ openNotebookId: undefined });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openNotebookId, notebooks]);
 
   const closeNotebookEditor = () => setNotebookEditorVisible(false);

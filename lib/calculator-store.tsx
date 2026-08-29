@@ -173,7 +173,9 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.setItem(NOTEBOOKS_STORAGE_KEY, JSON.stringify(next));
   }, []);
 
+  const notebookCategoriesRef = useRef<NotebookCategory[]>(notebookCategories);
   const persistNotebookCategories = useCallback(async (next: NotebookCategory[]) => {
+    notebookCategoriesRef.current = next;
     setNotebookCategories(next);
     await AsyncStorage.setItem(NOTEBOOK_CATEGORIES_STORAGE_KEY, JSON.stringify(next));
   }, []);
@@ -282,7 +284,11 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         setFavoriteUnits(parseStoredArray(favoriteUnitsRaw).filter((unit): unit is string => typeof unit === "string"));
         notebooksRef.current = nextNotebooks;
         setNotebooks(nextNotebooks);
-        setNotebookCategories(parseStoredArray(notebookCategoriesRaw).filter(isNotebookCategory));
+        {
+          const loadedCategories = parseStoredArray(notebookCategoriesRaw).filter(isNotebookCategory);
+          notebookCategoriesRef.current = loadedCategories;
+          setNotebookCategories(loadedCategories);
+        }
         setClearedConstants(parseStoredArray(clearedConstantsRaw).filter(isSavedConstant));
       } catch {
         if (!active) return;
@@ -291,6 +297,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         setFavoriteUnits([]);
         notebooksRef.current = [];
         setNotebooks([]);
+        notebookCategoriesRef.current = [];
         setNotebookCategories([]);
         setClearedConstants([]);
       } finally {
@@ -401,21 +408,22 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     const name = input.name.trim();
     if (!name) throw new Error("カテゴリ名を入力してください。");
     const now = new Date().toISOString();
-    const existing = input.id ? notebookCategories.find((item) => item.id === input.id) : undefined;
+    const currentCategories = notebookCategoriesRef.current;
+    const existing = input.id ? currentCategories.find((item) => item.id === input.id) : undefined;
     const item: NotebookCategory = { id: existing?.id ?? `category-${Date.now()}`, name, createdAt: existing?.createdAt ?? now };
-    const next = [...notebookCategories.filter((entry) => entry.id !== item.id), item].sort((left, right) => left.name.localeCompare(right.name));
+    const next = [...currentCategories.filter((entry) => entry.id !== item.id), item].sort((left, right) => left.name.localeCompare(right.name));
     await persistNotebookCategories(next);
     return item;
-  }, [notebookCategories, persistNotebookCategories]);
+  }, [persistNotebookCategories]);
 
   const removeNotebookCategory = useCallback(async (id: string) => {
     // カテゴリを消してもノートは消さず、未分類へ付け替える。
-    const nextCategories = notebookCategories.filter((item) => item.id !== id);
+    const nextCategories = notebookCategoriesRef.current.filter((item) => item.id !== id);
     const now = new Date().toISOString();
     const nextNotebooks = notebooksRef.current.map((item) => (item.categoryId === id ? { ...item, categoryId: UNCATEGORIZED_CATEGORY_ID, updatedAt: now } : item));
     await persistNotebookCategories(nextCategories);
     await persistNotebooks(nextNotebooks);
-  }, [notebookCategories, persistNotebookCategories, persistNotebooks]);
+  }, [persistNotebookCategories, persistNotebooks]);
 
   const value = useMemo(
     () => ({
