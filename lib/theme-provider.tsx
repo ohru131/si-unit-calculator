@@ -1,6 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { Appearance, View, useColorScheme as useSystemColorScheme } from "react-native";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Appearance, useColorScheme as useSystemColorScheme } from "react-native";
 import { colorScheme as nativewindColorScheme, vars } from "nativewind";
+import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from "react-native-reanimated";
 
 import { SchemeColors, type ColorScheme } from "@/constants/theme";
 
@@ -34,9 +35,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     applyScheme(scheme);
   }, [applyScheme]);
 
+  // 明暗切替のたびに配色が瞬時に切り替わるのを和らげるため、短いフェードを挟む。
+  const themeFade = useSharedValue(1);
+  const themeFadeStyle = useAnimatedStyle(() => ({ opacity: themeFade.value }));
+  const isFirstSchemeRender = useRef(true);
+
   useEffect(() => {
     applyScheme(colorScheme);
-  }, [applyScheme, colorScheme]);
+    if (isFirstSchemeRender.current) {
+      isFirstSchemeRender.current = false;
+      return;
+    }
+    // eslint-disable-next-line react-hooks/immutability -- Reanimated shared value
+    themeFade.value = withSequence(withTiming(0.4, { duration: 90 }), withTiming(1, { duration: 220 }));
+  }, [applyScheme, colorScheme, themeFade]);
 
   const themeVariables = useMemo(
     () =>
@@ -63,7 +75,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   );
   return (
     <ThemeContext.Provider value={value}>
-      <View style={[{ flex: 1 }, themeVariables]}>{children}</View>
+      <Animated.View style={[{ flex: 1 }, themeVariables, themeFadeStyle]}>{children}</Animated.View>
     </ThemeContext.Provider>
   );
 }

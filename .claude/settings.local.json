@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx --yes pnpm@9.12.0 run check)",
+      "Bash(npx --yes pnpm@9.12.0 run test)",
+      "Bash(npx --yes pnpm@9.12.0 run lint)",
+      "Bash(grep -E \"^\\\\s*[0-9]+:[0-9]+\\\\s+\\(error|warning\\)|^C:.*\\\\.tsx?$|^C:.*\\\\.ts$\")",
+      "Bash(grep -E \"^\\\\s*[0-9]+:[0-9]+\\\\s+\\(error|warning\\)|^C:.*\\\\.tsx?$\")",
+      "Bash(curl -sS -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:8082/)"
+    ]
+  }
+}

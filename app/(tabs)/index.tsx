@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
+import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   Modal,
@@ -11,6 +12,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from "react-native-reanimated";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -47,9 +49,10 @@ export default function CalculatorScreen() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { quick, presetExpression, presetUnit } = useLocalSearchParams<{ quick?: string | string[]; presetExpression?: string | string[]; presetUnit?: string | string[] }>();
-  const { constants, customFunctions, history, favoriteUnits, upsertConstant, addHistoryEntry, clearHistory } = useCalculatorStore();
+  const { constants, customFunctions, history, favoriteUnits, templates, upsertConstant, addHistoryEntry, clearHistory } = useCalculatorStore();
   const { isPro } = usePro();
-  const { calculatorMode, language, locale, t, unitGroupLabel, unitSystem } = useGlobalSettings();
+  const { calculatorMode, completeOnboarding, hasSeenOnboarding, isReady, language, locale, t, unitGroupLabel, unitSystem } = useGlobalSettings();
+  const [onboardingStep, setOnboardingStep] = useState(0);
   const [expression, setExpression] = useState("5cm + 1mm");
   const [targetUnit, setTargetUnit] = useState("cm");
   const [result, setResult] = useState<Quantity | null>(null);
@@ -60,7 +63,6 @@ export default function CalculatorScreen() {
   const [showHelp, setShowHelp] = useState(false);
   const [showSamples, setShowSamples] = useState(false);
   const [showUnitPicker, setShowUnitPicker] = useState(false);
-  const [showShortcuts, setShowShortcuts] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showAdvancedKeys, setShowAdvancedKeys] = useState(false);
   const [unitPickerMode, setUnitPickerMode] = useState<"insert" | "target">("insert");
@@ -68,7 +70,46 @@ export default function CalculatorScreen() {
   const [unitSearch, setUnitSearch] = useState("");
   const [recentUnits, setRecentUnits] = useState<string[]>([]);
   const [fixSelection, setFixSelection] = useState<{ start: number; end: number; text: string } | null>(null);
+  const [showInlineUnitSearch, setShowInlineUnitSearch] = useState(false);
+  const [inlineUnitQuery, setInlineUnitQuery] = useState("");
   const unitSearchRef = useRef<TextInput>(null);
+  const inlineUnitSearchRef = useRef<TextInput>(null);
+
+  // 結果が更新された瞬間・単位を切り替えた瞬間に軽く跳ねさせ、次元不整合時は横に揺らして知らせる。
+  const resultOpacity = useSharedValue(1);
+  const resultScale = useSharedValue(1);
+  const errorShake = useSharedValue(0);
+  const resultAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: resultOpacity.value,
+    transform: [{ scale: resultScale.value }],
+  }));
+  const errorAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: errorShake.value }],
+  }));
+  // Reanimatedのshared valueはレンダー外での代入が正規の使い方だが、
+  // React Compilerのeslintルールは通常のstateと区別できず誤検知するため個別に無効化する。
+  const playResultReveal = useCallback(() => {
+    // eslint-disable-next-line react-hooks/immutability -- Reanimated shared value
+    resultOpacity.value = 0;
+    // eslint-disable-next-line react-hooks/immutability -- Reanimated shared value
+    resultScale.value = 0.94;
+    resultOpacity.value = withTiming(1, { duration: 220 });
+    resultScale.value = withSpring(1, { damping: 14, mass: 0.6, stiffness: 180 });
+  }, [resultOpacity, resultScale]);
+  const playResultPulse = useCallback(() => {
+    // eslint-disable-next-line react-hooks/immutability -- Reanimated shared value
+    resultScale.value = withSequence(withTiming(1.04, { duration: 90 }), withSpring(1, { damping: 12, mass: 0.6, stiffness: 200 }));
+  }, [resultScale]);
+  const playErrorShake = useCallback(() => {
+    // eslint-disable-next-line react-hooks/immutability -- Reanimated shared value
+    errorShake.value = withSequence(
+      withTiming(-6, { duration: 45 }),
+      withTiming(6, { duration: 45 }),
+      withTiming(-4, { duration: 45 }),
+      withTiming(4, { duration: 45 }),
+      withTiming(0, { duration: 45 }),
+    );
+  }, [errorShake]);
 
   const isAdvancedMode = calculatorMode === "advanced";
   const includeUnit = useCallback(
@@ -84,10 +125,18 @@ export default function CalculatorScreen() {
   const selectedInputGroup = visibleInputGroups.find((group) => group.id === inputGroupId) ?? visibleInputGroups[0] ?? UNIT_GROUPS[0];
   const selectedInputUnits = useMemo(() => visibleGroupUnits(selectedInputGroup), [selectedInputGroup, visibleGroupUnits]);
   const searchSuggestions = useMemo(() => getUnitSuggestions(unitSearch, { system: unitSystem, limit: 24, includeUnit }), [includeUnit, unitSearch, unitSystem]);
+  const inlineUnitSuggestions = useMemo(
+    () => (inlineUnitQuery.trim()
+      ? getUnitSuggestions(inlineUnitQuery, { system: unitSystem, limit: 30, includeUnit })
+      : selectedInputUnits.map((unitOption) => ({ group: selectedInputGroup, unit: unitOption }))),
+    [includeUnit, inlineUnitQuery, selectedInputGroup, selectedInputUnits, unitSystem],
+  );
+  const inlineUnitRegistration = useMemo(() => getUnitRegistration(inlineUnitQuery), [inlineUnitQuery]);
   const compatibleUnitGroups = useMemo(() => (result ? getCompatibleUnitGroups(result.dimension).filter((group) => isUnitGroupVisible(group, isAdvancedMode) && visibleUnits(getRegionalUnits(group, unitSystem), isAdvancedMode).length > 0) : []), [isAdvancedMode, result, unitSystem]);
   const visibleSampleCategories = useMemo(() => SAMPLE_CATEGORIES.filter((category) => isSampleCategoryVisible(category.id, isAdvancedMode)), [isAdvancedMode]);
   const visibleSamples = useMemo(() => SAMPLE_CALCULATIONS.filter((sample) => sample.category === sampleCategory && isSampleCategoryVisible(sample.category, isAdvancedMode)), [isAdvancedMode, sampleCategory]);
   const visibleHistory = isPro ? history : history.slice(0, 5);
+  const pinnedTemplates = useMemo(() => templates.filter((template) => template.pinned), [templates]);
   const autoConstants = useMemo(() => historyToAutoConstants(history), [history]);
   const unitInfo = useMemo(() => getUnitExplanation(unitInfoSymbol ?? ""), [unitInfoSymbol]);
   const targetUnitRegistration = useMemo(() => getUnitRegistration(targetUnit), [targetUnit]);
@@ -142,12 +191,23 @@ export default function CalculatorScreen() {
   };
 
   const copy = language === "en" ? {
-    definitionHint: "Define a constant: W = 3cm", calculate: "=", siBase: "SI base", emptyResult: "Enter an expression, then tap =.", pickUnit: "Choose a registered unit", speedTitle: "Distance, time & speed", speedFormula: "Speed = distance ÷ time     Distance = speed × time", findSpeed: "Find speed", findDistance: "Find distance", findTime: "Find time", savedHistory: "Saved calculations", historyHint: "Latest answers are available as a1, a2, and so on.", clear: "Clear", helpTitle: "Examples", helpDone: "Done", unitSearch: "Search units, names, or categories", copied: "Calculation copied", copy: "Copy", unitDetails: "Unit details", siConversion: "SI conversion", commonUse: "Common use", close: "Close", advancedMath: "Advanced math", advancedMathHint: "Angles use rad, deg, or °. Includes inverse trig, logs, and atan2(y, x).", saveTemplate: "Save", samples: "Examples", units: "Units", shortcuts: "Speed", math: "Math", outputUnit: "Display unit", insertUnit: "Insert unit", registered: "Registered", supported: "Supported, not listed", unknown: "Not a usable unit", unknownHint: "Check the symbol or pick a candidate below.", history: "History", use: "Use", noUnit: "SI base", compatible: "Fits this result", allCandidates: "Closest candidates", hintFix: "Fix", hintComplete: "Finish", hintAttach: "Add unit", hintInsert: "Insert", more: "More", showAs: "Show as", fixTap: "Tap the red unit to fix it.", noCandidates: "No candidate found. Check the symbol.", aliasNote: "same as",
+    definitionHint: "Define a constant: W = 3cm", calculate: "=", siBase: "SI base", emptyResult: "Enter an expression, then tap =.", pickUnit: "Choose a registered unit", speedTitle: "Distance, time & speed", speedFormula: "Speed = distance ÷ time     Distance = speed × time", findSpeed: "Find speed", findDistance: "Find distance", findTime: "Find time", savedHistory: "Saved calculations", historyHint: "Latest answers are available as a1, a2, and so on.", clear: "Clear", helpTitle: "Examples", helpDone: "Done", unitSearch: "Search units, names, or categories", copied: "Calculation copied", copy: "Copy", unitDetails: "Unit details", siConversion: "SI conversion", commonUse: "Common use", close: "Close", advancedMath: "Advanced math", advancedMathHint: "Angles use rad, deg, or °. Includes inverse trig, logs, and atan2(y, x).", saveTemplate: "Save", samples: "Examples", units: "Units", shortcuts: "Speed", math: "Math", outputUnit: "Display unit", insertUnit: "Insert unit", registered: "Registered", supported: "Supported, not listed", unknown: "Not a usable unit", unknownHint: "Check the symbol or pick a candidate below.", history: "History", use: "Use", noUnit: "SI base", compatible: "Fits this result", allCandidates: "Closest candidates", hintFix: "Fix", hintComplete: "Finish", hintAttach: "Add unit", hintInsert: "Insert", more: "More", showAs: "Show as", fixTap: "Tap the red unit to fix it.", noCandidates: "No candidate found. Check the symbol.", aliasNote: "same as", noSearchResults: "No unit matches this search.", noSearchResultsHint: "Try a different symbol, name, or category.", noHistory: "No saved calculations yet.", noHistoryHint: "Every result you calculate is saved here automatically.", pinned: "Pinned", browseUnits: "Browse categories",
   } : {
-    definitionHint: "定数定義：W = 3cm", calculate: "=", siBase: "SI標準", emptyResult: "式を入力して「=」を押してください。", pickUnit: "登録済み単位から選択", speedTitle: "距離・時間・速度", speedFormula: "速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間", findSpeed: "速度を求める", findDistance: "距離を求める", findTime: "時間を求める", savedHistory: "保存済みの計算履歴", historyHint: "最新の結果は a1、a2… として次の式で使えます。", clear: "消去", helpTitle: "入力例", helpDone: "閉じる", unitSearch: "単位・読み・カテゴリを検索", copied: "計算結果をコピーしました", copy: "コピー", unitDetails: "単位の説明", siConversion: "SI換算", commonUse: "主な利用分野", close: "閉じる", advancedMath: "上級の数学機能", advancedMathHint: "角度は rad・deg・° で入力します。逆三角・対数・atan2(y, x)にも対応します。", saveTemplate: "保存", samples: "サンプル", units: "単位", shortcuts: "速度", math: "数学", outputUnit: "表示単位", insertUnit: "単位を挿入", registered: "登録済み", supported: "計算対応（候補外）", unknown: "使えない単位", unknownHint: "記号を確認するか、下の候補から選んでください。", history: "履歴", use: "使う", noUnit: "SI標準", compatible: "この結果に合う単位", allCandidates: "近い候補", hintFix: "要修正", hintComplete: "確定", hintAttach: "単位付け", hintInsert: "単位挿入", more: "他", showAs: "表示単位", fixTap: "赤い単位をタップすると修正できます。", noCandidates: "候補が見つかりません。記号を確認してください。", aliasNote: "＝",
+    definitionHint: "定数定義：W = 3cm", calculate: "=", siBase: "SI標準", emptyResult: "式を入力して「=」を押してください。", pickUnit: "登録済み単位から選択", speedTitle: "距離・時間・速度", speedFormula: "速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間", findSpeed: "速度を求める", findDistance: "距離を求める", findTime: "時間を求める", savedHistory: "保存済みの計算履歴", historyHint: "最新の結果は a1、a2… として次の式で使えます。", clear: "消去", helpTitle: "入力例", helpDone: "閉じる", unitSearch: "単位・読み・カテゴリを検索", copied: "計算結果をコピーしました", copy: "コピー", unitDetails: "単位の説明", siConversion: "SI換算", commonUse: "主な利用分野", close: "閉じる", advancedMath: "上級の数学機能", advancedMathHint: "角度は rad・deg・° で入力します。逆三角・対数・atan2(y, x)にも対応します。", saveTemplate: "保存", samples: "サンプル", units: "単位", shortcuts: "速度", math: "数学", outputUnit: "表示単位", insertUnit: "単位を挿入", registered: "登録済み", supported: "計算対応（候補外）", unknown: "使えない単位", unknownHint: "記号を確認するか、下の候補から選んでください。", history: "履歴", use: "使う", noUnit: "SI標準", compatible: "この結果に合う単位", allCandidates: "近い候補", hintFix: "要修正", hintComplete: "確定", hintAttach: "単位付け", hintInsert: "単位挿入", more: "他", showAs: "表示単位", fixTap: "赤い単位をタップすると修正できます。", noCandidates: "候補が見つかりません。記号を確認してください。", aliasNote: "＝", noSearchResults: "一致する単位が見つかりません。", noSearchResultsHint: "別の記号・名前・カテゴリでも試してください。", noHistory: "保存された計算はまだありません。", noHistoryHint: "計算するたびに自動で保存されます。", pinned: "ピン留め", browseUnits: "カテゴリで探す",
   };
 
   const hintLabel = hint.kind === "fix" ? copy.hintFix : hint.kind === "complete" ? copy.hintComplete : hint.kind === "attach" ? copy.hintAttach : copy.hintInsert;
+
+  const onboardingSlides = language === "en" ? [
+    { title: "Calculate with units, directly", body: "Type an expression with units, such as 5cm + 1mm. The app normalizes it to SI before calculating.", example: "5cm + 1mm" },
+    { title: "Tap a red unit to fix it", body: "Unknown or mistyped units turn red in the preview. Tap one to pick the closest match.", example: "5cm + 1mn" },
+    { title: "Switch units in one tap", body: "Choose any compatible display unit right under the result, and pin your favorite calculations to the top of this screen.", example: "cm → m → ft" },
+  ] : [
+    { title: "単位のまま計算できます", body: "5cm + 1mm のように単位を含む式を入力するだけです。計算前にSI標準へ正規化されます。", example: "5cm + 1mm" },
+    { title: "赤い単位はタップで修正", body: "未登録・入力ミスの単位はプレビューで赤く表示されます。タップすると近い候補を選べます。", example: "5cm + 1mn" },
+    { title: "結果はワンタップで単位切替", body: "結果のすぐ下で表示単位を選べます。よく使う計算はピン留めして画面上部から呼び出せます。", example: "cm → m → ft" },
+  ];
+  const isLastOnboardingSlide = onboardingStep === onboardingSlides.length - 1;
 
   const display = useMemo(() => {
     if (!result) return null;
@@ -190,6 +250,8 @@ export default function CalculatorScreen() {
       setResult(null);
       setError(describeUnresolved(unresolvedUnit));
       setFixSelection({ start: unresolvedUnit.start, end: unresolvedUnit.end, text: unresolvedUnit.text });
+      playErrorShake();
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
     setError("");
@@ -204,6 +266,8 @@ export default function CalculatorScreen() {
         setNotice(`定数 ${next.symbol} を保存しました。`);
       }
       setResult(quantity);
+      playResultReveal();
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       // 表示単位が結果に合わないときは、行き止まりにせずSI標準へ戻す。
       let usedTargetUnit = selectedTargetUnit.trim();
       let output = formatQuantity(quantity, undefined, locale);
@@ -245,6 +309,8 @@ export default function CalculatorScreen() {
     } catch (cause) {
       setResult(null);
       setError(cause instanceof Error ? cause.message : "式を計算できませんでした。");
+      playErrorShake();
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   };
 
@@ -268,15 +334,22 @@ export default function CalculatorScreen() {
     setTargetUnit(unit);
     rememberUnit(unit);
     setError("");
+    if (result) {
+      playResultPulse();
+      void Haptics.selectionAsync();
+    }
   };
 
   /** 入力補助バーの候補をタップしたとき、案内した範囲（修正・補完・単位付けの対象）をそのまま置き換える。 */
   const applyUnitCandidate = (symbol: string) => {
+    const wasFixingError = hint.kind === "fix";
     setExpression((current) => replaceExpressionRange(current, Math.min(hint.start, current.length), Math.min(hint.end, current.length), symbol));
     setFixSelection(null);
     rememberUnit(symbol);
     setError("");
     setNotice("");
+    if (wasFixingError) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    else void Haptics.selectionAsync();
   };
 
   /** 単位シート（検索・カテゴリ一覧）から選んだときは、常に式の末尾へ追加する。
@@ -303,6 +376,11 @@ export default function CalculatorScreen() {
     setShowUnitPicker(false);
   };
 
+  const pickInlineUnit = (unit: string) => {
+    appendUnit(unit);
+    setInlineUnitQuery("");
+  };
+
   const restoreHistory = (entry: (typeof history)[number]) => {
     setExpression(entry.expression);
     setTargetUnit(entry.targetUnit);
@@ -312,13 +390,13 @@ export default function CalculatorScreen() {
     setNotice("保存済みの計算結果を復元しました。");
   };
 
-  const applyMotionExample = (nextExpression: string, nextTargetUnit: string, message: string) => {
-    setExpression(nextExpression);
-    setTargetUnit(nextTargetUnit);
-    setResult(null);
-    setFixSelection(null);
-    setError("");
-    setNotice(message);
+  const toggleInlineUnitSearch = () => {
+    setShowInlineUnitSearch((current) => {
+      const next = !current;
+      if (next) setTimeout(() => inlineUnitSearchRef.current?.focus(), 50);
+      else setInlineUnitQuery("");
+      return next;
+    });
   };
 
   useEffect(() => {
@@ -338,8 +416,8 @@ export default function CalculatorScreen() {
       setNotice(language === "en" ? "Choose a sample calculation to begin." : "サンプル計算式を選んで試せます。");
     }
     if (shortcut.focusSearch) {
-      openUnitPicker("insert");
-      setTimeout(() => unitSearchRef.current?.focus(), 250);
+      setShowInlineUnitSearch(true);
+      setTimeout(() => inlineUnitSearchRef.current?.focus(), 250);
     }
   }, [language, quick]);
 
@@ -364,6 +442,17 @@ export default function CalculatorScreen() {
     setError("");
     setNotice("");
     void calculate(sample.expression, sampleTargetUnit);
+  };
+
+  const applyPinnedTemplate = (template: (typeof pinnedTemplates)[number]) => {
+    setExpression(template.expression);
+    setTargetUnit(template.targetUnit);
+    setResult(null);
+    setFixSelection(null);
+    setError("");
+    setNotice("");
+    void Haptics.selectionAsync();
+    void calculate(template.expression, template.targetUnit);
   };
 
   const exportHistory = async () => {
@@ -409,14 +498,22 @@ export default function CalculatorScreen() {
         <View style={styles.header}>
           <Text style={styles.title}>{t("calculator")}</Text>
           <View style={styles.headerActions}>
-            <Pressable accessibilityLabel={copy.samples} onPress={() => setShowSamples(true)} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
-              <IconSymbol name="list.bullet" size={18} color={colors.primary} />
-            </Pressable>
             <Pressable accessibilityLabel={copy.helpTitle} onPress={() => setShowHelp(true)} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
               <IconSymbol name="questionmark.circle.fill" size={20} color={colors.primary} />
             </Pressable>
           </View>
         </View>
+
+        {pinnedTemplates.length ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pinnedRail} keyboardShouldPersistTaps="handled">
+            {pinnedTemplates.map((template) => (
+              <Pressable accessibilityLabel={`${copy.pinned} ${template.title}`} key={template.id} onPress={() => applyPinnedTemplate(template)} style={({ pressed }) => [styles.pinnedChip, pressed && styles.pressed]}>
+                <IconSymbol name="pin.fill" size={11} color={colors.primary} />
+                <Text numberOfLines={1} style={styles.pinnedChipText}>{template.title}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : null}
 
         <View style={styles.inputCard}>
           <View style={styles.inputRow}>
@@ -486,19 +583,74 @@ export default function CalculatorScreen() {
             ) : (
               <Text style={styles.hintEmpty}>{copy.noCandidates}</Text>
             )}
-            <Pressable accessibilityLabel={copy.insertUnit} onPress={() => openUnitPicker("insert")} style={({ pressed }) => [styles.hintSearchButton, pressed && styles.pressed]}>
-              <IconSymbol name="magnifyingglass" size={16} color={colors.primary} />
+            <Pressable accessibilityLabel={copy.insertUnit} onPress={toggleInlineUnitSearch} style={({ pressed }) => [styles.hintSearchButton, showInlineUnitSearch && styles.hintSearchButtonActive, pressed && styles.pressed]}>
+              <IconSymbol name={showInlineUnitSearch ? "chevron.up" : "magnifyingglass"} size={16} color={showInlineUnitSearch ? colors.onPrimary : colors.primary} />
             </Pressable>
           </View>
+
+          {showInlineUnitSearch ? (
+            <View style={styles.inlineUnitPanel}>
+              <View style={styles.unitSearchWrap}>
+                <IconSymbol name="magnifyingglass" size={16} color={colors.muted} />
+                <TextInput
+                  ref={inlineUnitSearchRef}
+                  value={inlineUnitQuery}
+                  onChangeText={setInlineUnitQuery}
+                  placeholder={copy.unitSearch}
+                  placeholderTextColor={colors.placeholder}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={styles.unitSearchInput}
+                />
+                {inlineUnitQuery.trim() ? (
+                  <Pressable accessibilityLabel={copy.clear} onPress={() => setInlineUnitQuery("")} style={({ pressed }) => [styles.inlinePanelClear, pressed && styles.pressed]}>
+                    <IconSymbol name="xmark.circle.fill" size={15} color={colors.muted} />
+                  </Pressable>
+                ) : null}
+              </View>
+
+              {inlineUnitQuery.trim() ? (
+                <View style={styles.inlinePanelStatusRow}>
+                  <Text style={styles.inlinePanelStatus}>
+                    {inlineUnitRegistration.status === "registered"
+                      ? `${copy.registered}${inlineUnitRegistration.matchedAlias ? ` · ${copy.aliasNote} ${inlineUnitRegistration.canonical}` : ""}`
+                      : inlineUnitRegistration.status === "supported" ? copy.supported : copy.unknownHint}
+                  </Text>
+                  {inlineUnitRegistration.status === "supported" ? (
+                    <Pressable onPress={() => pickInlineUnit(inlineUnitQuery.trim())} style={({ pressed }) => [styles.inlinePanelUseButton, pressed && styles.pressed]}>
+                      <Text style={styles.inlinePanelUseButtonText}>{copy.use} “{inlineUnitQuery.trim()}”</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRailCompact} keyboardShouldPersistTaps="handled">
+                  {visibleInputGroups.map((group) => (
+                    <Pressable key={group.id} onPress={() => setInputGroupId(group.id)} style={({ pressed }) => [styles.categoryChipSmall, inputGroupId === group.id && styles.categoryChipActive, pressed && styles.pressed]}>
+                      <Text style={[styles.categoryChipText, inputGroupId === group.id && styles.categoryChipTextActive]}>{unitGroupLabel(group.id)}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              )}
+
+              <ScrollView showsVerticalScrollIndicator={false} style={styles.inlineUnitResults} contentContainerStyle={styles.chips} keyboardShouldPersistTaps="handled">
+                {inlineUnitSuggestions.map((suggestion) => renderUnitChip(suggestion, () => pickInlineUnit(suggestion.unit.symbol)))}
+              </ScrollView>
+
+              <Pressable onPress={() => { openUnitPicker("insert"); setShowInlineUnitSearch(false); setInlineUnitQuery(""); }} style={({ pressed }) => [styles.inlinePanelMore, pressed && styles.pressed]}>
+                <Text style={styles.inlinePanelMoreText}>{copy.browseUnits}</Text>
+                <IconSymbol name="chevron.right" size={11} color={colors.primary} />
+              </Pressable>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.middle}>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.middleContent} keyboardShouldPersistTaps="handled">
             {error ? (
-              <View style={styles.messageError}>
+              <Animated.View style={[styles.messageError, errorAnimatedStyle]}>
                 <Text style={styles.messageErrorText}>{error}</Text>
                 {analysis.unresolved.length ? <Text style={styles.messageHint}>{copy.fixTap}</Text> : null}
-              </View>
+              </Animated.View>
             ) : null}
 
             <View style={styles.resultCard}>
@@ -517,7 +669,7 @@ export default function CalculatorScreen() {
               </View>
               {display ? (
                 <>
-                  <Text numberOfLines={2} adjustsFontSizeToFit style={styles.resultValue}>{display.value}</Text>
+                  <Animated.Text numberOfLines={2} adjustsFontSizeToFit style={[styles.resultValue, resultAnimatedStyle]}>{display.value}</Animated.Text>
                   <View style={styles.conversionRow}>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.conversionRail} keyboardShouldPersistTaps="handled">
                       <Pressable accessibilityLabel={copy.noUnit} onPress={() => applyTargetUnit("")} style={({ pressed }) => [styles.convertChip, !targetUnit.trim() && styles.convertChipActive, pressed && styles.pressed]}>
@@ -560,29 +712,24 @@ export default function CalculatorScreen() {
             {notice ? <View style={styles.messageSuccess}><Text style={styles.messageSuccessText}>{notice}</Text></View> : null}
 
             {history.length ? (
-              <View style={styles.historyList}>
-                <View style={styles.historyListHeader}>
+              // 一覧を埋め込むと件数分スクロール量が増え、結果カードが画面外へ押し出されるため、
+              // ここでは常に1行の入口だけを置き、閲覧・復元はダイアログ（showHistory）に任せる。
+              <Pressable accessibilityLabel={copy.savedHistory} onPress={() => setShowHistory(true)} style={({ pressed }) => [styles.historyBar, pressed && styles.cardPressed]}>
+                <View style={styles.historyBarLabel}>
+                  <IconSymbol name="clock.arrow.circlepath" size={13} color={colors.muted} />
                   <Text style={styles.cardLabel}>{copy.history}</Text>
-                  <Pressable accessibilityLabel={copy.savedHistory} onPress={() => setShowHistory(true)} style={({ pressed }) => [styles.historyOpenAll, pressed && styles.pressed]}>
-                    <Text style={styles.historyOpenAllText}>{history.length} ›</Text>
-                  </Pressable>
                 </View>
-                {visibleHistory.slice(0, 4).map((entry, index) => (
-                  <Pressable accessibilityLabel={`a${index + 1} ${entry.expression}`} key={entry.id} onPress={() => restoreHistory(entry)} style={({ pressed }) => [styles.historyRowCompact, pressed && styles.cardPressed]}>
-                    <Text style={styles.historyAutoSymbol}>a{index + 1}</Text>
-                    <Text numberOfLines={1} style={styles.historyExpression}>{entry.expression}</Text>
-                    <Text numberOfLines={1} style={styles.historyResult}>{entry.resultText}</Text>
-                  </Pressable>
-                ))}
-              </View>
+                <Text numberOfLines={1} style={styles.historyBarLatest}>
+                  {history[0].expression} = {history[0].resultText}
+                </Text>
+                <Text style={styles.historyBarCount}>{history.length} ›</Text>
+              </Pressable>
             ) : null}
           </ScrollView>
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.toolRail} keyboardShouldPersistTaps="handled">
           <Pressable onPress={() => setShowSamples(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.samples}</Text></Pressable>
-          <Pressable onPress={() => openUnitPicker("insert")} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.units}</Text></Pressable>
-          <Pressable onPress={() => setShowShortcuts(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.shortcuts}</Text></Pressable>
           {isAdvancedMode ? <Pressable onPress={() => setShowAdvancedKeys(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.math}</Text></Pressable> : null}
         </ScrollView>
 
@@ -652,7 +799,15 @@ export default function CalculatorScreen() {
               {unitSearch.trim() ? (
                 <>
                   <Text style={styles.pickerSectionLabel}>{copy.allCandidates}</Text>
-                  <View style={styles.chips}>{searchSuggestions.map((suggestion) => renderUnitChip(suggestion, () => chooseUnit(suggestion.unit.symbol), targetUnit.trim() === suggestion.unit.symbol && unitPickerMode === "target"))}</View>
+                  {searchSuggestions.length ? (
+                    <View style={styles.chips}>{searchSuggestions.map((suggestion) => renderUnitChip(suggestion, () => chooseUnit(suggestion.unit.symbol), targetUnit.trim() === suggestion.unit.symbol && unitPickerMode === "target"))}</View>
+                  ) : (
+                    <View style={styles.emptyState}>
+                      <IconSymbol name="magnifyingglass" size={22} color={colors.muted} />
+                      <Text style={styles.emptyStateTitle}>{copy.noSearchResults}</Text>
+                      <Text style={styles.emptyStateText}>{copy.noSearchResultsHint}</Text>
+                    </View>
+                  )}
                 </>
               ) : (
                 <>
@@ -683,16 +838,12 @@ export default function CalculatorScreen() {
         </View>
       </Modal>
 
-      <Modal visible={showShortcuts} transparent animationType="fade" onRequestClose={() => setShowShortcuts(false)}>
-        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><View style={styles.sheetHeaderMain}><Text style={styles.sheetTitle}>{copy.speedTitle}</Text><Text style={styles.sheetSubtitle}>{copy.speedFormula}</Text></View><Pressable accessibilityLabel={copy.close} onPress={() => setShowShortcuts(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.modalList}>{[[copy.findSpeed, "1km ÷ 1min", "km/h"], [copy.findDistance, "10m/s × 2min", "km"], [copy.findTime, "1km ÷ 5m/s", "min"]].map(([label, nextExpression, nextUnit]) => <Pressable key={String(label)} onPress={() => { applyMotionExample(String(nextExpression), String(nextUnit), language === "en" ? "Example loaded." : "計算例を入力しました。" ); setShowShortcuts(false); }} style={({ pressed }) => [styles.shortcutRow, pressed && styles.cardPressed]}><Text style={styles.shortcutTitle}>{label}</Text><Text style={styles.shortcutExpression}>{nextExpression} → {nextUnit}</Text></Pressable>)}</View></View></View>
-      </Modal>
-
       <Modal visible={showAdvancedKeys} transparent animationType="fade" onRequestClose={() => setShowAdvancedKeys(false)}>
         <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><View style={styles.sheetHeaderMain}><Text style={styles.sheetTitle}>{copy.advancedMath}</Text><Text style={styles.sheetSubtitle}>{copy.advancedMathHint}</Text></View><Pressable accessibilityLabel={copy.close} onPress={() => setShowAdvancedKeys(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.advancedKeyRow}>{ADVANCED_KEYS.map((key) => <Pressable accessibilityLabel={key} key={key} onPress={() => { pressKey(key); setShowAdvancedKeys(false); }} style={({ pressed }) => [styles.advancedKey, pressed && styles.pressed]}><Text style={styles.advancedKeyText}>{key}</Text></Pressable>)}</View></View></View>
       </Modal>
 
       <Modal visible={showHistory} transparent animationType="slide" onRequestClose={() => setShowHistory(false)}>
-        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><View style={styles.sheetHeaderMain}><Text style={styles.sheetTitle}>{copy.savedHistory}</Text><Text style={styles.sheetSubtitle}>{copy.historyHint}</Text></View><Pressable accessibilityLabel={copy.close} onPress={() => setShowHistory(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.historyActions}><Pressable onPress={() => void exportHistory()} style={({ pressed }) => [styles.exportHistoryButton, pressed && styles.pressed]}><IconSymbol name="square.and.arrow.up" size={15} color={colors.primary} /><Text style={styles.exportHistoryText}>CSV</Text></Pressable><Pressable onPress={() => void clearHistory()} style={({ pressed }) => [styles.clearHistoryButton, pressed && styles.pressed]}><Text style={styles.clearHistoryText}>{copy.clear}</Text></Pressable></View><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleHistory.map((entry, index) => <Pressable key={entry.id} onPress={() => { restoreHistory(entry); setShowHistory(false); }} style={({ pressed }) => [styles.historyRow, pressed && styles.cardPressed]}><View style={styles.historyExpressionWrap}><Text style={styles.historyAutoSymbol}>a{index + 1}</Text><Text numberOfLines={1} style={styles.historyExpression}>{entry.expression}</Text></View><Text numberOfLines={1} style={styles.historyResult}>{entry.resultText}</Text></Pressable>)}</ScrollView></View></View>
+        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><View style={styles.sheetHeaderMain}><Text style={styles.sheetTitle}>{copy.savedHistory}</Text><Text style={styles.sheetSubtitle}>{copy.historyHint}</Text></View><Pressable accessibilityLabel={copy.close} onPress={() => setShowHistory(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.historyActions}><Pressable onPress={() => void exportHistory()} style={({ pressed }) => [styles.exportHistoryButton, pressed && styles.pressed]}><IconSymbol name="square.and.arrow.up" size={15} color={colors.primary} /><Text style={styles.exportHistoryText}>CSV</Text></Pressable><Pressable onPress={() => void clearHistory()} style={({ pressed }) => [styles.clearHistoryButton, pressed && styles.pressed]}><Text style={styles.clearHistoryText}>{copy.clear}</Text></Pressable></View>{visibleHistory.length ? <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleHistory.map((entry, index) => <Pressable key={entry.id} onPress={() => { restoreHistory(entry); setShowHistory(false); }} style={({ pressed }) => [styles.historyRow, pressed && styles.cardPressed]}><View style={styles.historyExpressionWrap}><Text style={styles.historyAutoSymbol}>a{index + 1}</Text><Text numberOfLines={1} style={styles.historyExpression}>{entry.expression}</Text></View><Text numberOfLines={1} style={styles.historyResult}>{entry.resultText}</Text></Pressable>)}</ScrollView> : <View style={styles.emptyState}><IconSymbol name="clock" size={22} color={colors.muted} /><Text style={styles.emptyStateTitle}>{copy.noHistory}</Text><Text style={styles.emptyStateText}>{copy.noHistoryHint}</Text></View>}</View></View>
       </Modal>
 
       <Modal visible={showHelp} transparent animationType="fade" onRequestClose={() => setShowHelp(false)}>
@@ -746,6 +897,32 @@ export default function CalculatorScreen() {
           </View> : null}
         </View>
       </Modal>
+
+      <Modal visible={isReady && !hasSeenOnboarding} transparent animationType="fade" onRequestClose={() => void completeOnboarding()}>
+        <View style={styles.helpBackdrop}>
+          <View style={styles.onboardingSheet}>
+            <Text style={styles.onboardingExample}>{onboardingSlides[onboardingStep].example}</Text>
+            <Text style={styles.onboardingTitle}>{onboardingSlides[onboardingStep].title}</Text>
+            <Text style={styles.onboardingBody}>{onboardingSlides[onboardingStep].body}</Text>
+            <View style={styles.onboardingDots}>
+              {onboardingSlides.map((slide, index) => (
+                <View key={slide.title} style={[styles.onboardingDot, index === onboardingStep && styles.onboardingDotActive]} />
+              ))}
+            </View>
+            <View style={styles.onboardingActions}>
+              <Pressable onPress={() => void completeOnboarding()} style={({ pressed }) => [styles.onboardingSkip, pressed && styles.pressed]}>
+                <Text style={styles.onboardingSkipText}>{language === "en" ? "Skip" : "スキップ"}</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => (isLastOnboardingSlide ? void completeOnboarding() : setOnboardingStep((step) => step + 1))}
+                style={({ pressed }) => [styles.onboardingNext, pressed && styles.pressed]}
+              >
+                <Text style={styles.onboardingNextText}>{isLastOnboardingSlide ? (language === "en" ? "Get started" : "はじめる") : (language === "en" ? "Next" : "次へ")}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -759,6 +936,10 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   title: { color: colors.foreground, fontSize: 22, fontWeight: "700", letterSpacing: -0.5 },
   headerActions: { alignItems: "center", flexDirection: "row", gap: 6 },
   headerButton: { alignItems: "center", backgroundColor: colors.primarySurface, borderRadius: 16, height: 32, justifyContent: "center", width: 32 },
+
+  pinnedRail: { alignItems: "center", gap: 6, paddingRight: 4 },
+  pinnedChip: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 12, borderWidth: 1, flexDirection: "row", gap: 5, maxWidth: 150, paddingHorizontal: 10, paddingVertical: 6 },
+  pinnedChipText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
 
   inputCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, gap: 5, paddingHorizontal: 12, paddingVertical: 8 },
   inputRow: { alignItems: "center", flexDirection: "row", gap: 10 },
@@ -781,6 +962,20 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   hintRail: { alignItems: "center", gap: 6, paddingRight: 4 },
   hintEmpty: { color: colors.muted, flex: 1, fontSize: 11 },
   hintSearchButton: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 9, borderWidth: 1, height: 32, justifyContent: "center", width: 34 },
+  hintSearchButtonActive: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
+
+  // 単位挿入をモーダルなしその場で完結させる、入力欄直下のインクリメンタルサーチ。
+  inlineUnitPanel: { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth, gap: 6, marginTop: 2, paddingTop: 7 },
+  inlinePanelClear: { padding: 2 },
+  inlinePanelStatusRow: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "space-between" },
+  inlinePanelStatus: { color: colors.muted, fontSize: 11, paddingTop: 2 },
+  inlinePanelUseButton: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, paddingHorizontal: 9, paddingVertical: 5 },
+  inlinePanelUseButtonText: { color: colors.primary, fontSize: 11, fontWeight: "800" },
+  categoryRailCompact: { gap: 6, paddingVertical: 2 },
+  categoryChipSmall: { backgroundColor: colors.surfaceSecondary, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5 },
+  inlineUnitResults: { maxHeight: 118 },
+  inlinePanelMore: { alignItems: "center", alignSelf: "flex-start", flexDirection: "row", gap: 2, paddingVertical: 4 },
+  inlinePanelMoreText: { color: colors.primary, fontSize: 11, fontWeight: "800" },
 
   unitChip: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 10, borderWidth: 1, minWidth: 46, paddingHorizontal: 9, paddingVertical: 4 },
   unitChipActive: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
@@ -828,11 +1023,11 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   toolRail: { alignItems: "center", gap: 6, paddingRight: 4 },
   toolButton: { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, borderRadius: 9, borderWidth: 1, justifyContent: "center", minHeight: 32, paddingHorizontal: 11 },
   toolButtonText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
-  historyList: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 14, borderWidth: 1, paddingHorizontal: 11, paddingVertical: 9 },
-  historyListHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
-  historyOpenAll: { paddingHorizontal: 4, paddingVertical: 2 },
-  historyOpenAllText: { color: colors.primary, fontSize: 11, fontWeight: "800" },
-  historyRowCompact: { alignItems: "center", borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row", gap: 7, minHeight: 32, paddingTop: 4 },
+  // 常に1行だけの高さで、ダイアログ（showHistory）を開く入口として機能させる。
+  historyBar: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 12, borderWidth: 1, flexDirection: "row", gap: 8, minHeight: 40, paddingHorizontal: 11 },
+  historyBarLabel: { alignItems: "center", flexDirection: "row", flexShrink: 0, gap: 4 },
+  historyBarLatest: { color: colors.foreground, flex: 1, fontFamily: mono, fontSize: 11 },
+  historyBarCount: { color: colors.primary, fontSize: 11, fontWeight: "800" },
 
   // 画面幅に関係なく必ず4列で並ぶよう、25%幅のセルに収める。
   keypad: { flexDirection: "row", flexWrap: "wrap", marginHorizontal: -3 },
@@ -896,20 +1091,33 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   useTypedUnitButton: { alignSelf: "flex-start", backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, marginTop: 8, paddingHorizontal: 9, paddingVertical: 6 },
   useTypedUnitText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
   pickerSectionLabel: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.4, textTransform: "uppercase" },
+  emptyState: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderRadius: 14, gap: 4, marginTop: 6, paddingHorizontal: 20, paddingVertical: 26 },
+  emptyStateTitle: { color: colors.foreground, fontSize: 13, fontWeight: "800", marginTop: 6, textAlign: "center" },
+  emptyStateText: { color: colors.muted, fontSize: 11, lineHeight: 16, textAlign: "center" },
   pickerGroup: { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 9 },
-  shortcutRow: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 12, borderWidth: 1, padding: 12 },
-  shortcutTitle: { color: colors.primary, fontSize: 14, fontWeight: "800" },
-  shortcutExpression: { color: colors.foreground, fontFamily: mono, fontSize: 12, marginTop: 4 },
 
   helpBackdrop: { alignItems: "center", backgroundColor: colors.overlay, flex: 1, justifyContent: "center", padding: 24 },
   helpSheet: { backgroundColor: colors.surface, borderRadius: 20, padding: 20, width: "100%" },
   helpTitleRow: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 12 },
   helpTitle: { color: colors.foreground, fontSize: 20, fontWeight: "700" },
   closeHelp: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderRadius: 16, height: 32, justifyContent: "center", width: 32 },
-  helpText: { color: colors.foreground, fontFamily: mono, fontSize: 13, lineHeight: 24 },
+  helpText: { color: colors.foreground, fontSize: 13, lineHeight: 21 },
   helpHint: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 10 },
-  helpDone: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 11, marginTop: 16, paddingVertical: 12 },
+  helpDone: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 11, marginTop: 10, paddingVertical: 12 },
   helpDoneText: { color: colors.onPrimary, fontWeight: "700" },
+
+  onboardingSheet: { backgroundColor: colors.surface, borderRadius: 22, padding: 22, width: "100%" },
+  onboardingExample: { alignSelf: "flex-start", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 10, borderWidth: 1, color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800", paddingHorizontal: 10, paddingVertical: 5 },
+  onboardingTitle: { color: colors.foreground, fontSize: 21, fontWeight: "800", marginTop: 16 },
+  onboardingBody: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 8 },
+  onboardingDots: { flexDirection: "row", gap: 6, justifyContent: "center", marginTop: 22 },
+  onboardingDot: { backgroundColor: colors.border, borderRadius: 3, height: 6, width: 6 },
+  onboardingDotActive: { backgroundColor: colors.primary, width: 18 },
+  onboardingActions: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginTop: 20 },
+  onboardingSkip: { paddingVertical: 10 },
+  onboardingSkipText: { color: colors.muted, fontSize: 13, fontWeight: "700" },
+  onboardingNext: { backgroundColor: colors.primaryFill, borderRadius: 11, paddingHorizontal: 22, paddingVertical: 12 },
+  onboardingNextText: { color: colors.onPrimary, fontSize: 14, fontWeight: "800" },
 
   unitInfoBackdrop: { alignItems: "center", backgroundColor: colors.overlay, flex: 1, justifyContent: "center", padding: 24 },
   unitInfoSheet: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 20, borderWidth: 1, maxWidth: 520, padding: 20, width: "100%" },
