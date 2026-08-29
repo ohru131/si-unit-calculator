@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
@@ -23,6 +24,7 @@ export function NotebookCategoryGrid({ language, notebooks, notebookCategories, 
   const [promptVisible, setPromptVisible] = useState(false);
   const [promptValue, setPromptValue] = useState("");
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const copy = language === "en" ? {
     newCategory: "New category", categoryName: "Category name", save: "Save", cancel: "Cancel",
@@ -56,13 +58,6 @@ export function NotebookCategoryGrid({ language, notebooks, notebookCategories, 
     setPromptVisible(false);
   };
 
-  const confirmDelete = (id: string) => {
-    Alert.alert(copy.delete, copy.deleteConfirm, [
-      { text: copy.cancel, style: "cancel" },
-      { text: copy.delete, style: "destructive", onPress: () => onDeleteCategory(id) },
-    ]);
-  };
-
   return (
     <View style={styles.grid}>
       {rows.map((row) => (
@@ -77,7 +72,7 @@ export function NotebookCategoryGrid({ language, notebooks, notebookCategories, 
               <Pressable accessibilityLabel={copy.rename} onPress={() => openRename(row.id, row.label)} style={({ pressed }) => [styles.cardActionButton, pressed && styles.pressed]}>
                 <IconSymbol name="pencil" size={14} color={colors.muted} />
               </Pressable>
-              <Pressable accessibilityLabel={copy.delete} onPress={() => confirmDelete(row.id)} style={({ pressed }) => [styles.cardActionButton, pressed && styles.pressed]}>
+              <Pressable accessibilityLabel={copy.delete} onPress={() => setPendingDeleteId(row.id)} style={({ pressed }) => [styles.cardActionButton, pressed && styles.pressed]}>
                 <IconSymbol name="trash" size={14} color={colors.error} />
               </Pressable>
             </View>
@@ -105,6 +100,20 @@ export function NotebookCategoryGrid({ language, notebooks, notebookCategories, 
           </View>
         </View>
       </Modal>
+
+      <ConfirmDialog
+        visible={Boolean(pendingDeleteId)}
+        title={copy.delete}
+        message={copy.deleteConfirm}
+        cancelLabel={copy.cancel}
+        confirmLabel={copy.delete}
+        destructive
+        onCancel={() => setPendingDeleteId(null)}
+        onConfirm={() => {
+          if (pendingDeleteId) onDeleteCategory(pendingDeleteId);
+          setPendingDeleteId(null);
+        }}
+      />
     </View>
   );
 }
