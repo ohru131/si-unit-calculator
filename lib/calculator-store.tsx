@@ -2,6 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { ImportedConstant } from "@/lib/constants-backup";
+import { useGlobalSettings } from "@/lib/global-settings";
+import { PRESET_NOTEBOOK_CATEGORIES, PRESET_NOTEBOOK_SEEDS } from "@/lib/notebook-formulas";
 import { CustomFunctionDefinition, parseConstantDefinition, Quantity, SavedConstant } from "@/lib/units";
 
 const CONSTANTS_STORAGE_KEY = "si-unit-calculator.constants.v1";
@@ -11,6 +13,12 @@ const CUSTOM_FUNCTIONS_STORAGE_KEY = "si-unit-calculator.custom-functions.v1";
 const TEMPLATES_STORAGE_KEY = "si-unit-calculator.templates.v1";
 const NOTES_STORAGE_KEY = "si-unit-calculator.notes.v1";
 const CLEARED_CONSTANTS_STORAGE_KEY = "si-unit-calculator.cleared-constants.v1";
+const NOTEBOOKS_STORAGE_KEY = "si-unit-calculator.notebooks.v1";
+const NOTEBOOK_CATEGORIES_STORAGE_KEY = "si-unit-calculator.notebook-categories.v1";
+const NOTEBOOKS_MIGRATED_STORAGE_KEY = "si-unit-calculator.notebooks-migrated.v1";
+const NOTEBOOKS_SEEDED_PRESETS_STORAGE_KEY = "si-unit-calculator.notebooks-seeded-presets.v1";
+
+export const UNCATEGORIZED_CATEGORY_ID = "uncategorized";
 
 export type SavedCalculation = {
   id: string;
@@ -47,7 +55,8 @@ export type CalculationNoteStep = {
   targetUnit: string;
 };
 
-export type CalculationNote = {
+/** 旧・計算ノート（フラット一覧）の形。読み込み時、notebooks への一度きりの移行にのみ使う。 */
+type LegacyCalculationNote = {
   id: string;
   title: string;
   description: string;
@@ -56,13 +65,38 @@ export type CalculationNote = {
   updatedAt: string;
 };
 
+/** ノート専用のローカル定数。定義順に解決され、後の行は前の行を参照できる（lib/notebook-engine.ts）。 */
+export type NotebookLocalConstant = {
+  id: string;
+  symbol: string;
+  expression: string;
+};
+
+export type CalculationNotebook = {
+  id: string;
+  title: string;
+  description: string;
+  categoryId: string;
+  localConstants: NotebookLocalConstant[];
+  steps: CalculationNoteStep[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type NotebookCategory = {
+  id: string;
+  name: string;
+  createdAt: string;
+};
+
 type CalculatorStore = {
   constants: SavedConstant[];
   history: SavedCalculation[];
   favoriteUnits: string[];
   customFunctions: SavedCustomFunction[];
   templates: CalculationTemplate[];
-  notes: CalculationNote[];
+  notebooks: CalculationNotebook[];
+  notebookCategories: NotebookCategory[];
   hasRestorableConstants: boolean;
   isLoading: boolean;
   upsertConstant: (symbol: string, expression: string) => Promise<SavedConstant>;
@@ -78,8 +112,10 @@ type CalculatorStore = {
   upsertTemplate: (input: Omit<CalculationTemplate, "id" | "createdAt" | "updatedAt" | "pinned"> & { id?: string }) => Promise<CalculationTemplate>;
   removeTemplate: (id: string) => Promise<void>;
   toggleTemplatePinned: (id: string) => Promise<void>;
-  upsertNote: (input: Omit<CalculationNote, "id" | "createdAt" | "updatedAt"> & { id?: string }) => Promise<CalculationNote>;
-  removeNote: (id: string) => Promise<void>;
+  upsertNotebook: (input: Omit<CalculationNotebook, "id" | "createdAt" | "updatedAt"> & { id?: string }) => Promise<CalculationNotebook>;
+  removeNotebook: (id: string) => Promise<void>;
+  upsertNotebookCategory: (input: { id?: string; name: string }) => Promise<NotebookCategory>;
+  removeNotebookCategory: (id: string) => Promise<void>;
 };
 
 const CalculatorContext = createContext<CalculatorStore | null>(null);
@@ -108,10 +144,25 @@ function isCalculationTemplate(value: unknown): value is CalculationTemplate {
   return typeof candidate.id === "string" && typeof candidate.title === "string" && typeof candidate.description === "string" && typeof candidate.expression === "string" && typeof candidate.targetUnit === "string" && typeof candidate.createdAt === "string" && typeof candidate.updatedAt === "string";
 }
 
-function isCalculationNote(value: unknown): value is CalculationNote {
+function isLegacyCalculationNote(value: unknown): value is LegacyCalculationNote {
   if (!value || typeof value !== "object") return false;
-  const candidate = value as Partial<CalculationNote>;
+  const candidate = value as Partial<LegacyCalculationNote>;
   return typeof candidate.id === "string" && typeof candidate.title === "string" && typeof candidate.description === "string" && Array.isArray(candidate.steps) && candidate.steps.every((step) => step && typeof step.id === "string" && typeof step.title === "string" && typeof step.expression === "string" && typeof step.targetUnit === "string") && typeof candidate.createdAt === "string" && typeof candidate.updatedAt === "string";
+}
+
+function isCalculationNotebook(value: unknown): value is CalculationNotebook {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<CalculationNotebook>;
+  return typeof candidate.id === "string" && typeof candidate.title === "string" && typeof candidate.description === "string" && typeof candidate.categoryId === "string"
+    && Array.isArray(candidate.localConstants) && candidate.localConstants.every((item) => item && typeof item.id === "string" && typeof item.symbol === "string" && typeof item.expression === "string")
+    && Array.isArray(candidate.steps) && candidate.steps.every((step) => step && typeof step.id === "string" && typeof step.title === "string" && typeof step.expression === "string" && typeof step.targetUnit === "string")
+    && typeof candidate.createdAt === "string" && typeof candidate.updatedAt === "string";
+}
+
+function isNotebookCategory(value: unknown): value is NotebookCategory {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<NotebookCategory>;
+  return typeof candidate.id === "string" && typeof candidate.name === "string" && typeof candidate.createdAt === "string";
 }
 
 function parseStoredArray(raw: string | null): unknown[] {
@@ -125,12 +176,14 @@ function parseStoredArray(raw: string | null): unknown[] {
 }
 
 export function CalculatorProvider({ children }: { children: ReactNode }) {
+  const { language } = useGlobalSettings();
   const [constants, setConstants] = useState<SavedConstant[]>([]);
   const [history, setHistory] = useState<SavedCalculation[]>([]);
   const [favoriteUnits, setFavoriteUnits] = useState<string[]>([]);
   const [customFunctions, setCustomFunctions] = useState<SavedCustomFunction[]>([]);
   const [templates, setTemplates] = useState<CalculationTemplate[]>([]);
-  const [notes, setNotes] = useState<CalculationNote[]>([]);
+  const [notebooks, setNotebooks] = useState<CalculationNotebook[]>([]);
+  const [notebookCategories, setNotebookCategories] = useState<NotebookCategory[]>([]);
   const [clearedConstants, setClearedConstants] = useState<SavedConstant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -159,48 +212,132 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(next));
   }, []);
 
-  const persistNotes = useCallback(async (next: CalculationNote[]) => {
-    setNotes(next);
-    await AsyncStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(next));
+  const persistNotebooks = useCallback(async (next: CalculationNotebook[]) => {
+    setNotebooks(next);
+    await AsyncStorage.setItem(NOTEBOOKS_STORAGE_KEY, JSON.stringify(next));
+  }, []);
+
+  const persistNotebookCategories = useCallback(async (next: NotebookCategory[]) => {
+    setNotebookCategories(next);
+    await AsyncStorage.setItem(NOTEBOOK_CATEGORIES_STORAGE_KEY, JSON.stringify(next));
   }, []);
 
   useEffect(() => {
     let active = true;
-    Promise.all([
-      AsyncStorage.getItem(CONSTANTS_STORAGE_KEY),
-      AsyncStorage.getItem(HISTORY_STORAGE_KEY),
-      AsyncStorage.getItem(FAVORITE_UNITS_STORAGE_KEY),
-      AsyncStorage.getItem(CUSTOM_FUNCTIONS_STORAGE_KEY),
-      AsyncStorage.getItem(TEMPLATES_STORAGE_KEY),
-      AsyncStorage.getItem(NOTES_STORAGE_KEY),
-      AsyncStorage.getItem(CLEARED_CONSTANTS_STORAGE_KEY),
-    ])
-      .then(([constantsRaw, historyRaw, favoriteUnitsRaw, customFunctionsRaw, templatesRaw, notesRaw, clearedConstantsRaw]) => {
+    (async () => {
+      try {
+        const [
+          constantsRaw,
+          historyRaw,
+          favoriteUnitsRaw,
+          customFunctionsRaw,
+          templatesRaw,
+          notebooksRaw,
+          notebookCategoriesRaw,
+          clearedConstantsRaw,
+          migratedRaw,
+          seededPresetsRaw,
+        ] = await Promise.all([
+          AsyncStorage.getItem(CONSTANTS_STORAGE_KEY),
+          AsyncStorage.getItem(HISTORY_STORAGE_KEY),
+          AsyncStorage.getItem(FAVORITE_UNITS_STORAGE_KEY),
+          AsyncStorage.getItem(CUSTOM_FUNCTIONS_STORAGE_KEY),
+          AsyncStorage.getItem(TEMPLATES_STORAGE_KEY),
+          AsyncStorage.getItem(NOTEBOOKS_STORAGE_KEY),
+          AsyncStorage.getItem(NOTEBOOK_CATEGORIES_STORAGE_KEY),
+          AsyncStorage.getItem(CLEARED_CONSTANTS_STORAGE_KEY),
+          AsyncStorage.getItem(NOTEBOOKS_MIGRATED_STORAGE_KEY),
+          AsyncStorage.getItem(NOTEBOOKS_SEEDED_PRESETS_STORAGE_KEY),
+        ]);
+
+        let nextNotebooks = parseStoredArray(notebooksRaw).filter(isCalculationNotebook);
+        let seededPresetIds = parseStoredArray(seededPresetsRaw).filter((id): id is string => typeof id === "string");
+        let notebooksDirty = false;
+
+        // 旧・計算ノート（フラット一覧）を新しい notebooks へ一度だけ変換する。
+        // テンプレートは引き続き独立した機能として残すため、移行対象は notes のみ。
+        // 旧データ自体は端末に残したまま（ロールバック用）、変換済みフラグだけを立てる。
+        if (migratedRaw !== "1") {
+          const notesRaw = await AsyncStorage.getItem(NOTES_STORAGE_KEY);
+          const migratedFromNotes = parseStoredArray(notesRaw).filter(isLegacyCalculationNote).map((note): CalculationNotebook => ({
+            id: `notebook-migrated-note-${note.id}`,
+            title: note.title,
+            description: note.description,
+            categoryId: UNCATEGORIZED_CATEGORY_ID,
+            localConstants: [],
+            steps: note.steps,
+            createdAt: note.createdAt,
+            updatedAt: note.updatedAt,
+          }));
+          nextNotebooks = [...nextNotebooks, ...migratedFromNotes];
+          notebooksDirty = true;
+          await AsyncStorage.setItem(NOTEBOOKS_MIGRATED_STORAGE_KEY, "1");
+        }
+
+        // プリセット計算ノートは特別なデータではなく、ユーザーのノートと全く同じ形で複製されるだけ。
+        // カテゴリ単位・冪等に投入するため、後から新カテゴリを追加しても既存データを壊さない。
+        const missingPresetCategories = PRESET_NOTEBOOK_CATEGORIES.filter((category) => !seededPresetIds.includes(category.id));
+        if (missingPresetCategories.length) {
+          const now = new Date().toISOString();
+          missingPresetCategories.forEach((category) => {
+            const seeds = PRESET_NOTEBOOK_SEEDS[category.id] ?? [];
+            seeds.forEach((seed, seedIndex) => {
+              nextNotebooks.push({
+                id: `notebook-preset-${category.id}-${seedIndex}`,
+                title: language === "en" ? seed.titleEn : seed.title,
+                description: language === "en" ? seed.descriptionEn : seed.description,
+                categoryId: category.id,
+                localConstants: seed.localConstants.map((constant, constantIndex) => ({
+                  id: `preset-${category.id}-${seedIndex}-constant-${constantIndex}`,
+                  symbol: constant.symbol,
+                  expression: constant.expression,
+                })),
+                steps: seed.steps.map((step, stepIndex) => ({
+                  id: `preset-${category.id}-${seedIndex}-step-${stepIndex}`,
+                  title: language === "en" ? step.titleEn : step.title,
+                  expression: step.expression,
+                  targetUnit: step.targetUnit,
+                })),
+                createdAt: now,
+                updatedAt: now,
+              });
+            });
+          });
+          seededPresetIds = [...seededPresetIds, ...missingPresetCategories.map((category) => category.id)];
+          notebooksDirty = true;
+          await AsyncStorage.setItem(NOTEBOOKS_SEEDED_PRESETS_STORAGE_KEY, JSON.stringify(seededPresetIds));
+        }
+
+        if (notebooksDirty) await AsyncStorage.setItem(NOTEBOOKS_STORAGE_KEY, JSON.stringify(nextNotebooks));
+
         if (!active) return;
         setConstants(parseStoredArray(constantsRaw).filter(isSavedConstant));
         setHistory(parseStoredArray(historyRaw).filter(isSavedCalculation));
         setFavoriteUnits(parseStoredArray(favoriteUnitsRaw).filter((unit): unit is string => typeof unit === "string"));
         setCustomFunctions(parseStoredArray(customFunctionsRaw).filter(isSavedCustomFunction));
         setTemplates(parseStoredArray(templatesRaw).filter(isCalculationTemplate).map((item) => ({ ...item, pinned: item.pinned === true })));
-        setNotes(parseStoredArray(notesRaw).filter(isCalculationNote));
+        setNotebooks(nextNotebooks);
+        setNotebookCategories(parseStoredArray(notebookCategoriesRaw).filter(isNotebookCategory));
         setClearedConstants(parseStoredArray(clearedConstantsRaw).filter(isSavedConstant));
-      })
-      .catch(() => {
+      } catch {
         if (!active) return;
         setConstants([]);
         setHistory([]);
         setFavoriteUnits([]);
         setCustomFunctions([]);
         setTemplates([]);
-        setNotes([]);
+        setNotebooks([]);
+        setNotebookCategories([]);
         setClearedConstants([]);
-      })
-      .finally(() => {
+      } finally {
         if (active) setIsLoading(false);
-      });
+      }
+    })();
     return () => {
       active = false;
     };
+    // 起動時に一度だけ実行する（language は初回マウント時点の値でプリセットの文言を焼き込む）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const upsertConstant = useCallback(
@@ -304,22 +441,58 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     await persistTemplates(templates.map((item) => (item.id === id ? { ...item, pinned: !item.pinned } : item)));
   }, [persistTemplates, templates]);
 
-  const upsertNote = useCallback(async (input: Omit<CalculationNote, "id" | "createdAt" | "updatedAt"> & { id?: string }) => {
+  const upsertNotebook = useCallback(async (input: Omit<CalculationNotebook, "id" | "createdAt" | "updatedAt"> & { id?: string }) => {
     const now = new Date().toISOString();
-    const existing = input.id ? notes.find((item) => item.id === input.id) : undefined;
-    const item: CalculationNote = { ...input, id: existing?.id ?? `note-${Date.now()}`, createdAt: existing?.createdAt ?? now, updatedAt: now };
-    const next = [...notes.filter((entry) => entry.id !== item.id), item].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
-    await persistNotes(next);
+    const existing = input.id ? notebooks.find((item) => item.id === input.id) : undefined;
+    const item: CalculationNotebook = { ...input, id: existing?.id ?? `notebook-${Date.now()}`, createdAt: existing?.createdAt ?? now, updatedAt: now };
+    const next = [...notebooks.filter((entry) => entry.id !== item.id), item].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    await persistNotebooks(next);
     return item;
-  }, [notes, persistNotes]);
+  }, [notebooks, persistNotebooks]);
 
-  const removeNote = useCallback(async (id: string) => {
-    await persistNotes(notes.filter((item) => item.id !== id));
-  }, [notes, persistNotes]);
+  const removeNotebook = useCallback(async (id: string) => {
+    await persistNotebooks(notebooks.filter((item) => item.id !== id));
+  }, [notebooks, persistNotebooks]);
+
+  const upsertNotebookCategory = useCallback(async (input: { id?: string; name: string }) => {
+    const name = input.name.trim();
+    if (!name) throw new Error("カテゴリ名を入力してください。");
+    const now = new Date().toISOString();
+    const existing = input.id ? notebookCategories.find((item) => item.id === input.id) : undefined;
+    const item: NotebookCategory = { id: existing?.id ?? `category-${Date.now()}`, name, createdAt: existing?.createdAt ?? now };
+    const next = [...notebookCategories.filter((entry) => entry.id !== item.id), item].sort((left, right) => left.name.localeCompare(right.name));
+    await persistNotebookCategories(next);
+    return item;
+  }, [notebookCategories, persistNotebookCategories]);
+
+  const removeNotebookCategory = useCallback(async (id: string) => {
+    // カテゴリを消してもノートは消さず、未分類へ付け替える。
+    const nextCategories = notebookCategories.filter((item) => item.id !== id);
+    const now = new Date().toISOString();
+    const nextNotebooks = notebooks.map((item) => (item.categoryId === id ? { ...item, categoryId: UNCATEGORIZED_CATEGORY_ID, updatedAt: now } : item));
+    await persistNotebookCategories(nextCategories);
+    await persistNotebooks(nextNotebooks);
+  }, [notebookCategories, notebooks, persistNotebookCategories, persistNotebooks]);
 
   const value = useMemo(
-    () => ({ constants, history, favoriteUnits, customFunctions, templates, notes, hasRestorableConstants: clearedConstants.length > 0, isLoading, upsertConstant, removeConstant, importConstants, clearConstants, restoreClearedConstants, addHistoryEntry, clearHistory, toggleFavoriteUnit, upsertCustomFunction, removeCustomFunction, upsertTemplate, removeTemplate, toggleTemplatePinned, upsertNote, removeNote }),
-    [constants, history, favoriteUnits, customFunctions, templates, notes, clearedConstants.length, isLoading, upsertConstant, removeConstant, importConstants, clearConstants, restoreClearedConstants, addHistoryEntry, clearHistory, toggleFavoriteUnit, upsertCustomFunction, removeCustomFunction, upsertTemplate, removeTemplate, toggleTemplatePinned, upsertNote, removeNote],
+    () => ({
+      constants, history, favoriteUnits, customFunctions, templates, notebooks, notebookCategories,
+      hasRestorableConstants: clearedConstants.length > 0, isLoading,
+      upsertConstant, removeConstant, importConstants, clearConstants, restoreClearedConstants,
+      addHistoryEntry, clearHistory, toggleFavoriteUnit,
+      upsertCustomFunction, removeCustomFunction,
+      upsertTemplate, removeTemplate, toggleTemplatePinned,
+      upsertNotebook, removeNotebook, upsertNotebookCategory, removeNotebookCategory,
+    }),
+    [
+      constants, history, favoriteUnits, customFunctions, templates, notebooks, notebookCategories,
+      clearedConstants.length, isLoading,
+      upsertConstant, removeConstant, importConstants, clearConstants, restoreClearedConstants,
+      addHistoryEntry, clearHistory, toggleFavoriteUnit,
+      upsertCustomFunction, removeCustomFunction,
+      upsertTemplate, removeTemplate, toggleTemplatePinned,
+      upsertNotebook, removeNotebook, upsertNotebookCategory, removeNotebookCategory,
+    ],
   );
 
   return <CalculatorContext.Provider value={value}>{children}</CalculatorContext.Provider>;
