@@ -24,6 +24,9 @@ const MAPPING = {
   "questionmark.circle.fill": "help",
   "info.circle": "info",
   "xmark": "close",
+  "xmark.circle.fill": "cancel",
+  "chevron.up": "expand-less",
+  "clock.arrow.circlepath": "history",
   "trash": "delete",
   "delete.left": "backspace",
   "crown.fill": "workspace-premium",
@@ -33,7 +36,15 @@ const MAPPING = {
   "doc.on.doc": "content-copy",
   "magnifyingglass": "search",
   "list.bullet": "list",
+  "clock": "schedule",
+  "pin.fill": "push-pin",
   "exclamationmark.triangle.fill": "warning",
+  "book.fill": "auto-stories",
+  "folder.fill": "folder",
+  "folder.badge.plus": "create-new-folder",
+  "chevron.left": "chevron-left",
+  "pencil": "edit",
+  "ellipsis": "more-horiz",
 } satisfies IconMapping;
 
 /**

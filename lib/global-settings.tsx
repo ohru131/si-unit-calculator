@@ -12,9 +12,12 @@ type GlobalSettings = {
   locale: string;
   unitSystem: UnitSystem;
   calculatorMode: CalculatorMode;
+  isReady: boolean;
+  hasSeenOnboarding: boolean;
   setLanguage: (language: AppLanguage) => Promise<void>;
   setUnitSystem: (system: UnitSystem) => Promise<void>;
   setCalculatorMode: (mode: CalculatorMode) => Promise<void>;
+  completeOnboarding: () => Promise<void>;
   t: (key: TranslationKey) => string;
   unitGroupLabel: (groupId: string) => string;
 };
@@ -24,6 +27,7 @@ type TranslationKey = keyof typeof COPY.en;
 const LANGUAGE_KEY = "si-unit-calculator.language.v1";
 const UNIT_SYSTEM_KEY = "si-unit-calculator.unit-system.v1";
 const CALCULATOR_MODE_KEY = "si-unit-calculator.calculator-mode.v1";
+const ONBOARDING_SEEN_KEY = "si-unit-calculator.onboarding-seen.v1";
 
 const COPY = {
   en: {
@@ -114,13 +118,19 @@ export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<AppLanguage>(defaultLanguage);
   const [unitSystem, setUnitSystemState] = useState<UnitSystem>(() => defaultUnitSystem(deviceLocale));
   const [calculatorMode, setCalculatorModeState] = useState<CalculatorMode>("simple");
+  const [isReady, setIsReady] = useState(false);
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
 
   useEffect(() => {
-    Promise.all([AsyncStorage.getItem(LANGUAGE_KEY), AsyncStorage.getItem(UNIT_SYSTEM_KEY), AsyncStorage.getItem(CALCULATOR_MODE_KEY)]).then(([storedLanguage, storedUnitSystem, storedCalculatorMode]) => {
-      if (storedLanguage === "en" || storedLanguage === "ja") setLanguageState(storedLanguage);
-      if (storedUnitSystem === "metric" || storedUnitSystem === "us" || storedUnitSystem === "uk") setUnitSystemState(storedUnitSystem);
-      if (storedCalculatorMode === "simple" || storedCalculatorMode === "advanced") setCalculatorModeState(storedCalculatorMode);
-    }).catch(() => undefined);
+    Promise.all([AsyncStorage.getItem(LANGUAGE_KEY), AsyncStorage.getItem(UNIT_SYSTEM_KEY), AsyncStorage.getItem(CALCULATOR_MODE_KEY), AsyncStorage.getItem(ONBOARDING_SEEN_KEY)])
+      .then(([storedLanguage, storedUnitSystem, storedCalculatorMode, storedOnboardingSeen]) => {
+        if (storedLanguage === "en" || storedLanguage === "ja") setLanguageState(storedLanguage);
+        if (storedUnitSystem === "metric" || storedUnitSystem === "us" || storedUnitSystem === "uk") setUnitSystemState(storedUnitSystem);
+        if (storedCalculatorMode === "simple" || storedCalculatorMode === "advanced") setCalculatorModeState(storedCalculatorMode);
+        if (storedOnboardingSeen === "true") setHasSeenOnboarding(true);
+      })
+      .catch(() => undefined)
+      .finally(() => setIsReady(true));
   }, []);
 
   const setLanguage = useCallback(async (nextLanguage: AppLanguage) => {
@@ -138,18 +148,26 @@ export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.setItem(CALCULATOR_MODE_KEY, nextMode);
   }, []);
 
+  const completeOnboarding = useCallback(async () => {
+    setHasSeenOnboarding(true);
+    await AsyncStorage.setItem(ONBOARDING_SEEN_KEY, "true");
+  }, []);
+
   const locale = language === "ja" ? "ja-JP" : deviceLocale?.languageTag?.startsWith("en") ? deviceLocale.languageTag : "en-US";
   const value = useMemo<GlobalSettings>(() => ({
     language,
     locale,
     unitSystem,
     calculatorMode,
+    isReady,
+    hasSeenOnboarding,
     setLanguage,
     setUnitSystem,
     setCalculatorMode,
+    completeOnboarding,
     t: (key) => COPY[language][key],
     unitGroupLabel: (groupId) => GROUP_NAMES[groupId]?.[language] ?? groupId,
-  }), [calculatorMode, language, locale, setCalculatorMode, setLanguage, setUnitSystem, unitSystem]);
+  }), [calculatorMode, completeOnboarding, hasSeenOnboarding, isReady, language, locale, setCalculatorMode, setLanguage, setUnitSystem, unitSystem]);
 
   return <GlobalSettingsContext.Provider value={value}>{children}</GlobalSettingsContext.Provider>;
 }
