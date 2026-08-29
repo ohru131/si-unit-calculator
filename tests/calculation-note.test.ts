@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { evaluateNoteSteps, noteStepSymbol } from "../lib/calculation-note";
+import { evaluateNoteSteps, noteStepSymbol, resolveNoteStepExpression } from "../lib/calculation-note";
 import type { CalculationNoteStep } from "../lib/calculator-store";
+import { evaluateExpression } from "../lib/units";
 
 const step = (expression: string, targetUnit = ""): CalculationNoteStep => ({
   id: expression,
@@ -40,5 +41,20 @@ describe("計算ノートの手順評価", () => {
     const results = evaluateNoteSteps([step("")]);
     expect(results[0].quantity).toBeNull();
     expect(results[0].error).toBeNull();
+  });
+});
+
+describe("手順参照を含む式の展開", () => {
+  it("s1・s2への参照を前の手順の式へ再帰的に展開し、他画面でも自己完結して評価できる", () => {
+    const steps = [step("100N"), step("0.01m^2"), step("s1 ÷ s2")];
+    const expanded = resolveNoteStepExpression(steps, 2);
+    expect(expanded).toBe("(100N) ÷ (0.01m^2)");
+    expect(evaluateExpression(expanded).siValue).toBeCloseTo(10000);
+  });
+
+  it("前方参照や存在しない手順番号はそのまま残し、参照を含まない式は変更しない", () => {
+    const steps = [step("s2 + 1m"), step("2m")];
+    expect(resolveNoteStepExpression(steps, 0)).toBe("s2 + 1m");
+    expect(resolveNoteStepExpression(steps, 1)).toBe("2m");
   });
 });

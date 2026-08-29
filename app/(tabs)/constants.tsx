@@ -19,7 +19,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
-import { evaluateNoteSteps } from "@/lib/calculation-note";
+import { evaluateNoteSteps, resolveNoteStepExpression } from "@/lib/calculation-note";
 import { exportConstantsBackup, pickConstantsBackup } from "@/lib/constants-backup-file";
 import {
   CalculationNote,
@@ -353,7 +353,7 @@ export default function ConstantsScreen() {
                         </View>
                       ) : null}
                       {resultError ? <Text style={styles.stepResultError}>{resultError}</Text> : null}
-                      <Pressable onPress={() => loadExpression(step.expression, step.targetUnit)} style={({ pressed }) => [styles.runStepButton, pressed && styles.buttonPressed]}>
+                      <Pressable onPress={() => loadExpression(resolveNoteStepExpression(steps, index), step.targetUnit)} style={({ pressed }) => [styles.runStepButton, pressed && styles.buttonPressed]}>
                         <Text style={styles.runStepText}>{copy.runStep}</Text>
                       </Pressable>
                     </View>
