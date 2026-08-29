@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { ImportedConstant } from "@/lib/constants-backup";
 import { useGlobalSettings } from "@/lib/global-settings";
@@ -207,7 +207,11 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.setItem(CUSTOM_FUNCTIONS_STORAGE_KEY, JSON.stringify(next));
   }, []);
 
+  // toggleTemplatePinnedなど、直前の呼び出し結果を踏まえて計算する更新が連続で呼ばれても
+  // 古いtemplatesを参照しないよう、refは代入の直前（awaitより前）に同期更新する。
+  const templatesRef = useRef<CalculationTemplate[]>(templates);
   const persistTemplates = useCallback(async (next: CalculationTemplate[]) => {
+    templatesRef.current = next;
     setTemplates(next);
     await AsyncStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(next));
   }, []);
@@ -257,10 +261,13 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         let nextNotebooks = parseStoredArray(notebooksRaw).filter(isCalculationNotebook);
         let seededPresetIds = parseStoredArray(seededPresetsRaw).filter((id): id is string => typeof id === "string");
         let notebooksDirty = false;
+        let markMigrated = false;
 
         // 旧・計算ノート（フラット一覧）を新しい notebooks へ一度だけ変換する。
         // テンプレートは引き続き独立した機能として残すため、移行対象は notes のみ。
         // 旧データ自体は端末に残したまま（ロールバック用）、変換済みフラグだけを立てる。
+        // フラグは、変換結果の notebooks 本体を書き込んだ後にまとめて立てる
+        // （途中で失敗した場合に「済」フラグだけ残って移行データを失わないようにするため）。
         if (migratedRaw !== "1") {
           const notesRaw = await AsyncStorage.getItem(NOTES_STORAGE_KEY);
           const migratedFromNotes = parseStoredArray(notesRaw).filter(isLegacyCalculationNote).map((note): CalculationNotebook => ({
@@ -275,7 +282,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           }));
           nextNotebooks = [...nextNotebooks, ...migratedFromNotes];
           notebooksDirty = true;
-          await AsyncStorage.setItem(NOTEBOOKS_MIGRATED_STORAGE_KEY, "1");
+          markMigrated = true;
         }
 
         // プリセット計算ノートは特別なデータではなく、ユーザーのノートと全く同じ形で複製されるだけ。
@@ -309,17 +316,24 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           });
           seededPresetIds = [...seededPresetIds, ...missingPresetCategories.map((category) => category.id)];
           notebooksDirty = true;
-          await AsyncStorage.setItem(NOTEBOOKS_SEEDED_PRESETS_STORAGE_KEY, JSON.stringify(seededPresetIds));
         }
 
-        if (notebooksDirty) await AsyncStorage.setItem(NOTEBOOKS_STORAGE_KEY, JSON.stringify(nextNotebooks));
+        if (notebooksDirty) {
+          await AsyncStorage.setItem(NOTEBOOKS_STORAGE_KEY, JSON.stringify(nextNotebooks));
+          if (markMigrated) await AsyncStorage.setItem(NOTEBOOKS_MIGRATED_STORAGE_KEY, "1");
+          if (missingPresetCategories.length) await AsyncStorage.setItem(NOTEBOOKS_SEEDED_PRESETS_STORAGE_KEY, JSON.stringify(seededPresetIds));
+        }
 
         if (!active) return;
         setConstants(parseStoredArray(constantsRaw).filter(isSavedConstant));
         setHistory(parseStoredArray(historyRaw).filter(isSavedCalculation));
         setFavoriteUnits(parseStoredArray(favoriteUnitsRaw).filter((unit): unit is string => typeof unit === "string"));
         setCustomFunctions(parseStoredArray(customFunctionsRaw).filter(isSavedCustomFunction));
-        setTemplates(parseStoredArray(templatesRaw).filter(isCalculationTemplate).map((item) => ({ ...item, pinned: item.pinned === true })));
+        {
+          const loadedTemplates = parseStoredArray(templatesRaw).filter(isCalculationTemplate).map((item) => ({ ...item, pinned: item.pinned === true }));
+          templatesRef.current = loadedTemplates;
+          setTemplates(loadedTemplates);
+        }
         setNotebooks(nextNotebooks);
         setNotebookCategories(parseStoredArray(notebookCategoriesRaw).filter(isNotebookCategory));
         setClearedConstants(parseStoredArray(clearedConstantsRaw).filter(isSavedConstant));
@@ -329,6 +343,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         setHistory([]);
         setFavoriteUnits([]);
         setCustomFunctions([]);
+        templatesRef.current = [];
         setTemplates([]);
         setNotebooks([]);
         setNotebookCategories([]);
@@ -430,20 +445,21 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
 
   const upsertTemplate = useCallback(async (input: Omit<CalculationTemplate, "id" | "createdAt" | "updatedAt" | "pinned"> & { id?: string }) => {
     const now = new Date().toISOString();
-    const existing = input.id ? templates.find((item) => item.id === input.id) : undefined;
+    const currentTemplates = templatesRef.current;
+    const existing = input.id ? currentTemplates.find((item) => item.id === input.id) : undefined;
     const item: CalculationTemplate = { ...input, id: existing?.id ?? `template-${Date.now()}`, pinned: existing?.pinned ?? false, createdAt: existing?.createdAt ?? now, updatedAt: now };
-    const next = [...templates.filter((entry) => entry.id !== item.id), item].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    const next = [...currentTemplates.filter((entry) => entry.id !== item.id), item].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
     await persistTemplates(next);
     return item;
-  }, [persistTemplates, templates]);
+  }, [persistTemplates]);
 
   const removeTemplate = useCallback(async (id: string) => {
-    await persistTemplates(templates.filter((item) => item.id !== id));
-  }, [persistTemplates, templates]);
+    await persistTemplates(templatesRef.current.filter((item) => item.id !== id));
+  }, [persistTemplates]);
 
   const toggleTemplatePinned = useCallback(async (id: string) => {
-    await persistTemplates(templates.map((item) => (item.id === id ? { ...item, pinned: !item.pinned } : item)));
-  }, [persistTemplates, templates]);
+    await persistTemplates(templatesRef.current.map((item) => (item.id === id ? { ...item, pinned: !item.pinned } : item)));
+  }, [persistTemplates]);
 
   const upsertNotebook = useCallback(async (input: Omit<CalculationNotebook, "id" | "createdAt" | "updatedAt"> & { id?: string }) => {
     const now = new Date().toISOString();

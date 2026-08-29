@@ -44,7 +44,7 @@ export function NotebookDetail({ language, locale, notebook, globalConstants, cu
   };
 
   const isDirty = useMemo(
-    () => editableConstants.some((item, index) => item.expression !== notebook.localConstants[index]?.expression),
+    () => editableConstants.some((item) => item.expression !== notebook.localConstants.find((saved) => saved.id === item.id)?.expression),
     [editableConstants, notebook.localConstants],
   );
 
