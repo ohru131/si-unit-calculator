@@ -136,7 +136,7 @@ export default function ConstantsScreen() {
     outputUnitLabel: "表示単位（任意）", removeRow: "削除",
   };
 
-  const sectionItems: Array<{ id: TopSection; label: string }> = [
+  const sectionItems: { id: TopSection; label: string }[] = [
     { id: "notebooks", label: copy.notebooksTab },
     { id: "constants", label: copy.constantsTab },
   ];
