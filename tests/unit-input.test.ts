@@ -5,6 +5,7 @@ import {
   getCommonUnitSuggestions,
   getUnitInputHint,
   getUnitSuggestions,
+  insertUnitAtEnd,
   replaceExpressionRange,
 } from "../lib/unit-input";
 
@@ -109,6 +110,12 @@ describe("入力補助の切り替え", () => {
     expect(replaceExpressionRange("5cm + 1mm", hint.start, hint.end, "cm")).toBe("5cm + 1cm");
   });
 
+  it("末尾に空白があっても直前の単位を差し替え対象として案内する", () => {
+    const hint = getUnitInputHint("5cm + 1mm ", { system: "metric" });
+    expect(hint.kind).toBe("replace");
+    expect(hint.fragment).toBe("mm");
+  });
+
   it("単位まで入力済みなら挿入候補に戻す", () => {
     const hint = getUnitInputHint("5cm + ", { system: "metric", recentUnits: ["cm"] });
     expect(hint.kind).toBe("insert");
@@ -134,5 +141,24 @@ describe("入力補助の切り替え", () => {
 describe("べき乗を含む複合単位", () => {
   it("m/s^2 のような ^ を含む別表記も一つの単位として認識する", () => {
     expect(kinds("10m/s^2")).toEqual(["10:number", "m/s^2:unit"]);
+  });
+});
+
+describe("insertUnitAtEnd", () => {
+  it("末尾が単位なら差し替える", () => {
+    expect(insertUnitAtEnd("5cm + 1mm", "cm")).toBe("5cm + 1cm");
+  });
+
+  it("末尾に空白があっても直前の単位を差し替える", () => {
+    expect(insertUnitAtEnd("5cm + 1mm ", "cm")).toBe("5cm + 1cm ");
+  });
+
+  it("末尾が数値のみなら末尾へ挿入する", () => {
+    expect(insertUnitAtEnd("120", "km")).toBe("120km");
+  });
+
+  it("既知の識別子（他の定数の参照）は単位記号と同じ綴りでも上書きせず、末尾へ追加する", () => {
+    // min という名前のローカル定数を参照しているとき、min が単位記号でもあるからといって差し替えてはならない。
+    expect(insertUnitAtEnd("2 * min", "s", ["min"])).toBe("2 * mins");
   });
 });

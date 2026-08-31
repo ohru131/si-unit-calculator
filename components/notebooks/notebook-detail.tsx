@@ -63,6 +63,12 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   const { resolved, errors } = useMemo(() => resolveNotebookLocalConstants(editableConstants, globalConstants), [editableConstants, globalConstants]);
   const resolvedBySymbol = useMemo(() => new Map(resolved.map((item) => [item.symbol, item])), [resolved]);
   const pool = useMemo(() => [...globalConstants, ...resolved], [globalConstants, resolved]);
+  // ローカル定数の式が他の定数記号を参照しているとき、その記号が単位記号と同じ綴りでも
+  // 単位挿入で誤って上書きしないよう、既知の識別子として明示的に渡す。
+  const constantIdentifiers = useMemo(
+    () => [...globalConstants.map((item) => item.symbol), ...editableConstants.map((item) => item.symbol.trim()).filter(Boolean)],
+    [editableConstants, globalConstants],
+  );
   // measuringStandardはlib/units.tsのモジュール内状態を経由してcup/tbsp/tspの値に反映されるため、
   // 依存配列に含めて設定変更時に再計算させる（値自体は参照するだけで使わない）。
   const stepResults = useMemo(() => {
@@ -152,7 +158,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                     {inputUnits.map((unitOption) => (
                       <Pressable
                         key={unitOption.symbol}
-                        onPress={() => updateValue(item.id, insertUnitAtEnd(item.expression, unitOption.symbol))}
+                        onPress={() => updateValue(item.id, insertUnitAtEnd(item.expression, unitOption.symbol, constantIdentifiers))}
                         style={({ pressed }) => [styles.unitChip, pressed && styles.pressed]}
                       >
                         <Text style={styles.unitChipText}>{unitOption.label}</Text>

@@ -259,8 +259,9 @@ export function getUnitInputHint(
 
   const lastMeaningful = [...analysis.segments].reverse().find((segment) => segment.kind !== "space");
   if (lastMeaningful?.kind === "number") return insertHint(lastMeaningful.end, "attach");
-  // 末尾が既に単位のときは後ろへ足すと無意味な複合単位になるため、その単位ごと差し替える。
-  if (lastMeaningful?.kind === "unit" && lastMeaningful.end === caret) {
+  // 末尾が既に単位のときは後ろへ足すと無意味な複合単位になるため、その単位ごと差し替える
+  // （末尾に空白があっても、直前の意味のある区間を対象にする）。
+  if (lastMeaningful?.kind === "unit") {
     return {
       kind: "replace",
       fragment: lastMeaningful.text,
@@ -283,7 +284,7 @@ export function replaceExpressionRange(expression: string, start: number, end: n
  */
 export function insertUnitAtEnd(expression: string, symbol: string, identifiers: string[] = []): string {
   const lastMeaningful = [...analyzeExpression(expression, identifiers).segments].reverse().find((segment) => segment.kind !== "space");
-  if (lastMeaningful?.kind === "unit" && lastMeaningful.end === expression.length) {
+  if (lastMeaningful?.kind === "unit") {
     return replaceExpressionRange(expression, lastMeaningful.start, lastMeaningful.end, symbol);
   }
   return `${expression}${symbol}`;
