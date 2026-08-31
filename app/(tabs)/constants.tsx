@@ -69,6 +69,7 @@ export default function ConstantsScreen() {
 
   const [topSection, setTopSection] = useState<TopSection>("notebooks");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [browsingParentCategoryId, setBrowsingParentCategoryId] = useState<string | null>(null);
   const [selectedNotebookId, setSelectedNotebookId] = useState<string | null>(null);
 
   // グローバル定数の編集シート。
@@ -140,11 +141,14 @@ export default function ConstantsScreen() {
     { id: "constants", label: copy.constantsTab },
   ];
 
+  // 「高校物理」のような大分類（サブカテゴリを束ねるだけの親）は、ノート自体の所属先には選べないようにする。
+  const parentCategoryIds = useMemo(() => new Set(PRESET_NOTEBOOK_CATEGORIES.map((category) => category.parentId).filter((id): id is string => Boolean(id))), []);
+
   const categoryOptions = useMemo(() => [
-    ...PRESET_NOTEBOOK_CATEGORIES.map((category) => ({ id: category.id, label: language === "en" ? category.labelEn : category.label })),
+    ...PRESET_NOTEBOOK_CATEGORIES.filter((category) => !parentCategoryIds.has(category.id)).map((category) => ({ id: category.id, label: language === "en" ? category.labelEn : category.label })),
     ...notebookCategories.map((category) => ({ id: category.id, label: category.name })),
     { id: UNCATEGORIZED_CATEGORY_ID, label: copy.uncategorized },
-  ], [copy.uncategorized, language, notebookCategories]);
+  ], [copy.uncategorized, language, notebookCategories, parentCategoryIds]);
 
   const categoryLabel = (categoryId: string) => categoryOptions.find((item) => item.id === categoryId)?.label ?? copy.uncategorized;
 
@@ -278,6 +282,7 @@ export default function ConstantsScreen() {
     if (!notebook) return;
     handledOpenNotebookIdRef.current = id;
     setTopSection("notebooks");
+    setBrowsingParentCategoryId(PRESET_NOTEBOOK_CATEGORIES.find((category) => category.id === notebook.categoryId)?.parentId ?? null);
     setSelectedCategoryId(notebook.categoryId);
     setSelectedNotebookId(notebook.id);
     // パラメータを消費済みにしておく。消さないままだと、一度戻ってから同じ
@@ -358,7 +363,10 @@ export default function ConstantsScreen() {
         language={language}
         notebooks={notebooks}
         notebookCategories={notebookCategories}
+        parentCategoryId={browsingParentCategoryId}
         onSelectCategory={setSelectedCategoryId}
+        onSelectParentCategory={setBrowsingParentCategoryId}
+        onBack={() => setBrowsingParentCategoryId(null)}
         onCreateCategory={(name) => void upsertNotebookCategory({ name })}
         onRenameCategory={(id, name) => void upsertNotebookCategory({ id, name })}
         onDeleteCategory={(id) => void removeNotebookCategory(id)}
@@ -406,7 +414,7 @@ export default function ConstantsScreen() {
     </View>
     <View style={styles.sectionRail}>
       {sectionItems.map((item) => (
-        <Pressable key={item.id} onPress={() => { setTopSection(item.id); setSelectedCategoryId(null); setSelectedNotebookId(null); }} style={({ pressed }) => [styles.sectionChip, topSection === item.id && styles.sectionChipActive, pressed && styles.buttonPressed]}>
+        <Pressable key={item.id} onPress={() => { setTopSection(item.id); setSelectedCategoryId(null); setBrowsingParentCategoryId(null); setSelectedNotebookId(null); }} style={({ pressed }) => [styles.sectionChip, topSection === item.id && styles.sectionChipActive, pressed && styles.buttonPressed]}>
           <Text style={[styles.sectionChipText, topSection === item.id && styles.sectionChipTextActive]}>{item.label}</Text>
         </Pressable>
       ))}

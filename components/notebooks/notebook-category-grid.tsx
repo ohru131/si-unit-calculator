@@ -12,13 +12,18 @@ type Props = {
   language: "en" | "ja";
   notebooks: CalculationNotebook[];
   notebookCategories: NotebookCategory[];
+  /** 表示中の親カテゴリID。未指定なら最上位（大分類）のグリッドを表示する。 */
+  parentCategoryId?: string | null;
   onSelectCategory: (categoryId: string) => void;
+  /** サブカテゴリを持つ大分類がタップされたときに呼ばれる。 */
+  onSelectParentCategory: (categoryId: string) => void;
+  onBack?: () => void;
   onCreateCategory: (name: string) => void;
   onRenameCategory: (id: string, name: string) => void;
   onDeleteCategory: (id: string) => void;
 };
 
-export function NotebookCategoryGrid({ language, notebooks, notebookCategories, onSelectCategory, onCreateCategory, onRenameCategory, onDeleteCategory }: Props) {
+export function NotebookCategoryGrid({ language, notebooks, notebookCategories, parentCategoryId, onSelectCategory, onSelectParentCategory, onBack, onCreateCategory, onRenameCategory, onDeleteCategory }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [promptVisible, setPromptVisible] = useState(false);
@@ -38,14 +43,36 @@ export function NotebookCategoryGrid({ language, notebooks, notebookCategories, 
     notebookCount: (count: number) => `${count}件のノート`,
   };
 
+  const childIdsByParent = useMemo(() => {
+    const map = new Map<string, string[]>();
+    PRESET_NOTEBOOK_CATEGORIES.forEach((category) => {
+      if (!category.parentId) return;
+      map.set(category.parentId, [...(map.get(category.parentId) ?? []), category.id]);
+    });
+    return map;
+  }, []);
+
+  const parentCategory = parentCategoryId ? PRESET_NOTEBOOK_CATEGORIES.find((category) => category.id === parentCategoryId) : undefined;
+  const parentLabel = parentCategory ? (language === "en" ? parentCategory.labelEn : parentCategory.label) : "";
+
   const rows = useMemo(() => {
     const countFor = (categoryId: string) => notebooks.filter((item) => item.categoryId === categoryId).length;
-    const presetRows = PRESET_NOTEBOOK_CATEGORIES.map((category) => ({ id: category.id, label: language === "en" ? category.labelEn : category.label, count: countFor(category.id), isPreset: true }));
-    const userRows = notebookCategories.map((category) => ({ id: category.id, label: category.name, count: countFor(category.id), isPreset: false }));
+    if (parentCategoryId) {
+      const childIds = childIdsByParent.get(parentCategoryId) ?? [];
+      return PRESET_NOTEBOOK_CATEGORIES.filter((category) => childIds.includes(category.id)).map((category) => ({
+        id: category.id, label: language === "en" ? category.labelEn : category.label, count: countFor(category.id), isPreset: true, hasChildren: false,
+      }));
+    }
+    const presetRows = PRESET_NOTEBOOK_CATEGORIES.filter((category) => !category.parentId).map((category) => {
+      const childIds = childIdsByParent.get(category.id) ?? [];
+      const count = childIds.length ? childIds.reduce((sum, childId) => sum + countFor(childId), 0) : countFor(category.id);
+      return { id: category.id, label: language === "en" ? category.labelEn : category.label, count, isPreset: true, hasChildren: childIds.length > 0 };
+    });
+    const userRows = notebookCategories.map((category) => ({ id: category.id, label: category.name, count: countFor(category.id), isPreset: false, hasChildren: false }));
     const uncategorizedCount = countFor(UNCATEGORIZED_CATEGORY_ID);
-    const tail = uncategorizedCount > 0 || (!presetRows.length && !userRows.length) ? [{ id: UNCATEGORIZED_CATEGORY_ID, label: copy.uncategorized, count: uncategorizedCount, isPreset: true }] : [];
+    const tail = uncategorizedCount > 0 || (!presetRows.length && !userRows.length) ? [{ id: UNCATEGORIZED_CATEGORY_ID, label: copy.uncategorized, count: uncategorizedCount, isPreset: true, hasChildren: false }] : [];
     return [...presetRows, ...userRows, ...tail];
-  }, [copy.uncategorized, language, notebookCategories, notebooks]);
+  }, [childIdsByParent, copy.uncategorized, language, notebookCategories, notebooks, parentCategoryId]);
 
   const openCreate = () => { setEditingCategoryId(null); setPromptValue(""); setPromptVisible(true); };
   const openRename = (id: string, currentName: string) => { setEditingCategoryId(id); setPromptValue(currentName); setPromptVisible(true); };
@@ -59,11 +86,18 @@ export function NotebookCategoryGrid({ language, notebooks, notebookCategories, 
   };
 
   return (
-    <View style={styles.grid}>
+    <View>
+      {parentCategoryId ? (
+        <Pressable onPress={onBack} style={({ pressed }) => [styles.backRow, pressed && styles.pressed]}>
+          <IconSymbol name="chevron.left" size={16} color={colors.primary} />
+          <Text numberOfLines={1} style={styles.backLabel}>{parentLabel}</Text>
+        </Pressable>
+      ) : null}
+      <View style={styles.grid}>
       {rows.map((row) => (
         <View key={row.id} style={styles.card}>
-          <Pressable onPress={() => onSelectCategory(row.id)} style={({ pressed }) => [styles.cardMain, pressed && styles.pressed]}>
-            <IconSymbol name={row.isPreset ? "folder.fill" : "folder.fill"} size={22} color={colors.primary} />
+          <Pressable onPress={() => (row.hasChildren ? onSelectParentCategory(row.id) : onSelectCategory(row.id))} style={({ pressed }) => [styles.cardMain, pressed && styles.pressed]}>
+            <IconSymbol name="folder.fill" size={22} color={colors.primary} />
             <Text numberOfLines={1} style={styles.cardLabel}>{row.label}</Text>
             <Text style={styles.cardCount}>{copy.notebookCount(row.count)}</Text>
           </Pressable>
@@ -79,10 +113,13 @@ export function NotebookCategoryGrid({ language, notebooks, notebookCategories, 
           ) : null}
         </View>
       ))}
-      <Pressable onPress={openCreate} style={({ pressed }) => [styles.card, styles.addCard, pressed && styles.pressed]}>
-        <IconSymbol name="folder.badge.plus" size={22} color={colors.primary} />
-        <Text style={styles.addCardLabel}>{copy.newCategory}</Text>
-      </Pressable>
+      {!parentCategoryId ? (
+        <Pressable onPress={openCreate} style={({ pressed }) => [styles.card, styles.addCard, pressed && styles.pressed]}>
+          <IconSymbol name="folder.badge.plus" size={22} color={colors.primary} />
+          <Text style={styles.addCardLabel}>{copy.newCategory}</Text>
+        </Pressable>
+      ) : null}
+      </View>
 
       <Modal visible={promptVisible} transparent animationType="fade" onRequestClose={() => setPromptVisible(false)}>
         <View style={styles.promptBackdrop}>
@@ -119,6 +156,8 @@ export function NotebookCategoryGrid({ language, notebooks, notebookCategories, 
 }
 
 const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
+  backRow: { alignItems: "center", flexDirection: "row", gap: 4, paddingBottom: 12 },
+  backLabel: { color: colors.primary, flexShrink: 1, fontSize: 14, fontWeight: "800" },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   card: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, minWidth: "47%", overflow: "hidden" },
   cardMain: { gap: 6, padding: 14 },

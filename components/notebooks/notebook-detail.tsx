@@ -3,6 +3,7 @@ import * as Clipboard from "expo-clipboard";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { LatexView } from "@/components/ui/latex-view";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { type CalculationNotebook, type NotebookLocalConstant } from "@/lib/calculator-store";
@@ -187,7 +188,13 @@ export function NotebookDetail({ language, locale, unitSystem, notebook, globalC
                     ))}
                   </ScrollView>
                 ) : null}
-                <Text numberOfLines={1} style={styles.resultExpression}>{result.step.expression}</Text>
+                {result.step.formulaLatex ? (
+                  <View style={styles.resultFormula}>
+                    <LatexView latex={result.step.formulaLatex} color={colors.muted} fontSize={14} displayMode={false} />
+                  </View>
+                ) : (
+                  <Text numberOfLines={1} style={styles.resultExpression}>{result.step.expression}</Text>
+                )}
                 {!isFinalStep && result.quantity ? <Text style={styles.resultReferenceHint}>{copy.referenceHint.replace("{symbol}", result.symbol)}</Text> : null}
               </View>
             );
@@ -231,6 +238,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   copyButton: { alignItems: "center", height: 26, justifyContent: "center", width: 30 },
   resultValue: { color: colors.primaryStrong, fontFamily: mono, fontSize: 24, fontWeight: "700", marginTop: 4 },
   resultExpression: { color: colors.muted, fontFamily: mono, fontSize: 11, marginTop: 6 },
+  resultFormula: { marginTop: 6 },
   resultError: { color: colors.error, fontSize: 12, lineHeight: 17, marginTop: 4 },
   resultWarning: { color: colors.warning, fontSize: 11, lineHeight: 15, marginTop: 4 },
   resultReferenceHint: { color: colors.muted, fontSize: 10, marginTop: 5 },
