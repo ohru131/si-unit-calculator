@@ -71,7 +71,7 @@ export const MATERIALS_SEEDS: NotebookSeed[] = [
     ],
     steps: [
       { title: "応力 σ = E×ε", titleEn: "Stress σ = E×ε", expression: "E*epsilon", targetUnit: "MPa", formulaLatex: "\\sigma = E\\varepsilon" },
-      { title: "ひずみ ε = σ/E", titleEn: "Strain ε = σ/E", expression: "sigma0/E", targetUnit: "", formulaLatex: "\\varepsilon = \\dfrac{\\sigma_0}{E}" },
+      { title: "ひずみ ε = σ₀/E", titleEn: "Strain ε = σ₀/E", expression: "sigma0/E", targetUnit: "", formulaLatex: "\\varepsilon = \\dfrac{\\sigma_0}{E}" },
     ],
   },
   {

@@ -51,7 +51,7 @@ export default function CalculatorScreen() {
   const { quick, presetExpression, presetUnit } = useLocalSearchParams<{ quick?: string | string[]; presetExpression?: string | string[]; presetUnit?: string | string[] }>();
   const { constants, history, favoriteUnits, notebooks, upsertConstant, addHistoryEntry, clearHistory } = useCalculatorStore();
   const { isPro } = usePro();
-  const { calculatorMode, completeOnboarding, hasSeenOnboarding, isReady, language, locale, t, unitGroupLabel, unitSystem } = useGlobalSettings();
+  const { calculatorMode, completeOnboarding, hasSeenOnboarding, isReady, language, locale, measuringStandard, t, unitGroupLabel, unitSystem } = useGlobalSettings();
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [expression, setExpression] = useState("5cm + 1mm");
   const [targetUnit, setTargetUnit] = useState("cm");
@@ -210,6 +210,7 @@ export default function CalculatorScreen() {
   const isLastOnboardingSlide = onboardingStep === onboardingSlides.length - 1;
 
   const display = useMemo(() => {
+    void measuringStandard;
     if (!result) return null;
     try {
       return { value: formatQuantity(result, targetUnit, locale), si: formatQuantity(result, undefined, locale), error: "" };
@@ -219,7 +220,8 @@ export default function CalculatorScreen() {
       const fallback = language === "en" ? "Could not convert to this unit." : "この単位へは変換できません。";
       return { value: "—", si: formatQuantity(result, undefined, locale), error: cause instanceof Error ? cause.message : fallback };
     }
-  }, [language, locale, result, targetUnit]);
+    // measuringStandardが変わるとcup/tbsp/tspの換算値が変わるため、依存配列に含めて表示単位を再計算させる（値自体は使わない）。
+  }, [language, locale, measuringStandard, result, targetUnit]);
 
   const rememberUnit = (symbol: string) => {
     const trimmed = symbol.trim();

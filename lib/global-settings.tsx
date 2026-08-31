@@ -138,6 +138,10 @@ export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
 
   useEffect(() => {
+    // lib/units.ts はモジュール内の可変状態でcup/tbsp/tspの値を持つため、Reactのstateより先に
+    // （同じ関数の中で）反映させる。useEffectの依存配列経由で追従させると1回分遅れて反映される。
+    applyMeasuringStandard(defaultMeasuringStandard(defaultLanguage));
+
     Promise.all([AsyncStorage.getItem(LANGUAGE_KEY), AsyncStorage.getItem(UNIT_SYSTEM_KEY), AsyncStorage.getItem(CALCULATOR_MODE_KEY), AsyncStorage.getItem(ONBOARDING_SEEN_KEY), AsyncStorage.getItem(MEASURING_STANDARD_KEY)])
       .then(([storedLanguage, storedUnitSystem, storedCalculatorMode, storedOnboardingSeen, storedMeasuringStandard]) => {
         const resolvedLanguage = storedLanguage === "en" || storedLanguage === "ja" ? storedLanguage : defaultLanguage;
@@ -145,19 +149,13 @@ export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
         if (storedUnitSystem === "metric" || storedUnitSystem === "us" || storedUnitSystem === "uk") setUnitSystemState(storedUnitSystem);
         if (storedCalculatorMode === "simple" || storedCalculatorMode === "advanced") setCalculatorModeState(storedCalculatorMode);
         if (storedOnboardingSeen === "true") setHasSeenOnboarding(true);
-        if (storedMeasuringStandard === "us" || storedMeasuringStandard === "jis") {
-          setMeasuringStandardState(storedMeasuringStandard);
-        } else {
-          setMeasuringStandardState(defaultMeasuringStandard(resolvedLanguage));
-        }
+        const resolvedStandard = storedMeasuringStandard === "us" || storedMeasuringStandard === "jis" ? storedMeasuringStandard : defaultMeasuringStandard(resolvedLanguage);
+        applyMeasuringStandard(resolvedStandard);
+        setMeasuringStandardState(resolvedStandard);
       })
       .catch(() => undefined)
       .finally(() => setIsReady(true));
   }, [defaultLanguage]);
-
-  useEffect(() => {
-    applyMeasuringStandard(measuringStandard);
-  }, [measuringStandard]);
 
   const setLanguage = useCallback(async (nextLanguage: AppLanguage) => {
     setLanguageState(nextLanguage);
@@ -170,6 +168,7 @@ export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setMeasuringStandard = useCallback(async (nextStandard: MeasuringStandard) => {
+    applyMeasuringStandard(nextStandard);
     setMeasuringStandardState(nextStandard);
     await AsyncStorage.setItem(MEASURING_STANDARD_KEY, nextStandard);
   }, []);

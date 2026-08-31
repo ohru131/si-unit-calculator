@@ -8,7 +8,7 @@ import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { type CalculationNotebook, type NotebookLocalConstant } from "@/lib/calculator-store";
 import { evaluateNotebookSteps, resolveNotebookLocalConstants } from "@/lib/notebook-engine";
-import { formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, type Quantity, type SavedConstant, type UnitSystem } from "@/lib/units";
+import { formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, type MeasuringStandard, type Quantity, type SavedConstant, type UnitSystem } from "@/lib/units";
 
 const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" });
 
@@ -16,6 +16,7 @@ type Props = {
   language: "en" | "ja";
   locale?: string;
   unitSystem: UnitSystem;
+  measuringStandard: MeasuringStandard;
   notebook: CalculationNotebook;
   globalConstants: SavedConstant[];
   onBack: () => void;
@@ -24,7 +25,7 @@ type Props = {
   onSaveValues: (localConstants: NotebookLocalConstant[]) => void;
 };
 
-export function NotebookDetail({ language, locale, unitSystem, notebook, globalConstants, onBack, onEdit, onTogglePinned, onSaveValues }: Props) {
+export function NotebookDetail({ language, locale, unitSystem, measuringStandard, notebook, globalConstants, onBack, onEdit, onTogglePinned, onSaveValues }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [editableConstants, setEditableConstants] = useState<NotebookLocalConstant[]>(() => notebook.localConstants.map((item) => ({ ...item })));
@@ -60,7 +61,12 @@ export function NotebookDetail({ language, locale, unitSystem, notebook, globalC
 
   const { resolved, errors } = useMemo(() => resolveNotebookLocalConstants(editableConstants, globalConstants), [editableConstants, globalConstants]);
   const pool = useMemo(() => [...globalConstants, ...resolved], [globalConstants, resolved]);
-  const stepResults = useMemo(() => evaluateNotebookSteps(notebook.steps, pool, [], locale), [locale, notebook.steps, pool]);
+  // measuringStandardはlib/units.tsのモジュール内状態を経由してcup/tbsp/tspの値に反映されるため、
+  // 依存配列に含めて設定変更時に再計算させる（値自体は参照するだけで使わない）。
+  const stepResults = useMemo(() => {
+    void measuringStandard;
+    return evaluateNotebookSteps(notebook.steps, pool, [], locale);
+  }, [locale, notebook.steps, pool, measuringStandard]);
 
   const updateValue = (id: string, expression: string) => {
     setEditableConstants((current) => current.map((item) => (item.id === id ? { ...item, expression } : item)));
@@ -161,10 +167,6 @@ export function NotebookDetail({ language, locale, unitSystem, notebook, globalC
               } else {
                 try {
                   displayValue = formatQuantity(result.quantity, overrideUnit, locale);
-                  const label = compatibleUnits.find((unitOption) => unitOption.symbol === overrideUnit)?.label;
-                  if (label && label !== overrideUnit && displayValue.endsWith(overrideUnit)) {
-                    displayValue = `${displayValue.slice(0, -overrideUnit.length)}${label}`;
-                  }
                   displayError = undefined;
                 } catch (cause) {
                   displayValue = result.siFallback;
@@ -173,6 +175,12 @@ export function NotebookDetail({ language, locale, unitSystem, notebook, globalC
               }
             }
             const effectiveUnit = overrideUnit ?? result.step.targetUnit.trim();
+            if (displayValue && effectiveUnit) {
+              const label = compatibleUnits.find((unitOption) => unitOption.symbol === effectiveUnit)?.label;
+              if (label && label !== effectiveUnit && displayValue.endsWith(effectiveUnit)) {
+                displayValue = `${displayValue.slice(0, -effectiveUnit.length)}${label}`;
+              }
+            }
             return (
               <View key={result.step.id} style={[styles.resultCard, isFinalStep && result.quantity ? styles.resultCardFinal : null]}>
                 <View style={styles.resultHeader}>

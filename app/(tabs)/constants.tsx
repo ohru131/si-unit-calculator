@@ -48,7 +48,7 @@ export default function ConstantsScreen() {
   const { notebookExpression, notebookUnit, openNotebookId } = useLocalSearchParams<{ notebookExpression?: string | string[]; notebookUnit?: string | string[]; openNotebookId?: string | string[] }>();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { language, locale, unitSystem } = useGlobalSettings();
+  const { language, locale, measuringStandard, unitSystem } = useGlobalSettings();
   const {
     constants,
     clearConstants,
@@ -334,6 +334,7 @@ export default function ConstantsScreen() {
           language={language}
           locale={locale}
           unitSystem={unitSystem}
+          measuringStandard={measuringStandard}
           notebook={selectedNotebook}
           globalConstants={constants}
           onBack={() => setSelectedNotebookId(null)}

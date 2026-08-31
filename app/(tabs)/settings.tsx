@@ -32,7 +32,7 @@ export default function SettingsScreen() {
       <View style={styles.card}>
         <Text style={styles.label}>{t("measuringStandard")}</Text>
         <Text style={styles.description}>{t("measuringStandardHint")}</Text>
-        <View style={styles.systemList}>{measuringStandards.map((option) => <Pressable accessibilityLabel={`${t("measuringStandard")}: ${option.label}`} key={option.id} onPress={() => void setMeasuringStandard(option.id)} style={({ pressed }) => [styles.systemRow, measuringStandard === option.id && styles.systemRowActive, pressed && styles.pressed]}><View style={[styles.radio, measuringStandard === option.id && styles.radioActive]}>{measuringStandard === option.id ? <View style={styles.radioInner} /> : null}</View><Text style={styles.systemText}>{option.label}</Text></Pressable>)}</View>
+        <View style={styles.systemList}>{measuringStandards.map((option) => <Pressable accessibilityRole="radio" accessibilityState={{ selected: measuringStandard === option.id }} accessibilityLabel={`${t("measuringStandard")}: ${option.label}`} key={option.id} onPress={() => void setMeasuringStandard(option.id)} style={({ pressed }) => [styles.systemRow, measuringStandard === option.id && styles.systemRowActive, pressed && styles.pressed]}><View style={[styles.radio, measuringStandard === option.id && styles.radioActive]}>{measuringStandard === option.id ? <View style={styles.radioInner} /> : null}</View><Text style={styles.systemText}>{option.label}</Text></Pressable>)}</View>
       </View>
       <View style={styles.card}>
         <Text style={styles.label}>{t("displayMode")}</Text>
