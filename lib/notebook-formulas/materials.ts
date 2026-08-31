@@ -66,12 +66,12 @@ export const MATERIALS_SEEDS: NotebookSeed[] = [
     descriptionEn: "Convert between stress and strain using Young's modulus (Hooke's law).",
     localConstants: [
       { symbol: "E", expression: "205GPa" },
-      { symbol: "epsilon", expression: "0.001" },
-      { symbol: "sigma0", expression: "100MPa" },
+      { symbol: "epsilon", expression: "0.001", displaySymbol: "ε" },
+      { symbol: "sigma0", expression: "100MPa", displaySymbol: "σ₀" },
     ],
     steps: [
       { title: "応力 σ = E×ε", titleEn: "Stress σ = E×ε", expression: "E*epsilon", targetUnit: "MPa", formulaLatex: "\\sigma = E\\varepsilon" },
-      { title: "ひずみ ε = σ/E", titleEn: "Strain ε = σ/E", expression: "sigma0/E", targetUnit: "", formulaLatex: "\\varepsilon = \\dfrac{\\sigma}{E}" },
+      { title: "ひずみ ε = σ₀/E", titleEn: "Strain ε = σ₀/E", expression: "sigma0/E", targetUnit: "", formulaLatex: "\\varepsilon = \\dfrac{\\sigma_0}{E}" },
     ],
   },
   {

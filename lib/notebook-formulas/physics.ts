@@ -8,7 +8,7 @@ export const PHYSICS_MECHANICS_SEEDS: NotebookSeed[] = [
     description: "初速度・加速度・時間から、等加速度運動の速度を求めます。",
     descriptionEn: "Compute the velocity of uniformly accelerated motion from initial velocity, acceleration, and time.",
     localConstants: [
-      { symbol: "v0", expression: "5m/s" },
+      { symbol: "v0", expression: "5m/s", displaySymbol: "v₀" },
       { symbol: "a", expression: "2m/s^2" },
       { symbol: "t", expression: "3s" },
     ],
@@ -20,7 +20,7 @@ export const PHYSICS_MECHANICS_SEEDS: NotebookSeed[] = [
     description: "初速度・加速度・時間から、等加速度運動の変位を求めます。",
     descriptionEn: "Compute the displacement of uniformly accelerated motion from initial velocity, acceleration, and time.",
     localConstants: [
-      { symbol: "v0", expression: "5m/s" },
+      { symbol: "v0", expression: "5m/s", displaySymbol: "v₀" },
       { symbol: "a", expression: "2m/s^2" },
       { symbol: "t", expression: "3s" },
     ],
@@ -115,7 +115,7 @@ export const PHYSICS_MECHANICS_SEEDS: NotebookSeed[] = [
     localConstants: [
       { symbol: "m", expression: "5kg" },
       { symbol: "g", expression: "9.8m/s^2" },
-      { symbol: "mu", expression: "0.3" },
+      { symbol: "mu", expression: "0.3", displaySymbol: "μ" },
     ],
     steps: [
       { title: "垂直抗力 N", titleEn: "Normal force N", expression: "m*g", targetUnit: "N", formulaLatex: "N = mg" },
@@ -147,7 +147,7 @@ export const PHYSICS_THERMAL_SEEDS: NotebookSeed[] = [
     localConstants: [
       { symbol: "m", expression: "0.2kg" },
       { symbol: "c", expression: "4200J/kg/K" },
-      { symbol: "deltaT", expression: "30K" },
+      { symbol: "deltaT", expression: "30K", displaySymbol: "ΔT" },
     ],
     steps: [{ title: "熱量 Q", titleEn: "Heat Q", expression: "m*c*deltaT", targetUnit: "J", formulaLatex: "Q = mc\\Delta T" }],
   },
@@ -158,7 +158,7 @@ export const PHYSICS_THERMAL_SEEDS: NotebookSeed[] = [
     descriptionEn: "Compute the thermal efficiency of a heat engine from the work done and the heat input.",
     localConstants: [
       { symbol: "W", expression: "300J" },
-      { symbol: "Qin", expression: "1000J" },
+      { symbol: "Qin", expression: "1000J", displaySymbol: "Qᵢₙ" },
     ],
     steps: [{ title: "熱効率 η", titleEn: "Thermal efficiency η", expression: "W/Qin", targetUnit: "%", formulaLatex: "\\eta = \\dfrac{W}{Q_{in}}" }],
   },
@@ -168,9 +168,9 @@ export const PHYSICS_THERMAL_SEEDS: NotebookSeed[] = [
     description: "線膨張率・元の長さ・温度変化から、物体の伸びを求めます。",
     descriptionEn: "Compute the elongation of an object from its coefficient of linear expansion, original length, and temperature change.",
     localConstants: [
-      { symbol: "alpha", expression: "1.2e-5/K" },
-      { symbol: "L0", expression: "10m" },
-      { symbol: "deltaT", expression: "40K" },
+      { symbol: "alpha", expression: "1.2e-5/K", displaySymbol: "α" },
+      { symbol: "L0", expression: "10m", displaySymbol: "L₀" },
+      { symbol: "deltaT", expression: "40K", displaySymbol: "ΔT" },
     ],
     steps: [{ title: "伸び ΔL", titleEn: "Elongation ΔL", expression: "alpha*L0*deltaT", targetUnit: "mm", formulaLatex: "\\Delta L = \\alpha L_0 \\Delta T" }],
   },
@@ -180,9 +180,9 @@ export const PHYSICS_THERMAL_SEEDS: NotebookSeed[] = [
     description: "圧力一定のもとで、温度変化後の体積をシャルルの法則から求めます。",
     descriptionEn: "Compute the volume after a temperature change at constant pressure using Charles's law.",
     localConstants: [
-      { symbol: "V1", expression: "2L" },
-      { symbol: "T1", expression: "300K" },
-      { symbol: "T2", expression: "450K" },
+      { symbol: "V1", expression: "2L", displaySymbol: "V₁" },
+      { symbol: "T1", expression: "300K", displaySymbol: "T₁" },
+      { symbol: "T2", expression: "450K", displaySymbol: "T₂" },
     ],
     steps: [{ title: "変化後の体積 V2", titleEn: "Volume after change V2", expression: "V1*T2/T1", targetUnit: "L", formulaLatex: "V_2 = V_1\\dfrac{T_2}{T_1}" }],
   },
@@ -197,7 +197,7 @@ export const PHYSICS_WAVES_SEEDS: NotebookSeed[] = [
     descriptionEn: "Compute the wave speed from its frequency and wavelength.",
     localConstants: [
       { symbol: "f", expression: "440Hz" },
-      { symbol: "lambda", expression: "0.77m" },
+      { symbol: "lambda", expression: "0.77m", displaySymbol: "λ" },
     ],
     steps: [{ title: "速さ v", titleEn: "Speed v", expression: "f*lambda", targetUnit: "m/s", formulaLatex: "v = f\\lambda" }],
   },
@@ -231,7 +231,7 @@ export const PHYSICS_WAVES_SEEDS: NotebookSeed[] = [
     localConstants: [
       { symbol: "v", expression: "340m/s" },
       { symbol: "f", expression: "500Hz" },
-      { symbol: "vs", expression: "20m/s" },
+      { symbol: "vs", expression: "20m/s", displaySymbol: "vₛ" },
     ],
     steps: [{ title: "観測振動数 f'", titleEn: "Observed frequency f'", expression: "f*v/(v-vs)", targetUnit: "Hz", formulaLatex: "f' = f\\dfrac{v}{v - v_s}" }],
   },
@@ -241,9 +241,9 @@ export const PHYSICS_WAVES_SEEDS: NotebookSeed[] = [
     description: "入射角と屈折率から、屈折角を求めます。",
     descriptionEn: "Compute the refraction angle from the angle of incidence and the refractive indices.",
     localConstants: [
-      { symbol: "n1", expression: "1" },
-      { symbol: "n2", expression: "1.5" },
-      { symbol: "theta1", expression: "30deg" },
+      { symbol: "n1", expression: "1", displaySymbol: "n₁" },
+      { symbol: "n2", expression: "1.5", displaySymbol: "n₂" },
+      { symbol: "theta1", expression: "30deg", displaySymbol: "θ₁" },
     ],
     steps: [{ title: "屈折角 θ2", titleEn: "Refraction angle θ2", expression: "asin(n1*sin(theta1)/n2)", targetUnit: "deg", formulaLatex: "\\theta_2 = \\arcsin\\!\\left(\\dfrac{n_1 \\sin\\theta_1}{n_2}\\right)" }],
   },
@@ -258,8 +258,8 @@ export const PHYSICS_ELECTRICITY_SEEDS: NotebookSeed[] = [
     descriptionEn: "Compute the electrostatic force between two point charges using Coulomb's law.",
     localConstants: [
       { symbol: "k", expression: "8.99e9N*m^2/C^2" },
-      { symbol: "q1", expression: "2e-6C" },
-      { symbol: "q2", expression: "3e-6C" },
+      { symbol: "q1", expression: "2e-6C", displaySymbol: "q₁" },
+      { symbol: "q2", expression: "3e-6C", displaySymbol: "q₂" },
       { symbol: "r", expression: "0.1m" },
     ],
     steps: [{ title: "静電気力 F", titleEn: "Electrostatic force F", expression: "k*q1*q2/r^2", targetUnit: "N", formulaLatex: "F = k\\dfrac{q_1 q_2}{r^2}" }],
@@ -292,7 +292,7 @@ export const PHYSICS_ELECTRICITY_SEEDS: NotebookSeed[] = [
     description: "静電容量と電圧から、蓄えられる電気量と静電エネルギーを求めます。",
     descriptionEn: "Compute the stored charge and electrostatic energy of a capacitor from its capacitance and voltage.",
     localConstants: [
-      { symbol: "Cap", expression: "100uF" },
+      { symbol: "Cap", expression: "100uF", displaySymbol: "C" },
       { symbol: "V", expression: "12V" },
     ],
     steps: [
@@ -306,9 +306,9 @@ export const PHYSICS_ELECTRICITY_SEEDS: NotebookSeed[] = [
     description: "コイルの巻数と磁束の変化から、誘導起電力を求めます。",
     descriptionEn: "Compute the induced EMF of a coil from the number of turns and the rate of change of magnetic flux.",
     localConstants: [
-      { symbol: "turns", expression: "200" },
-      { symbol: "deltaPhi", expression: "0.02Wb" },
-      { symbol: "deltaT", expression: "0.1s" },
+      { symbol: "turns", expression: "200", displaySymbol: "N" },
+      { symbol: "deltaPhi", expression: "0.02Wb", displaySymbol: "ΔΦ" },
+      { symbol: "deltaT", expression: "0.1s", displaySymbol: "Δt" },
     ],
     steps: [{ title: "誘導起電力 V", titleEn: "Induced EMF V", expression: "turns*deltaPhi/deltaT", targetUnit: "V", formulaLatex: "V = N\\dfrac{\\Delta\\Phi}{\\Delta t}" }],
   },
@@ -348,7 +348,7 @@ export const PHYSICS_ATOMIC_SEEDS: NotebookSeed[] = [
     description: "半減期・経過時間・初期の原子数から、残っている原子数を求めます。",
     descriptionEn: "Compute the remaining number of atoms from the half-life, elapsed time, and initial atom count.",
     localConstants: [
-      { symbol: "N0", expression: "1000000" },
+      { symbol: "N0", expression: "1000000", displaySymbol: "N₀" },
       { symbol: "T", expression: "5.3yr" },
       { symbol: "t", expression: "10.6yr" },
     ],

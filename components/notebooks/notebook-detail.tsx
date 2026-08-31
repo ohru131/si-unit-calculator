@@ -8,7 +8,7 @@ import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { type CalculationNotebook, type NotebookLocalConstant } from "@/lib/calculator-store";
 import { evaluateNotebookSteps, resolveNotebookLocalConstants } from "@/lib/notebook-engine";
-import { formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, type Quantity, type SavedConstant, type UnitSystem } from "@/lib/units";
+import { formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, type MeasuringStandard, type Quantity, type SavedConstant, type UnitSystem } from "@/lib/units";
 
 const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" });
 
@@ -16,6 +16,7 @@ type Props = {
   language: "en" | "ja";
   locale?: string;
   unitSystem: UnitSystem;
+  measuringStandard: MeasuringStandard;
   notebook: CalculationNotebook;
   globalConstants: SavedConstant[];
   onBack: () => void;
@@ -24,7 +25,7 @@ type Props = {
   onSaveValues: (localConstants: NotebookLocalConstant[]) => void;
 };
 
-export function NotebookDetail({ language, locale, unitSystem, notebook, globalConstants, onBack, onEdit, onTogglePinned, onSaveValues }: Props) {
+export function NotebookDetail({ language, locale, unitSystem, measuringStandard, notebook, globalConstants, onBack, onEdit, onTogglePinned, onSaveValues }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [editableConstants, setEditableConstants] = useState<NotebookLocalConstant[]>(() => notebook.localConstants.map((item) => ({ ...item })));
@@ -43,12 +44,12 @@ export function NotebookDetail({ language, locale, unitSystem, notebook, globalC
 
   const copy = language === "en" ? {
     edit: "Edit", save: "Save values", copy: "Copy", copied: "Copied",
-    inputs: "Inputs", results: "Results", noInputs: "This notebook has no local constants.", noSteps: "This notebook has no steps yet.",
+    formulas: "Formula", inputs: "Inputs", results: "Results", noInputs: "This notebook has no local constants.", noSteps: "This notebook has no steps yet.",
     si: "SI base", finalResult: "Final result", referenceHint: "Use {symbol} in a later step.",
     pin: "Pin to calculator", unpin: "Unpin from calculator",
   } : {
     edit: "編集", save: "値を保存", copy: "コピー", copied: "コピーしました",
-    inputs: "定数（入力値）", results: "結果", noInputs: "このノートにはローカル定数がありません。", noSteps: "このノートにはまだ手順がありません。",
+    formulas: "数式", inputs: "定数（入力値）", results: "結果", noInputs: "このノートにはローカル定数がありません。", noSteps: "このノートにはまだ手順がありません。",
     si: "SI標準", finalResult: "最終結果", referenceHint: "後の手順で {symbol} として使えます。",
     pin: "電卓画面にピン留め", unpin: "ピン留めを解除",
   };
@@ -60,7 +61,12 @@ export function NotebookDetail({ language, locale, unitSystem, notebook, globalC
 
   const { resolved, errors } = useMemo(() => resolveNotebookLocalConstants(editableConstants, globalConstants), [editableConstants, globalConstants]);
   const pool = useMemo(() => [...globalConstants, ...resolved], [globalConstants, resolved]);
-  const stepResults = useMemo(() => evaluateNotebookSteps(notebook.steps, pool, [], locale), [locale, notebook.steps, pool]);
+  // measuringStandardはlib/units.tsのモジュール内状態を経由してcup/tbsp/tspの値に反映されるため、
+  // 依存配列に含めて設定変更時に再計算させる（値自体は参照するだけで使わない）。
+  const stepResults = useMemo(() => {
+    void measuringStandard;
+    return evaluateNotebookSteps(notebook.steps, pool, [], locale);
+  }, [locale, notebook.steps, pool, measuringStandard]);
 
   const updateValue = (id: string, expression: string) => {
     setEditableConstants((current) => current.map((item) => (item.id === id ? { ...item, expression } : item)));
@@ -71,14 +77,14 @@ export function NotebookDetail({ language, locale, unitSystem, notebook, globalC
   };
 
   const compatibleUnitsFor = (quantity: Quantity | undefined) => {
-    if (!quantity) return [] as string[];
-    const symbols: string[] = [];
+    if (!quantity) return [] as { symbol: string; label: string }[];
+    const options: { symbol: string; label: string }[] = [];
     getCompatibleUnitGroups(quantity.dimension).forEach((group) => {
       getGroupUnitsForSystem(group, unitSystem).forEach((unitOption) => {
-        if (!symbols.includes(unitOption.symbol)) symbols.push(unitOption.symbol);
+        if (!options.some((option) => option.symbol === unitOption.symbol)) options.push({ symbol: unitOption.symbol, label: unitOption.label });
       });
     });
-    return symbols.slice(0, 8);
+    return options.slice(0, 14);
   };
 
   return (
@@ -109,12 +115,27 @@ export function NotebookDetail({ language, locale, unitSystem, notebook, globalC
         </Pressable>
       ) : null}
 
+      {notebook.steps.some((step) => step.formulaLatex) ? (
+        <>
+          <Text style={styles.sectionLabel}>{copy.formulas}</Text>
+          <View style={styles.formulaCard}>
+            {notebook.steps.map((step) =>
+              step.formulaLatex ? (
+                <View key={step.id} style={styles.formulaRow}>
+                  <LatexView latex={step.formulaLatex} color={colors.foreground} fontSize={15} displayMode={false} />
+                </View>
+              ) : null,
+            )}
+          </View>
+        </>
+      ) : null}
+
       <Text style={styles.sectionLabel}>{copy.inputs}</Text>
       {notebook.localConstants.length ? (
         <View style={styles.inputCard}>
           {editableConstants.map((item) => (
             <View key={item.id} style={styles.inputRow}>
-              <Text style={styles.inputSymbol}>{item.symbol}</Text>
+              <Text style={styles.inputSymbol}>{item.displaySymbol ?? item.symbol}</Text>
               <TextInput
                 value={item.expression}
                 onChangeText={(text) => updateValue(item.id, text)}
@@ -136,6 +157,7 @@ export function NotebookDetail({ language, locale, unitSystem, notebook, globalC
           {stepResults.map((result, index) => {
             const isFinalStep = index === stepResults.length - 1;
             const overrideUnit = unitOverrides[result.step.id];
+            const compatibleUnits = compatibleUnitsFor(result.quantity);
             let displayValue = result.formatted;
             let displayError = result.error;
             if (result.quantity && overrideUnit !== undefined) {
@@ -152,8 +174,13 @@ export function NotebookDetail({ language, locale, unitSystem, notebook, globalC
                 }
               }
             }
-            const compatibleUnits = compatibleUnitsFor(result.quantity);
             const effectiveUnit = overrideUnit ?? result.step.targetUnit.trim();
+            if (displayValue && effectiveUnit) {
+              const label = compatibleUnits.find((unitOption) => unitOption.symbol === effectiveUnit)?.label;
+              if (label && label !== effectiveUnit && displayValue.endsWith(effectiveUnit)) {
+                displayValue = `${displayValue.slice(0, -effectiveUnit.length)}${label}`;
+              }
+            }
             return (
               <View key={result.step.id} style={[styles.resultCard, isFinalStep && result.quantity ? styles.resultCardFinal : null]}>
                 <View style={styles.resultHeader}>
@@ -181,20 +208,14 @@ export function NotebookDetail({ language, locale, unitSystem, notebook, globalC
                     <Pressable onPress={() => setUnitOverrides((current) => ({ ...current, [result.step.id]: "" }))} style={({ pressed }) => [styles.unitChip, !effectiveUnit && styles.unitChipActive, pressed && styles.pressed]}>
                       <Text style={[styles.unitChipText, !effectiveUnit && styles.unitChipTextActive]}>{copy.si}</Text>
                     </Pressable>
-                    {compatibleUnits.map((symbolOption) => (
-                      <Pressable key={symbolOption} onPress={() => setUnitOverrides((current) => ({ ...current, [result.step.id]: symbolOption }))} style={({ pressed }) => [styles.unitChip, effectiveUnit === symbolOption && styles.unitChipActive, pressed && styles.pressed]}>
-                        <Text style={[styles.unitChipText, effectiveUnit === symbolOption && styles.unitChipTextActive]}>{symbolOption}</Text>
+                    {compatibleUnits.map((unitOption) => (
+                      <Pressable key={unitOption.symbol} onPress={() => setUnitOverrides((current) => ({ ...current, [result.step.id]: unitOption.symbol }))} style={({ pressed }) => [styles.unitChip, effectiveUnit === unitOption.symbol && styles.unitChipActive, pressed && styles.pressed]}>
+                        <Text style={[styles.unitChipText, effectiveUnit === unitOption.symbol && styles.unitChipTextActive]}>{unitOption.label}</Text>
                       </Pressable>
                     ))}
                   </ScrollView>
                 ) : null}
-                {result.step.formulaLatex ? (
-                  <View style={styles.resultFormula}>
-                    <LatexView latex={result.step.formulaLatex} color={colors.muted} fontSize={14} displayMode={false} />
-                  </View>
-                ) : (
-                  <Text numberOfLines={1} style={styles.resultExpression}>{result.step.expression}</Text>
-                )}
+                {!result.step.formulaLatex ? <Text numberOfLines={1} style={styles.resultExpression}>{result.step.expression}</Text> : null}
                 {!isFinalStep && result.quantity ? <Text style={styles.resultReferenceHint}>{copy.referenceHint.replace("{symbol}", result.symbol)}</Text> : null}
               </View>
             );
@@ -221,6 +242,8 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   saveBarText: { color: colors.onPrimary, fontSize: 14, fontWeight: "800" },
   sectionLabel: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.4, textTransform: "uppercase" },
   emptyHint: { color: colors.muted, fontSize: 13 },
+  formulaCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, gap: 10, padding: 13 },
+  formulaRow: { alignItems: "flex-start" },
   inputCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, gap: 10, padding: 13 },
   inputRow: { gap: 4 },
   inputSymbol: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },
@@ -238,7 +261,6 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   copyButton: { alignItems: "center", height: 26, justifyContent: "center", width: 30 },
   resultValue: { color: colors.primaryStrong, fontFamily: mono, fontSize: 24, fontWeight: "700", marginTop: 4 },
   resultExpression: { color: colors.muted, fontFamily: mono, fontSize: 11, marginTop: 6 },
-  resultFormula: { marginTop: 6 },
   resultError: { color: colors.error, fontSize: 12, lineHeight: 17, marginTop: 4 },
   resultWarning: { color: colors.warning, fontSize: 11, lineHeight: 15, marginTop: 4 },
   resultReferenceHint: { color: colors.muted, fontSize: 10, marginTop: 5 },
