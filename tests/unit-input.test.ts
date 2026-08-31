@@ -101,10 +101,12 @@ describe("入力補助の切り替え", () => {
     expect(hint.candidates.map((suggestion) => suggestion.unit.symbol)).toContain("km/h");
   });
 
-  it("単位まで書き終えていれば余計な言い換えを勧めない", () => {
+  it("末尾が単位まで書き終えていれば追加ではなく差し替えとして案内する", () => {
     const hint = getUnitInputHint("5cm + 1mm", { system: "metric", recentUnits: ["mm"] });
-    expect(hint.kind).toBe("insert");
+    expect(hint.kind).toBe("replace");
+    expect(hint.fragment).toBe("mm");
     expect(hint.candidates[0].unit.symbol).toBe("mm");
+    expect(replaceExpressionRange("5cm + 1mm", hint.start, hint.end, "cm")).toBe("5cm + 1cm");
   });
 
   it("単位まで入力済みなら挿入候補に戻す", () => {

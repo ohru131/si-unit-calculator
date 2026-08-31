@@ -8,6 +8,7 @@ import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { type CalculationNotebook, type NotebookLocalConstant } from "@/lib/calculator-store";
 import { evaluateNotebookSteps, resolveNotebookLocalConstants } from "@/lib/notebook-engine";
+import { insertUnitAtEnd } from "@/lib/unit-input";
 import { formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, type MeasuringStandard, type Quantity, type SavedConstant, type UnitSystem } from "@/lib/units";
 
 const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" });
@@ -60,6 +61,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   );
 
   const { resolved, errors } = useMemo(() => resolveNotebookLocalConstants(editableConstants, globalConstants), [editableConstants, globalConstants]);
+  const resolvedBySymbol = useMemo(() => new Map(resolved.map((item) => [item.symbol, item])), [resolved]);
   const pool = useMemo(() => [...globalConstants, ...resolved], [globalConstants, resolved]);
   // measuringStandardはlib/units.tsのモジュール内状態を経由してcup/tbsp/tspの値に反映されるため、
   // 依存配列に含めて設定変更時に再計算させる（値自体は参照するだけで使わない）。
@@ -133,19 +135,35 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
       <Text style={styles.sectionLabel}>{copy.inputs}</Text>
       {notebook.localConstants.length ? (
         <View style={styles.inputCard}>
-          {editableConstants.map((item) => (
-            <View key={item.id} style={styles.inputRow}>
-              <Text style={styles.inputSymbol}>{item.displaySymbol ?? item.symbol}</Text>
-              <TextInput
-                value={item.expression}
-                onChangeText={(text) => updateValue(item.id, text)}
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={[styles.inputField, errors[item.id] && styles.inputFieldError]}
-              />
-              {errors[item.id] ? <Text numberOfLines={1} style={styles.inputError}>{errors[item.id]}</Text> : null}
-            </View>
-          ))}
+          {editableConstants.map((item) => {
+            const inputUnits = compatibleUnitsFor(resolvedBySymbol.get(item.symbol.trim())?.quantity);
+            return (
+              <View key={item.id} style={styles.inputRow}>
+                <Text style={styles.inputSymbol}>{item.displaySymbol ?? item.symbol}</Text>
+                <TextInput
+                  value={item.expression}
+                  onChangeText={(text) => updateValue(item.id, text)}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={[styles.inputField, errors[item.id] && styles.inputFieldError]}
+                />
+                {inputUnits.length ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.unitRail}>
+                    {inputUnits.map((unitOption) => (
+                      <Pressable
+                        key={unitOption.symbol}
+                        onPress={() => updateValue(item.id, insertUnitAtEnd(item.expression, unitOption.symbol))}
+                        style={({ pressed }) => [styles.unitChip, pressed && styles.pressed]}
+                      >
+                        <Text style={styles.unitChipText}>{unitOption.label}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                ) : null}
+                {errors[item.id] ? <Text numberOfLines={1} style={styles.inputError}>{errors[item.id]}</Text> : null}
+              </View>
+            );
+          })}
         </View>
       ) : (
         <Text style={styles.emptyHint}>{copy.noInputs}</Text>
