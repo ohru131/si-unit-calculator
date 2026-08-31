@@ -126,7 +126,7 @@ function isCalculationNotebook(value: unknown): value is CalculationNotebook {
   const candidate = value as Partial<CalculationNotebook>;
   return typeof candidate.id === "string" && typeof candidate.title === "string" && typeof candidate.description === "string" && typeof candidate.categoryId === "string"
     && Array.isArray(candidate.localConstants) && candidate.localConstants.every((item) => item && typeof item.id === "string" && typeof item.symbol === "string" && typeof item.expression === "string")
-    && Array.isArray(candidate.steps) && candidate.steps.every((step) => step && typeof step.id === "string" && typeof step.title === "string" && typeof step.expression === "string" && typeof step.targetUnit === "string")
+    && Array.isArray(candidate.steps) && candidate.steps.every((step) => step && typeof step.id === "string" && typeof step.title === "string" && typeof step.expression === "string" && typeof step.targetUnit === "string" && (step.resultSymbol === undefined || typeof step.resultSymbol === "string"))
     && typeof candidate.createdAt === "string" && typeof candidate.updatedAt === "string";
 }
 

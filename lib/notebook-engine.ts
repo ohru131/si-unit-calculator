@@ -64,7 +64,9 @@ export function evaluateNotebookSteps(
 ): NotebookStepResult[] {
   const availableConstants = [...pool];
   return steps.map((step, index) => {
-    const symbol = step.resultSymbol?.trim() || notebookStepSymbol(index);
+    // 端末に保存された旧データや手編集されたJSONではresultSymbolが文字列でない場合もあるため、
+    // 型を確認してから使う（.trimでの実行時エラーを避ける）。
+    const symbol = (typeof step.resultSymbol === "string" ? step.resultSymbol.trim() : "") || notebookStepSymbol(index);
     const expression = step.expression.trim();
     if (!expression) return { step, symbol, error: "式が未入力です。" };
     try {

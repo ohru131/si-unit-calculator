@@ -104,6 +104,14 @@ describe("計算ノートのステップ評価", () => {
     const results = evaluateNotebookSteps([step("100N"), step("0.01m^2")], [], []);
     expect(results.map((item) => item.symbol)).toEqual(["s1", "s2"]);
   });
+
+  it("resultSymbolが文字列でない壊れたデータでもs1にフォールバックし、実行時エラーにならない", () => {
+    // 手編集されたJSONや旧データ由来で resultSymbol が文字列でない場合を想定。
+    const malformedStep = { id: "step-1", title: "x", expression: "100N", targetUnit: "", resultSymbol: 123 as unknown as string };
+    const results = evaluateNotebookSteps([malformedStep], [], []);
+    expect(results[0].symbol).toBe("s1");
+    expect(results[0].error).toBeUndefined();
+  });
 });
 
 describe("材料力学プリセットの数値検証", () => {

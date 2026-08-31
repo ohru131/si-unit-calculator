@@ -510,7 +510,12 @@ export default function ConstantsScreen() {
                 <View style={styles.stepHeader}>
                   <TextInput
                     value={combineNameValue(step.resultSymbol ?? "", step.expression)}
-                    onChangeText={(text) => { const { name, value } = splitNameValue(text); updateStep(step.id, { resultSymbol: name || undefined, title: name, expression: value }); }}
+                    onChangeText={(text) => {
+                      const { name, value } = splitNameValue(text);
+                      // 名前が無いとき（＝を付けていない通常の式）はtitleへ触れない。
+                      // 既存ノートを再編集する際、以前設定された表示用タイトルを空欄で上書きしないため。
+                      updateStep(step.id, name ? { resultSymbol: name, title: name, expression: value } : { resultSymbol: undefined, expression: value });
+                    }}
                     placeholder={copy.stepTitlePlaceholder}
                     placeholderTextColor={colors.placeholder}
                     autoCapitalize="none"
