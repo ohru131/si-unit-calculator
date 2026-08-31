@@ -45,9 +45,10 @@ export type UnitSuggestionOptions = {
 /**
  * 入力補助バーの役割。
  * fix は解釈できない単位の修正、complete は書きかけの単位の確定、
- * attach は数値へ単位を付ける操作、insert は任意位置への挿入を表す。
+ * attach は数値へ単位を付ける操作、replace は末尾の単位を別の単位へ差し替える操作、
+ * insert は任意位置への挿入を表す。
  */
-export type UnitInputHintKind = "fix" | "complete" | "attach" | "insert";
+export type UnitInputHintKind = "fix" | "complete" | "attach" | "replace" | "insert";
 
 export type UnitInputHint = {
   kind: UnitInputHintKind;
@@ -258,10 +259,33 @@ export function getUnitInputHint(
 
   const lastMeaningful = [...analysis.segments].reverse().find((segment) => segment.kind !== "space");
   if (lastMeaningful?.kind === "number") return insertHint(lastMeaningful.end, "attach");
+  // 末尾が既に単位のときは後ろへ足すと無意味な複合単位になるため、その単位ごと差し替える
+  // （末尾に空白があっても、直前の意味のある区間を対象にする）。
+  if (lastMeaningful?.kind === "unit") {
+    return {
+      kind: "replace",
+      fragment: lastMeaningful.text,
+      start: lastMeaningful.start,
+      end: lastMeaningful.end,
+      candidates: getCommonUnitSuggestions(system, recentUnits, { limit, includeUnit }),
+    };
+  }
   return insertHint(caret, "insert");
 }
 
 /** 式の一部を別の文字列へ差し替える。修正候補や補完候補の確定に使う。 */
 export function replaceExpressionRange(expression: string, start: number, end: number, replacement: string): string {
   return `${expression.slice(0, start)}${replacement}${expression.slice(end)}`;
+}
+
+/**
+ * 単位ボタンから式の末尾へ単位を反映する。末尾が既に単位ならそれを差し替え、
+ * 数値のみ・その他で終わっていればそのまま末尾へ挿入する。
+ */
+export function insertUnitAtEnd(expression: string, symbol: string, identifiers: string[] = []): string {
+  const lastMeaningful = [...analyzeExpression(expression, identifiers).segments].reverse().find((segment) => segment.kind !== "space");
+  if (lastMeaningful?.kind === "unit") {
+    return replaceExpressionRange(expression, lastMeaningful.start, lastMeaningful.end, symbol);
+  }
+  return `${expression}${symbol}`;
 }
