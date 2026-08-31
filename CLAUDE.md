@@ -6,7 +6,9 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 ## リポジトリのワークフロー規約
 
 - **開発ブランチ**: `claude/shipaton-2026-prep-3b0tt7` を使い続ける。
-  - このブランチのPRが既にマージ済みの場合は、`git fetch origin main && git checkout -B claude/shipaton-2026-prep-3b0tt7 origin/main` で最新mainから作り直してから作業する（マージ済み履歴の上に積み増ししない）。
+  - このブランチのPRが既にマージ済みの場合は最新mainから作り直す。ただし**作り直す前に必ず`git status --short`と`git log origin/claude/shipaton-2026-prep-3b0tt7..claude/shipaton-2026-prep-3b0tt7`でuntracked/未コミット/未pushの変更がないか確認する**（`git checkout -B`はローカルブランチの参照を丸ごと付け替えるため、未push分のコミットはこの操作でブランチから外れて辿りにくくなる）。何かあれば`git branch backup/<日付>`で退避するか`git stash -u`してから、次のコマンドで作り直す:
+    `git fetch origin main && git checkout -B claude/shipaton-2026-prep-3b0tt7 origin/main`
+    （マージ済み履歴の上に積み増ししない）。
 - **フロー**: ブランチで作業 → コミット → push → PR作成（テンプレートなし、Summary/Test planで書く）→ **CodeRabbitの自動レビューを待つ**（このリポジトリはCodeRabbit導入済み）→ 指摘があれば修正してpush → レビューがminimal riskになったらsquash mergeでmainへ。
 - PRを出したら `subscribe_pr_activity` でこのセッションを購読し、CodeRabbitのレビューコメントに対応してからマージする。ただの「レビュー中」通知では何もしない。
 - コミットメッセージ・PR本文に自分のモデル名は書かない（チャット内のみでOK）。
@@ -33,9 +35,11 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 
 ## 既知の注意点・誤検知
 
-- `pnpm lint` は本セッション開始時点で**7エラー・4警告がすでにmain上に存在**する（`react-hooks/set-state-in-effect`系、`array-type`警告など）。新しい変更でこの件数が増えていないかを都度 `git stash` で比較して確認するとよい。
-- `pnpm test` で `tests/revenuecat.credentials.test.ts` の2件が失敗するのは、サンドボックス環境にRevenueCatの環境変数が無いため（**この環境固有の問題で、コードのバグではない**）。
-- CodeRabbitの「Docstring Coverage」pre-mergeチェックは閾値80%に対しほぼ毎回引っかかる。このコードベースは日本語のWHYコメント方式でJSDocを書かない慣習なので、**this warning自体は無視して良い**（ブロッキングではなくwarning）。
+> 以下は **2026-08-31時点、mainのコミット `b9bb79e`（PR #5マージ直前）** で確認した内容。時間が経つほど古くなるので、鵜呑みにせず**都度`pnpm lint`/`pnpm test`を実際に実行して現状を確認すること**。ここに書かれた件数・原因はあくまで「この時点ではこうだった」という参考情報であり、新しい失敗を無条件にこれらのせいだと決めつけない。
+
+- `pnpm lint`: 上記コミット時点で**7エラー・4警告**が存在した（`app/(tabs)/constants.tsx`・`app/(tabs)/index.tsx`・`components/notebooks/notebook-detail.tsx`の`react-hooks/set-state-in-effect`系エラー3ファイル、`app/(tabs)/index.tsx`の`react-hooks/purity`エラー1件、`app/(tabs)/constants.tsx`・`app/(tabs)/settings.tsx`の`@typescript-eslint/array-type`警告）。新しい変更でこの内訳・件数が増えていないかは、`git stash`で変更を退避した状態の`pnpm lint`結果と比較して確認する（このセッションで実際に行った手順）。
+- `pnpm test`: 同時点で `tests/revenuecat.credentials.test.ts` の2件（iOS/Android SDKキー検証）が失敗する。原因はこのサンドボックス環境にRevenueCatの公開SDKキーの環境変数が設定されていないため（**コードのバグではなく実行環境固有の問題**）。他のテストファイルはこの時点で全てpassしていた。
+- CodeRabbitの「Docstring Coverage」pre-mergeチェックは閾値80%に対し、関数にJSDocを書いていないファイルを含むPRでほぼ毎回引っかかる。このコードベースは日本語のWHYコメント方式でJSDocを書かない慣習（プロジェクトの方針）なので、**この特定のwarning自体は無視して良い**（ブロッキングのエラーではなくwarning）。ただし他のCodeRabbit指摘（正確性・データ整合性など）は毎回きちんと検証すること。
 - CodeRabbitが指摘した実際のバグ例: 物理的に不正確な用語（自由落下の`sqrt(2gh)`を"terminal velocity"と誤記していた→"impact velocity"に修正済み）。この種の物理用語の正確性チェックは有用なので、指摘が来たら真面目に検証する。
 
 ## 直近の作業履歴（要約）
