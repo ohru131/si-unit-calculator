@@ -72,23 +72,24 @@ const DIMENSIONS = {
 } as const satisfies Record<string, Dimension>;
 
 const BASE_UNIT_GROUPS: UnitGroup[] = [
-  { id: "length", label: "長さ", dimension: DIMENSIONS.length, units: [{ symbol: "m", label: "m" }, { symbol: "km", label: "km" }, { symbol: "cm", label: "cm" }, { symbol: "mm", label: "mm" }, { symbol: "µm", label: "µm" }, { symbol: "in", label: "in" }, { symbol: "ft", label: "ft" }, { symbol: "yd", label: "yd" }, { symbol: "mi", label: "mi" }] },
+  { id: "length", label: "長さ", dimension: DIMENSIONS.length, units: [{ symbol: "m", label: "m" }, { symbol: "km", label: "km" }, { symbol: "cm", label: "cm" }, { symbol: "mm", label: "mm" }, { symbol: "µm", label: "µm" }, { symbol: "in", label: "in" }, { symbol: "ft", label: "ft" }, { symbol: "yd", label: "yd" }, { symbol: "mi", label: "mi" }, { symbol: "au", label: "au" }, { symbol: "ly", label: "ly" }] },
   { id: "area", label: "面積", dimension: [2, 0, 0, 0, 0, 0, 0], units: [{ symbol: "m²", label: "m²" }, { symbol: "km²", label: "km²" }, { symbol: "cm²", label: "cm²" }, { symbol: "mm²", label: "mm²" }, { symbol: "in²", label: "in²" }, { symbol: "ft²", label: "ft²" }, { symbol: "yd²", label: "yd²" }, { symbol: "acre", label: "acre" }] },
-  { id: "volume", label: "体積", dimension: [3, 0, 0, 0, 0, 0, 0], units: [{ symbol: "m³", label: "m³" }, { symbol: "L", label: "L" }, { symbol: "mL", label: "mL" }, { symbol: "cm³", label: "cm³" }, { symbol: "gal", label: "gal" }, { symbol: "qt", label: "qt" }, { symbol: "pt", label: "pt" }] },
-  { id: "time", label: "時間", dimension: DIMENSIONS.time, units: [{ symbol: "s", label: "s" }, { symbol: "ms", label: "ms" }, { symbol: "min", label: "min" }, { symbol: "h", label: "h" }, { symbol: "d", label: "d" }] },
+  { id: "volume", label: "体積", dimension: [3, 0, 0, 0, 0, 0, 0], units: [{ symbol: "m³", label: "m³" }, { symbol: "L", label: "L" }, { symbol: "mL", label: "mL" }, { symbol: "cm³", label: "cm³" }, { symbol: "gal", label: "gal" }, { symbol: "qt", label: "qt" }, { symbol: "pt", label: "pt" }, { symbol: "cup", label: "cup" }, { symbol: "tbsp", label: "tbsp" }, { symbol: "tsp", label: "tsp" }] },
+  { id: "time", label: "時間", dimension: DIMENSIONS.time, units: [{ symbol: "s", label: "s" }, { symbol: "ms", label: "ms" }, { symbol: "min", label: "min" }, { symbol: "h", label: "h" }, { symbol: "d", label: "d" }, { symbol: "yr", label: "yr" }] },
   { id: "mass", label: "質量", dimension: DIMENSIONS.mass, units: [{ symbol: "kg", label: "kg" }, { symbol: "g", label: "g" }, { symbol: "mg", label: "mg" }, { symbol: "t", label: "t" }, { symbol: "lb", label: "lb" }, { symbol: "oz", label: "oz" }, { symbol: "st", label: "st" }] },
   { id: "temperature", label: "温度", dimension: DIMENSIONS.temperature, units: [{ symbol: "K", label: "K" }, { symbol: "°C", label: "°C" }, { symbol: "°F", label: "°F" }] },
   { id: "velocity", label: "速度", dimension: [1, 0, -1, 0, 0, 0, 0], units: [{ symbol: "m/s", label: "m/s" }, { symbol: "km/s", label: "km/s" }, { symbol: "m/min", label: "m/min" }, { symbol: "km/min", label: "km/min" }, { symbol: "m/h", label: "m/h" }, { symbol: "km/h", label: "km/h" }, { symbol: "cm/s", label: "cm/s" }, { symbol: "kine", label: "kine" }, { symbol: "ft/s", label: "ft/s" }, { symbol: "mph", label: "mph" }, { symbol: "kt", label: "kt" }] },
   { id: "acceleration", label: "加速度", dimension: [1, 0, -2, 0, 0, 0, 0], units: [{ symbol: "m/s²", label: "m/s²" }, { symbol: "cm/s²", label: "cm/s²" }, { symbol: "Gal", label: "Gal (gal)" }, { symbol: "mGal", label: "mGal" }, { symbol: "µGal", label: "µGal" }, { symbol: "G", label: "G (標準重力)" }, { symbol: "ft/s²", label: "ft/s²" }] },
   { id: "force", label: "力", dimension: [1, 1, -2, 0, 0, 0, 0], units: [{ symbol: "N", label: "N" }, { symbol: "kN", label: "kN" }] },
   { id: "pressure", label: "圧力", dimension: [-1, 1, -2, 0, 0, 0, 0], units: [{ symbol: "Pa", label: "Pa" }, { symbol: "kPa", label: "kPa" }, { symbol: "MPa", label: "MPa" }, { symbol: "bar", label: "bar" }, { symbol: "psi", label: "psi" }, { symbol: "atm", label: "atm" }] },
-  { id: "energy", label: "エネルギー", dimension: [2, 1, -2, 0, 0, 0, 0], units: [{ symbol: "J", label: "J" }, { symbol: "kJ", label: "kJ" }, { symbol: "Wh", label: "Wh" }, { symbol: "BTU", label: "BTU" }] },
+  { id: "energy", label: "エネルギー", dimension: [2, 1, -2, 0, 0, 0, 0], units: [{ symbol: "J", label: "J" }, { symbol: "kJ", label: "kJ" }, { symbol: "Wh", label: "Wh" }, { symbol: "BTU", label: "BTU" }, { symbol: "cal", label: "cal" }, { symbol: "kcal", label: "kcal" }, { symbol: "eV", label: "eV" }] },
   { id: "power", label: "電力", dimension: [2, 1, -3, 0, 0, 0, 0], units: [{ symbol: "W", label: "W" }, { symbol: "kW", label: "kW" }, { symbol: "MW", label: "MW" }, { symbol: "hp", label: "hp" }] },
   { id: "current", label: "電流", dimension: DIMENSIONS.current, units: [{ symbol: "A", label: "A" }, { symbol: "mA", label: "mA" }, { symbol: "µA", label: "µA" }] },
   { id: "voltage", label: "電圧", dimension: [2, 1, -3, -1, 0, 0, 0], units: [{ symbol: "V", label: "V" }, { symbol: "mV", label: "mV" }, { symbol: "kV", label: "kV" }] },
-  { id: "frequency", label: "周波数", dimension: [0, 0, -1, 0, 0, 0, 0], units: [{ symbol: "Hz", label: "Hz" }, { symbol: "kHz", label: "kHz" }, { symbol: "MHz", label: "MHz" }] },
+  { id: "frequency", label: "周波数", dimension: [0, 0, -1, 0, 0, 0, 0], units: [{ symbol: "Hz", label: "Hz" }, { symbol: "kHz", label: "kHz" }, { symbol: "MHz", label: "MHz" }, { symbol: "rpm", label: "rpm" }, { symbol: "bpm", label: "bpm" }] },
   { id: "angle", label: "角度", dimension: ZERO, units: [{ symbol: "rad", label: "rad" }, { symbol: "deg", label: "deg" }, { symbol: "°", label: "°" }] },
   { id: "ratio", label: "割合・無次元", dimension: ZERO, units: [{ symbol: "%", label: "%" }, { symbol: "ppm", label: "ppm" }] },
+  { id: "amount", label: "物質量", dimension: DIMENSIONS.amount, units: [{ symbol: "mol", label: "mol" }, { symbol: "mmol", label: "mmol" }] },
 ];
 
 type UnitMeta = { aliases?: string[]; name?: { en: string; ja: string } };
@@ -185,6 +186,19 @@ const UNIT_META: Record<string, UnitMeta> = {
   "µGal": { aliases: ["uGal"], name: { en: "microgal", ja: "マイクロガル" } },
   G: { aliases: ["g0"], name: { en: "standard gravity", ja: "標準重力" } },
   kine: { name: { en: "kine", ja: "カイン" } },
+  cal: { aliases: ["calorie", "calories", "カロリー"], name: { en: "calorie", ja: "カロリー" } },
+  kcal: { aliases: ["kilocalorie", "kilocalories", "キロカロリー"], name: { en: "kilocalorie", ja: "キロカロリー" } },
+  eV: { aliases: ["electronvolt", "electron-volt", "電子ボルト"], name: { en: "electronvolt", ja: "電子ボルト" } },
+  bpm: { aliases: ["beatsperminute", "拍毎分"], name: { en: "beat per minute", ja: "心拍数" } },
+  rpm: { aliases: ["revolutionsperminute", "回転毎分"], name: { en: "revolution per minute", ja: "回転数" } },
+  cup: { aliases: ["cups", "カップ"], name: { en: "cup", ja: "カップ" } },
+  tbsp: { aliases: ["tablespoon", "tablespoons", "大さじ"], name: { en: "tablespoon", ja: "大さじ" } },
+  tsp: { aliases: ["teaspoon", "teaspoons", "小さじ"], name: { en: "teaspoon", ja: "小さじ" } },
+  au: { aliases: ["AU", "astronomicalunit", "天文単位"], name: { en: "astronomical unit", ja: "天文単位" } },
+  ly: { aliases: ["lightyear", "lightyears", "光年"], name: { en: "light year", ja: "光年" } },
+  yr: { aliases: ["year", "years", "年"], name: { en: "year", ja: "年" } },
+  mol: { aliases: ["mole", "moles", "モル"], name: { en: "mole", ja: "モル" } },
+  mmol: { aliases: ["millimole", "millimoles", "ミリモル"], name: { en: "millimole", ja: "ミリモル" } },
 };
 
 export const UNIT_GROUPS: UnitGroup[] = BASE_UNIT_GROUPS.map((group) => ({
@@ -290,6 +304,16 @@ const BASE_UNITS: Record<string, UnitDefinition> = {
   g0: unit(9.80665, [1, 0, -2, 0, 0, 0, 0]),
   "°C": unit(1, DIMENSIONS.temperature, 273.15),
   "°F": unit(5 / 9, DIMENSIONS.temperature, 255.3722222222222),
+  cal: unit(4.184, [2, 1, -2, 0, 0, 0, 0]),
+  bpm: unit(1 / 60, [0, 0, -1, 0, 0, 0, 0]),
+  rpm: unit(1 / 60, [0, 0, -1, 0, 0, 0, 0]),
+  cup: unit(2.365882365e-4, [3, 0, 0, 0, 0, 0, 0]),
+  tbsp: unit(1.478676478125e-5, [3, 0, 0, 0, 0, 0, 0]),
+  tsp: unit(4.92892159375e-6, [3, 0, 0, 0, 0, 0, 0]),
+  au: unit(1.495978707e11, DIMENSIONS.length),
+  ly: unit(9.4607304725808e15, DIMENSIONS.length),
+  yr: unit(31557600, DIMENSIONS.time),
+  eV: unit(1.602176634e-19, [2, 1, -2, 0, 0, 0, 0]),
 };
 
 BASE_UNITS.Hz = unit(1, [0, 0, -1, 0, 0, 0, 0]);

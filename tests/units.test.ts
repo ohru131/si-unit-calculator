@@ -224,7 +224,7 @@ describe("単位付き計算", () => {
 
   it("時間単位には読みと別表記を持たせ、min だけが浮かないようにする", () => {
     const timeGroup = UNIT_GROUPS.find((group) => group.id === "time");
-    expect(timeGroup?.units.map((unitOption) => unitOption.name?.ja)).toEqual(["秒", "ミリ秒", "分", "時間", "日"]);
+    expect(timeGroup?.units.map((unitOption) => unitOption.name?.ja)).toEqual(["秒", "ミリ秒", "分", "時間", "日", "年"]);
     expect(timeGroup?.units.find((unitOption) => unitOption.symbol === "h")?.aliases).toContain("hour");
     expect(searchUnitOptions("hour", "metric")[0].unit.symbol).toBe("h");
     expect(searchUnitOptions("秒", "metric").map((result) => result.unit.symbol)).toContain("s");

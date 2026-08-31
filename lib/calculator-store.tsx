@@ -32,6 +32,8 @@ export type CalculationNoteStep = {
   title: string;
   expression: string;
   targetUnit: string;
+  /** プリセットの手順にだけ付く、見やすい表示用のLaTeX数式（手入力のノートでは未設定）。 */
+  formulaLatex?: string;
 };
 
 /** 旧・計算ノート（フラット一覧）の形。読み込み時、notebooks への一度きりの移行にのみ使う。 */
@@ -260,6 +262,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
                   title: language === "en" ? step.titleEn : step.title,
                   expression: step.expression,
                   targetUnit: step.targetUnit,
+                  formulaLatex: step.formulaLatex,
                 })),
                 pinned: false,
                 isPreset: true,
