@@ -77,6 +77,41 @@ describe("計算ノートのステップ評価", () => {
     expect(results[0].quantity).toBeUndefined();
     expect(results[1].error).toBeTruthy();
   });
+
+  it("resultSymbolを設定すると、s1の代わりにその名前で結果と参照ができる（v = v0 + a*t 形式）", () => {
+    const results = evaluateNotebookSteps(
+      [
+        { id: "s1", title: "v", expression: "v0+a*t", targetUnit: "", resultSymbol: "v" },
+        { id: "s2", title: "v+1", expression: "v+1m/s", targetUnit: "" },
+      ],
+      [
+        { symbol: "v0", expression: "5m/s", quantity: { siValue: 5, dimension: [1, 0, -1, 0, 0, 0, 0] as [number, number, number, number, number, number, number] }, createdAt: "" },
+        { symbol: "a", expression: "2m/s^2", quantity: { siValue: 2, dimension: [1, 0, -2, 0, 0, 0, 0] as [number, number, number, number, number, number, number] }, createdAt: "" },
+        { symbol: "t", expression: "3s", quantity: { siValue: 3, dimension: [0, 0, 1, 0, 0, 0, 0] as [number, number, number, number, number, number, number] }, createdAt: "" },
+      ],
+      [],
+    );
+    expect(results[0].symbol).toBe("v");
+    expect(results[0].error).toBeUndefined();
+    expect(results[0].quantity?.siValue).toBeCloseTo(11);
+    // 後続の手順が resultSymbol（v）を availableConstants 経由で参照できることも確認する。
+    expect(results[1].symbol).toBe("s2");
+    expect(results[1].error).toBeUndefined();
+    expect(results[1].quantity?.siValue).toBeCloseTo(12);
+  });
+
+  it("resultSymbolが省略されていれば従来通りs1、s2にフォールバックする", () => {
+    const results = evaluateNotebookSteps([step("100N"), step("0.01m^2")], [], []);
+    expect(results.map((item) => item.symbol)).toEqual(["s1", "s2"]);
+  });
+
+  it("resultSymbolが文字列でない壊れたデータでもs1にフォールバックし、実行時エラーにならない", () => {
+    // 手編集されたJSONや旧データ由来で resultSymbol が文字列でない場合を想定。
+    const malformedStep = { id: "step-1", title: "x", expression: "100N", targetUnit: "", resultSymbol: 123 as unknown as string };
+    const results = evaluateNotebookSteps([malformedStep], [], []);
+    expect(results[0].symbol).toBe("s1");
+    expect(results[0].error).toBeUndefined();
+  });
 });
 
 describe("材料力学プリセットの数値検証", () => {

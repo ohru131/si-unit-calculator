@@ -53,7 +53,8 @@ export function notebookStepSymbol(index: number): string {
 
 /**
  * ノートの手順を上から順に計算する。各手順の結果は s1、s2… として後続の手順から参照できる
- * （ローカル定数・グローバル定数に加えて利用可能）。
+ * （ローカル定数・グローバル定数に加えて利用可能）。「v = v0 + a*t」のように resultSymbol が
+ * 設定されていれば、s1 の代わりにその名前で参照できる。
  */
 export function evaluateNotebookSteps(
   steps: CalculationNoteStep[],
@@ -63,7 +64,9 @@ export function evaluateNotebookSteps(
 ): NotebookStepResult[] {
   const availableConstants = [...pool];
   return steps.map((step, index) => {
-    const symbol = notebookStepSymbol(index);
+    // 端末に保存された旧データや手編集されたJSONではresultSymbolが文字列でない場合もあるため、
+    // 型を確認してから使う（.trimでの実行時エラーを避ける）。
+    const symbol = (typeof step.resultSymbol === "string" ? step.resultSymbol.trim() : "") || notebookStepSymbol(index);
     const expression = step.expression.trim();
     if (!expression) return { step, symbol, error: "式が未入力です。" };
     try {
