@@ -123,6 +123,7 @@ export default function ConstantsScreen() {
     category: "Category", newCategory: "New category", categoryName: "Category name", uncategorized: "Uncategorized",
     localConstants: "Local constants (inputs)", localConstantsHint: "Enter as name=value, e.g. v0=5m/s. Later rows can reference earlier ones.",
     invalidConstantName: "Enter each constant as name=value (e.g. v0=5m/s).",
+    invalidStepName: "Enter each step as name=expression (e.g. v=v0+a*t), or remove the \"=\" to leave it unnamed.",
     addLocalConstant: "Add constant", steps: "Steps (results)", stepsHint: "Enter as name=expression, e.g. v=v0+a*t. Can reference constants and earlier steps.", addStep: "Add step", stepTitlePlaceholder: "v=v0+a*t",
     outputUnitLabel: "Display unit (optional)", removeRow: "Remove",
   } : {
@@ -143,6 +144,7 @@ export default function ConstantsScreen() {
     category: "カテゴリ", newCategory: "新しいカテゴリ", categoryName: "カテゴリ名", uncategorized: "未分類",
     localConstants: "ローカル定数（入力値）", localConstantsHint: "「名前＝値」の形で入力します。例：v0=5m/s。後の行で前の行を参照できます。",
     invalidConstantName: "定数は「名前＝値」の形式（例：v0=5m/s）で入力してください。",
+    invalidStepName: "手順は「名前＝式」の形式（例：v=v0+a*t）で入力するか、「＝」を外して名前なしにしてください。",
     addLocalConstant: "定数を追加", steps: "手順（結果）", stepsHint: "「名前＝式」の形で入力します。例：v=v0+a*t。定数や前の手順を参照できます。", addStep: "手順を追加", stepTitlePlaceholder: "v=v0+a*t",
     outputUnitLabel: "表示単位（任意）", removeRow: "削除",
   };
@@ -307,10 +309,11 @@ export default function ConstantsScreen() {
   const saveNotebook = async () => {
     setNotebookError("");
     const title = notebookTitle.trim();
-    const normalizedSteps = notebookSteps.filter((step) => step.expression.trim()).map((step) => ({ ...step, title: step.title.trim() || step.expression.trim(), expression: step.expression.trim(), targetUnit: step.targetUnit.trim(), resultSymbol: step.resultSymbol?.trim() || undefined }));
-    // 「名前＝値」の名前部分を解析できなかった行（例：数字始まりの名前）は、symbolが空のまま
-    // expressionへ生テキストが残る。symbol必須のフィルタで無言で消してしまわず、はっきり教える。
+    // 「名前＝値」の名前部分を解析できなかった行（例：数字始まりの名前）は、symbolやresultSymbolが
+    // 空のまま生テキスト（"="を含む）がexpressionに残る。名前なしの通常の式と区別して、はっきり教える。
     if (notebookLocalConstants.some((item) => !item.symbol.trim() && item.expression.trim())) { setNotebookError(copy.invalidConstantName); return; }
+    if (notebookSteps.some((step) => !step.resultSymbol?.trim() && step.expression.includes("="))) { setNotebookError(copy.invalidStepName); return; }
+    const normalizedSteps = notebookSteps.filter((step) => step.expression.trim()).map((step) => ({ ...step, title: step.title.trim() || step.expression.trim(), expression: step.expression.trim(), targetUnit: step.targetUnit.trim(), resultSymbol: step.resultSymbol?.trim() || undefined }));
     const normalizedConstants = notebookLocalConstants.filter((item) => item.symbol.trim() && item.expression.trim()).map((item) => ({ ...item, symbol: item.symbol.trim(), expression: item.expression.trim() }));
     if (!title || !normalizedSteps.length) { setNotebookError(copy.validation); return; }
     setIsSaving(true);

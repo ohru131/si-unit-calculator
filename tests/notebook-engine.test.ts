@@ -82,6 +82,7 @@ describe("計算ノートのステップ評価", () => {
     const results = evaluateNotebookSteps(
       [
         { id: "s1", title: "v", expression: "v0+a*t", targetUnit: "", resultSymbol: "v" },
+        { id: "s2", title: "v+1", expression: "v+1m/s", targetUnit: "" },
       ],
       [
         { symbol: "v0", expression: "5m/s", quantity: { siValue: 5, dimension: [1, 0, -1, 0, 0, 0, 0] as [number, number, number, number, number, number, number] }, createdAt: "" },
@@ -93,6 +94,10 @@ describe("計算ノートのステップ評価", () => {
     expect(results[0].symbol).toBe("v");
     expect(results[0].error).toBeUndefined();
     expect(results[0].quantity?.siValue).toBeCloseTo(11);
+    // 後続の手順が resultSymbol（v）を availableConstants 経由で参照できることも確認する。
+    expect(results[1].symbol).toBe("s2");
+    expect(results[1].error).toBeUndefined();
+    expect(results[1].quantity?.siValue).toBeCloseTo(12);
   });
 
   it("resultSymbolが省略されていれば従来通りs1、s2にフォールバックする", () => {
