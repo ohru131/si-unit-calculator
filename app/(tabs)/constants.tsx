@@ -43,6 +43,15 @@ let stepSeq = 0;
 const nextLocalConstantId = () => `local-${Date.now()}-${localConstantSeq++}`;
 const nextStepId = () => `step-${Date.now()}-${stepSeq++}`;
 
+// ローカル定数・手順の入力欄を「v0=5m/s」のような一つの「名前＝式」欄として扱うためのヘルパー。
+// parseConstantDefinition（lib/units.ts）と同じ命名規則に合わせている。
+const NAME_VALUE_PATTERN = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/s;
+const combineNameValue = (name: string, value: string) => (name ? `${name}=${value}` : value);
+const splitNameValue = (text: string): { name: string; value: string } => {
+  const match = text.match(NAME_VALUE_PATTERN);
+  return match ? { name: match[1], value: match[2] } : { name: "", value: text };
+};
+
 export default function ConstantsScreen() {
   const router = useRouter();
   const { notebookExpression, notebookUnit, openNotebookId } = useLocalSearchParams<{ notebookExpression?: string | string[]; notebookUnit?: string | string[]; openNotebookId?: string | string[] }>();
@@ -112,8 +121,8 @@ export default function ConstantsScreen() {
     replaceImportConfirm: "Replace all saved constants with the ones in this file? This cannot be undone.",
     notebookNew: "New notebook", notebookEdit: "Edit notebook", notebookTitleLabel: "Title", notebookDescriptionLabel: "Description",
     category: "Category", newCategory: "New category", categoryName: "Category name", uncategorized: "Uncategorized",
-    localConstants: "Local constants (inputs)", localConstantsHint: "e.g. W, H, span. Later rows can reference earlier ones.",
-    addLocalConstant: "Add constant", steps: "Steps", addStep: "Add step", stepTitlePlaceholder: "Step name",
+    localConstants: "Local constants (inputs)", localConstantsHint: "Enter as name=value, e.g. v0=5m/s. Later rows can reference earlier ones.",
+    addLocalConstant: "Add constant", steps: "Steps (results)", stepsHint: "Enter as name=expression, e.g. v=v0+a*t. Can reference constants and earlier steps.", addStep: "Add step", stepTitlePlaceholder: "v=v0+a*t",
     outputUnitLabel: "Display unit (optional)", removeRow: "Remove",
   } : {
     title: "ライブラリ", subtitle: "よく使う計算ノート・グローバル定数を、この端末に保存して再利用できます。",
@@ -131,8 +140,8 @@ export default function ConstantsScreen() {
     replaceImportConfirm: "保存済みの定数をすべて、このファイルの内容へ置き換えますか？元に戻せません。",
     notebookNew: "新しい計算ノート", notebookEdit: "計算ノートを編集", notebookTitleLabel: "タイトル", notebookDescriptionLabel: "説明",
     category: "カテゴリ", newCategory: "新しいカテゴリ", categoryName: "カテゴリ名", uncategorized: "未分類",
-    localConstants: "ローカル定数（入力値）", localConstantsHint: "例：W, H, スパン。後の行で前の行を参照できます。",
-    addLocalConstant: "定数を追加", steps: "手順（結果）", addStep: "手順を追加", stepTitlePlaceholder: "手順の名前",
+    localConstants: "ローカル定数（入力値）", localConstantsHint: "「名前＝値」の形で入力します。例：v0=5m/s。後の行で前の行を参照できます。",
+    addLocalConstant: "定数を追加", steps: "手順（結果）", stepsHint: "「名前＝式」の形で入力します。例：v=v0+a*t。定数や前の手順を参照できます。", addStep: "手順を追加", stepTitlePlaceholder: "v=v0+a*t",
     outputUnitLabel: "表示単位（任意）", removeRow: "削除",
   };
 
@@ -296,7 +305,7 @@ export default function ConstantsScreen() {
   const saveNotebook = async () => {
     setNotebookError("");
     const title = notebookTitle.trim();
-    const normalizedSteps = notebookSteps.filter((step) => step.expression.trim()).map((step) => ({ ...step, title: step.title.trim() || step.expression.trim(), expression: step.expression.trim(), targetUnit: step.targetUnit.trim() }));
+    const normalizedSteps = notebookSteps.filter((step) => step.expression.trim()).map((step) => ({ ...step, title: step.title.trim() || step.expression.trim(), expression: step.expression.trim(), targetUnit: step.targetUnit.trim(), resultSymbol: step.resultSymbol?.trim() || undefined }));
     const normalizedConstants = notebookLocalConstants.filter((item) => item.symbol.trim() && item.expression.trim()).map((item) => ({ ...item, symbol: item.symbol.trim(), expression: item.expression.trim() }));
     if (!title || !normalizedSteps.length) { setNotebookError(copy.validation); return; }
     setIsSaving(true);
@@ -471,22 +480,37 @@ export default function ConstantsScreen() {
             {notebookLocalConstants.map((item) => (
               <View key={item.id} style={styles.stepCard}>
                 <View style={styles.stepHeader}>
-                  <TextInput value={item.symbol} onChangeText={(text) => updateLocalConstant(item.id, { symbol: text })} placeholder={copy.symbolLabel} placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.localConstantSymbolInput} />
+                  <TextInput
+                    value={combineNameValue(item.symbol, item.expression)}
+                    onChangeText={(text) => { const { name, value } = splitNameValue(text); updateLocalConstant(item.id, { symbol: name, expression: value }); }}
+                    placeholder="v0=5m/s"
+                    placeholderTextColor={colors.placeholder}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    style={styles.stepInput}
+                  />
                   <Pressable onPress={() => setNotebookLocalConstants((current) => current.filter((entry) => entry.id !== item.id))}><Text style={styles.removeStepText}>{copy.removeRow}</Text></Pressable>
                 </View>
-                <TextInput value={item.expression} onChangeText={(text) => updateLocalConstant(item.id, { expression: text })} placeholder="3cm" placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.stepInput} />
               </View>
             ))}
             <Pressable onPress={() => setNotebookLocalConstants((current) => [...current, { id: nextLocalConstantId(), symbol: "", expression: "" }])} style={({ pressed }) => [styles.addStepButton, pressed && styles.buttonPressed]}><Text style={styles.addStepText}>＋ {copy.addLocalConstant}</Text></Pressable>
 
             <Text style={styles.fieldLabel}>{copy.steps}</Text>
+            <Text style={styles.hintText}>{copy.stepsHint}</Text>
             {notebookSteps.map((step) => (
               <View key={step.id} style={styles.stepCard}>
                 <View style={styles.stepHeader}>
-                  <TextInput value={step.title} onChangeText={(text) => updateStep(step.id, { title: text })} placeholder={copy.stepTitlePlaceholder} placeholderTextColor={colors.placeholder} style={styles.stepInput} />
+                  <TextInput
+                    value={combineNameValue(step.resultSymbol ?? "", step.expression)}
+                    onChangeText={(text) => { const { name, value } = splitNameValue(text); updateStep(step.id, { resultSymbol: name || undefined, title: name, expression: value }); }}
+                    placeholder={copy.stepTitlePlaceholder}
+                    placeholderTextColor={colors.placeholder}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    style={styles.stepInput}
+                  />
                   <Pressable onPress={() => setNotebookSteps((current) => current.filter((entry) => entry.id !== step.id))}><Text style={styles.removeStepText}>{copy.removeRow}</Text></Pressable>
                 </View>
-                <TextInput value={step.expression} onChangeText={(text) => updateStep(step.id, { expression: text })} placeholder="M/Z" placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.stepInput} />
                 <TextInput value={step.targetUnit} onChangeText={(text) => updateStep(step.id, { targetUnit: text })} placeholder={copy.outputUnitLabel} placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.stepInput} />
               </View>
             ))}
@@ -556,6 +580,5 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   inlineCategoryInput: { flex: 1, minHeight: 44 },
   inlineCategoryButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 10, justifyContent: "center", paddingHorizontal: 16 },
   inlineCategoryButtonText: { color: colors.onPrimary, fontSize: 13, fontWeight: "800" },
-  localConstantSymbolInput: { color: colors.primary, flex: 1, fontFamily: mono, fontSize: 14, fontWeight: "800", minHeight: 30 },
   stepCard: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 13, borderWidth: 1, marginTop: 8, padding: 11 }, stepHeader: { alignItems: "center", flexDirection: "row", gap: 8, justifyContent: "space-between" }, removeStepText: { color: colors.error, fontSize: 12, fontWeight: "700" }, stepInput: { borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth, color: colors.foreground, fontFamily: mono, fontSize: 14, minHeight: 38, paddingHorizontal: 0 }, addStepButton: { alignItems: "center", borderColor: colors.primaryBorder, borderRadius: 11, borderStyle: "dashed", borderWidth: 1, marginTop: 10, paddingVertical: 11 }, addStepText: { color: colors.primary, fontSize: 13, fontWeight: "800" },
 });

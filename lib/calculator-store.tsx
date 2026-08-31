@@ -34,6 +34,9 @@ export type CalculationNoteStep = {
   targetUnit: string;
   /** プリセットの手順にだけ付く、見やすい表示用のLaTeX数式（手入力のノートでは未設定）。 */
   formulaLatex?: string;
+  /** 「v = v0 + a*t」のように名前付きで手順を定義したときの結果の変数名。後続の手順から
+   * この名前で参照できる（省略時は notebookStepSymbol の s1, s2… にフォールバックする）。 */
+  resultSymbol?: string;
 };
 
 /** 旧・計算ノート（フラット一覧）の形。読み込み時、notebooks への一度きりの移行にのみ使う。 */
