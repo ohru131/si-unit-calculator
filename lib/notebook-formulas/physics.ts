@@ -64,7 +64,7 @@ export const PHYSICS_MECHANICS_SEEDS: NotebookSeed[] = [
     title: "自由落下速度",
     titleEn: "Free-fall velocity",
     description: "落下高さから、自由落下した物体の到達速度を求めます。",
-    descriptionEn: "Compute the terminal velocity of a freely falling object from its drop height.",
+    descriptionEn: "Compute the impact velocity of a freely falling object (ignoring air resistance) from its drop height.",
     localConstants: [
       { symbol: "g", expression: "9.8m/s^2" },
       { symbol: "h", expression: "20m" },
