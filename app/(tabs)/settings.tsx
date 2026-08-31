@@ -6,15 +6,16 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { AppLanguage, CalculatorMode, useGlobalSettings } from "@/lib/global-settings";
-import { UnitSystem } from "@/lib/units";
+import { MeasuringStandard, UnitSystem } from "@/lib/units";
 
 export default function SettingsScreen() {
-  const { calculatorMode, language, locale, setCalculatorMode, setLanguage, t, unitSystem, setUnitSystem } = useGlobalSettings();
+  const { calculatorMode, language, locale, measuringStandard, setCalculatorMode, setLanguage, setMeasuringStandard, t, unitSystem, setUnitSystem } = useGlobalSettings();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const languages: Array<{ id: AppLanguage; label: string }> = [{ id: "en", label: t("english") }, { id: "ja", label: t("japanese") }];
   const systems: Array<{ id: UnitSystem; label: string }> = [{ id: "metric", label: t("systemMetric") }, { id: "us", label: t("systemUS") }, { id: "uk", label: t("systemUK") }];
   const calculatorModes: Array<{ id: CalculatorMode; label: string }> = [{ id: "simple", label: t("simpleMode") }, { id: "advanced", label: t("advancedMode") }];
+  const measuringStandards: Array<{ id: MeasuringStandard; label: string }> = [{ id: "us", label: t("standardUS") }, { id: "jis", label: t("standardJIS") }];
 
   return <ScreenContainer className="px-5" containerClassName="bg-background">
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -27,6 +28,11 @@ export default function SettingsScreen() {
         <Text style={styles.label}>{t("units")}</Text>
         <Text style={styles.description}>{t("systemHint")}</Text>
         <View style={styles.systemList}>{systems.map((option) => <Pressable accessibilityLabel={`${t("units")}: ${option.label}`} key={option.id} onPress={() => void setUnitSystem(option.id)} style={({ pressed }) => [styles.systemRow, unitSystem === option.id && styles.systemRowActive, pressed && styles.pressed]}><View style={[styles.radio, unitSystem === option.id && styles.radioActive]}>{unitSystem === option.id ? <View style={styles.radioInner} /> : null}</View><Text style={styles.systemText}>{option.label}</Text></Pressable>)}</View>
+      </View>
+      <View style={styles.card}>
+        <Text style={styles.label}>{t("measuringStandard")}</Text>
+        <Text style={styles.description}>{t("measuringStandardHint")}</Text>
+        <View style={styles.systemList}>{measuringStandards.map((option) => <Pressable accessibilityLabel={`${t("measuringStandard")}: ${option.label}`} key={option.id} onPress={() => void setMeasuringStandard(option.id)} style={({ pressed }) => [styles.systemRow, measuringStandard === option.id && styles.systemRowActive, pressed && styles.pressed]}><View style={[styles.radio, measuringStandard === option.id && styles.radioActive]}>{measuringStandard === option.id ? <View style={styles.radioInner} /> : null}</View><Text style={styles.systemText}>{option.label}</Text></Pressable>)}</View>
       </View>
       <View style={styles.card}>
         <Text style={styles.label}>{t("displayMode")}</Text>

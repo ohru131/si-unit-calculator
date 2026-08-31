@@ -348,7 +348,7 @@ export const COOKING_SEEDS: NotebookSeed[] = [
     titleEn: "Measuring cup, tablespoon, teaspoon to mL conversion",
     description: "計量カップの分量を、mL・大さじ(tbsp)・小さじ(tsp)に換算します。単位の切替チップでそのまま比較できます。",
     descriptionEn: "Convert a quantity in measuring cups to mL, tablespoons, and teaspoons. Use the unit-switching chips to compare them directly.",
-    localConstants: [{ symbol: "amount", expression: "1.5jcup" }],
+    localConstants: [{ symbol: "amount", expression: "1.5cup" }],
     steps: [{ title: "体積", titleEn: "Volume", expression: "amount", targetUnit: "mL", formulaLatex: "V = \\text{amount}" }],
   },
   {

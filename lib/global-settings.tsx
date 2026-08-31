@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Localization from "expo-localization";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-import { UnitSystem } from "@/lib/units";
+import { MeasuringStandard, setMeasuringStandard as applyMeasuringStandard, UnitSystem } from "@/lib/units";
 
 export type AppLanguage = "en" | "ja";
 export type CalculatorMode = "simple" | "advanced";
@@ -12,11 +12,13 @@ type GlobalSettings = {
   locale: string;
   unitSystem: UnitSystem;
   calculatorMode: CalculatorMode;
+  measuringStandard: MeasuringStandard;
   isReady: boolean;
   hasSeenOnboarding: boolean;
   setLanguage: (language: AppLanguage) => Promise<void>;
   setUnitSystem: (system: UnitSystem) => Promise<void>;
   setCalculatorMode: (mode: CalculatorMode) => Promise<void>;
+  setMeasuringStandard: (standard: MeasuringStandard) => Promise<void>;
   completeOnboarding: () => Promise<void>;
   t: (key: TranslationKey) => string;
   unitGroupLabel: (groupId: string) => string;
@@ -28,6 +30,7 @@ const LANGUAGE_KEY = "si-unit-calculator.language.v1";
 const UNIT_SYSTEM_KEY = "si-unit-calculator.unit-system.v1";
 const CALCULATOR_MODE_KEY = "si-unit-calculator.calculator-mode.v1";
 const ONBOARDING_SEEN_KEY = "si-unit-calculator.onboarding-seen.v1";
+const MEASURING_STANDARD_KEY = "si-unit-calculator.measuring-standard.v1";
 
 const COPY = {
   en: {
@@ -62,6 +65,10 @@ const COPY = {
     saved: "Saved",
     english: "English",
     japanese: "Japanese",
+    measuringStandard: "Cup & spoon standard",
+    measuringStandardHint: "Sets the actual size used for cup, tbsp, and tsp everywhere in the app.",
+    standardUS: "US customary (cup ≈ 236.6 mL)",
+    standardJIS: "Japanese JIS (cup = 200 mL)",
   },
   ja: {
     calculator: "単位付き電卓",
@@ -95,6 +102,10 @@ const COPY = {
     saved: "保存済み",
     english: "English",
     japanese: "日本語",
+    measuringStandard: "カップ・大さじ・小さじの規格",
+    measuringStandardHint: "アプリ内すべてのカップ・大さじ・小さじの実際の量をまとめて切り替えます。",
+    standardUS: "米国基準（カップ ≈ 236.6mL）",
+    standardJIS: "日本のJIS規格（カップ = 200mL）",
   },
 } as const;
 
@@ -103,6 +114,10 @@ const GROUP_NAMES: Record<string, { en: string; ja: string }> = {
 };
 
 const GlobalSettingsContext = createContext<GlobalSettings | null>(null);
+
+function defaultMeasuringStandard(language: AppLanguage): MeasuringStandard {
+  return language === "ja" ? "jis" : "us";
+}
 
 function defaultUnitSystem(locale: Localization.Locale | undefined): UnitSystem {
   if (locale?.measurementSystem === "us") return "us";
@@ -118,20 +133,31 @@ export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<AppLanguage>(defaultLanguage);
   const [unitSystem, setUnitSystemState] = useState<UnitSystem>(() => defaultUnitSystem(deviceLocale));
   const [calculatorMode, setCalculatorModeState] = useState<CalculatorMode>("simple");
+  const [measuringStandard, setMeasuringStandardState] = useState<MeasuringStandard>(() => defaultMeasuringStandard(defaultLanguage));
   const [isReady, setIsReady] = useState(false);
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
 
   useEffect(() => {
-    Promise.all([AsyncStorage.getItem(LANGUAGE_KEY), AsyncStorage.getItem(UNIT_SYSTEM_KEY), AsyncStorage.getItem(CALCULATOR_MODE_KEY), AsyncStorage.getItem(ONBOARDING_SEEN_KEY)])
-      .then(([storedLanguage, storedUnitSystem, storedCalculatorMode, storedOnboardingSeen]) => {
+    Promise.all([AsyncStorage.getItem(LANGUAGE_KEY), AsyncStorage.getItem(UNIT_SYSTEM_KEY), AsyncStorage.getItem(CALCULATOR_MODE_KEY), AsyncStorage.getItem(ONBOARDING_SEEN_KEY), AsyncStorage.getItem(MEASURING_STANDARD_KEY)])
+      .then(([storedLanguage, storedUnitSystem, storedCalculatorMode, storedOnboardingSeen, storedMeasuringStandard]) => {
+        const resolvedLanguage = storedLanguage === "en" || storedLanguage === "ja" ? storedLanguage : defaultLanguage;
         if (storedLanguage === "en" || storedLanguage === "ja") setLanguageState(storedLanguage);
         if (storedUnitSystem === "metric" || storedUnitSystem === "us" || storedUnitSystem === "uk") setUnitSystemState(storedUnitSystem);
         if (storedCalculatorMode === "simple" || storedCalculatorMode === "advanced") setCalculatorModeState(storedCalculatorMode);
         if (storedOnboardingSeen === "true") setHasSeenOnboarding(true);
+        if (storedMeasuringStandard === "us" || storedMeasuringStandard === "jis") {
+          setMeasuringStandardState(storedMeasuringStandard);
+        } else {
+          setMeasuringStandardState(defaultMeasuringStandard(resolvedLanguage));
+        }
       })
       .catch(() => undefined)
       .finally(() => setIsReady(true));
-  }, []);
+  }, [defaultLanguage]);
+
+  useEffect(() => {
+    applyMeasuringStandard(measuringStandard);
+  }, [measuringStandard]);
 
   const setLanguage = useCallback(async (nextLanguage: AppLanguage) => {
     setLanguageState(nextLanguage);
@@ -141,6 +167,11 @@ export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
   const setUnitSystem = useCallback(async (nextSystem: UnitSystem) => {
     setUnitSystemState(nextSystem);
     await AsyncStorage.setItem(UNIT_SYSTEM_KEY, nextSystem);
+  }, []);
+
+  const setMeasuringStandard = useCallback(async (nextStandard: MeasuringStandard) => {
+    setMeasuringStandardState(nextStandard);
+    await AsyncStorage.setItem(MEASURING_STANDARD_KEY, nextStandard);
   }, []);
 
   const setCalculatorMode = useCallback(async (nextMode: CalculatorMode) => {
@@ -159,15 +190,17 @@ export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
     locale,
     unitSystem,
     calculatorMode,
+    measuringStandard,
     isReady,
     hasSeenOnboarding,
     setLanguage,
     setUnitSystem,
     setCalculatorMode,
+    setMeasuringStandard,
     completeOnboarding,
     t: (key) => COPY[language][key],
     unitGroupLabel: (groupId) => GROUP_NAMES[groupId]?.[language] ?? groupId,
-  }), [calculatorMode, completeOnboarding, hasSeenOnboarding, isReady, language, locale, setCalculatorMode, setLanguage, setUnitSystem, unitSystem]);
+  }), [calculatorMode, completeOnboarding, hasSeenOnboarding, isReady, language, locale, measuringStandard, setCalculatorMode, setLanguage, setMeasuringStandard, setUnitSystem, unitSystem]);
 
   return <GlobalSettingsContext.Provider value={value}>{children}</GlobalSettingsContext.Provider>;
 }

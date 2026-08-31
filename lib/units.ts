@@ -74,7 +74,7 @@ const DIMENSIONS = {
 const BASE_UNIT_GROUPS: UnitGroup[] = [
   { id: "length", label: "長さ", dimension: DIMENSIONS.length, units: [{ symbol: "m", label: "m" }, { symbol: "km", label: "km" }, { symbol: "cm", label: "cm" }, { symbol: "mm", label: "mm" }, { symbol: "µm", label: "µm" }, { symbol: "in", label: "in" }, { symbol: "ft", label: "ft" }, { symbol: "yd", label: "yd" }, { symbol: "mi", label: "mi" }, { symbol: "au", label: "au" }, { symbol: "ly", label: "ly" }] },
   { id: "area", label: "面積", dimension: [2, 0, 0, 0, 0, 0, 0], units: [{ symbol: "m²", label: "m²" }, { symbol: "km²", label: "km²" }, { symbol: "cm²", label: "cm²" }, { symbol: "mm²", label: "mm²" }, { symbol: "in²", label: "in²" }, { symbol: "ft²", label: "ft²" }, { symbol: "yd²", label: "yd²" }, { symbol: "acre", label: "acre" }] },
-  { id: "volume", label: "体積", dimension: [3, 0, 0, 0, 0, 0, 0], units: [{ symbol: "m³", label: "m³" }, { symbol: "L", label: "L" }, { symbol: "mL", label: "mL" }, { symbol: "cm³", label: "cm³" }, { symbol: "gal", label: "gal" }, { symbol: "qt", label: "qt" }, { symbol: "pt", label: "pt" }, { symbol: "cup", label: "cup" }, { symbol: "jcup", label: "カップ" }, { symbol: "tbsp", label: "tbsp" }, { symbol: "tsp", label: "tsp" }, { symbol: "oosaji", label: "大さじ" }, { symbol: "kosaji", label: "小さじ" }] },
+  { id: "volume", label: "体積", dimension: [3, 0, 0, 0, 0, 0, 0], units: [{ symbol: "m³", label: "m³" }, { symbol: "L", label: "L" }, { symbol: "mL", label: "mL" }, { symbol: "cm³", label: "cm³" }, { symbol: "gal", label: "gal" }, { symbol: "qt", label: "qt" }, { symbol: "pt", label: "pt" }, { symbol: "cup", label: "cup" }, { symbol: "tbsp", label: "tbsp" }, { symbol: "tsp", label: "tsp" }] },
   { id: "time", label: "時間", dimension: DIMENSIONS.time, units: [{ symbol: "s", label: "s" }, { symbol: "ms", label: "ms" }, { symbol: "min", label: "min" }, { symbol: "h", label: "h" }, { symbol: "d", label: "d" }, { symbol: "yr", label: "yr" }] },
   { id: "mass", label: "質量", dimension: DIMENSIONS.mass, units: [{ symbol: "kg", label: "kg" }, { symbol: "g", label: "g" }, { symbol: "mg", label: "mg" }, { symbol: "t", label: "t" }, { symbol: "lb", label: "lb" }, { symbol: "oz", label: "oz" }, { symbol: "st", label: "st" }] },
   { id: "temperature", label: "温度", dimension: DIMENSIONS.temperature, units: [{ symbol: "K", label: "K" }, { symbol: "°C", label: "°C" }, { symbol: "°F", label: "°F" }] },
@@ -191,12 +191,9 @@ const UNIT_META: Record<string, UnitMeta> = {
   eV: { aliases: ["electronvolt", "electron-volt", "電子ボルト"], name: { en: "electronvolt", ja: "電子ボルト" } },
   bpm: { aliases: ["beatsperminute", "拍毎分"], name: { en: "beat per minute", ja: "心拍数" } },
   rpm: { aliases: ["revolutionsperminute", "回転毎分"], name: { en: "revolution per minute", ja: "回転数" } },
-  cup: { aliases: ["cups"], name: { en: "US cup", ja: "カップ（米国基準・約236.6mL）" } },
-  jcup: { aliases: ["japanesecup"], name: { en: "Japanese measuring cup (200 mL)", ja: "カップ（日本の計量カップ・200mL）" } },
-  tbsp: { aliases: ["tablespoon", "tablespoons"], name: { en: "US tablespoon", ja: "大さじ（米国基準）" } },
-  tsp: { aliases: ["teaspoon", "teaspoons"], name: { en: "US teaspoon", ja: "小さじ（米国基準）" } },
-  oosaji: { aliases: ["japanesetablespoon"], name: { en: "Japanese tablespoon (15 mL)", ja: "大さじ（JIS規格・15mL）" } },
-  kosaji: { aliases: ["japaneseteaspoon"], name: { en: "Japanese teaspoon (5 mL)", ja: "小さじ（JIS規格・5mL）" } },
+  cup: { aliases: ["cups"], name: { en: "cup (US or JIS, set in Preferences)", ja: "カップ（設定で米国基準・JISを切替）" } },
+  tbsp: { aliases: ["tablespoon", "tablespoons"], name: { en: "tablespoon (US or JIS, set in Preferences)", ja: "大さじ（設定で米国基準・JISを切替）" } },
+  tsp: { aliases: ["teaspoon", "teaspoons"], name: { en: "teaspoon (US or JIS, set in Preferences)", ja: "小さじ（設定で米国基準・JISを切替）" } },
   au: { aliases: ["AU", "astronomicalunit", "天文単位"], name: { en: "astronomical unit", ja: "天文単位" } },
   ly: { aliases: ["lightyear", "lightyears", "光年"], name: { en: "light year", ja: "光年" } },
   yr: { aliases: ["year", "years", "年"], name: { en: "year", ja: "年" } },
@@ -310,13 +307,6 @@ const BASE_UNITS: Record<string, UnitDefinition> = {
   cal: unit(4.184, [2, 1, -2, 0, 0, 0, 0]),
   bpm: unit(1 / 60, [0, 0, -1, 0, 0, 0, 0]),
   rpm: unit(1 / 60, [0, 0, -1, 0, 0, 0, 0]),
-  cup: unit(2.365882365e-4, [3, 0, 0, 0, 0, 0, 0]),
-  tbsp: unit(1.478676478125e-5, [3, 0, 0, 0, 0, 0, 0]),
-  tsp: unit(4.92892159375e-6, [3, 0, 0, 0, 0, 0, 0]),
-  // 日本の計量カップ・計量スプーン（JIS規格）は米国基準のcup/tbsp/tspと値が異なるため、別単位として持つ。
-  jcup: unit(2e-4, [3, 0, 0, 0, 0, 0, 0]),
-  oosaji: unit(1.5e-5, [3, 0, 0, 0, 0, 0, 0]),
-  kosaji: unit(5e-6, [3, 0, 0, 0, 0, 0, 0]),
   au: unit(1.495978707e11, DIMENSIONS.length),
   ly: unit(9.4607304725808e15, DIMENSIONS.length),
   yr: unit(31557600, DIMENSIONS.time),
@@ -406,12 +396,42 @@ const normalize = (input: string) =>
     .replace(/\s+/g, " ")
     .replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]/g, (character) => SUPERSCRIPTS[character]);
 
+export type MeasuringStandard = "us" | "jis";
+
+/** カップ・大さじ・小さじは、米国基準とJIS規格で値が異なる。設定でまとめて切り替える。 */
+const MEASURING_STANDARD_VALUES: Record<MeasuringStandard, { cup: number; tbsp: number; tsp: number }> = {
+  us: { cup: 2.365882365e-4, tbsp: 1.478676478125e-5, tsp: 4.92892159375e-6 },
+  jis: { cup: 2e-4, tbsp: 1.5e-5, tsp: 5e-6 },
+};
+
+let measuringStandard: MeasuringStandard = "us";
+
+export function setMeasuringStandard(standard: MeasuringStandard) {
+  measuringStandard = standard;
+}
+
+export function getMeasuringStandard(): MeasuringStandard {
+  return measuringStandard;
+}
+
+// cup/tbsp/tsp（と別表記）は measuringStandard に応じて値が変わるため、BASE_UNITS には固定値を持たせずここで解決する。
+const DYNAMIC_VOLUME_ALIASES: Record<string, "cup" | "tbsp" | "tsp"> = {
+  cup: "cup",
+  cups: "cup",
+  tbsp: "tbsp",
+  tablespoon: "tbsp",
+  tablespoons: "tbsp",
+  tsp: "tsp",
+  teaspoon: "tsp",
+  teaspoons: "tsp",
+};
+
 // UNIT_META の英字の別表記（sec, hour, millisecond など）を、計算にも使える表記として自動登録する。
 // ms のように接頭辞から導かれる単位も resolveUnitSymbol で解決してから登録する。
 // 日本語の読みなど計算式に入力できない別表記はここでは対象外にする。
 const ALIAS_SYMBOL_PATTERN = /^[A-Za-z][A-Za-z0-9]*$/;
 Object.entries(UNIT_META).forEach(([symbol, meta]) => {
-  if (!meta.aliases) return;
+  if (!meta.aliases || DYNAMIC_VOLUME_ALIASES[symbol]) return;
   let base: UnitDefinition;
   try {
     base = resolveUnitSymbol(symbol);
@@ -425,6 +445,9 @@ Object.entries(UNIT_META).forEach(([symbol, meta]) => {
 });
 
 function resolveUnitSymbol(symbol: string): UnitDefinition {
+  const dynamicKey = DYNAMIC_VOLUME_ALIASES[symbol];
+  if (dynamicKey) return unit(MEASURING_STANDARD_VALUES[measuringStandard][dynamicKey], [3, 0, 0, 0, 0, 0, 0]);
+
   if (BASE_UNITS[symbol]) return BASE_UNITS[symbol];
 
   for (const [prefix, scale] of PREFIXES) {
