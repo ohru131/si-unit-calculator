@@ -74,7 +74,7 @@ const DIMENSIONS = {
 const BASE_UNIT_GROUPS: UnitGroup[] = [
   { id: "length", label: "長さ", dimension: DIMENSIONS.length, units: [{ symbol: "m", label: "m" }, { symbol: "km", label: "km" }, { symbol: "cm", label: "cm" }, { symbol: "mm", label: "mm" }, { symbol: "µm", label: "µm" }, { symbol: "in", label: "in" }, { symbol: "ft", label: "ft" }, { symbol: "yd", label: "yd" }, { symbol: "mi", label: "mi" }, { symbol: "au", label: "au" }, { symbol: "ly", label: "ly" }] },
   { id: "area", label: "面積", dimension: [2, 0, 0, 0, 0, 0, 0], units: [{ symbol: "m²", label: "m²" }, { symbol: "km²", label: "km²" }, { symbol: "cm²", label: "cm²" }, { symbol: "mm²", label: "mm²" }, { symbol: "in²", label: "in²" }, { symbol: "ft²", label: "ft²" }, { symbol: "yd²", label: "yd²" }, { symbol: "acre", label: "acre" }] },
-  { id: "volume", label: "体積", dimension: [3, 0, 0, 0, 0, 0, 0], units: [{ symbol: "m³", label: "m³" }, { symbol: "L", label: "L" }, { symbol: "mL", label: "mL" }, { symbol: "cm³", label: "cm³" }, { symbol: "gal", label: "gal" }, { symbol: "qt", label: "qt" }, { symbol: "pt", label: "pt" }, { symbol: "cup", label: "cup" }, { symbol: "tbsp", label: "tbsp" }, { symbol: "tsp", label: "tsp" }, { symbol: "oosaji", label: "大さじ" }, { symbol: "kosaji", label: "小さじ" }] },
+  { id: "volume", label: "体積", dimension: [3, 0, 0, 0, 0, 0, 0], units: [{ symbol: "m³", label: "m³" }, { symbol: "L", label: "L" }, { symbol: "mL", label: "mL" }, { symbol: "cm³", label: "cm³" }, { symbol: "gal", label: "gal" }, { symbol: "qt", label: "qt" }, { symbol: "pt", label: "pt" }, { symbol: "cup", label: "cup" }, { symbol: "jcup", label: "カップ" }, { symbol: "tbsp", label: "tbsp" }, { symbol: "tsp", label: "tsp" }, { symbol: "oosaji", label: "大さじ" }, { symbol: "kosaji", label: "小さじ" }] },
   { id: "time", label: "時間", dimension: DIMENSIONS.time, units: [{ symbol: "s", label: "s" }, { symbol: "ms", label: "ms" }, { symbol: "min", label: "min" }, { symbol: "h", label: "h" }, { symbol: "d", label: "d" }, { symbol: "yr", label: "yr" }] },
   { id: "mass", label: "質量", dimension: DIMENSIONS.mass, units: [{ symbol: "kg", label: "kg" }, { symbol: "g", label: "g" }, { symbol: "mg", label: "mg" }, { symbol: "t", label: "t" }, { symbol: "lb", label: "lb" }, { symbol: "oz", label: "oz" }, { symbol: "st", label: "st" }] },
   { id: "temperature", label: "温度", dimension: DIMENSIONS.temperature, units: [{ symbol: "K", label: "K" }, { symbol: "°C", label: "°C" }, { symbol: "°F", label: "°F" }] },
@@ -191,7 +191,8 @@ const UNIT_META: Record<string, UnitMeta> = {
   eV: { aliases: ["electronvolt", "electron-volt", "電子ボルト"], name: { en: "electronvolt", ja: "電子ボルト" } },
   bpm: { aliases: ["beatsperminute", "拍毎分"], name: { en: "beat per minute", ja: "心拍数" } },
   rpm: { aliases: ["revolutionsperminute", "回転毎分"], name: { en: "revolution per minute", ja: "回転数" } },
-  cup: { aliases: ["cups", "カップ"], name: { en: "cup", ja: "カップ" } },
+  cup: { aliases: ["cups"], name: { en: "US cup", ja: "カップ（米国基準・約236.6mL）" } },
+  jcup: { aliases: ["japanesecup"], name: { en: "Japanese measuring cup (200 mL)", ja: "カップ（日本の計量カップ・200mL）" } },
   tbsp: { aliases: ["tablespoon", "tablespoons"], name: { en: "US tablespoon", ja: "大さじ（米国基準）" } },
   tsp: { aliases: ["teaspoon", "teaspoons"], name: { en: "US teaspoon", ja: "小さじ（米国基準）" } },
   oosaji: { aliases: ["japanesetablespoon"], name: { en: "Japanese tablespoon (15 mL)", ja: "大さじ（JIS規格・15mL）" } },
@@ -312,7 +313,8 @@ const BASE_UNITS: Record<string, UnitDefinition> = {
   cup: unit(2.365882365e-4, [3, 0, 0, 0, 0, 0, 0]),
   tbsp: unit(1.478676478125e-5, [3, 0, 0, 0, 0, 0, 0]),
   tsp: unit(4.92892159375e-6, [3, 0, 0, 0, 0, 0, 0]),
-  // 日本の計量スプーン（JIS規格）は米国基準のtbsp/tspと値が異なるため、別単位として持つ。
+  // 日本の計量カップ・計量スプーン（JIS規格）は米国基準のcup/tbsp/tspと値が異なるため、別単位として持つ。
+  jcup: unit(2e-4, [3, 0, 0, 0, 0, 0, 0]),
   oosaji: unit(1.5e-5, [3, 0, 0, 0, 0, 0, 0]),
   kosaji: unit(5e-6, [3, 0, 0, 0, 0, 0, 0]),
   au: unit(1.495978707e11, DIMENSIONS.length),
