@@ -8,11 +8,11 @@ export const ELECTRICITY_BASICS_SEEDS: NotebookSeed[] = [
     description: "電源電圧・LEDの順方向電圧・希望電流から、必要な抵抗値を求めます。",
     descriptionEn: "Compute the resistor value needed for an LED circuit from the supply voltage, LED forward voltage, and desired current.",
     localConstants: [
-      { symbol: "Vsupply", expression: "5V" },
+      { symbol: "Vsupply", expression: "5V", displaySymbol: "Vₛ" },
       { symbol: "Vf", expression: "2V" },
       { symbol: "I", expression: "15mA" },
     ],
-    steps: [{ title: "必要な抵抗値 R", titleEn: "Required resistance R", expression: "(Vsupply-Vf)/I", targetUnit: "Ohm", formulaLatex: "R = \\dfrac{V_{supply} - V_f}{I}" }],
+    steps: [{ title: "必要な抵抗値 R", titleEn: "Required resistance R", expression: "(Vsupply-Vf)/I", targetUnit: "Ohm", formulaLatex: "R = \\dfrac{V_s - V_f}{I}" }],
   },
   {
     title: "消費電力量と電気代",
@@ -36,7 +36,7 @@ export const ELECTRICITY_BASICS_SEEDS: NotebookSeed[] = [
     descriptionEn: "Compute the maximum usable power from the contracted voltage and the breaker's rated current.",
     localConstants: [
       { symbol: "V", expression: "100V" },
-      { symbol: "Imax", expression: "30A" },
+      { symbol: "Imax", expression: "30A", displaySymbol: "Iₘₐₓ" },
     ],
     steps: [{ title: "最大電力 Pmax", titleEn: "Maximum power Pmax", expression: "V*Imax", targetUnit: "W", formulaLatex: "P_{max} = V \\cdot I_{max}" }],
   },
@@ -46,8 +46,8 @@ export const ELECTRICITY_BASICS_SEEDS: NotebookSeed[] = [
     description: "2つの抵抗値から、直列合成抵抗と並列合成抵抗をそれぞれ求めます。",
     descriptionEn: "Compute the combined resistance of two resistors both in series and in parallel.",
     localConstants: [
-      { symbol: "R1", expression: "100Ohm" },
-      { symbol: "R2", expression: "200Ohm" },
+      { symbol: "R1", expression: "100Ohm", displaySymbol: "R₁" },
+      { symbol: "R2", expression: "200Ohm", displaySymbol: "R₂" },
     ],
     steps: [
       { title: "直列合成抵抗", titleEn: "Series resistance", expression: "R1+R2", targetUnit: "Ohm", formulaLatex: "R_{series} = R_1 + R_2" },
@@ -62,7 +62,7 @@ export const ELECTRICITY_BASICS_SEEDS: NotebookSeed[] = [
     localConstants: [
       { symbol: "V", expression: "100V" },
       { symbol: "I", expression: "5A" },
-      { symbol: "cosPhi", expression: "0.8" },
+      { symbol: "cosPhi", expression: "0.8", displaySymbol: "cosφ" },
     ],
     steps: [{ title: "実効電力 P", titleEn: "Real power P", expression: "V*I*cosPhi", targetUnit: "W", formulaLatex: "P = VI\\cos\\varphi" }],
   },
@@ -101,7 +101,7 @@ export const ASTRONOMY_SEEDS: NotebookSeed[] = [
     descriptionEn: "Compute Earth's orbital period from the Sun's mass and Earth's orbital radius (1 astronomical unit). The result should be about 1 year.",
     localConstants: [
       { symbol: "G", expression: "6.674e-11N*m^2/kg^2" },
-      { symbol: "Msun", expression: "1.989e30kg" },
+      { symbol: "Msun", expression: "1.989e30kg", displaySymbol: "Mₛᵤₙ" },
       { symbol: "a", expression: "1au" },
     ],
     steps: [{ title: "公転周期 T", titleEn: "Orbital period T", expression: "sqrt(4*pi^2*a^3/(G*Msun))", targetUnit: "yr", formulaLatex: "T = \\sqrt{\\dfrac{4\\pi^2 a^3}{GM_{sun}}}" }],
@@ -162,7 +162,7 @@ export const FITNESS_SEEDS: NotebookSeed[] = [
     description: "運動強度（METs）・体重・運動時間から、消費カロリーを求めます。",
     descriptionEn: "Compute calories burned from exercise intensity (METs), body weight, and duration.",
     localConstants: [
-      { symbol: "mets", expression: "8" },
+      { symbol: "mets", expression: "8", displaySymbol: "METs" },
       { symbol: "weight", expression: "65kg" },
       { symbol: "time", expression: "0.5h" },
       { symbol: "factor", expression: "1.05kcal/kg/h" },
@@ -176,7 +176,7 @@ export const FITNESS_SEEDS: NotebookSeed[] = [
     descriptionEn: "Compute the target heart rate from age, resting heart rate, and desired exercise intensity.",
     localConstants: [
       { symbol: "age", expression: "30" },
-      { symbol: "restHR", expression: "60bpm" },
+      { symbol: "restHR", expression: "60bpm", displaySymbol: "HRᵣₑₛₜ" },
       { symbol: "intensity", expression: "0.7" },
     ],
     steps: [
@@ -252,7 +252,7 @@ export const CHEMISTRY_SEEDS: NotebookSeed[] = [
     descriptionEn: "Compute the heat released from the amount of substance reacted and the molar heat of reaction.",
     localConstants: [
       { symbol: "n", expression: "0.2mol" },
-      { symbol: "deltaH", expression: "890kJ/mol" },
+      { symbol: "deltaH", expression: "890kJ/mol", displaySymbol: "ΔH" },
     ],
     steps: [{ title: "反応熱 Q", titleEn: "Heat of reaction Q", expression: "n*deltaH", targetUnit: "kJ", formulaLatex: "Q = n \\cdot \\Delta H" }],
   },
@@ -262,7 +262,7 @@ export const CHEMISTRY_SEEDS: NotebookSeed[] = [
     description: "溶液の質量と質量パーセント濃度から、溶質の質量を求めます。",
     descriptionEn: "Compute the mass of solute from the mass of solution and its mass percent concentration.",
     localConstants: [
-      { symbol: "massSolution", expression: "500g" },
+      { symbol: "massSolution", expression: "500g", displaySymbol: "mₛₒₗᵤₜᵢₒₙ" },
       { symbol: "percent", expression: "10%" },
     ],
     steps: [{ title: "溶質の質量", titleEn: "Mass of solute", expression: "massSolution*percent", targetUnit: "g", formulaLatex: "m_{solute} = m_{solution} \\times \\text{percent}" }],
@@ -278,7 +278,7 @@ export const VEHICLES_SEEDS: NotebookSeed[] = [
     descriptionEn: "Compute the braking distance from speed and the coefficient of friction.",
     localConstants: [
       { symbol: "v", expression: "60km/h" },
-      { symbol: "mu", expression: "0.7" },
+      { symbol: "mu", expression: "0.7", displaySymbol: "μ" },
       { symbol: "g", expression: "9.8m/s^2" },
     ],
     steps: [{ title: "制動距離 d", titleEn: "Braking distance d", expression: "v^2/(2*mu*g)", targetUnit: "m", formulaLatex: "d = \\dfrac{v^2}{2\\mu g}" }],
@@ -290,12 +290,12 @@ export const VEHICLES_SEEDS: NotebookSeed[] = [
     descriptionEn: "Compute the reaction distance traveled during the driver's reaction time and add the braking distance to get the total stopping distance.",
     localConstants: [
       { symbol: "v", expression: "60km/h" },
-      { symbol: "reactionTime", expression: "0.75s" },
-      { symbol: "mu", expression: "0.7" },
+      { symbol: "reactionTime", expression: "0.75s", displaySymbol: "tᵣ" },
+      { symbol: "mu", expression: "0.7", displaySymbol: "μ" },
       { symbol: "g", expression: "9.8m/s^2" },
     ],
     steps: [
-      { title: "空走距離", titleEn: "Reaction distance", expression: "v*reactionTime", targetUnit: "m", formulaLatex: "d_{reaction} = v \\cdot t_{reaction}" },
+      { title: "空走距離", titleEn: "Reaction distance", expression: "v*reactionTime", targetUnit: "m", formulaLatex: "d_{reaction} = v \\cdot t_r" },
       { title: "制動距離", titleEn: "Braking distance", expression: "v^2/(2*mu*g)", targetUnit: "m", formulaLatex: "d_{brake} = \\dfrac{v^2}{2\\mu g}" },
       { title: "停止距離", titleEn: "Total stopping distance", expression: "s1+s2", targetUnit: "m", formulaLatex: "d_{stop} = d_{reaction} + d_{brake}" },
     ],
@@ -308,9 +308,9 @@ export const VEHICLES_SEEDS: NotebookSeed[] = [
     localConstants: [
       { symbol: "cadence", expression: "80rpm" },
       { symbol: "gearRatio", expression: "2.5" },
-      { symbol: "wheelCircumference", expression: "2.1m" },
+      { symbol: "wheelCircumference", expression: "2.1m", displaySymbol: "Cₕ" },
     ],
-    steps: [{ title: "速度 v", titleEn: "Speed v", expression: "cadence*gearRatio*wheelCircumference", targetUnit: "km/h", formulaLatex: "v = \\text{cadence} \\times \\text{gearRatio} \\times C_{wheel}" }],
+    steps: [{ title: "速度 v", titleEn: "Speed v", expression: "cadence*gearRatio*wheelCircumference", targetUnit: "km/h", formulaLatex: "v = \\text{cadence} \\times \\text{gearRatio} \\times C_h" }],
   },
   {
     title: "燃費と走行コスト",
@@ -323,7 +323,7 @@ export const VEHICLES_SEEDS: NotebookSeed[] = [
       { symbol: "price", expression: "170" },
     ],
     steps: [
-      { title: "必要な燃料", titleEn: "Fuel needed", expression: "distance/fuelEconomy", targetUnit: "L", formulaLatex: "\\text{fuel} = \\dfrac{\\text{distance}}{\\text{fuel economy}}" },
+      { title: "必要な燃料", titleEn: "Fuel needed", expression: "distance/fuelEconomy", targetUnit: "L", formulaLatex: "\\text{fuel} = \\dfrac{\\text{distance}}{\\text{fuelEconomy}}" },
       { title: "走行コスト", titleEn: "Trip cost", expression: "(s1/1L)*price", targetUnit: "", formulaLatex: "\\text{cost} = \\dfrac{\\text{fuel}}{1\\text{L}} \\times \\text{price}" },
     ],
   },
@@ -333,7 +333,7 @@ export const VEHICLES_SEEDS: NotebookSeed[] = [
     description: "路面の摩擦係数とカーブの半径から、安全に曲がれる速度の目安を求めます。",
     descriptionEn: "Estimate the safe cornering speed from the road's coefficient of friction and the curve radius.",
     localConstants: [
-      { symbol: "mu", expression: "0.8" },
+      { symbol: "mu", expression: "0.8", displaySymbol: "μ" },
       { symbol: "g", expression: "9.8m/s^2" },
       { symbol: "r", expression: "50m" },
     ],
@@ -346,7 +346,7 @@ export const COOKING_SEEDS: NotebookSeed[] = [
   {
     title: "計量カップ・大さじ・小さじ⇔mL変換",
     titleEn: "Measuring cup, tablespoon, teaspoon to mL conversion",
-    description: "計量カップの分量を、mL・大さじ・小さじに換算します。単位の切替チップでそのまま比較できます。",
+    description: "計量カップの分量を、mL・大さじ(tbsp)・小さじ(tsp)に換算します。単位の切替チップでそのまま比較できます。",
     descriptionEn: "Convert a quantity in measuring cups to mL, tablespoons, and teaspoons. Use the unit-switching chips to compare them directly.",
     localConstants: [{ symbol: "amount", expression: "1.5cup" }],
     steps: [{ title: "体積", titleEn: "Volume", expression: "amount", targetUnit: "mL", formulaLatex: "V = \\text{amount}" }],
@@ -365,11 +365,11 @@ export const COOKING_SEEDS: NotebookSeed[] = [
     description: "元のレシピの分量と人数から、目標の人数分に必要な分量を求めます。",
     descriptionEn: "Compute the ingredient amount needed for a target number of servings, scaled from the original recipe.",
     localConstants: [
-      { symbol: "originalAmount", expression: "200g" },
-      { symbol: "originalServings", expression: "2" },
-      { symbol: "targetServings", expression: "5" },
+      { symbol: "originalAmount", expression: "200g", displaySymbol: "mₒ" },
+      { symbol: "originalServings", expression: "2", displaySymbol: "nₒ" },
+      { symbol: "targetServings", expression: "5", displaySymbol: "nₜ" },
     ],
-    steps: [{ title: "必要な分量", titleEn: "Scaled amount", expression: "originalAmount*(targetServings/originalServings)", targetUnit: "g", formulaLatex: "m_{target} = m_{original} \\times \\dfrac{n_{target}}{n_{original}}" }],
+    steps: [{ title: "必要な分量", titleEn: "Scaled amount", expression: "originalAmount*(targetServings/originalServings)", targetUnit: "g", formulaLatex: "m_t = m_o \\times \\dfrac{n_t}{n_o}" }],
   },
   {
     title: "ベーカーズパーセント（水分率）",
@@ -377,10 +377,10 @@ export const COOKING_SEEDS: NotebookSeed[] = [
     description: "小麦粉の重さに対する水の重さの割合（ベーカーズパーセント）を求めます。",
     descriptionEn: "Compute the ratio of water weight to flour weight (baker's percentage / hydration).",
     localConstants: [
-      { symbol: "waterWeight", expression: "300g" },
-      { symbol: "flourWeight", expression: "500g" },
+      { symbol: "waterWeight", expression: "300g", displaySymbol: "mₐ" },
+      { symbol: "flourWeight", expression: "500g", displaySymbol: "mₗ" },
     ],
-    steps: [{ title: "水分率", titleEn: "Hydration", expression: "waterWeight/flourWeight", targetUnit: "%", formulaLatex: "\\text{hydration} = \\dfrac{m_{water}}{m_{flour}}" }],
+    steps: [{ title: "水分率", titleEn: "Hydration", expression: "waterWeight/flourWeight", targetUnit: "%", formulaLatex: "\\text{hydration} = \\dfrac{m_a}{m_l}" }],
   },
   {
     title: "密度からのグラム換算（砂糖大さじ何g）",
@@ -388,8 +388,8 @@ export const COOKING_SEEDS: NotebookSeed[] = [
     description: "砂糖の密度と体積（大さじ）から、質量をグラムで求めます。",
     descriptionEn: "Compute the mass in grams from the density of sugar and a volume measured in tablespoons.",
     localConstants: [
-      { symbol: "sugarDensity", expression: "0.9g/mL" },
-      { symbol: "amount", expression: "3tbsp" },
+      { symbol: "sugarDensity", expression: "0.9g/mL", displaySymbol: "ρ" },
+      { symbol: "amount", expression: "3tbsp", displaySymbol: "V" },
     ],
     steps: [{ title: "質量", titleEn: "Mass", expression: "sugarDensity*amount", targetUnit: "g", formulaLatex: "m = \\rho \\times V" }],
   },

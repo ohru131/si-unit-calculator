@@ -51,6 +51,8 @@ export type NotebookLocalConstant = {
   id: string;
   symbol: string;
   expression: string;
+  /** 定数一覧での表示用記号。数式の変数と揃えるためのUnicode下付き文字など。省略時はsymbolをそのまま表示する。 */
+  displaySymbol?: string;
 };
 
 export type CalculationNotebook = {
@@ -256,6 +258,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
                   id: `preset-${category.id}-${seedIndex}-constant-${constantIndex}`,
                   symbol: constant.symbol,
                   expression: constant.expression,
+                  displaySymbol: constant.displaySymbol,
                 })),
                 steps: seed.steps.map((step, stepIndex) => ({
                   id: `preset-${category.id}-${seedIndex}-step-${stepIndex}`,

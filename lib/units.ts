@@ -191,9 +191,9 @@ const UNIT_META: Record<string, UnitMeta> = {
   eV: { aliases: ["electronvolt", "electron-volt", "電子ボルト"], name: { en: "electronvolt", ja: "電子ボルト" } },
   bpm: { aliases: ["beatsperminute", "拍毎分"], name: { en: "beat per minute", ja: "心拍数" } },
   rpm: { aliases: ["revolutionsperminute", "回転毎分"], name: { en: "revolution per minute", ja: "回転数" } },
-  cup: { aliases: ["cups", "カップ"], name: { en: "cup", ja: "カップ" } },
-  tbsp: { aliases: ["tablespoon", "tablespoons", "大さじ"], name: { en: "tablespoon", ja: "大さじ" } },
-  tsp: { aliases: ["teaspoon", "teaspoons", "小さじ"], name: { en: "teaspoon", ja: "小さじ" } },
+  cup: { aliases: ["cups", "カップ"], name: { en: "cup (US or JIS, set in Preferences)", ja: "カップ（設定で米国基準・JISを切替）" } },
+  tbsp: { aliases: ["tablespoon", "tablespoons", "大さじ"], name: { en: "tablespoon (US or JIS, set in Preferences)", ja: "大さじ（設定で米国基準・JISを切替）" } },
+  tsp: { aliases: ["teaspoon", "teaspoons", "小さじ"], name: { en: "teaspoon (US or JIS, set in Preferences)", ja: "小さじ（設定で米国基準・JISを切替）" } },
   au: { aliases: ["AU", "astronomicalunit", "天文単位"], name: { en: "astronomical unit", ja: "天文単位" } },
   ly: { aliases: ["lightyear", "lightyears", "光年"], name: { en: "light year", ja: "光年" } },
   yr: { aliases: ["year", "years", "年"], name: { en: "year", ja: "年" } },
@@ -307,9 +307,6 @@ const BASE_UNITS: Record<string, UnitDefinition> = {
   cal: unit(4.184, [2, 1, -2, 0, 0, 0, 0]),
   bpm: unit(1 / 60, [0, 0, -1, 0, 0, 0, 0]),
   rpm: unit(1 / 60, [0, 0, -1, 0, 0, 0, 0]),
-  cup: unit(2.365882365e-4, [3, 0, 0, 0, 0, 0, 0]),
-  tbsp: unit(1.478676478125e-5, [3, 0, 0, 0, 0, 0, 0]),
-  tsp: unit(4.92892159375e-6, [3, 0, 0, 0, 0, 0, 0]),
   au: unit(1.495978707e11, DIMENSIONS.length),
   ly: unit(9.4607304725808e15, DIMENSIONS.length),
   yr: unit(31557600, DIMENSIONS.time),
@@ -399,12 +396,42 @@ const normalize = (input: string) =>
     .replace(/\s+/g, " ")
     .replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]/g, (character) => SUPERSCRIPTS[character]);
 
+export type MeasuringStandard = "us" | "jis";
+
+/** カップ・大さじ・小さじは、米国基準とJIS規格で値が異なる。設定でまとめて切り替える。 */
+const MEASURING_STANDARD_VALUES: Record<MeasuringStandard, { cup: number; tbsp: number; tsp: number }> = {
+  us: { cup: 2.365882365e-4, tbsp: 1.478676478125e-5, tsp: 4.92892159375e-6 },
+  jis: { cup: 2e-4, tbsp: 1.5e-5, tsp: 5e-6 },
+};
+
+let measuringStandard: MeasuringStandard = "us";
+
+export function setMeasuringStandard(standard: MeasuringStandard) {
+  measuringStandard = standard;
+}
+
+export function getMeasuringStandard(): MeasuringStandard {
+  return measuringStandard;
+}
+
+// cup/tbsp/tsp（と別表記）は measuringStandard に応じて値が変わるため、BASE_UNITS には固定値を持たせずここで解決する。
+const DYNAMIC_VOLUME_ALIASES: Record<string, "cup" | "tbsp" | "tsp"> = {
+  cup: "cup",
+  cups: "cup",
+  tbsp: "tbsp",
+  tablespoon: "tbsp",
+  tablespoons: "tbsp",
+  tsp: "tsp",
+  teaspoon: "tsp",
+  teaspoons: "tsp",
+};
+
 // UNIT_META の英字の別表記（sec, hour, millisecond など）を、計算にも使える表記として自動登録する。
 // ms のように接頭辞から導かれる単位も resolveUnitSymbol で解決してから登録する。
 // 日本語の読みなど計算式に入力できない別表記はここでは対象外にする。
 const ALIAS_SYMBOL_PATTERN = /^[A-Za-z][A-Za-z0-9]*$/;
 Object.entries(UNIT_META).forEach(([symbol, meta]) => {
-  if (!meta.aliases) return;
+  if (!meta.aliases || DYNAMIC_VOLUME_ALIASES[symbol]) return;
   let base: UnitDefinition;
   try {
     base = resolveUnitSymbol(symbol);
@@ -418,6 +445,9 @@ Object.entries(UNIT_META).forEach(([symbol, meta]) => {
 });
 
 function resolveUnitSymbol(symbol: string): UnitDefinition {
+  const dynamicKey = DYNAMIC_VOLUME_ALIASES[symbol];
+  if (dynamicKey) return unit(MEASURING_STANDARD_VALUES[measuringStandard][dynamicKey], [3, 0, 0, 0, 0, 0, 0]);
+
   if (BASE_UNITS[symbol]) return BASE_UNITS[symbol];
 
   for (const [prefix, scale] of PREFIXES) {

@@ -6,7 +6,12 @@ export type PresetNotebookCategory = {
   parentId?: string;
 };
 
-export type NotebookSeedConstant = { symbol: string; expression: string };
+export type NotebookSeedConstant = {
+  symbol: string;
+  expression: string;
+  /** 定数一覧での表示用記号。数式（formulaLatex）の変数と揃えるためのUnicode下付き文字など。省略時はsymbolをそのまま表示する。 */
+  displaySymbol?: string;
+};
 export type NotebookSeedStep = {
   title: string;
   titleEn: string;
