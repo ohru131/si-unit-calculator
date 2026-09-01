@@ -16,8 +16,11 @@ export async function exportNotebooksBackup(notebooks: CalculationNotebook[], ca
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = FILE_NAME;
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
     anchor.click();
-    URL.revokeObjectURL(url);
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
     return;
   }
   const fileUri = `${FileSystem.cacheDirectory}${FILE_NAME}`;
