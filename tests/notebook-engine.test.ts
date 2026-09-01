@@ -1,12 +1,31 @@
 import { describe, expect, it } from "vitest";
 
 import { PRESET_NOTEBOOK_SEEDS } from "../lib/notebook-formulas";
-import { evaluateNotebookSteps, notebookStepSymbol, resolveNotebookLocalConstants } from "../lib/notebook-engine";
+import { evaluateNotebookSteps, formatNameValue, notebookStepSymbol, parseNameValue, resolveNotebookLocalConstants } from "../lib/notebook-engine";
 import { type NotebookLocalConstant } from "../lib/calculator-store";
 
 function toLocalConstants(entries: { symbol: string; expression: string }[]): NotebookLocalConstant[] {
   return entries.map((entry, index) => ({ id: `local-${index}`, ...entry }));
 }
+
+describe("名前＝式の1行入力パース", () => {
+  it("有効な名前=式を分割できる", () => {
+    expect(parseNameValue("v0=5m/s")).toEqual({ name: "v0", value: "5m/s" });
+  });
+
+  it("=が無ければ全体を式として扱う（名前は空）", () => {
+    expect(parseNameValue("5m/s")).toEqual({ name: "", value: "5m/s" });
+  });
+
+  it("数字始まりなど不正な名前は解析できず全体が式として残る", () => {
+    expect(parseNameValue("1v=5m/s")).toEqual({ name: "", value: "1v=5m/s" });
+  });
+
+  it("formatNameValueはparseNameValueの逆変換になる", () => {
+    expect(formatNameValue("v0", "5m/s")).toBe("v0=5m/s");
+    expect(formatNameValue("", "5m/s")).toBe("5m/s");
+  });
+});
 
 describe("計算ノートのローカル定数解決", () => {
   it("後の行が前の行を参照できる（連鎖）", () => {

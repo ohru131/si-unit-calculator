@@ -13,6 +13,23 @@ export type ResolvedNotebookConstants = {
   errors: Record<string, string>;
 };
 
+const NAME_VALUE_PATTERN = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/s;
+
+/**
+ * 「v0=5m/s」のようなローカル定数・手順の1行入力を名前と式に分割する。
+ * parseConstantDefinition（lib/units.ts）と同じ命名規則。名前部分を解析できなければ
+ * name は空文字になり、value には入力全体（"="を含む）がそのまま残る。
+ */
+export function parseNameValue(text: string): { name: string; value: string } {
+  const match = text.match(NAME_VALUE_PATTERN);
+  return match ? { name: match[1], value: match[2] } : { name: "", value: text };
+}
+
+/** parseNameValue の逆変換。表示用の1行テキストを組み立てる。名前が空なら式だけを返す。 */
+export function formatNameValue(name: string, value: string): string {
+  return name ? `${name}=${value}` : value;
+}
+
 /**
  * ノートのローカル定数を定義順に解決する。後の行は前の行を参照でき、
  * グローバル定数と同名でもローカル側が優先される（constantMap は後勝ちのため）。
