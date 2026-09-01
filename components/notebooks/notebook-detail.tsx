@@ -7,7 +7,7 @@ import { LatexView } from "@/components/ui/latex-view";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { type CalculationNotebook, type CalculationNoteStep, type NotebookLocalConstant } from "@/lib/calculator-store";
-import { evaluateNotebookSteps, formatNameValue, parseNameValue, resolveNotebookLocalConstants } from "@/lib/notebook-engine";
+import { evaluateNotebookSteps, formatNameValue, parseNameValue, resolveNotebookLocalConstants, trimResultSymbol } from "@/lib/notebook-engine";
 import { insertUnitAtEnd } from "@/lib/unit-input";
 import { formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, type MeasuringStandard, type Quantity, type SavedConstant, type UnitSystem } from "@/lib/units";
 
@@ -116,10 +116,10 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     // 保存中の連打で古いスナップショットが後勝ちしないよう、完了までは再入しない。
     if (isSaving) return;
     if (editableConstants.some((item) => !item.symbol.trim() && item.expression.trim())) { setSaveError(copy.invalidConstantName); return; }
-    if (editableSteps.some((step) => !step.resultSymbol?.trim() && step.expression.includes("="))) { setSaveError(copy.invalidStepName); return; }
+    if (editableSteps.some((step) => !trimResultSymbol(step) && step.expression.includes("="))) { setSaveError(copy.invalidStepName); return; }
     // 空欄のまま残った行や前後の空白は、エディタ側のsaveNotebookと同じ基準で除いてから保存する。
     const normalizedConstants = editableConstants.filter((item) => item.symbol.trim() && item.expression.trim()).map((item) => ({ ...item, symbol: item.symbol.trim(), expression: item.expression.trim() }));
-    const normalizedSteps = editableSteps.filter((step) => step.expression.trim()).map((step) => ({ ...step, expression: step.expression.trim(), targetUnit: step.targetUnit.trim(), resultSymbol: step.resultSymbol?.trim() || undefined }));
+    const normalizedSteps = editableSteps.filter((step) => step.expression.trim()).map((step) => ({ ...step, expression: step.expression.trim(), targetUnit: step.targetUnit.trim(), resultSymbol: trimResultSymbol(step) || undefined }));
     if (!normalizedSteps.length) { setSaveError(copy.noStepsError); return; }
     setSaveError("");
     setIsSaving(true);

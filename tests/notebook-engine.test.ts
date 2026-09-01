@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { PRESET_NOTEBOOK_SEEDS } from "../lib/notebook-formulas";
-import { evaluateNotebookSteps, formatNameValue, notebookStepSymbol, parseNameValue, resolveNotebookLocalConstants } from "../lib/notebook-engine";
+import { evaluateNotebookSteps, formatNameValue, notebookStepSymbol, parseNameValue, resolveNotebookLocalConstants, trimResultSymbol } from "../lib/notebook-engine";
 import { type NotebookLocalConstant } from "../lib/calculator-store";
 
 function toLocalConstants(entries: { symbol: string; expression: string }[]): NotebookLocalConstant[] {
@@ -130,6 +130,13 @@ describe("計算ノートのステップ評価", () => {
     const results = evaluateNotebookSteps([malformedStep], [], []);
     expect(results[0].symbol).toBe("s1");
     expect(results[0].error).toBeUndefined();
+  });
+
+  it("trimResultSymbolはresultSymbolが数値やオブジェクトでも例外を投げず空文字を返す", () => {
+    expect(trimResultSymbol({ resultSymbol: 0 as unknown as string })).toBe("");
+    expect(trimResultSymbol({ resultSymbol: {} as unknown as string })).toBe("");
+    expect(trimResultSymbol({ resultSymbol: undefined })).toBe("");
+    expect(trimResultSymbol({ resultSymbol: " v " })).toBe("v");
   });
 });
 
