@@ -353,7 +353,7 @@ export default function ConstantsScreen() {
           onBack={() => setSelectedNotebookId(null)}
           onEdit={() => openEditNotebook(selectedNotebook)}
           onTogglePinned={() => void toggleNotebookPinned(selectedNotebook.id)}
-          onSaveValues={(nextLocalConstants, nextSteps) => { void upsertNotebook({ id: selectedNotebook.id, title: selectedNotebook.title, description: selectedNotebook.description, categoryId: selectedNotebook.categoryId, localConstants: nextLocalConstants, steps: nextSteps }); }}
+          onSaveValues={async (nextLocalConstants, nextSteps) => { await upsertNotebook({ id: selectedNotebook.id, title: selectedNotebook.title, description: selectedNotebook.description, categoryId: selectedNotebook.categoryId, localConstants: nextLocalConstants, steps: nextSteps }); }}
         />
       );
     }
