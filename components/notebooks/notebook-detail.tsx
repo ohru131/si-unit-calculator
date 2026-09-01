@@ -33,6 +33,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   const [editableSteps, setEditableSteps] = useState<CalculationNoteStep[]>(() => notebook.steps.map((item) => ({ ...item })));
   const [unitOverrides, setUnitOverrides] = useState<Record<string, string>>({});
   const [saveError, setSaveError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   // notebook.localConstants / notebook.steps は編集シートで構成が変わることがあるため、
   // このコンポーネントが再マウントされずに新しいノートを受け取っても追従させる。
@@ -112,17 +113,22 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   // 「名前＝式」の名前部分を解析できなかった行（例：数字始まりの名前）は、symbolやresultSymbolが
   // 空のまま生テキスト（"="を含む）が残る。無言で保存してしまわず、はっきり教えてから保存を止める。
   const handleSave = async () => {
+    // 保存中の連打で古いスナップショットが後勝ちしないよう、完了までは再入しない。
+    if (isSaving) return;
     if (editableConstants.some((item) => !item.symbol.trim() && item.expression.trim())) { setSaveError(copy.invalidConstantName); return; }
     if (editableSteps.some((step) => !step.resultSymbol?.trim() && step.expression.includes("="))) { setSaveError(copy.invalidStepName); return; }
     // 空欄のまま残った行や前後の空白は、エディタ側のsaveNotebookと同じ基準で除いてから保存する。
     const normalizedConstants = editableConstants.filter((item) => item.symbol.trim() && item.expression.trim()).map((item) => ({ ...item, symbol: item.symbol.trim(), expression: item.expression.trim() }));
-    const normalizedSteps = editableSteps.filter((step) => step.expression.trim()).map((step) => ({ ...step, expression: step.expression.trim(), targetUnit: step.targetUnit.trim() }));
+    const normalizedSteps = editableSteps.filter((step) => step.expression.trim()).map((step) => ({ ...step, expression: step.expression.trim(), targetUnit: step.targetUnit.trim(), resultSymbol: step.resultSymbol?.trim() || undefined }));
     if (!normalizedSteps.length) { setSaveError(copy.noStepsError); return; }
     setSaveError("");
+    setIsSaving(true);
     try {
       await onSaveValues(normalizedConstants, normalizedSteps);
     } catch (cause) {
       setSaveError(cause instanceof Error ? cause.message : copy.saveFailed);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -165,7 +171,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
 
       {isDirty ? (
         <>
-          <Pressable onPress={() => void handleSave()} style={({ pressed }) => [styles.saveBar, pressed && styles.pressed]}>
+          <Pressable disabled={isSaving} onPress={() => void handleSave()} style={({ pressed }) => [styles.saveBar, (pressed || isSaving) && styles.pressed]}>
             <Text style={styles.saveBarText}>{copy.save}</Text>
           </Pressable>
           {saveError ? <Text style={styles.saveErrorText}>{saveError}</Text> : null}
@@ -200,6 +206,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                     const { name, value } = parseNameValue(text);
                     updateConstant(item.id, { symbol: name, expression: value });
                   }}
+                  editable={!isSaving}
                   autoCapitalize="none"
                   autoCorrect={false}
                   style={[styles.inputField, errors[item.id] && styles.inputFieldError]}
@@ -209,6 +216,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                     {inputUnits.map((unitOption) => (
                       <Pressable
                         key={unitOption.symbol}
+                        disabled={isSaving}
                         onPress={() => updateConstant(item.id, { expression: insertUnitAtEnd(item.expression, unitOption.symbol, constantIdentifiers) })}
                         style={({ pressed }) => [styles.unitChip, pressed && styles.pressed]}
                       >
@@ -297,6 +305,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                       // 名前が無いとき（＝を付けていない通常の式）はtitleへ触れない。既存の表示用タイトルを空欄で上書きしないため。
                       updateStepField(result.step.id, name ? { resultSymbol: name, title: name, expression: value } : { resultSymbol: undefined, expression: value });
                     }}
+                    editable={!isSaving}
                     autoCapitalize="none"
                     autoCorrect={false}
                     style={styles.resultExpressionInput}
