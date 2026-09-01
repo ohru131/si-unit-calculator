@@ -61,6 +61,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     invalidConstantName: "Enter each constant as name=value (e.g. v0=5m/s).",
     invalidStepName: "Enter each step as name=expression (e.g. v=v0+a*t), or remove the \"=\" to leave it unnamed.",
     saveFailed: "Could not save. Please try again.",
+    noStepsError: "This notebook needs at least one step.",
   } : {
     edit: "編集", save: "値を保存", copy: "コピー", copied: "コピーしました",
     formulas: "数式", inputs: "定数（入力値）", results: "結果", noInputs: "このノートにはローカル定数がありません。", noSteps: "このノートにはまだ手順がありません。",
@@ -69,6 +70,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     invalidConstantName: "定数は「名前＝値」の形式（例：v0=5m/s）で入力してください。",
     invalidStepName: "手順は「名前＝式」の形式（例：v=v0+a*t）で入力するか、「＝」を外して名前なしにしてください。",
     saveFailed: "保存できませんでした。もう一度お試しください。",
+    noStepsError: "手順が最低1つ必要です。",
   };
 
   const isDirty = useMemo(() => {
@@ -112,9 +114,13 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   const handleSave = async () => {
     if (editableConstants.some((item) => !item.symbol.trim() && item.expression.trim())) { setSaveError(copy.invalidConstantName); return; }
     if (editableSteps.some((step) => !step.resultSymbol?.trim() && step.expression.includes("="))) { setSaveError(copy.invalidStepName); return; }
+    // 空欄のまま残った行や前後の空白は、エディタ側のsaveNotebookと同じ基準で除いてから保存する。
+    const normalizedConstants = editableConstants.filter((item) => item.symbol.trim() && item.expression.trim()).map((item) => ({ ...item, symbol: item.symbol.trim(), expression: item.expression.trim() }));
+    const normalizedSteps = editableSteps.filter((step) => step.expression.trim()).map((step) => ({ ...step, expression: step.expression.trim(), targetUnit: step.targetUnit.trim() }));
+    if (!normalizedSteps.length) { setSaveError(copy.noStepsError); return; }
     setSaveError("");
     try {
-      await onSaveValues(editableConstants, editableSteps);
+      await onSaveValues(normalizedConstants, normalizedSteps);
     } catch (cause) {
       setSaveError(cause instanceof Error ? cause.message : copy.saveFailed);
     }
