@@ -6,8 +6,8 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { LatexView } from "@/components/ui/latex-view";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
-import { type CalculationNotebook, type NotebookLocalConstant } from "@/lib/calculator-store";
-import { evaluateNotebookSteps, resolveNotebookLocalConstants } from "@/lib/notebook-engine";
+import { type CalculationNotebook, type CalculationNoteStep, type NotebookLocalConstant } from "@/lib/calculator-store";
+import { evaluateNotebookSteps, formatNameValue, parseNameValue, resolveNotebookLocalConstants, trimResultSymbol } from "@/lib/notebook-engine";
 import { insertUnitAtEnd } from "@/lib/unit-input";
 import { formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, type MeasuringStandard, type Quantity, type SavedConstant, type UnitSystem } from "@/lib/units";
 
@@ -23,20 +23,31 @@ type Props = {
   onBack: () => void;
   onEdit: () => void;
   onTogglePinned: () => void;
-  onSaveValues: (localConstants: NotebookLocalConstant[]) => void;
+  onSaveValues: (localConstants: NotebookLocalConstant[], steps: CalculationNoteStep[]) => Promise<void>;
 };
 
 export function NotebookDetail({ language, locale, unitSystem, measuringStandard, notebook, globalConstants, onBack, onEdit, onTogglePinned, onSaveValues }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [editableConstants, setEditableConstants] = useState<NotebookLocalConstant[]>(() => notebook.localConstants.map((item) => ({ ...item })));
+  const [editableSteps, setEditableSteps] = useState<CalculationNoteStep[]>(() => notebook.steps.map((item) => ({ ...item })));
   const [unitOverrides, setUnitOverrides] = useState<Record<string, string>>({});
+  const [saveError, setSaveError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
-  // notebook.localConstants は編集シートで構成が変わることがあるため、
+  // notebook.localConstants / notebook.steps は編集シートで構成が変わることがあるため、
   // このコンポーネントが再マウントされずに新しいノートを受け取っても追従させる。
-  useEffect(() => {
+  // useEffectではなく、レンダー中に前回値と比較して直接調整する
+  // （https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes）。
+  const [syncedConstants, setSyncedConstants] = useState(notebook.localConstants);
+  const [syncedSteps, setSyncedSteps] = useState(notebook.steps);
+  if (notebook.localConstants !== syncedConstants || notebook.steps !== syncedSteps) {
+    setSyncedConstants(notebook.localConstants);
+    setSyncedSteps(notebook.steps);
     setEditableConstants(notebook.localConstants.map((item) => ({ ...item })));
-  }, [notebook.localConstants]);
+    setEditableSteps(notebook.steps.map((item) => ({ ...item })));
+    setSaveError("");
+  }
 
   // 別のノートを開いたときは、前のノートで選んだ表示単位を引き継がない。
   useEffect(() => {
@@ -48,17 +59,32 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     formulas: "Formula", inputs: "Inputs", results: "Results", noInputs: "This notebook has no local constants.", noSteps: "This notebook has no steps yet.",
     si: "SI base", finalResult: "Final result", referenceHint: "Use {symbol} in a later step.",
     pin: "Pin to calculator", unpin: "Unpin from calculator",
+    invalidConstantName: "Enter each constant as name=value (e.g. v0=5m/s).",
+    invalidStepName: "Enter each step as name=expression (e.g. v=v0+a*t), or remove the \"=\" to leave it unnamed.",
+    saveFailed: "Could not save. Please try again.",
+    noStepsError: "This notebook needs at least one step.",
   } : {
     edit: "編集", save: "値を保存", copy: "コピー", copied: "コピーしました",
     formulas: "数式", inputs: "定数（入力値）", results: "結果", noInputs: "このノートにはローカル定数がありません。", noSteps: "このノートにはまだ手順がありません。",
     si: "SI標準", finalResult: "最終結果", referenceHint: "後の手順で {symbol} として使えます。",
     pin: "電卓画面にピン留め", unpin: "ピン留めを解除",
+    invalidConstantName: "定数は「名前＝値」の形式（例：v0=5m/s）で入力してください。",
+    invalidStepName: "手順は「名前＝式」の形式（例：v=v0+a*t）で入力するか、「＝」を外して名前なしにしてください。",
+    saveFailed: "保存できませんでした。もう一度お試しください。",
+    noStepsError: "手順が最低1つ必要です。",
   };
 
-  const isDirty = useMemo(
-    () => editableConstants.some((item) => item.expression !== notebook.localConstants.find((saved) => saved.id === item.id)?.expression),
-    [editableConstants, notebook.localConstants],
-  );
+  const isDirty = useMemo(() => {
+    const constantsDirty = editableConstants.some((item) => {
+      const saved = notebook.localConstants.find((entry) => entry.id === item.id);
+      return !saved || item.expression !== saved.expression || item.symbol !== saved.symbol;
+    });
+    const stepsDirty = editableSteps.some((step) => {
+      const saved = notebook.steps.find((entry) => entry.id === step.id);
+      return !saved || step.expression !== saved.expression || step.resultSymbol !== saved.resultSymbol || step.title !== saved.title;
+    });
+    return constantsDirty || stepsDirty;
+  }, [editableConstants, editableSteps, notebook.localConstants, notebook.steps]);
 
   const { resolved, errors } = useMemo(() => resolveNotebookLocalConstants(editableConstants, globalConstants), [editableConstants, globalConstants]);
   const resolvedBySymbol = useMemo(() => new Map(resolved.map((item) => [item.symbol, item])), [resolved]);
@@ -73,11 +99,37 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   // 依存配列に含めて設定変更時に再計算させる（値自体は参照するだけで使わない）。
   const stepResults = useMemo(() => {
     void measuringStandard;
-    return evaluateNotebookSteps(notebook.steps, pool, [], locale);
-  }, [locale, notebook.steps, pool, measuringStandard]);
+    return evaluateNotebookSteps(editableSteps, pool, [], locale);
+  }, [locale, editableSteps, pool, measuringStandard]);
 
-  const updateValue = (id: string, expression: string) => {
-    setEditableConstants((current) => current.map((item) => (item.id === id ? { ...item, expression } : item)));
+  const updateConstant = (id: string, patch: Partial<NotebookLocalConstant>) => {
+    setEditableConstants((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  };
+
+  const updateStepField = (id: string, patch: Partial<CalculationNoteStep>) => {
+    setEditableSteps((current) => current.map((step) => (step.id === id ? { ...step, ...patch } : step)));
+  };
+
+  // 「名前＝式」の名前部分を解析できなかった行（例：数字始まりの名前）は、symbolやresultSymbolが
+  // 空のまま生テキスト（"="を含む）が残る。無言で保存してしまわず、はっきり教えてから保存を止める。
+  const handleSave = async () => {
+    // 保存中の連打で古いスナップショットが後勝ちしないよう、完了までは再入しない。
+    if (isSaving) return;
+    if (editableConstants.some((item) => !item.symbol.trim() && item.expression.trim())) { setSaveError(copy.invalidConstantName); return; }
+    if (editableSteps.some((step) => !trimResultSymbol(step) && step.expression.includes("="))) { setSaveError(copy.invalidStepName); return; }
+    // 空欄のまま残った行や前後の空白は、エディタ側のsaveNotebookと同じ基準で除いてから保存する。
+    const normalizedConstants = editableConstants.filter((item) => item.symbol.trim() && item.expression.trim()).map((item) => ({ ...item, symbol: item.symbol.trim(), expression: item.expression.trim() }));
+    const normalizedSteps = editableSteps.filter((step) => step.expression.trim()).map((step) => ({ ...step, expression: step.expression.trim(), targetUnit: step.targetUnit.trim(), resultSymbol: trimResultSymbol(step) || undefined }));
+    if (!normalizedSteps.length) { setSaveError(copy.noStepsError); return; }
+    setSaveError("");
+    setIsSaving(true);
+    try {
+      await onSaveValues(normalizedConstants, normalizedSteps);
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : copy.saveFailed);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const copyResult = async (title: string, formatted: string) => {
@@ -118,9 +170,12 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
       </View>
 
       {isDirty ? (
-        <Pressable onPress={() => onSaveValues(editableConstants)} style={({ pressed }) => [styles.saveBar, pressed && styles.pressed]}>
-          <Text style={styles.saveBarText}>{copy.save}</Text>
-        </Pressable>
+        <>
+          <Pressable disabled={isSaving} onPress={() => void handleSave()} style={({ pressed }) => [styles.saveBar, (pressed || isSaving) && styles.pressed]}>
+            <Text style={styles.saveBarText}>{copy.save}</Text>
+          </Pressable>
+          {saveError ? <Text style={styles.saveErrorText}>{saveError}</Text> : null}
+        </>
       ) : null}
 
       {notebook.steps.some((step) => step.formulaLatex) ? (
@@ -145,10 +200,13 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
             const inputUnits = compatibleUnitsFor(resolvedBySymbol.get(item.symbol.trim())?.quantity);
             return (
               <View key={item.id} style={styles.inputRow}>
-                <Text style={styles.inputSymbol}>{item.displaySymbol ?? item.symbol}</Text>
                 <TextInput
-                  value={item.expression}
-                  onChangeText={(text) => updateValue(item.id, text)}
+                  value={formatNameValue(item.symbol, item.expression)}
+                  onChangeText={(text) => {
+                    const { name, value } = parseNameValue(text);
+                    updateConstant(item.id, { symbol: name, expression: value });
+                  }}
+                  editable={!isSaving}
                   autoCapitalize="none"
                   autoCorrect={false}
                   style={[styles.inputField, errors[item.id] && styles.inputFieldError]}
@@ -158,7 +216,8 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                     {inputUnits.map((unitOption) => (
                       <Pressable
                         key={unitOption.symbol}
-                        onPress={() => updateValue(item.id, insertUnitAtEnd(item.expression, unitOption.symbol, constantIdentifiers))}
+                        disabled={isSaving}
+                        onPress={() => updateConstant(item.id, { expression: insertUnitAtEnd(item.expression, unitOption.symbol, constantIdentifiers) })}
                         style={({ pressed }) => [styles.unitChip, pressed && styles.pressed]}
                       >
                         <Text style={styles.unitChipText}>{unitOption.label}</Text>
@@ -211,7 +270,6 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                   <View style={styles.resultHeaderMain}>
                     {isFinalStep && result.quantity ? <Text style={styles.finalBadge}>{copy.finalResult}</Text> : null}
                     <Text style={styles.resultTitle}>{result.step.title}</Text>
-                    <Text style={styles.resultSymbol}>{result.symbol}</Text>
                   </View>
                   {displayValue ? (
                     <Pressable accessibilityLabel={copy.copy} onPress={() => void copyResult(result.step.title, displayValue!)} style={({ pressed }) => [styles.copyButton, pressed && styles.pressed]}>
@@ -239,7 +297,20 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                     ))}
                   </ScrollView>
                 ) : null}
-                {!result.step.formulaLatex ? <Text numberOfLines={1} style={styles.resultExpression}>{result.step.expression}</Text> : null}
+                {!result.step.formulaLatex ? (
+                  <TextInput
+                    value={formatNameValue(result.step.resultSymbol ?? "", result.step.expression)}
+                    onChangeText={(text) => {
+                      const { name, value } = parseNameValue(text);
+                      // 名前が無いとき（＝を付けていない通常の式）はtitleへ触れない。既存の表示用タイトルを空欄で上書きしないため。
+                      updateStepField(result.step.id, name ? { resultSymbol: name, title: name, expression: value } : { resultSymbol: undefined, expression: value });
+                    }}
+                    editable={!isSaving}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    style={styles.resultExpressionInput}
+                  />
+                ) : null}
                 {!isFinalStep && result.quantity ? <Text style={styles.resultReferenceHint}>{copy.referenceHint.replace("{symbol}", result.symbol)}</Text> : null}
               </View>
             );
@@ -264,13 +335,13 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   headerButton: { alignItems: "center", backgroundColor: colors.primarySurface, borderRadius: 18, height: 36, justifyContent: "center", width: 36 },
   saveBar: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 12, paddingVertical: 12 },
   saveBarText: { color: colors.onPrimary, fontSize: 14, fontWeight: "800" },
+  saveErrorText: { color: colors.error, fontSize: 12, lineHeight: 17, marginTop: 4 },
   sectionLabel: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.4, textTransform: "uppercase" },
   emptyHint: { color: colors.muted, fontSize: 13 },
   formulaCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, gap: 10, padding: 13 },
   formulaRow: { alignItems: "flex-start" },
   inputCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, gap: 10, padding: 13 },
   inputRow: { gap: 4 },
-  inputSymbol: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },
   inputField: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 10, borderWidth: 1, color: colors.foreground, fontFamily: mono, fontSize: 15, minHeight: 42, paddingHorizontal: 12 },
   inputFieldError: { borderColor: colors.errorBorder },
   inputError: { color: colors.error, fontSize: 11, lineHeight: 15 },
@@ -281,10 +352,9 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   resultHeaderMain: { flex: 1, paddingRight: 8 },
   finalBadge: { color: colors.primary, fontSize: 10, fontWeight: "800", letterSpacing: 0.5, marginBottom: 3, textTransform: "uppercase" },
   resultTitle: { color: colors.foreground, fontSize: 13, fontWeight: "800" },
-  resultSymbol: { backgroundColor: colors.surfaceSecondary, alignSelf: "flex-start", borderRadius: 6, color: colors.primary, fontFamily: mono, fontSize: 10, fontWeight: "800", marginTop: 4, paddingHorizontal: 6, paddingVertical: 1 },
   copyButton: { alignItems: "center", height: 26, justifyContent: "center", width: 30 },
   resultValue: { color: colors.primaryStrong, fontFamily: mono, fontSize: 24, fontWeight: "700", marginTop: 4 },
-  resultExpression: { color: colors.muted, fontFamily: mono, fontSize: 11, marginTop: 6 },
+  resultExpressionInput: { borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth, color: colors.foreground, fontFamily: mono, fontSize: 12, marginTop: 6, paddingVertical: 2 },
   resultError: { color: colors.error, fontSize: 12, lineHeight: 17, marginTop: 4 },
   resultWarning: { color: colors.warning, fontSize: 11, lineHeight: 15, marginTop: 4 },
   resultReferenceHint: { color: colors.muted, fontSize: 10, marginTop: 5 },
