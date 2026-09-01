@@ -32,16 +32,15 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   const [editableConstants, setEditableConstants] = useState<NotebookLocalConstant[]>(() => notebook.localConstants.map((item) => ({ ...item })));
   const [editableSteps, setEditableSteps] = useState<CalculationNoteStep[]>(() => notebook.steps.map((item) => ({ ...item })));
   const [unitOverrides, setUnitOverrides] = useState<Record<string, string>>({});
+  const [saveError, setSaveError] = useState("");
 
   // notebook.localConstants / notebook.steps は編集シートで構成が変わることがあるため、
   // このコンポーネントが再マウントされずに新しいノートを受け取っても追従させる。
   useEffect(() => {
     setEditableConstants(notebook.localConstants.map((item) => ({ ...item })));
-  }, [notebook.localConstants]);
-
-  useEffect(() => {
     setEditableSteps(notebook.steps.map((item) => ({ ...item })));
-  }, [notebook.steps]);
+    setSaveError("");
+  }, [notebook.localConstants, notebook.steps]);
 
   // 別のノートを開いたときは、前のノートで選んだ表示単位を引き継がない。
   useEffect(() => {
@@ -53,11 +52,15 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     formulas: "Formula", inputs: "Inputs", results: "Results", noInputs: "This notebook has no local constants.", noSteps: "This notebook has no steps yet.",
     si: "SI base", finalResult: "Final result", referenceHint: "Use {symbol} in a later step.",
     pin: "Pin to calculator", unpin: "Unpin from calculator",
+    invalidConstantName: "Enter each constant as name=value (e.g. v0=5m/s).",
+    invalidStepName: "Enter each step as name=expression (e.g. v=v0+a*t), or remove the \"=\" to leave it unnamed.",
   } : {
     edit: "編集", save: "値を保存", copy: "コピー", copied: "コピーしました",
     formulas: "数式", inputs: "定数（入力値）", results: "結果", noInputs: "このノートにはローカル定数がありません。", noSteps: "このノートにはまだ手順がありません。",
     si: "SI標準", finalResult: "最終結果", referenceHint: "後の手順で {symbol} として使えます。",
     pin: "電卓画面にピン留め", unpin: "ピン留めを解除",
+    invalidConstantName: "定数は「名前＝値」の形式（例：v0=5m/s）で入力してください。",
+    invalidStepName: "手順は「名前＝式」の形式（例：v=v0+a*t）で入力するか、「＝」を外して名前なしにしてください。",
   };
 
   const isDirty = useMemo(() => {
@@ -94,6 +97,15 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
 
   const updateStepField = (id: string, patch: Partial<CalculationNoteStep>) => {
     setEditableSteps((current) => current.map((step) => (step.id === id ? { ...step, ...patch } : step)));
+  };
+
+  // 「名前＝式」の名前部分を解析できなかった行（例：数字始まりの名前）は、symbolやresultSymbolが
+  // 空のまま生テキスト（"="を含む）が残る。無言で保存してしまわず、はっきり教えてから保存を止める。
+  const handleSave = () => {
+    if (editableConstants.some((item) => !item.symbol.trim() && item.expression.trim())) { setSaveError(copy.invalidConstantName); return; }
+    if (editableSteps.some((step) => !step.resultSymbol?.trim() && step.expression.includes("="))) { setSaveError(copy.invalidStepName); return; }
+    setSaveError("");
+    onSaveValues(editableConstants, editableSteps);
   };
 
   const copyResult = async (title: string, formatted: string) => {
@@ -134,9 +146,12 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
       </View>
 
       {isDirty ? (
-        <Pressable onPress={() => onSaveValues(editableConstants, editableSteps)} style={({ pressed }) => [styles.saveBar, pressed && styles.pressed]}>
-          <Text style={styles.saveBarText}>{copy.save}</Text>
-        </Pressable>
+        <>
+          <Pressable onPress={handleSave} style={({ pressed }) => [styles.saveBar, pressed && styles.pressed]}>
+            <Text style={styles.saveBarText}>{copy.save}</Text>
+          </Pressable>
+          {saveError ? <Text style={styles.saveErrorText}>{saveError}</Text> : null}
+        </>
       ) : null}
 
       {notebook.steps.some((step) => step.formulaLatex) ? (
@@ -293,6 +308,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   headerButton: { alignItems: "center", backgroundColor: colors.primarySurface, borderRadius: 18, height: 36, justifyContent: "center", width: 36 },
   saveBar: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 12, paddingVertical: 12 },
   saveBarText: { color: colors.onPrimary, fontSize: 14, fontWeight: "800" },
+  saveErrorText: { color: colors.error, fontSize: 12, lineHeight: 17, marginTop: 4 },
   sectionLabel: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.4, textTransform: "uppercase" },
   emptyHint: { color: colors.muted, fontSize: 13 },
   formulaCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, gap: 10, padding: 13 },
