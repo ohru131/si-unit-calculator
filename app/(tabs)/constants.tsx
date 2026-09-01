@@ -27,6 +27,7 @@ import { exportConstantsBackup, pickConstantsBackup } from "@/lib/constants-back
 import {
   type CalculationNotebook,
   type CalculationNoteStep,
+  type NotebookFormula,
   type NotebookLocalConstant,
   UNCATEGORIZED_CATEGORY_ID,
   useCalculatorStore,
@@ -34,6 +35,8 @@ import {
 import { useGlobalSettings } from "@/lib/global-settings";
 import { formatNameValue, parseNameValue } from "@/lib/notebook-engine";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
+import { type ImportedNotebook } from "@/lib/notebooks-backup";
+import { exportNotebooksBackup, pickNotebooksBackup } from "@/lib/notebooks-backup-file";
 import { formatQuantity, SavedConstant } from "@/lib/units";
 
 type TopSection = "notebooks" | "constants";
@@ -42,8 +45,10 @@ const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "mon
 
 let localConstantSeq = 0;
 let stepSeq = 0;
+let formulaSeq = 0;
 const nextLocalConstantId = () => `local-${Date.now()}-${localConstantSeq++}`;
 const nextStepId = () => `step-${Date.now()}-${stepSeq++}`;
+const nextFormulaId = () => `formula-${Date.now()}-${formulaSeq++}`;
 
 
 export default function ConstantsScreen() {
@@ -57,6 +62,7 @@ export default function ConstantsScreen() {
     clearConstants,
     hasRestorableConstants,
     importConstants,
+    importNotebooks,
     isLoading,
     notebooks,
     notebookCategories,
@@ -93,11 +99,14 @@ export default function ConstantsScreen() {
   const [notebookTitle, setNotebookTitle] = useState("");
   const [notebookDescription, setNotebookDescription] = useState("");
   const [notebookCategoryId, setNotebookCategoryId] = useState<string>(UNCATEGORIZED_CATEGORY_ID);
+  const [notebookFormulas, setNotebookFormulas] = useState<NotebookFormula[]>([]);
   const [notebookLocalConstants, setNotebookLocalConstants] = useState<NotebookLocalConstant[]>([]);
   const [notebookSteps, setNotebookSteps] = useState<CalculationNoteStep[]>([]);
   const [notebookError, setNotebookError] = useState("");
   const [showNewCategoryField, setShowNewCategoryField] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [notebookBackupNotice, setNotebookBackupNotice] = useState("");
+  const [pendingReplaceNotebookImport, setPendingReplaceNotebookImport] = useState<ImportedNotebook[] | null>(null);
 
   const copy = language === "en" ? {
     title: "Library", subtitle: "Save reusable calculation notebooks and global constants on this device.",
@@ -121,6 +130,11 @@ export default function ConstantsScreen() {
     addLocalConstant: "Add constant", steps: "Steps (results)", stepsHint: "Enter as name=expression, e.g. v=v0+a*t. Can reference constants and earlier steps.", addStep: "Add step", stepTitlePlaceholder: "v=v0+a*t",
     outputUnitLabel: "Display unit (optional)", removeRow: "Remove",
     formulaLatexPlaceholder: "Display formula, optional LaTeX (e.g. v = v_0 + at)",
+    formulasLabel: "Formula explanations", formulasHint: "Optional. Add an explanation with its formula right below it; add as many pairs as you like.",
+    addFormula: "Add formula", formulaExplanationPlaceholder: "Explanation (e.g. This gives the velocity)",
+    notebookBackup: "Backup", notebookExport: "Export", notebookImportDone: "{count} notebooks imported.",
+    notebookExportDone: "Notebooks backup exported.", notebookReplaceImportConfirm: "Replace all your notebooks with the ones in this file? Preset notebooks are kept. This cannot be undone.",
+    notebookMerge: "Merge and replace matches", notebookReplace: "Replace all notebooks",
   } : {
     title: "ライブラリ", subtitle: "よく使う計算ノート・グローバル定数を、この端末に保存して再利用できます。",
     notebooksTab: "計算ノート", constantsTab: "グローバル定数",
@@ -143,6 +157,11 @@ export default function ConstantsScreen() {
     addLocalConstant: "定数を追加", steps: "手順（結果）", stepsHint: "「名前＝式」の形で入力します。例：v=v0+a*t。定数や前の手順を参照できます。", addStep: "手順を追加", stepTitlePlaceholder: "v=v0+a*t",
     outputUnitLabel: "表示単位（任意）", removeRow: "削除",
     formulaLatexPlaceholder: "表示用の数式（任意、LaTeX。例：v = v_0 + at）",
+    formulasLabel: "数式の解説", formulasHint: "任意。説明文とその数式をペアで並べられます。説明文のすぐ下に数式を置き、ペアはいくつでも追加できます。",
+    addFormula: "数式を追加", formulaExplanationPlaceholder: "説明文（例：速度を求める式です）",
+    notebookBackup: "バックアップ", notebookExport: "書き出す", notebookImportDone: "{count}件の計算ノートを読み込みました。",
+    notebookExportDone: "計算ノートのバックアップを書き出しました。", notebookReplaceImportConfirm: "自分の計算ノートをすべて、このファイルの内容へ置き換えますか？プリセットは残ります。元に戻せません。",
+    notebookMerge: "追加・同名は置換", notebookReplace: "すべての計算ノートを置換",
   };
 
   const sectionItems: { id: TopSection; label: string }[] = [
@@ -237,11 +256,45 @@ export default function ConstantsScreen() {
     }
   };
 
+  // 計算ノート全体のバックアップ（プリセットは対象外で、ユーザー作成分だけを書き出し・取り込む）。
+  const handleExportNotebooks = async () => {
+    try {
+      await exportNotebooksBackup(notebooks, notebookCategories);
+      setNotebookBackupNotice(copy.notebookExportDone);
+    } catch (cause) {
+      setNotebookBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+    }
+  };
+
+  const handleImportNotebooks = async (mode: "merge" | "replace") => {
+    try {
+      const entries = await pickNotebooksBackup();
+      if (!entries) return;
+      if (mode === "replace") { setPendingReplaceNotebookImport(entries); return; }
+      const count = await importNotebooks(entries, "merge");
+      setNotebookBackupNotice(copy.notebookImportDone.replace("{count}", String(count)));
+    } catch (cause) {
+      setNotebookBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+    }
+  };
+
+  const confirmReplaceNotebookImport = async () => {
+    const entries = pendingReplaceNotebookImport;
+    setPendingReplaceNotebookImport(null);
+    if (!entries) return;
+    try {
+      const count = await importNotebooks(entries, "replace");
+      setNotebookBackupNotice(copy.notebookImportDone.replace("{count}", String(count)));
+    } catch (cause) {
+      setNotebookBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+    }
+  };
+
   // 計算ノート：編集シートの開閉。
   const resetNotebookEditor = () => {
     setEditingNotebookId(undefined); setNotebookTitle(""); setNotebookDescription("");
     setNotebookCategoryId(selectedCategoryId ?? UNCATEGORIZED_CATEGORY_ID);
-    setNotebookLocalConstants([]); setNotebookSteps([]); setNotebookError("");
+    setNotebookFormulas([]); setNotebookLocalConstants([]); setNotebookSteps([]); setNotebookError("");
     setShowNewCategoryField(false); setNewCategoryName("");
   };
 
@@ -256,6 +309,7 @@ export default function ConstantsScreen() {
     setNotebookTitle(notebook.title);
     setNotebookDescription(notebook.description);
     setNotebookCategoryId(notebook.categoryId);
+    setNotebookFormulas(notebook.formulas.map((item) => ({ ...item })));
     setNotebookLocalConstants(notebook.localConstants.map((item) => ({ ...item })));
     setNotebookSteps(notebook.steps.map((item) => ({ ...item })));
     setNotebookError("");
@@ -311,10 +365,11 @@ export default function ConstantsScreen() {
     if (notebookSteps.some((step) => !step.resultSymbol?.trim() && step.expression.includes("="))) { setNotebookError(copy.invalidStepName); return; }
     const normalizedSteps = notebookSteps.filter((step) => step.expression.trim()).map((step) => ({ ...step, title: step.title.trim() || step.expression.trim(), expression: step.expression.trim(), targetUnit: step.targetUnit.trim(), resultSymbol: step.resultSymbol?.trim() || undefined, formulaLatex: step.formulaLatex?.trim() || undefined }));
     const normalizedConstants = notebookLocalConstants.filter((item) => item.symbol.trim() && item.expression.trim()).map((item) => ({ ...item, symbol: item.symbol.trim(), expression: item.expression.trim() }));
+    const normalizedFormulas = notebookFormulas.filter((item) => item.latex.trim()).map((item) => ({ ...item, explanation: item.explanation.trim(), latex: item.latex.trim() }));
     if (!title || !normalizedSteps.length) { setNotebookError(copy.validation); return; }
     setIsSaving(true);
     try {
-      await upsertNotebook({ id: editingNotebookId, title, description: notebookDescription.trim(), categoryId: notebookCategoryId, localConstants: normalizedConstants, steps: normalizedSteps });
+      await upsertNotebook({ id: editingNotebookId, title, description: notebookDescription.trim(), categoryId: notebookCategoryId, formulas: normalizedFormulas, localConstants: normalizedConstants, steps: normalizedSteps });
       setNotebookEditorVisible(false);
     } catch (cause) {
       setNotebookError(cause instanceof Error ? cause.message : copy.validation);
@@ -336,6 +391,8 @@ export default function ConstantsScreen() {
     setNotebookLocalConstants((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
   const updateStep = (id: string, patch: Partial<CalculationNoteStep>) =>
     setNotebookSteps((current) => current.map((step) => (step.id === id ? { ...step, ...patch } : step)));
+  const updateFormula = (id: string, patch: Partial<NotebookFormula>) =>
+    setNotebookFormulas((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
 
   const selectedNotebook = selectedNotebookId ? notebooks.find((item) => item.id === selectedNotebookId) : undefined;
   const notebooksInCategory = selectedCategoryId ? notebooks.filter((item) => item.categoryId === selectedCategoryId) : [];
@@ -353,7 +410,7 @@ export default function ConstantsScreen() {
           onBack={() => setSelectedNotebookId(null)}
           onEdit={() => openEditNotebook(selectedNotebook)}
           onTogglePinned={() => void toggleNotebookPinned(selectedNotebook.id)}
-          onSaveValues={async (nextLocalConstants, nextSteps) => { await upsertNotebook({ id: selectedNotebook.id, title: selectedNotebook.title, description: selectedNotebook.description, categoryId: selectedNotebook.categoryId, localConstants: nextLocalConstants, steps: nextSteps }); }}
+          onSaveValues={async (nextLocalConstants, nextSteps) => { await upsertNotebook({ id: selectedNotebook.id, title: selectedNotebook.title, description: selectedNotebook.description, categoryId: selectedNotebook.categoryId, formulas: selectedNotebook.formulas, localConstants: nextLocalConstants, steps: nextSteps }); }}
         />
       );
     }
@@ -434,6 +491,7 @@ export default function ConstantsScreen() {
       ))}
     </View>
     {topSection === "constants" ? <View style={styles.backupCard}><Text style={styles.backupTitle}>{copy.backup}</Text><View style={styles.backupActions}><Pressable onPress={() => void handleExportConstants()} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.export}</Text></Pressable><Pressable onPress={() => void handleImportConstants("merge")} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.merge}</Text></Pressable><Pressable onPress={() => void handleImportConstants("replace")} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.replace}</Text></Pressable><Pressable onPress={() => setPendingClearConstants(true)} style={({ pressed }) => [styles.clearButton, pressed && styles.buttonPressed]}><Text style={styles.clearButtonText}>{copy.clearAll}</Text></Pressable>{hasRestorableConstants ? <Pressable onPress={() => void handleRestoreConstants()} style={({ pressed }) => [styles.restoreButton, pressed && styles.buttonPressed]}><Text style={styles.restoreButtonText}>{copy.restore}</Text></Pressable> : null}</View>{backupNotice ? <Text style={styles.backupNotice}>{backupNotice}</Text> : null}</View> : null}
+    {topSection === "notebooks" && !selectedNotebook ? <View style={styles.backupCard}><Text style={styles.backupTitle}>{copy.notebookBackup}</Text><View style={styles.backupActions}><Pressable onPress={() => void handleExportNotebooks()} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.notebookExport}</Text></Pressable><Pressable onPress={() => void handleImportNotebooks("merge")} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.notebookMerge}</Text></Pressable><Pressable onPress={() => void handleImportNotebooks("replace")} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.notebookReplace}</Text></Pressable></View>{notebookBackupNotice ? <Text style={styles.backupNotice}>{notebookBackupNotice}</Text> : null}</View> : null}
 
     {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /></View> : renderContent()}
 
@@ -478,6 +536,39 @@ export default function ConstantsScreen() {
                 <Pressable onPress={() => void createCategoryInline()} style={({ pressed }) => [styles.inlineCategoryButton, pressed && styles.buttonPressed]}><Text style={styles.inlineCategoryButtonText}>{copy.save}</Text></Pressable>
               </View>
             ) : null}
+
+            <Text style={styles.fieldLabel}>{copy.formulasLabel}</Text>
+            <Text style={styles.hintText}>{copy.formulasHint}</Text>
+            {notebookFormulas.map((formula) => (
+              <View key={formula.id} style={styles.stepCard}>
+                <View style={styles.stepHeader}>
+                  <TextInput
+                    value={formula.explanation}
+                    onChangeText={(text) => updateFormula(formula.id, { explanation: text })}
+                    placeholder={copy.formulaExplanationPlaceholder}
+                    placeholderTextColor={colors.placeholder}
+                    multiline
+                    style={styles.formulaExplanationInput}
+                  />
+                  <Pressable onPress={() => setNotebookFormulas((current) => current.filter((entry) => entry.id !== formula.id))}><Text style={styles.removeStepText}>{copy.removeRow}</Text></Pressable>
+                </View>
+                <TextInput
+                  value={formula.latex}
+                  onChangeText={(text) => updateFormula(formula.id, { latex: text })}
+                  placeholder={copy.formulaLatexPlaceholder}
+                  placeholderTextColor={colors.placeholder}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={styles.stepInput}
+                />
+                {formula.latex ? (
+                  <View style={styles.latexPreview}>
+                    <LatexView latex={formula.latex} color={colors.foreground} fontSize={15} displayMode={false} />
+                  </View>
+                ) : null}
+              </View>
+            ))}
+            <Pressable onPress={() => setNotebookFormulas((current) => [...current, { id: nextFormulaId(), explanation: "", latex: "" }])} style={({ pressed }) => [styles.addStepButton, pressed && styles.buttonPressed]}><Text style={styles.addStepText}>＋ {copy.addFormula}</Text></Pressable>
 
             <Text style={styles.fieldLabel}>{copy.localConstants}</Text>
             <Text style={styles.hintText}>{copy.localConstantsHint}</Text>
@@ -584,6 +675,17 @@ export default function ConstantsScreen() {
       onCancel={() => setPendingReplaceImport(null)}
       onConfirm={() => void confirmReplaceImport()}
     />
+
+    <ConfirmDialog
+      visible={Boolean(pendingReplaceNotebookImport)}
+      title={copy.notebookReplace}
+      message={copy.notebookReplaceImportConfirm}
+      cancelLabel={copy.cancel}
+      confirmLabel={copy.notebookReplace}
+      destructive
+      onCancel={() => setPendingReplaceNotebookImport(null)}
+      onConfirm={() => void confirmReplaceNotebookImport()}
+    />
   </ScreenContainer>;
 }
 
@@ -605,4 +707,5 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   inlineCategoryButtonText: { color: colors.onPrimary, fontSize: 13, fontWeight: "800" },
   stepCard: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 13, borderWidth: 1, marginTop: 8, padding: 11 }, stepHeader: { alignItems: "center", flexDirection: "row", gap: 8, justifyContent: "space-between" }, removeStepText: { color: colors.error, fontSize: 12, fontWeight: "700" }, stepInput: { borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth, color: colors.foreground, fontFamily: mono, fontSize: 14, minHeight: 38, paddingHorizontal: 0 }, addStepButton: { alignItems: "center", borderColor: colors.primaryBorder, borderRadius: 11, borderStyle: "dashed", borderWidth: 1, marginTop: 10, paddingVertical: 11 }, addStepText: { color: colors.primary, fontSize: 13, fontWeight: "800" },
   latexPreview: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 10, borderWidth: 1, marginTop: 8, padding: 10 },
+  formulaExplanationInput: { borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth, color: colors.foreground, flex: 1, fontSize: 14, lineHeight: 19, minHeight: 38, paddingHorizontal: 0, paddingVertical: 6, textAlignVertical: "top" },
 });

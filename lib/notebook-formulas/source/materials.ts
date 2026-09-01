@@ -1,4 +1,4 @@
-import type { NotebookSeed } from "./types";
+import type { NotebookSeed } from "../types";
 
 /** 幅・高さ・スパン・荷重などの記号はカテゴリ内で使い回し、統一感を持たせている。 */
 export const MATERIALS_SEEDS: NotebookSeed[] = [

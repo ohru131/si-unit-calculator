@@ -178,7 +178,19 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
         </>
       ) : null}
 
-      {notebook.steps.some((step) => step.formulaLatex) ? (
+      {notebook.formulas.length ? (
+        <>
+          <Text style={styles.sectionLabel}>{copy.formulas}</Text>
+          <View style={styles.formulaCard}>
+            {notebook.formulas.map((formula) => (
+              <View key={formula.id} style={styles.formulaRow}>
+                {formula.explanation ? <Text style={styles.formulaExplanation}>{formula.explanation}</Text> : null}
+                <LatexView latex={formula.latex} color={colors.foreground} fontSize={15} displayMode={false} />
+              </View>
+            ))}
+          </View>
+        </>
+      ) : notebook.steps.some((step) => step.formulaLatex) ? (
         <>
           <Text style={styles.sectionLabel}>{copy.formulas}</Text>
           <View style={styles.formulaCard}>
@@ -297,20 +309,18 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                     ))}
                   </ScrollView>
                 ) : null}
-                {!result.step.formulaLatex ? (
-                  <TextInput
-                    value={formatNameValue(result.step.resultSymbol ?? "", result.step.expression)}
-                    onChangeText={(text) => {
-                      const { name, value } = parseNameValue(text);
-                      // 名前が無いとき（＝を付けていない通常の式）はtitleへ触れない。既存の表示用タイトルを空欄で上書きしないため。
-                      updateStepField(result.step.id, name ? { resultSymbol: name, title: name, expression: value } : { resultSymbol: undefined, expression: value });
-                    }}
-                    editable={!isSaving}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    style={styles.resultExpressionInput}
-                  />
-                ) : null}
+                <TextInput
+                  value={formatNameValue(result.step.resultSymbol ?? "", result.step.expression)}
+                  onChangeText={(text) => {
+                    const { name, value } = parseNameValue(text);
+                    // 名前が無いとき（＝を付けていない通常の式）はtitleへ触れない。既存の表示用タイトルを空欄で上書きしないため。
+                    updateStepField(result.step.id, name ? { resultSymbol: name, title: name, expression: value } : { resultSymbol: undefined, expression: value });
+                  }}
+                  editable={!isSaving}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={styles.resultExpressionInput}
+                />
                 {!isFinalStep && result.quantity ? <Text style={styles.resultReferenceHint}>{copy.referenceHint.replace("{symbol}", result.symbol)}</Text> : null}
               </View>
             );
@@ -340,6 +350,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   emptyHint: { color: colors.muted, fontSize: 13 },
   formulaCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, gap: 10, padding: 13 },
   formulaRow: { alignItems: "flex-start" },
+  formulaExplanation: { color: colors.muted, fontSize: 12, lineHeight: 17, marginBottom: 4 },
   inputCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, gap: 10, padding: 13 },
   inputRow: { gap: 4 },
   inputField: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 10, borderWidth: 1, color: colors.foreground, fontFamily: mono, fontSize: 15, minHeight: 42, paddingHorizontal: 12 },

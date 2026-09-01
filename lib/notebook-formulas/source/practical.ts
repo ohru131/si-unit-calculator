@@ -1,4 +1,4 @@
-import type { NotebookSeed } from "./types";
+import type { NotebookSeed } from "../types";
 
 /** 「電気の基礎計算」。オームの法則・電気代・ブレーカー容量など、生活に身近な電気の計算をまとめている。 */
 export const ELECTRICITY_BASICS_SEEDS: NotebookSeed[] = [

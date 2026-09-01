@@ -17,7 +17,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "qr": "node scripts/generate_qr.mjs",
-    "katex:generate": "node scripts/generate-katex-assets.mjs"
+    "katex:generate": "node scripts/generate-katex-assets.mjs",
+    "notebooks:generate": "tsx scripts/generate-default-notebooks.ts"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
