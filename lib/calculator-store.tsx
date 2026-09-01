@@ -424,6 +424,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
   // 見つからなければ新規作成する（プリセットカテゴリIDやUNCATEGORIZED_CATEGORY_IDはそのまま使う）。
   const importNotebooks = useCallback(async (entries: ImportedNotebook[], mode: "merge" | "replace") => {
     const now = new Date().toISOString();
+    const importedAt = Date.now();
     let categories = notebookCategoriesRef.current;
     const resolveCategoryId = (entry: ImportedNotebook) => {
       if (entry.categoryId && (entry.categoryId === UNCATEGORIZED_CATEGORY_ID || PRESET_NOTEBOOK_CATEGORIES.some((category) => category.id === entry.categoryId))) return entry.categoryId;
@@ -431,18 +432,18 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
       if (!name) return UNCATEGORIZED_CATEGORY_ID;
       const existing = categories.find((category) => category.name === name);
       if (existing) return existing.id;
-      const created: NotebookCategory = { id: `category-imported-${Date.now()}-${categories.length}`, name, createdAt: now };
+      const created: NotebookCategory = { id: `category-imported-${importedAt}-${categories.length}`, name, createdAt: now };
       categories = [...categories, created];
       return created.id;
     };
     const importedNotebooks: CalculationNotebook[] = entries.map((entry, index) => ({
-      id: `notebook-import-${Date.now()}-${index}`,
+      id: `notebook-import-${importedAt}-${index}`,
       title: entry.title,
       description: entry.description,
       categoryId: resolveCategoryId(entry),
-      formulas: entry.formulas.map((formula, formulaIndex) => ({ id: `import-${Date.now()}-${index}-formula-${formulaIndex}`, ...formula })),
-      localConstants: entry.localConstants.map((constant, constantIndex) => ({ id: `import-${Date.now()}-${index}-constant-${constantIndex}`, ...constant })),
-      steps: entry.steps.map((step, stepIndex) => ({ id: `import-${Date.now()}-${index}-step-${stepIndex}`, ...step })),
+      formulas: entry.formulas.map((formula, formulaIndex) => ({ id: `import-${importedAt}-${index}-formula-${formulaIndex}`, ...formula })),
+      localConstants: entry.localConstants.map((constant, constantIndex) => ({ id: `import-${importedAt}-${index}-constant-${constantIndex}`, ...constant })),
+      steps: entry.steps.map((step, stepIndex) => ({ id: `import-${importedAt}-${index}-step-${stepIndex}`, ...step })),
       pinned: false,
       isPreset: false,
       createdAt: now,
@@ -461,6 +462,9 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         else nextUserNotebooks.push(incoming);
       }
     }
+    // ノートより先にカテゴリを書き込む。逆にすると、カテゴリ書き込みが失敗した場合に
+    // 存在しないcategoryIdを参照するノートが残ってしまい、カテゴリ一覧からも辿れなくなる。
+    // 参照されない空カテゴリが残るだけの方が実害が小さい。
     await persistNotebookCategories(categories);
     await persistNotebooks([...presetNotebooks, ...nextUserNotebooks].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)));
     return importedNotebooks.length;

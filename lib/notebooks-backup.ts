@@ -95,8 +95,11 @@ export function parseNotebooksBackup(raw: string): ImportedNotebook[] {
   }
   if (!parsed || typeof parsed !== "object") throw new Error("計算ノートのバックアップの形式が正しくありません。");
   const backup = parsed as Partial<NotebooksBackup>;
-  if (backup.format !== NOTEBOOKS_BACKUP_FORMAT || backup.version !== NOTEBOOKS_BACKUP_VERSION || !Array.isArray(backup.notebooks)) {
+  if (backup.format !== NOTEBOOKS_BACKUP_FORMAT || !Array.isArray(backup.notebooks)) {
     throw new Error("このファイルは対応している計算ノートのバックアップではありません。");
+  }
+  if (backup.version !== NOTEBOOKS_BACKUP_VERSION) {
+    throw new Error(`このバックアップのバージョン（${String(backup.version)}）には対応していません。`);
   }
   if (!backup.notebooks.every(isImportedNotebook)) throw new Error("バックアップに無効な計算ノートが含まれています。");
   return backup.notebooks;
