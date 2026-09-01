@@ -19,6 +19,7 @@ import { NotebookList } from "@/components/notebooks/notebook-list";
 import { ScreenContainer } from "@/components/screen-container";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { LatexView } from "@/components/ui/latex-view";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { type ImportedConstant } from "@/lib/constants-backup";
@@ -31,6 +32,7 @@ import {
   useCalculatorStore,
 } from "@/lib/calculator-store";
 import { useGlobalSettings } from "@/lib/global-settings";
+import { formatNameValue, parseNameValue } from "@/lib/notebook-engine";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
 import { formatQuantity, SavedConstant } from "@/lib/units";
 
@@ -43,14 +45,6 @@ let stepSeq = 0;
 const nextLocalConstantId = () => `local-${Date.now()}-${localConstantSeq++}`;
 const nextStepId = () => `step-${Date.now()}-${stepSeq++}`;
 
-// ローカル定数・手順の入力欄を「v0=5m/s」のような一つの「名前＝式」欄として扱うためのヘルパー。
-// parseConstantDefinition（lib/units.ts）と同じ命名規則に合わせている。
-const NAME_VALUE_PATTERN = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/s;
-const combineNameValue = (name: string, value: string) => (name ? `${name}=${value}` : value);
-const splitNameValue = (text: string): { name: string; value: string } => {
-  const match = text.match(NAME_VALUE_PATTERN);
-  return match ? { name: match[1], value: match[2] } : { name: "", value: text };
-};
 
 export default function ConstantsScreen() {
   const router = useRouter();
@@ -126,6 +120,7 @@ export default function ConstantsScreen() {
     invalidStepName: "Enter each step as name=expression (e.g. v=v0+a*t), or remove the \"=\" to leave it unnamed.",
     addLocalConstant: "Add constant", steps: "Steps (results)", stepsHint: "Enter as name=expression, e.g. v=v0+a*t. Can reference constants and earlier steps.", addStep: "Add step", stepTitlePlaceholder: "v=v0+a*t",
     outputUnitLabel: "Display unit (optional)", removeRow: "Remove",
+    formulaLatexPlaceholder: "Display formula, optional LaTeX (e.g. v = v_0 + at)",
   } : {
     title: "ライブラリ", subtitle: "よく使う計算ノート・グローバル定数を、この端末に保存して再利用できます。",
     notebooksTab: "計算ノート", constantsTab: "グローバル定数",
@@ -147,6 +142,7 @@ export default function ConstantsScreen() {
     invalidStepName: "手順は「名前＝式」の形式（例：v=v0+a*t）で入力するか、「＝」を外して名前なしにしてください。",
     addLocalConstant: "定数を追加", steps: "手順（結果）", stepsHint: "「名前＝式」の形で入力します。例：v=v0+a*t。定数や前の手順を参照できます。", addStep: "手順を追加", stepTitlePlaceholder: "v=v0+a*t",
     outputUnitLabel: "表示単位（任意）", removeRow: "削除",
+    formulaLatexPlaceholder: "表示用の数式（任意、LaTeX。例：v = v_0 + at）",
   };
 
   const sectionItems: { id: TopSection; label: string }[] = [
@@ -313,7 +309,7 @@ export default function ConstantsScreen() {
     // 空のまま生テキスト（"="を含む）がexpressionに残る。名前なしの通常の式と区別して、はっきり教える。
     if (notebookLocalConstants.some((item) => !item.symbol.trim() && item.expression.trim())) { setNotebookError(copy.invalidConstantName); return; }
     if (notebookSteps.some((step) => !step.resultSymbol?.trim() && step.expression.includes("="))) { setNotebookError(copy.invalidStepName); return; }
-    const normalizedSteps = notebookSteps.filter((step) => step.expression.trim()).map((step) => ({ ...step, title: step.title.trim() || step.expression.trim(), expression: step.expression.trim(), targetUnit: step.targetUnit.trim(), resultSymbol: step.resultSymbol?.trim() || undefined }));
+    const normalizedSteps = notebookSteps.filter((step) => step.expression.trim()).map((step) => ({ ...step, title: step.title.trim() || step.expression.trim(), expression: step.expression.trim(), targetUnit: step.targetUnit.trim(), resultSymbol: step.resultSymbol?.trim() || undefined, formulaLatex: step.formulaLatex?.trim() || undefined }));
     const normalizedConstants = notebookLocalConstants.filter((item) => item.symbol.trim() && item.expression.trim()).map((item) => ({ ...item, symbol: item.symbol.trim(), expression: item.expression.trim() }));
     if (!title || !normalizedSteps.length) { setNotebookError(copy.validation); return; }
     setIsSaving(true);
@@ -357,7 +353,7 @@ export default function ConstantsScreen() {
           onBack={() => setSelectedNotebookId(null)}
           onEdit={() => openEditNotebook(selectedNotebook)}
           onTogglePinned={() => void toggleNotebookPinned(selectedNotebook.id)}
-          onSaveValues={(nextLocalConstants) => { void upsertNotebook({ id: selectedNotebook.id, title: selectedNotebook.title, description: selectedNotebook.description, categoryId: selectedNotebook.categoryId, localConstants: nextLocalConstants, steps: selectedNotebook.steps }); }}
+          onSaveValues={async (nextLocalConstants, nextSteps) => { await upsertNotebook({ id: selectedNotebook.id, title: selectedNotebook.title, description: selectedNotebook.description, categoryId: selectedNotebook.categoryId, localConstants: nextLocalConstants, steps: nextSteps }); }}
         />
       );
     }
@@ -489,8 +485,8 @@ export default function ConstantsScreen() {
               <View key={item.id} style={styles.stepCard}>
                 <View style={styles.stepHeader}>
                   <TextInput
-                    value={combineNameValue(item.symbol, item.expression)}
-                    onChangeText={(text) => { const { name, value } = splitNameValue(text); updateLocalConstant(item.id, { symbol: name, expression: value }); }}
+                    value={formatNameValue(item.symbol, item.expression)}
+                    onChangeText={(text) => { const { name, value } = parseNameValue(text); updateLocalConstant(item.id, { symbol: name, expression: value }); }}
                     placeholder="v0=5m/s"
                     placeholderTextColor={colors.placeholder}
                     autoCapitalize="none"
@@ -509,9 +505,9 @@ export default function ConstantsScreen() {
               <View key={step.id} style={styles.stepCard}>
                 <View style={styles.stepHeader}>
                   <TextInput
-                    value={combineNameValue(step.resultSymbol ?? "", step.expression)}
+                    value={formatNameValue(step.resultSymbol ?? "", step.expression)}
                     onChangeText={(text) => {
-                      const { name, value } = splitNameValue(text);
+                      const { name, value } = parseNameValue(text);
                       // 名前が無いとき（＝を付けていない通常の式）はtitleへ触れない。
                       // 既存ノートを再編集する際、以前設定された表示用タイトルを空欄で上書きしないため。
                       updateStep(step.id, name ? { resultSymbol: name, title: name, expression: value } : { resultSymbol: undefined, expression: value });
@@ -525,6 +521,20 @@ export default function ConstantsScreen() {
                   <Pressable onPress={() => setNotebookSteps((current) => current.filter((entry) => entry.id !== step.id))}><Text style={styles.removeStepText}>{copy.removeRow}</Text></Pressable>
                 </View>
                 <TextInput value={step.targetUnit} onChangeText={(text) => updateStep(step.id, { targetUnit: text })} placeholder={copy.outputUnitLabel} placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.stepInput} />
+                <TextInput
+                  value={step.formulaLatex ?? ""}
+                  onChangeText={(text) => updateStep(step.id, { formulaLatex: text || undefined })}
+                  placeholder={copy.formulaLatexPlaceholder}
+                  placeholderTextColor={colors.placeholder}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={styles.stepInput}
+                />
+                {step.formulaLatex ? (
+                  <View style={styles.latexPreview}>
+                    <LatexView latex={step.formulaLatex} color={colors.foreground} fontSize={15} displayMode={false} />
+                  </View>
+                ) : null}
               </View>
             ))}
             <Pressable onPress={() => setNotebookSteps((current) => [...current, { id: nextStepId(), title: "", expression: "", targetUnit: "" }])} style={({ pressed }) => [styles.addStepButton, pressed && styles.buttonPressed]}><Text style={styles.addStepText}>＋ {copy.addStep}</Text></Pressable>
@@ -594,4 +604,5 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   inlineCategoryButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 10, justifyContent: "center", paddingHorizontal: 16 },
   inlineCategoryButtonText: { color: colors.onPrimary, fontSize: 13, fontWeight: "800" },
   stepCard: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 13, borderWidth: 1, marginTop: 8, padding: 11 }, stepHeader: { alignItems: "center", flexDirection: "row", gap: 8, justifyContent: "space-between" }, removeStepText: { color: colors.error, fontSize: 12, fontWeight: "700" }, stepInput: { borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth, color: colors.foreground, fontFamily: mono, fontSize: 14, minHeight: 38, paddingHorizontal: 0 }, addStepButton: { alignItems: "center", borderColor: colors.primaryBorder, borderRadius: 11, borderStyle: "dashed", borderWidth: 1, marginTop: 10, paddingVertical: 11 }, addStepText: { color: colors.primary, fontSize: 13, fontWeight: "800" },
+  latexPreview: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 10, borderWidth: 1, marginTop: 8, padding: 10 },
 });
