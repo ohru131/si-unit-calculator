@@ -1,30 +1,25 @@
-import type { NotebookSeed } from "./types";
+import type { NotebookSeed } from "../types";
 
 /** 高校物理「力学」。速度・加速度・エネルギーなど基本的な運動の式をまとめている。 */
 export const PHYSICS_MECHANICS_SEEDS: NotebookSeed[] = [
   {
-    title: "等加速度運動（速度）",
-    titleEn: "Uniformly accelerated motion (velocity)",
-    description: "初速度・加速度・時間から、等加速度運動の速度を求めます。",
-    descriptionEn: "Compute the velocity of uniformly accelerated motion from initial velocity, acceleration, and time.",
+    title: "等加速度運動（速度・変位）",
+    titleEn: "Uniformly accelerated motion (velocity & displacement)",
+    description: "初速度・加速度・時間から、等加速度運動の速度と変位を求めます。",
+    descriptionEn: "Compute the velocity and displacement of uniformly accelerated motion from initial velocity, acceleration, and time.",
+    formulas: [
+      { explanation: "速度は、初速度に「加速度×経過時間」を加えたものです。", explanationEn: "Velocity equals the initial velocity plus the product of acceleration and elapsed time.", latex: "v = v_0 + at" },
+      { explanation: "変位は、初速度による移動距離に、加速度による分を加えたものです。", explanationEn: "Displacement equals the distance covered at the initial velocity plus the additional distance from acceleration.", latex: "x = v_0 t + \\dfrac{1}{2}at^2" },
+    ],
     localConstants: [
       { symbol: "v0", expression: "5m/s", displaySymbol: "v₀" },
       { symbol: "a", expression: "2m/s^2" },
       { symbol: "t", expression: "3s" },
     ],
-    steps: [{ title: "速度 v", titleEn: "Velocity v", expression: "v0+a*t", targetUnit: "m/s", formulaLatex: "v = v_0 + at" }],
-  },
-  {
-    title: "等加速度運動（変位）",
-    titleEn: "Uniformly accelerated motion (displacement)",
-    description: "初速度・加速度・時間から、等加速度運動の変位を求めます。",
-    descriptionEn: "Compute the displacement of uniformly accelerated motion from initial velocity, acceleration, and time.",
-    localConstants: [
-      { symbol: "v0", expression: "5m/s", displaySymbol: "v₀" },
-      { symbol: "a", expression: "2m/s^2" },
-      { symbol: "t", expression: "3s" },
+    steps: [
+      { title: "速度 v", titleEn: "Velocity v", expression: "v0+a*t", targetUnit: "m/s", formulaLatex: "v = v_0 + at" },
+      { title: "変位 x", titleEn: "Displacement x", expression: "v0*t+0.5*a*t^2", targetUnit: "m", formulaLatex: "x = v_0 t + \\dfrac{1}{2}at^2" },
     ],
-    steps: [{ title: "変位 x", titleEn: "Displacement x", expression: "v0*t+0.5*a*t^2", targetUnit: "m", formulaLatex: "x = v_0 t + \\dfrac{1}{2}at^2" }],
   },
   {
     title: "運動方程式",

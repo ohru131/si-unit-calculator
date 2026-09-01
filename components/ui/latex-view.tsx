@@ -16,7 +16,10 @@ export function LatexView({ latex, color, fontSize = 16, displayMode = true }: P
   const [height, setHeight] = useState(fontSize * 1.6);
 
   const html = useMemo(() => {
-    const escaped = JSON.stringify(latex);
+    // JSON.stringifyは"/"をエスケープしないため、latexに"</script>"相当の文字列が含まれると
+    // HTMLパーサーがJSより先にscriptタグを閉じてしまい、任意のHTML/JSが注入されうる。
+    // "<"を全て<に置き換えることで、生成したHTML中に"<"自体が現れないようにする。
+    const escaped = JSON.stringify(latex).replace(/</g, "\\u003c");
     return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <style>${KATEX_CSS}
 html,body{margin:0;padding:0;background:transparent;overflow:hidden;}

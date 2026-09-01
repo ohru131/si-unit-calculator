@@ -20,11 +20,19 @@ export type NotebookSeedStep = {
   /** 見やすい表示用のLaTeX数式。省略時は式（expression）をそのまま表示する。 */
   formulaLatex?: string;
 };
+/** 「説明文＋数式」のペア。手順（steps）の計算結果とは独立に、複数個並べて解説できる。 */
+export type NotebookSeedFormula = {
+  explanation: string;
+  explanationEn: string;
+  latex: string;
+};
 export type NotebookSeed = {
   title: string;
   titleEn: string;
   description: string;
   descriptionEn: string;
+  /** 解説＋数式のペア一覧。省略時は各手順のformulaLatexをそのまま「数式」欄に並べる（従来どおり）。 */
+  formulas?: NotebookSeedFormula[];
   localConstants: NotebookSeedConstant[];
   steps: NotebookSeedStep[];
 };

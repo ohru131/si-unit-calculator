@@ -4,6 +4,7 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import { ImportedConstant } from "@/lib/constants-backup";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { PRESET_NOTEBOOK_CATEGORIES, PRESET_NOTEBOOK_SEEDS } from "@/lib/notebook-formulas";
+import type { ImportedNotebook } from "@/lib/notebooks-backup";
 import { parseConstantDefinition, Quantity, SavedConstant } from "@/lib/units";
 
 const CONSTANTS_STORAGE_KEY = "si-unit-calculator.constants.v1";
@@ -58,11 +59,20 @@ export type NotebookLocalConstant = {
   displaySymbol?: string;
 };
 
+/** 「説明文＋数式」のペア。計算手順（steps）とは独立に、複数個並べて解説できる。 */
+export type NotebookFormula = {
+  id: string;
+  explanation: string;
+  latex: string;
+};
+
 export type CalculationNotebook = {
   id: string;
   title: string;
   description: string;
   categoryId: string;
+  /** 解説＋数式のペア一覧。手順（steps）ごとのformulaLatexとは別に、ノート冒頭でまとめて解説するときに使う。 */
+  formulas: NotebookFormula[];
   localConstants: NotebookLocalConstant[];
   steps: CalculationNoteStep[];
   pinned: boolean;
@@ -95,6 +105,7 @@ type CalculatorStore = {
   clearHistory: () => Promise<void>;
   toggleFavoriteUnit: (unit: string) => Promise<void>;
   upsertNotebook: (input: Omit<CalculationNotebook, "id" | "createdAt" | "updatedAt" | "pinned" | "isPreset"> & { id?: string }) => Promise<CalculationNotebook>;
+  importNotebooks: (entries: ImportedNotebook[], mode: "merge" | "replace") => Promise<number>;
   removeNotebook: (id: string) => Promise<void>;
   toggleNotebookPinned: (id: string) => Promise<void>;
   upsertNotebookCategory: (input: { id?: string; name: string }) => Promise<NotebookCategory>;
@@ -125,6 +136,7 @@ function isCalculationNotebook(value: unknown): value is CalculationNotebook {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<CalculationNotebook>;
   return typeof candidate.id === "string" && typeof candidate.title === "string" && typeof candidate.description === "string" && typeof candidate.categoryId === "string"
+    && (candidate.formulas === undefined || (Array.isArray(candidate.formulas) && candidate.formulas.every((item) => item && typeof item.id === "string" && typeof item.explanation === "string" && typeof item.latex === "string")))
     && Array.isArray(candidate.localConstants) && candidate.localConstants.every((item) => item && typeof item.id === "string" && typeof item.symbol === "string" && typeof item.expression === "string")
     && Array.isArray(candidate.steps) && candidate.steps.every((step) => step && typeof step.id === "string" && typeof step.title === "string" && typeof step.expression === "string" && typeof step.targetUnit === "string" && (step.resultSymbol === undefined || typeof step.resultSymbol === "string"))
     && typeof candidate.createdAt === "string" && typeof candidate.updatedAt === "string";
@@ -215,7 +227,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           AsyncStorage.getItem(NOTEBOOKS_SEEDED_PRESETS_STORAGE_KEY),
         ]);
 
-        let nextNotebooks = parseStoredArray(notebooksRaw).filter(isCalculationNotebook).map((item) => ({ ...item, pinned: item.pinned === true, isPreset: item.isPreset === true }));
+        let nextNotebooks = parseStoredArray(notebooksRaw).filter(isCalculationNotebook).map((item) => ({ ...item, formulas: item.formulas ?? [], pinned: item.pinned === true, isPreset: item.isPreset === true }));
         let seededPresetIds = parseStoredArray(seededPresetsRaw).filter((id): id is string => typeof id === "string");
         let notebooksDirty = false;
         let markMigrated = false;
@@ -231,6 +243,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
             title: note.title,
             description: note.description,
             categoryId: UNCATEGORIZED_CATEGORY_ID,
+            formulas: [],
             localConstants: [],
             steps: note.steps,
             pinned: false,
@@ -257,6 +270,11 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
                 title: language === "en" ? seed.titleEn : seed.title,
                 description: language === "en" ? seed.descriptionEn : seed.description,
                 categoryId: category.id,
+                formulas: (seed.formulas ?? []).map((formula, formulaIndex) => ({
+                  id: `preset-${category.id}-${seedIndex}-formula-${formulaIndex}`,
+                  explanation: language === "en" ? formula.explanationEn : formula.explanation,
+                  latex: formula.latex,
+                })),
                 localConstants: seed.localConstants.map((constant, constantIndex) => ({
                   id: `preset-${category.id}-${seedIndex}-constant-${constantIndex}`,
                   symbol: constant.symbol,
@@ -401,6 +419,57 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     return item;
   }, [persistNotebooks]);
 
+  // 計算ノートのバックアップ取り込み。プリセット（isPreset）は対象外で、ユーザー作成分だけを
+  // 入れ替える／追加する。ユーザー作成カテゴリはID自体が端末固有なので、名前で解決し、
+  // 見つからなければ新規作成する（プリセットカテゴリIDやUNCATEGORIZED_CATEGORY_IDはそのまま使う）。
+  const importNotebooks = useCallback(async (entries: ImportedNotebook[], mode: "merge" | "replace") => {
+    const now = new Date().toISOString();
+    const importedAt = Date.now();
+    let categories = notebookCategoriesRef.current;
+    const resolveCategoryId = (entry: ImportedNotebook) => {
+      if (entry.categoryId && (entry.categoryId === UNCATEGORIZED_CATEGORY_ID || PRESET_NOTEBOOK_CATEGORIES.some((category) => category.id === entry.categoryId))) return entry.categoryId;
+      const name = entry.categoryName?.trim();
+      if (!name) return UNCATEGORIZED_CATEGORY_ID;
+      const existing = categories.find((category) => category.name === name);
+      if (existing) return existing.id;
+      const created: NotebookCategory = { id: `category-imported-${importedAt}-${categories.length}`, name, createdAt: now };
+      categories = [...categories, created];
+      return created.id;
+    };
+    const importedNotebooks: CalculationNotebook[] = entries.map((entry, index) => ({
+      id: `notebook-import-${importedAt}-${index}`,
+      title: entry.title,
+      description: entry.description,
+      categoryId: resolveCategoryId(entry),
+      formulas: entry.formulas.map((formula, formulaIndex) => ({ id: `import-${importedAt}-${index}-formula-${formulaIndex}`, ...formula })),
+      localConstants: entry.localConstants.map((constant, constantIndex) => ({ id: `import-${importedAt}-${index}-constant-${constantIndex}`, ...constant })),
+      steps: entry.steps.map((step, stepIndex) => ({ id: `import-${importedAt}-${index}-step-${stepIndex}`, ...step })),
+      pinned: false,
+      isPreset: false,
+      createdAt: now,
+      updatedAt: now,
+    }));
+    const presetNotebooks = notebooksRef.current.filter((item) => item.isPreset);
+    const existingUserNotebooks = notebooksRef.current.filter((item) => !item.isPreset);
+    let nextUserNotebooks: CalculationNotebook[];
+    if (mode === "replace") {
+      nextUserNotebooks = importedNotebooks;
+    } else {
+      nextUserNotebooks = [...existingUserNotebooks];
+      for (const incoming of importedNotebooks) {
+        const matchIndex = nextUserNotebooks.findIndex((item) => item.title === incoming.title && item.categoryId === incoming.categoryId);
+        if (matchIndex >= 0) nextUserNotebooks[matchIndex] = { ...incoming, id: nextUserNotebooks[matchIndex].id, pinned: nextUserNotebooks[matchIndex].pinned, createdAt: nextUserNotebooks[matchIndex].createdAt };
+        else nextUserNotebooks.push(incoming);
+      }
+    }
+    // ノートより先にカテゴリを書き込む。逆にすると、カテゴリ書き込みが失敗した場合に
+    // 存在しないcategoryIdを参照するノートが残ってしまい、カテゴリ一覧からも辿れなくなる。
+    // 参照されない空カテゴリが残るだけの方が実害が小さい。
+    await persistNotebookCategories(categories);
+    await persistNotebooks([...presetNotebooks, ...nextUserNotebooks].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)));
+    return importedNotebooks.length;
+  }, [persistNotebookCategories, persistNotebooks]);
+
   const removeNotebook = useCallback(async (id: string) => {
     // プリセットのノートは端末から消えると復元できないため、削除操作を無視する。
     // UI側でも削除ボタンを出さないが、念のため保存処理でも二重に守る。
@@ -440,14 +509,14 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
       hasRestorableConstants: clearedConstants.length > 0, isLoading,
       upsertConstant, removeConstant, importConstants, clearConstants, restoreClearedConstants,
       addHistoryEntry, clearHistory, toggleFavoriteUnit,
-      upsertNotebook, removeNotebook, toggleNotebookPinned, upsertNotebookCategory, removeNotebookCategory,
+      upsertNotebook, importNotebooks, removeNotebook, toggleNotebookPinned, upsertNotebookCategory, removeNotebookCategory,
     }),
     [
       constants, history, favoriteUnits, notebooks, notebookCategories,
       clearedConstants.length, isLoading,
       upsertConstant, removeConstant, importConstants, clearConstants, restoreClearedConstants,
       addHistoryEntry, clearHistory, toggleFavoriteUnit,
-      upsertNotebook, removeNotebook, toggleNotebookPinned, upsertNotebookCategory, removeNotebookCategory,
+      upsertNotebook, importNotebooks, removeNotebook, toggleNotebookPinned, upsertNotebookCategory, removeNotebookCategory,
     ],
   );
 
