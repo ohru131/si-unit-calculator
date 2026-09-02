@@ -6,15 +6,55 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { useCalculatorStore } from "@/lib/calculator-store";
+import { useGlobalSettings } from "@/lib/global-settings";
+import { type AppLanguage } from "@/lib/i18n";
 import { usePro } from "@/lib/revenuecat-provider";
 import { UNIT_GROUPS } from "@/lib/units";
+
+// featuresが[title, detail]の配列を持つため、値はstringに揃えられない。
+// キーの集合と各値のシグネチャを揃えるためtypeof EN_COPYで言語ごとの形を要求する。
+const EN_COPY = {
+  heroTitleActive: "You're on Pro", heroTitleUpgrade: "Calculate with more freedom.",
+  heroTextActive: "All Pro features are enabled.", heroTextUpgrade: "History, custom unit sets, and exports — everything for serious work, in one place.",
+  features: [
+    ["Ad-free", "Hide the banner ads shown in the free version"],
+    ["Unlimited history", "Save up to 500 past calculations on this device"],
+    ["CSV export", "Export your calculation history as CSV for sharing or record-keeping"],
+    ["My unit sets", "Save your frequently used units for faster input"],
+  ],
+  actionTitle: "Upgrade to Pro", actionText: "Monthly and yearly plans can be purchased and restored securely through the public store release.",
+  seePlans: "See Pro plans", restorePurchase: "Restore purchase",
+  previewNote: "This is a web preview. Actual purchases are available in the iOS/Android store release.",
+  activeTitle: "Pro features are available", activeText: "Enjoy an ad-free experience, with CSV export and your saved unit sets available from the calculator tab.",
+  unitsTitle: "My unit sets", unitsText: "Units you select here appear in the unit input on the calculator tab.",
+};
+const COPY: Record<AppLanguage, typeof EN_COPY> = {
+  en: EN_COPY,
+  ja: {
+    heroTitleActive: "Proをご利用中です", heroTitleUpgrade: "計算を、もっと自在に。",
+    heroTextActive: "Pro機能がすべて有効です。", heroTextUpgrade: "専門作業に必要な履歴・単位セット・エクスポートをひとつに。",
+    features: [
+      ["広告非表示", "フリー版に表示されるバナー広告を非表示に"],
+      ["無制限の履歴", "過去の計算を最大500件まで端末に保存"],
+      ["CSVエクスポート", "計算履歴を共有・記録用のCSVとして出力"],
+      ["マイ単位セット", "よく使う単位を保存し、入力を素早く"],
+    ],
+    actionTitle: "Proにアップグレード", actionText: "月額・年額プランは、公開ストア版で安全に購入・復元できます。",
+    seePlans: "Proプランを見る", restorePurchase: "購入を復元",
+    previewNote: "現在はWebプレビューです。実購入はiOS／Androidのストア版でご利用いただけます。",
+    activeTitle: "Pro機能を利用できます", activeText: "広告なしで、計算タブからCSVエクスポートと保存済みのマイ単位を利用できます。",
+    unitsTitle: "マイ単位セット", unitsText: "よく使う単位を選択すると、計算タブの単位入力に表示されます。",
+  },
+};
 
 export default function ProScreen() {
   const { favoriteUnits, toggleFavoriteUnit } = useCalculatorStore();
   const { isPro, isReady, isNativePurchaseAvailable, purchaseMessage, presentPaywall, restorePurchases } = usePro();
+  const { language } = useGlobalSettings();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const allUnits = UNIT_GROUPS.flatMap((group) => group.units);
+  const copy = COPY[language];
 
   return (
     <ScreenContainer className="px-5" containerClassName="bg-background">
@@ -22,12 +62,12 @@ export default function ProScreen() {
         <View style={styles.hero}>
           <View style={styles.heroIcon}><IconSymbol name="crown.fill" size={32} color={colors.onPrimary} /></View>
           <Text style={styles.heroEyebrow}>{isPro ? "PRO ACTIVE" : "UNIT CALCULATOR PRO"}</Text>
-          <Text style={styles.heroTitle}>{isPro ? "Proをご利用中です" : "計算を、もっと自在に。"}</Text>
-          <Text style={styles.heroText}>{isPro ? "Pro機能がすべて有効です。" : "専門作業に必要な履歴・単位セット・エクスポートをひとつに。"}</Text>
+          <Text style={styles.heroTitle}>{isPro ? copy.heroTitleActive : copy.heroTitleUpgrade}</Text>
+          <Text style={styles.heroText}>{isPro ? copy.heroTextActive : copy.heroTextUpgrade}</Text>
         </View>
 
         <View style={styles.featuresCard}>
-          {[['広告非表示', 'フリー版に表示されるバナー広告を非表示に'], ['無制限の履歴', '過去の計算を最大500件まで端末に保存'], ['CSVエクスポート', '計算履歴を共有・記録用のCSVとして出力'], ['マイ単位セット', 'よく使う単位を保存し、入力を素早く']].map(([title, detail]) => (
+          {copy.features.map(([title, detail]) => (
             <View key={title} style={styles.featureRow}>
               <View style={styles.featureMark}><Text style={styles.featureMarkText}>✓</Text></View>
               <View style={styles.featureCopy}><Text style={styles.featureTitle}>{title}</Text><Text style={styles.featureDetail}>{detail}</Text></View>
@@ -38,21 +78,21 @@ export default function ProScreen() {
         {!isReady ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : null}
         {!isPro ? (
           <View style={styles.actionCard}>
-            <Text style={styles.actionTitle}>Proにアップグレード</Text>
-            <Text style={styles.actionText}>月額・年額プランは、公開ストア版で安全に購入・復元できます。</Text>
-            <Pressable onPress={() => void presentPaywall()} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}><Text style={styles.primaryButtonText}>Proプランを見る</Text></Pressable>
-            <Pressable onPress={() => void restorePurchases()} style={({ pressed }) => [styles.restoreButton, pressed && styles.pressed]}><Text style={styles.restoreText}>購入を復元</Text></Pressable>
-            {!isNativePurchaseAvailable ? <Text style={styles.previewNote}>現在はWebプレビューです。実購入はiOS／Androidのストア版でご利用いただけます。</Text> : null}
+            <Text style={styles.actionTitle}>{copy.actionTitle}</Text>
+            <Text style={styles.actionText}>{copy.actionText}</Text>
+            <Pressable onPress={() => void presentPaywall()} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}><Text style={styles.primaryButtonText}>{copy.seePlans}</Text></Pressable>
+            <Pressable onPress={() => void restorePurchases()} style={({ pressed }) => [styles.restoreButton, pressed && styles.pressed]}><Text style={styles.restoreText}>{copy.restorePurchase}</Text></Pressable>
+            {!isNativePurchaseAvailable ? <Text style={styles.previewNote}>{copy.previewNote}</Text> : null}
           </View>
         ) : (
-          <View style={styles.activeCard}><Text style={styles.activeTitle}>Pro機能を利用できます</Text><Text style={styles.activeText}>広告なしで、計算タブからCSVエクスポートと保存済みのマイ単位を利用できます。</Text></View>
+          <View style={styles.activeCard}><Text style={styles.activeTitle}>{copy.activeTitle}</Text><Text style={styles.activeText}>{copy.activeText}</Text></View>
         )}
         {purchaseMessage ? <Text style={styles.message}>{purchaseMessage}</Text> : null}
 
         {isPro ? (
           <View style={styles.unitsCard}>
-            <Text style={styles.unitsTitle}>マイ単位セット</Text>
-            <Text style={styles.unitsText}>よく使う単位を選択すると、計算タブの単位入力に表示されます。</Text>
+            <Text style={styles.unitsTitle}>{copy.unitsTitle}</Text>
+            <Text style={styles.unitsText}>{copy.unitsText}</Text>
             <View style={styles.unitsWrap}>
               {allUnits.map((unit) => {
                 const selected = favoriteUnits.includes(unit.symbol);

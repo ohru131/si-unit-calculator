@@ -3,7 +3,7 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 
 import { ImportedConstant } from "@/lib/constants-backup";
 import { useGlobalSettings } from "@/lib/global-settings";
-import { localizedText } from "@/lib/i18n";
+import { APP_LANGUAGES, AppLanguage, localizedText, LocalizedText } from "@/lib/i18n";
 import { PRESET_NOTEBOOK_CATEGORIES, PRESET_NOTEBOOK_SEEDS } from "@/lib/notebook-formulas";
 import type { ImportedNotebook } from "@/lib/notebooks-backup";
 import { parseConstantDefinition, Quantity, SavedConstant } from "@/lib/units";
@@ -158,6 +158,111 @@ function parseStoredArray(raw: string | null): unknown[] {
   }
 }
 
+// プリセット投入時のIDの採番規則。投入する側・言語切替で逆引きする側・テストが
+// それぞれ別々に文字列を組み立てていると、採番がズレたまま誰も気付かない状態になるため、
+// この4つの関数だけを通す。
+export function presetNotebookId(categoryId: string, seedIndex: number): string {
+  return `notebook-preset-${categoryId}-${seedIndex}`;
+}
+
+export function presetStepId(categoryId: string, seedIndex: number, stepIndex: number): string {
+  return `preset-${categoryId}-${seedIndex}-step-${stepIndex}`;
+}
+
+export function presetFormulaId(categoryId: string, seedIndex: number, formulaIndex: number): string {
+  return `preset-${categoryId}-${seedIndex}-formula-${formulaIndex}`;
+}
+
+export function presetConstantId(categoryId: string, seedIndex: number, constantIndex: number): string {
+  return `preset-${categoryId}-${seedIndex}-constant-${constantIndex}`;
+}
+
+// 上のID生成関数に index 0 を渡した結果から末尾の "0" を落として、先頭一致用のプレフィックスを得る。
+// プレフィックスを別途文字列で書くと採番規則が2箇所に分かれてしまうため、必ず生成関数から導出する。
+function presetIdPrefix(idWithZeroIndex: string): string {
+  return idWithZeroIndex.slice(0, -1);
+}
+
+// プリセット投入時に振ったIDから、そのノート／手順／数式がどのシード（seedIndex）に対応するかを
+// 逆引きする。IDは `notebook-preset-${categoryId}-${seedIndex}` のように categoryId をそのまま
+// 埋め込んでいるが、categoryId 自体が "science-motion" や "high-school-physics" のように
+// ハイフンを含むため、素朴に id.split("-") すると categoryId の切れ目を誤検出する。
+// ここでは呼び出し側が既に確定させている categoryId（notebook.categoryId）をプレフィックスとして
+// 丸ごと使い、残った末尾の数字だけを取り出すことで、ハイフンの曖昧さを一切気にせずに済ませる。
+function extractTrailingIndex(id: string, prefix: string): number | undefined {
+  if (!id.startsWith(prefix)) return undefined;
+  const suffix = id.slice(prefix.length);
+  if (!/^\d+$/.test(suffix)) return undefined;
+  return Number(suffix);
+}
+
+// 現在保存されている文言が、対応するシードの「いずれかの対応言語での文言」と完全一致する場合に
+// 限って「ユーザーが未編集」とみなし、新しい言語の文言に差し替える。どの言語の文言とも一致しない
+// 場合は、ユーザーが独自にリネーム／編集したものとみなしてそのまま残す
+// （プリセットも upsertNotebook 経由で自由に編集できるため、無条件の上書きはユーザーの編集を破壊する）。
+function resolveLocalizedField(current: string, seedText: LocalizedText, language: AppLanguage): string {
+  const isUnedited = APP_LANGUAGES.some((candidateLanguage) => localizedText(seedText, candidateLanguage) === current);
+  return isUnedited ? localizedText(seedText, language) : current;
+}
+
+// isPreset なノートの表示文言（title/description/steps[].title/formulas[].explanation）だけを、
+// 対応するシードから指定言語で再解決する。expression・targetUnit・formulaLatex・resultSymbol・
+// localConstants・pinned・id・createdAt など、文言以外のフィールドは一切変更しない
+// （特に localConstants はユーザーが値を編集する前提のフィールドなので触ってはいけない）。
+// 変更が1件も無ければ notebooks の参照をそのまま返す（呼び出し側で「差分なし」を安価に判定できる）。
+export function localizePresetNotebooks(notebooks: CalculationNotebook[], language: AppLanguage): { notebooks: CalculationNotebook[]; changed: boolean } {
+  let changed = false;
+
+  const nextNotebooks = notebooks.map((notebook) => {
+    if (!notebook.isPreset) return notebook;
+
+    const seeds = PRESET_NOTEBOOK_SEEDS[notebook.categoryId];
+    if (!seeds) return notebook;
+
+    const seedIndex = extractTrailingIndex(notebook.id, presetIdPrefix(presetNotebookId(notebook.categoryId, 0)));
+    if (seedIndex === undefined) return notebook;
+
+    const seed = seeds[seedIndex];
+    if (!seed) return notebook;
+
+    let notebookChanged = false;
+
+    const nextTitle = resolveLocalizedField(notebook.title, seed.title, language);
+    if (nextTitle !== notebook.title) notebookChanged = true;
+
+    const nextDescription = resolveLocalizedField(notebook.description, seed.description, language);
+    if (nextDescription !== notebook.description) notebookChanged = true;
+
+    const stepIdPrefix = presetIdPrefix(presetStepId(notebook.categoryId, seedIndex, 0));
+    const nextSteps = notebook.steps.map((step) => {
+      const stepIndex = extractTrailingIndex(step.id, stepIdPrefix);
+      const seedStep = stepIndex === undefined ? undefined : seed.steps[stepIndex];
+      if (!seedStep) return step;
+      const nextStepTitle = resolveLocalizedField(step.title, seedStep.title, language);
+      if (nextStepTitle === step.title) return step;
+      notebookChanged = true;
+      return { ...step, title: nextStepTitle };
+    });
+
+    const formulaIdPrefix = presetIdPrefix(presetFormulaId(notebook.categoryId, seedIndex, 0));
+    const nextFormulas = notebook.formulas.map((formula) => {
+      const formulaIndex = extractTrailingIndex(formula.id, formulaIdPrefix);
+      const seedFormula = formulaIndex === undefined ? undefined : seed.formulas?.[formulaIndex];
+      if (!seedFormula) return formula;
+      const nextExplanation = resolveLocalizedField(formula.explanation, seedFormula.explanation, language);
+      if (nextExplanation === formula.explanation) return formula;
+      notebookChanged = true;
+      return { ...formula, explanation: nextExplanation };
+    });
+
+    if (!notebookChanged) return notebook;
+    changed = true;
+    return { ...notebook, title: nextTitle, description: nextDescription, steps: nextSteps, formulas: nextFormulas };
+  });
+
+  return { notebooks: nextNotebooks, changed };
+}
+
 export function CalculatorProvider({ children }: { children: ReactNode }) {
   const { language, isReady: isGlobalSettingsReady } = useGlobalSettings();
   const [constants, setConstants] = useState<SavedConstant[]>([]);
@@ -266,22 +371,22 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
             const seeds = PRESET_NOTEBOOK_SEEDS[category.id] ?? [];
             seeds.forEach((seed, seedIndex) => {
               nextNotebooks.push({
-                id: `notebook-preset-${category.id}-${seedIndex}`,
+                id: presetNotebookId(category.id, seedIndex),
                 title: localizedText(seed.title, language),
                 description: localizedText(seed.description, language),
                 categoryId: category.id,
                 formulas: (seed.formulas ?? []).map((formula, formulaIndex) => ({
-                  id: `preset-${category.id}-${seedIndex}-formula-${formulaIndex}`,
+                  id: presetFormulaId(category.id, seedIndex, formulaIndex),
                   explanation: localizedText(formula.explanation, language),
                   latex: formula.latex,
                 })),
                 localConstants: seed.localConstants.map((constant, constantIndex) => ({
-                  id: `preset-${category.id}-${seedIndex}-constant-${constantIndex}`,
+                  id: presetConstantId(category.id, seedIndex, constantIndex),
                   symbol: constant.symbol,
                   expression: constant.expression,
                 })),
                 steps: seed.steps.map((step, stepIndex) => ({
-                  id: `preset-${category.id}-${seedIndex}-step-${stepIndex}`,
+                  id: presetStepId(category.id, seedIndex, stepIndex),
                   title: localizedText(step.title, language),
                   expression: step.expression,
                   targetUnit: step.targetUnit,
@@ -334,9 +439,25 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-    // 設定の読み込み完了後に一度だけ実行する(以降のlanguage変更ではプリセットの文言を焼き直さない)。
+    // 設定の読み込み完了後に一度だけ実行する（初回投入時の言語はこの時点のlanguageで焼き込む）。
+    // 以降のlanguage変更への追従は、この初回ロードの完了後に走る下のuseEffect（localizePresetNotebooks）
+    // が個別に担当する。ここで[language]を依存に加えて再実行すると、ロード処理そのものが
+    // 言語切替のたびに丸ごと走ってしまい、上のnotebooksDirty判定や移行フラグの一度きり実行の
+    // 前提が崩れるため、あえて分離している。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isGlobalSettingsReady]);
+
+  // 言語切替のたびに、isPresetなノートの表示文言（title/description/steps[].title/
+  // formulas[].explanation）だけをシードから再解決する。上の初回ロードが完了する（notebooksが
+  // 実データで埋まる）前にこれが走っても空配列に対する空振りで無害なので、isLoadingでの
+  // ガードは必須ではないが、無駄な再解決を避けるために付けている。
+  useEffect(() => {
+    if (!isGlobalSettingsReady || isLoading) return;
+    const { notebooks: nextNotebooks, changed } = localizePresetNotebooks(notebooksRef.current, language);
+    if (!changed) return;
+    void persistNotebooks(nextNotebooks);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [language, isGlobalSettingsReady, isLoading]);
 
   const upsertConstant = useCallback(
     async (symbolInput: string, expressionInput: string) => {

@@ -7,6 +7,7 @@ import { LatexView } from "@/components/ui/latex-view";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { type CalculationNotebook, type CalculationNoteStep, type NotebookLocalConstant } from "@/lib/calculator-store";
+import { type AppLanguage } from "@/lib/i18n";
 import { getLocalConstantFieldSuggestions, getStepFieldSuggestions, insertConstantSymbol, mapCombinedSelectionToExpressionRange } from "@/lib/notebook-constant-suggestions";
 import { evaluateNotebookSteps, formatNameValue, parseNameValue, resolveNotebookLocalConstants, trimResultSymbol } from "@/lib/notebook-engine";
 import { getUnitInsertionRange, replaceExpressionRange } from "@/lib/unit-input";
@@ -14,8 +15,37 @@ import { formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, type M
 
 const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" });
 
+// 英語のキー集合を正にして、言語を足したときにキー漏れがその言語のブロックで型エラーになるようにする。
+const EN_COPY = {
+  edit: "Edit", save: "Save values", copy: "Copy", copied: "Copied",
+  formulas: "Formula", inputs: "Inputs", results: "Results", noInputs: "This notebook has no local constants.", noSteps: "This notebook has no steps yet.",
+  si: "SI base", finalResult: "Final result", referenceHint: "Use {symbol} in a later step.",
+  pin: "Pin to calculator", unpin: "Unpin from calculator",
+  invalidConstantName: "Enter each constant as name=value (e.g. v0=5m/s).",
+  invalidStepName: "Enter each step as name=expression (e.g. v=v0+a*t), or remove the \"=\" to leave it unnamed.",
+  saveFailed: "Could not save. Please try again.",
+  noStepsError: "This notebook needs at least one step.",
+  constantsRailLabel: "Constants",
+  insertConstant: "Insert",
+} as const;
+const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
+  en: EN_COPY,
+  ja: {
+    edit: "編集", save: "値を保存", copy: "コピー", copied: "コピーしました",
+    formulas: "数式", inputs: "定数（入力値）", results: "結果", noInputs: "このノートにはローカル定数がありません。", noSteps: "このノートにはまだ手順がありません。",
+    si: "SI標準", finalResult: "最終結果", referenceHint: "後の手順で {symbol} として使えます。",
+    pin: "電卓画面にピン留め", unpin: "ピン留めを解除",
+    invalidConstantName: "定数は「名前＝値」の形式（例：v0=5m/s）で入力してください。",
+    invalidStepName: "手順は「名前＝式」の形式（例：v=v0+a*t）で入力するか、「＝」を外して名前なしにしてください。",
+    saveFailed: "保存できませんでした。もう一度お試しください。",
+    noStepsError: "手順が最低1つ必要です。",
+    constantsRailLabel: "定数",
+    insertConstant: "挿入",
+  },
+};
+
 type Props = {
-  language: "en" | "ja";
+  language: AppLanguage;
   locale?: string;
   unitSystem: UnitSystem;
   measuringStandard: MeasuringStandard;
@@ -67,29 +97,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     setUnitOverrides({});
   }, [notebook.id]);
 
-  const copy = language === "en" ? {
-    edit: "Edit", save: "Save values", copy: "Copy", copied: "Copied",
-    formulas: "Formula", inputs: "Inputs", results: "Results", noInputs: "This notebook has no local constants.", noSteps: "This notebook has no steps yet.",
-    si: "SI base", finalResult: "Final result", referenceHint: "Use {symbol} in a later step.",
-    pin: "Pin to calculator", unpin: "Unpin from calculator",
-    invalidConstantName: "Enter each constant as name=value (e.g. v0=5m/s).",
-    invalidStepName: "Enter each step as name=expression (e.g. v=v0+a*t), or remove the \"=\" to leave it unnamed.",
-    saveFailed: "Could not save. Please try again.",
-    noStepsError: "This notebook needs at least one step.",
-    constantsRailLabel: "Constants",
-    insertConstant: "Insert",
-  } : {
-    edit: "編集", save: "値を保存", copy: "コピー", copied: "コピーしました",
-    formulas: "数式", inputs: "定数（入力値）", results: "結果", noInputs: "このノートにはローカル定数がありません。", noSteps: "このノートにはまだ手順がありません。",
-    si: "SI標準", finalResult: "最終結果", referenceHint: "後の手順で {symbol} として使えます。",
-    pin: "電卓画面にピン留め", unpin: "ピン留めを解除",
-    invalidConstantName: "定数は「名前＝値」の形式（例：v0=5m/s）で入力してください。",
-    invalidStepName: "手順は「名前＝式」の形式（例：v=v0+a*t）で入力するか、「＝」を外して名前なしにしてください。",
-    saveFailed: "保存できませんでした。もう一度お試しください。",
-    noStepsError: "手順が最低1つ必要です。",
-    constantsRailLabel: "定数",
-    insertConstant: "挿入",
-  };
+  const copy = COPY[language];
 
   const isDirty = useMemo(() => {
     const constantsDirty = editableConstants.some((item) => {
