@@ -1,5 +1,6 @@
 import {
   findRegisteredUnit,
+  NUMBER_TOKEN_PATTERN,
   getCompatibleUnitGroups,
   getGroupUnitsForSystem,
   getRegionalUnits,
@@ -69,7 +70,7 @@ const BUILT_IN_IDENTIFIERS = ["sin", "cos", "tan", "asin", "acos", "atan", "atan
 // （Ω・µ・μ・%・°）も同じ語の切り出しに使うため、識別子クラスへ追加で含めている。
 const WORD_START_PATTERN = new RegExp(`[Ωµμ%°${IDENTIFIER_START_CHAR_CLASS}]`);
 const WORD_BODY_PATTERN = new RegExp(`[Ωµμ%°⁰¹²³⁴⁵⁶⁷⁸⁹⁻^${IDENTIFIER_BODY_CHAR_CLASS}]`);
-const NUMBER_PATTERN = /[0-9.]/;
+const NUMBER_START_PATTERN = /[0-9.]/;
 const DEFINITION_PATTERN = new RegExp(`^\\s*([${IDENTIFIER_START_CHAR_CLASS}][${IDENTIFIER_BODY_CHAR_CLASS}]*)\\s*=`);
 
 const DEFAULT_UNITS: Record<UnitSystem, string[]> = {
@@ -122,9 +123,20 @@ export function analyzeExpression(input: string, identifiers: string[] = []): Ex
       continue;
     }
 
-    if (NUMBER_PATTERN.test(character)) {
-      while (index < input.length && NUMBER_PATTERN.test(input[index])) index += 1;
-      segments.push({ text: input.slice(start, index), kind: "number", start, end: index });
+    if (NUMBER_START_PATTERN.test(character)) {
+      // 数値の切り出しは評価器と同じ規則（lib/units.ts の NUMBER_TOKEN_PATTERN）を使う。ここで独自に
+      // 「[0-9.]の並び」を数値としていたため、2e-6C の指数部が e / - / 6 に割れて "e" が「使えない単位」
+      // として赤く表示され、8.99e9N では e9N ごと不明な単位になっていた（エンジンは正しく計算できて
+      // いるのに解析側だけが誤判定する食い違い）。規則を2箇所に持つとまたずれるので共有する。
+      const numberMatch = input.slice(index).match(NUMBER_TOKEN_PATTERN);
+      if (numberMatch) {
+        index += numberMatch[0].length;
+        segments.push({ text: numberMatch[0], kind: "number", start, end: index });
+        continue;
+      }
+      // 単独の "." のように数値として成立しない断片。無限ループを避けるため1文字だけ進めて演算子扱いにする。
+      index += 1;
+      segments.push({ text: input.slice(start, index), kind: "operator", start, end: index });
       continue;
     }
 

@@ -12,7 +12,8 @@ import { getLocalConstantFieldSuggestions, getStepFieldSuggestions, insertConsta
 import { evaluateNotebookSteps, formatNameValue, normalizeStepForSave, parseNameValue, resolveNotebookLocalConstants, trimResultSymbol } from "@/lib/notebook-engine";
 import { nextStepNamePatch, stepDisplayTitle } from "@/lib/notebook-step-title";
 import { getUnitInsertionRange, replaceExpressionRange } from "@/lib/unit-input";
-import { formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, type MeasuringStandard, type Quantity, type SavedConstant, type UnitSystem } from "@/lib/units";
+import { compatibleUnitOptions } from "@/lib/unit-options";
+import { formatQuantity, type MeasuringStandard, type SavedConstant, type UnitSystem } from "@/lib/units";
 
 const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" });
 
@@ -216,17 +217,6 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     await Clipboard.setStringAsync(`${title} = ${formatted}`);
   };
 
-  const compatibleUnitsFor = (quantity: Quantity | undefined) => {
-    if (!quantity) return [] as { symbol: string; label: string }[];
-    const options: { symbol: string; label: string }[] = [];
-    getCompatibleUnitGroups(quantity.dimension).forEach((group) => {
-      getGroupUnitsForSystem(group, unitSystem).forEach((unitOption) => {
-        if (!options.some((option) => option.symbol === unitOption.symbol)) options.push({ symbol: unitOption.symbol, label: unitOption.label });
-      });
-    });
-    return options.slice(0, 14);
-  };
-
   const constantFieldKey = (id: string) => `constant:${id}`;
   const stepFieldKey = (id: string) => `step:${id}`;
   const combinedCaretEnd = (name: string, expression: string) => formatNameValue(name, expression).length;
@@ -354,7 +344,10 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
         {notebook.localConstants.length ? (
           <View style={styles.inputCard}>
             {editableConstants.map((item, constantIndex) => {
-              const inputUnits = compatibleUnitsFor(resolvedBySymbol.get(item.symbol.trim())?.quantity);
+              // フォールバックの手掛かりはこの定数自身の式（例: "8.99e9N*m^2/C^2"）を渡す。
+              // クーロンの法則のkのように次元に対応するグループが無くても、式中の単位から
+              // SI接頭辞違いの候補を組み立てられる。
+              const inputUnits = compatibleUnitOptions(resolvedBySymbol.get(item.symbol.trim())?.quantity, unitSystem, { expression: item.expression });
               const railKey = constantFieldKey(item.id);
               const isRailForced = forcedSelection?.key === railKey;
               return (
@@ -407,7 +400,11 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
             {stepResults.map((result, index) => {
               const isFinalStep = index === stepResults.length - 1;
               const overrideUnit = unitOverrides[result.step.id];
-              const compatibleUnits = compatibleUnitsFor(result.quantity);
+              const effectiveUnit = overrideUnit ?? result.step.targetUnit.trim();
+              // フォールバックの手掛かりは、この手順自体の式（symbol参照ばかりで単位を含まないことが多い）
+              // ではなく、今表示に使っている単位（未指定なら手順のtargetUnit）を渡す。運動量(kg*m/sなど、
+              // 次元に対応するグループが無い量)でも、既に決まっている表示単位からSI接頭辞違いの候補を出せる。
+              const compatibleUnits = compatibleUnitOptions(result.quantity, unitSystem, { expression: effectiveUnit || result.step.expression });
               let displayValue = result.formatted;
               let displayError = result.error;
               if (result.quantity && overrideUnit !== undefined) {
@@ -424,7 +421,6 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                   }
                 }
               }
-              const effectiveUnit = overrideUnit ?? result.step.targetUnit.trim();
               if (displayValue && effectiveUnit) {
                 const label = compatibleUnits.find((unitOption) => unitOption.symbol === effectiveUnit)?.label;
                 if (label && label !== effectiveUnit && displayValue.endsWith(effectiveUnit)) {
