@@ -12,11 +12,31 @@ import {
 } from "@expo/ui/swift-ui/modifiers";
 import { createWidget, type WidgetEnvironment } from "expo-widgets";
 
+import type { AppLanguage } from "@/lib/i18n";
+
 export type UnitCalculatorWidgetProps = {
   expression: string;
   result: string;
   siResult: string;
-  locale: "en" | "ja";
+  locale: AppLanguage;
+};
+
+// ホーム画面ウィジェットの文言。アプリ本体と同じ「英語のキー集合を正とするRecord」方式にして、
+// 言語を足したときにキー漏れがその言語のブロックで型エラーになるようにする。
+const EN_COPY = {
+  title: "Unit Calculator",
+  siLabel: "SI base",
+  latestLabel: "LATEST CALCULATION",
+  emptyExpression: "Enter an expression",
+} as const;
+
+const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
+  en: EN_COPY,
+  ja: { title: "単位付き電卓", siLabel: "SI標準", latestLabel: "最新の計算", emptyExpression: "式を入力" },
+  es: { title: "Calculadora de unidades", siLabel: "Base SI", latestLabel: "ÚLTIMO CÁLCULO", emptyExpression: "Escribe una expresión" },
+  "pt-BR": { title: "Calculadora de unidades", siLabel: "Base SI", latestLabel: "ÚLTIMO CÁLCULO", emptyExpression: "Digite uma expressão" },
+  de: { title: "Einheitenrechner", siLabel: "SI-Basis", latestLabel: "LETZTE BERECHNUNG", emptyExpression: "Ausdruck eingeben" },
+  fr: { title: "Calculatrice d'unités", siLabel: "Base SI", latestLabel: "DERNIER CALCUL", emptyExpression: "Saisir une expression" },
 };
 
 function UnitCalculatorWidget(
@@ -44,10 +64,11 @@ function UnitCalculatorWidget(
         surface: "#F8FAFB",
         title: "#17212B",
       };
-  const title = props.locale === "ja" ? "単位付き電卓" : "Unit Calculator";
-  const siLabel = props.locale === "ja" ? "SI標準" : "SI base";
-  const latestLabel = props.locale === "ja" ? "最新の計算" : "LATEST CALCULATION";
-  const expression = props.expression || (props.locale === "ja" ? "式を入力" : "Enter an expression");
+  const copy = COPY[props.locale];
+  const title = copy.title;
+  const siLabel = copy.siLabel;
+  const latestLabel = copy.latestLabel;
+  const expression = props.expression || copy.emptyExpression;
 
   return (
     <VStack

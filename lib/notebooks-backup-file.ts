@@ -22,6 +22,22 @@ const FILE_MESSAGES: Record<AppLanguage, typeof EN_FILE_MESSAGES> = {
     sharingUnavailable: "この端末では共有機能を利用できません。",
     dialogTitle: "計算ノートのバックアップを共有",
   },
+  es: {
+    sharingUnavailable: "La función de compartir no está disponible en este dispositivo.",
+    dialogTitle: "Compartir copia de seguridad de los cuadernos",
+  },
+  "pt-BR": {
+    sharingUnavailable: "O compartilhamento não está disponível neste dispositivo.",
+    dialogTitle: "Compartilhar backup dos cadernos de cálculo",
+  },
+  de: {
+    sharingUnavailable: "Teilen ist auf diesem Gerät nicht verfügbar.",
+    dialogTitle: "Rechenheft-Backup teilen",
+  },
+  fr: {
+    sharingUnavailable: "Le partage n'est pas disponible sur cet appareil.",
+    dialogTitle: "Partager la sauvegarde des carnets de calcul",
+  },
 };
 
 export async function exportNotebooksBackup(notebooks: CalculationNotebook[], categories: NotebookCategory[], language: AppLanguage) {

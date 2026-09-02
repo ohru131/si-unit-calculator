@@ -22,6 +22,26 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     redeemCodeIncorrect: "コードが違います。",
     redeemCodeSuccess: "広告を非表示にしました。",
   },
+  es: {
+    redeemCodeNotConfigured: "El código de desbloqueo no está configurado.",
+    redeemCodeIncorrect: "Ese código no es correcto.",
+    redeemCodeSuccess: "Los anuncios ahora están ocultos.",
+  },
+  "pt-BR": {
+    redeemCodeNotConfigured: "O código de desbloqueio não está configurado.",
+    redeemCodeIncorrect: "Esse código está incorreto.",
+    redeemCodeSuccess: "Os anúncios agora estão ocultos.",
+  },
+  de: {
+    redeemCodeNotConfigured: "Der Freischaltcode ist nicht konfiguriert.",
+    redeemCodeIncorrect: "Dieser Code ist falsch.",
+    redeemCodeSuccess: "Werbung ist jetzt ausgeblendet.",
+  },
+  fr: {
+    redeemCodeNotConfigured: "Le code de déverrouillage n'est pas configuré.",
+    redeemCodeIncorrect: "Ce code est incorrect.",
+    redeemCodeSuccess: "Les publicités sont désormais masquées.",
+  },
 };
 
 type AdsContextValue = {

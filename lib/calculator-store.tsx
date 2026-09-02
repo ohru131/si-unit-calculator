@@ -40,6 +40,26 @@ const STORE_MESSAGES: Record<AppLanguage, typeof EN_STORE_MESSAGES> = {
     constantsImportFailed: (symbols: string) => `定数を読み込めませんでした：${symbols}。参照先と式を確認してください。`,
     categoryNameRequired: "カテゴリ名を入力してください。",
   },
+  es: {
+    reservedAutoConstantSymbol: "a1, a2, etc. están reservados para las constantes automáticas del historial.",
+    constantsImportFailed: (symbols: string) => `No se pudieron cargar estas constantes: ${symbols}. Revisa a qué hacen referencia y sus expresiones.`,
+    categoryNameRequired: "Introduce un nombre de categoría.",
+  },
+  "pt-BR": {
+    reservedAutoConstantSymbol: "a1, a2 etc. são reservados para as constantes automáticas do histórico.",
+    constantsImportFailed: (symbols: string) => `Não foi possível carregar estas constantes: ${symbols}. Verifique a que elas se referem e suas expressões.`,
+    categoryNameRequired: "Informe um nome de categoria.",
+  },
+  de: {
+    reservedAutoConstantSymbol: "a1, a2 usw. sind für die automatischen Verlaufskonstanten reserviert.",
+    constantsImportFailed: (symbols: string) => `Diese Konstanten konnten nicht geladen werden: ${symbols}. Prüfe, worauf sie sich beziehen, und ihre Ausdrücke.`,
+    categoryNameRequired: "Gib einen Kategorienamen ein.",
+  },
+  fr: {
+    reservedAutoConstantSymbol: "a1, a2, etc. sont réservés aux constantes automatiques de l'historique.",
+    constantsImportFailed: (symbols: string) => `Impossible de charger ces constantes : ${symbols}. Vérifiez leurs références et leurs expressions.`,
+    categoryNameRequired: "Saisissez un nom de catégorie.",
+  },
 };
 
 export type SavedCalculation = {
