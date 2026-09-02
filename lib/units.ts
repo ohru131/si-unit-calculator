@@ -423,7 +423,6 @@ const normalize = (input: string) =>
     .replace(/[×·]/g, "*")
     .replace(/÷/g, "/")
     .replace(/[−–]/g, "-")
-    .replace(/π/g, "pi")
     .replace(/\s+/g, " ")
     .replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]/g, (character) => SUPERSCRIPTS[character]);
 
@@ -759,7 +758,10 @@ export function evaluateExpression(
         position += 1;
         return applyMathFunction(token.value, inner);
       }
-      if (token.value === "pi") return quantity(Math.PI);
+      // πは識別子として使える文字なので、normalize()で"pi"へ書き換えずそのままトークン化する
+      // （書き換えてしまうと、ユーザーが「π = 3」と定義しても定数表の引き当てに失敗し、
+      // 円周率で上書きされてしまう）。定義が無いときだけ、ここで円周率として解決する。
+      if (token.value === "pi" || token.value === "π") return quantity(Math.PI);
       if (token.value === "e") return quantity(Math.E);
       try {
         const parsed = parseUnit(token.value);

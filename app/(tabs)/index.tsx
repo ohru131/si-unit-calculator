@@ -39,7 +39,9 @@ import {
   type UnitInputHint,
   type UnitSuggestion,
 } from "@/lib/unit-input";
-import { evaluateExpression, formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, getRegionalUnits, getUnitRegistration, parseConstantDefinition, Quantity, UNIT_GROUPS, type UnitGroup, type UnitOption } from "@/lib/units";
+import { evaluateExpression, formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, getRegionalUnits, getUnitRegistration, IDENTIFIER_BODY_CHAR_CLASS, IDENTIFIER_START_CHAR_CLASS, parseConstantDefinition, Quantity, UNIT_GROUPS, type UnitGroup, type UnitOption } from "@/lib/units";
+
+const CONSTANT_ASSIGNMENT_PATTERN = new RegExp(`^([${IDENTIFIER_START_CHAR_CLASS}][${IDENTIFIER_BODY_CHAR_CLASS}]*)\\s*=`);
 
 const KEYS = ["(", ")", "÷", "⌫", "7", "8", "9", "×", "4", "5", "6", "-", "1", "2", "3", "+", ".", "0", " ", "="];
 const ADVANCED_KEYS = ["sin(", "cos(", "tan(", "asin(", "acos(", "atan(", "atan2(", "ln(", "log(", "log2(", "sqrt(", "^", "π", "e"];
@@ -265,7 +267,9 @@ export default function CalculatorScreen() {
     setError("");
     setNotice("");
     try {
-      const assignment = input.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=/);
+      // 定数名の判定はエンジン側（parseConstantDefinition）と同じ文字集合を使う。ここだけASCII限定に
+      // していると、mₒ や α のようなUnicodeの記号で定義しようとしても代入と見なされず保存できない。
+      const assignment = input.match(CONSTANT_ASSIGNMENT_PATTERN);
       const availableConstants = [...constants, ...autoConstants];
       const next = assignment ? parseConstantDefinition(input, availableConstants) : null;
       const quantity = next?.quantity ?? evaluateExpression(input, availableConstants);
@@ -368,11 +372,24 @@ export default function CalculatorScreen() {
     }
   };
 
+  /**
+   * 単位を反映する範囲を決める。ユーザーが範囲選択しているなら、その選択こそが「ここを置き換えたい」
+   * という明確な指示なので最優先する（選択を無視してキャレット基準で判定すると、例えば「5cm」の
+   * "cm" を選んで km を押したときに "5kmcm" になってしまう）。選択が無いときだけ fallback を使う。
+   */
+  const unitTargetRange = (fallback: { start: number; end: number }) => {
+    if (selection.start === selection.end) {
+      return { start: Math.min(fallback.start, expression.length), end: Math.min(fallback.end, expression.length) };
+    }
+    const start = Math.min(Math.min(selection.start, selection.end), expression.length);
+    const end = Math.min(Math.max(selection.start, selection.end), expression.length);
+    return { start, end };
+  };
+
   /** 入力補助バーの候補をタップしたとき、案内した範囲（修正・補完・単位付けの対象）をそのまま置き換える。 */
   const applyUnitCandidate = (symbol: string) => {
     const wasFixingError = hint.kind === "fix";
-    const start = Math.min(hint.start, expression.length);
-    const end = Math.min(hint.end, expression.length);
+    const { start, end } = unitTargetRange({ start: hint.start, end: hint.end });
     setExpression(replaceExpressionRange(expression, start, end, symbol));
     placeCaret(start + symbol.length);
     setFixSelection(null);
@@ -387,7 +404,7 @@ export default function CalculatorScreen() {
    * （単位の上なら差し替え、数値の直後なら単位付け、それ以外はそのままキャレットへ挿入する）。 */
   const appendUnit = (symbol: string) => {
     const caret = Math.min(selection.start, expression.length);
-    const { start, end } = getUnitInsertionRange(expression, caret, identifiers);
+    const { start, end } = unitTargetRange(getUnitInsertionRange(expression, caret, identifiers));
     setExpression(replaceExpressionRange(expression, start, end, symbol));
     placeCaret(start + symbol.length);
     setFixSelection(null);

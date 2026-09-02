@@ -7,9 +7,9 @@ import { LatexView } from "@/components/ui/latex-view";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { type CalculationNotebook, type CalculationNoteStep, type NotebookLocalConstant } from "@/lib/calculator-store";
-import { getLocalConstantFieldSuggestions, getStepFieldSuggestions, insertConstantSymbol } from "@/lib/notebook-constant-suggestions";
+import { getLocalConstantFieldSuggestions, getStepFieldSuggestions, insertConstantSymbol, mapCombinedSelectionToExpressionRange } from "@/lib/notebook-constant-suggestions";
 import { evaluateNotebookSteps, formatNameValue, parseNameValue, resolveNotebookLocalConstants, trimResultSymbol } from "@/lib/notebook-engine";
-import { insertUnitAtEnd } from "@/lib/unit-input";
+import { getUnitInsertionRange, replaceExpressionRange } from "@/lib/unit-input";
 import { formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, type MeasuringStandard, type Quantity, type SavedConstant, type UnitSystem } from "@/lib/units";
 
 const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" });
@@ -179,6 +179,23 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     setForcedSelection({ key, selection: caretSelection });
   };
 
+  /**
+   * 単位チップも定数チップと同じくキャレット基準で反映する。範囲選択があればそこを置き換え、
+   * 無ければキャレット上の単位を差し替える（数値の直後なら単位付け）。末尾決め打ちにすると、
+   * 式の途中にカーソルを置いても最後の単位が書き換わってしまう。
+   */
+  const insertUnitIntoField = (key: string, name: string, expression: string, symbol: string, applyExpression: (next: string) => void) => {
+    const fallback = combinedCaretEnd(name, expression);
+    const selection = fieldSelections[key] ?? { start: fallback, end: fallback };
+    const selected = mapCombinedSelectionToExpressionRange(name, expression, selection.start, selection.end);
+    const range = selected.start === selected.end ? getUnitInsertionRange(expression, selected.start, constantIdentifiers) : selected;
+    applyExpression(replaceExpressionRange(expression, range.start, range.end, symbol));
+    const combinedCaret = (name ? name.length + 1 : 0) + range.start + symbol.length;
+    const caretSelection = { start: combinedCaret, end: combinedCaret };
+    setFieldSelections((current) => ({ ...current, [key]: caretSelection }));
+    setForcedSelection({ key, selection: caretSelection });
+  };
+
   // onSelectionChangeが発火した時点で強制キャレットの役目は終わり。ユーザー自身の操作と
   // 衝突しないよう、対象キーが一致するときだけここで手放す。
   const handleSelectionChange = (key: string, selection: { start: number; end: number }) => {
@@ -307,7 +324,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                       <Pressable
                         key={unitOption.symbol}
                         disabled={isSaving}
-                        onPress={() => updateConstant(item.id, { expression: insertUnitAtEnd(item.expression, unitOption.symbol, constantIdentifiers) })}
+                        onPress={() => insertUnitIntoField(railKey, item.symbol, item.expression, unitOption.symbol, (nextExpression) => updateConstant(item.id, { expression: nextExpression }))}
                         style={({ pressed }) => [styles.unitChip, pressed && styles.pressed]}
                       >
                         <Text style={styles.unitChipText}>{unitOption.label}</Text>

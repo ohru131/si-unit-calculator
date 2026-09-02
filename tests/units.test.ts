@@ -278,3 +278,21 @@ describe("Unicode識別子（下付き文字・ギリシャ文字の定数名）
     expect(formatQuantity(evaluateExpression("10%"))).toBe("0.1");
   });
 });
+
+describe("πの定数定義（normalizeでpiへ書き換えないこと）", () => {
+  it("π を定数として定義したら、円周率ではなくその値が使われる", () => {
+    const constants = [{ ...parseConstantDefinition("π = 3"), createdAt: "" }];
+    expect(evaluateExpression("π", constants).siValue).toBe(3);
+    expect(evaluateExpression("π*2", constants).siValue).toBe(6);
+  });
+
+  it("定義が無ければ π は従来どおり円周率として解決される", () => {
+    expect(evaluateExpression("π").siValue).toBeCloseTo(Math.PI);
+    expect(evaluateExpression("pi").siValue).toBeCloseTo(Math.PI);
+  });
+
+  it("piという名前の定数も円周率より優先される", () => {
+    const constants = [{ ...parseConstantDefinition("pi = 4"), createdAt: "" }];
+    expect(evaluateExpression("pi", constants).siValue).toBe(4);
+  });
+});
