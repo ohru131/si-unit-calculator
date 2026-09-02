@@ -328,7 +328,7 @@ export function localizePresetNotebooks(notebooks: CalculationNotebook[], langua
 }
 
 export function CalculatorProvider({ children }: { children: ReactNode }) {
-  const { language, currencyCode, isReady: isGlobalSettingsReady } = useGlobalSettings();
+  const { language, currencyCode, regionCode, isReady: isGlobalSettingsReady } = useGlobalSettings();
   const [constants, setConstants] = useState<SavedConstant[]>([]);
   const [history, setHistory] = useState<SavedCalculation[]>([]);
   const [favoriteUnits, setFavoriteUnits] = useState<string[]>([]);
@@ -446,7 +446,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         // カテゴリ単位・冪等に投入するため、後から新カテゴリを追加しても既存データを壊さない。
         const missingPresetCategories = PRESET_NOTEBOOK_CATEGORIES.filter((category) => !seededPresetIds.includes(category.id));
         if (missingPresetCategories.length) {
-          const priceProfile = resolvePresetPriceProfile(currencyCode, language);
+          const priceProfile = resolvePresetPriceProfile(currencyCode, regionCode, language);
           const now = new Date().toISOString();
           missingPresetCategories.forEach((category) => {
             const seeds = PRESET_NOTEBOOK_SEEDS[category.id] ?? [];

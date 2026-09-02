@@ -70,6 +70,7 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 7. **[完了・PR #21でマージ済み]** 多言語化の土台を整備（`lib/i18n.ts` / `LocalizedText` / UI文言のRecord化）。あわせて既存の穴を全部塞いだ: `pro.tsx` の全文日本語決め打ち、`units.ts` のエラー35箇所、`lib`配下の表示文言29件、課金・広告12件、`GROUP_NAMES` の `amount` 欠落、言語切替後もプリセット112件が投入時の言語のまま残る問題。**ユーザーに表示される日本語決め打ちは0件**になった（残るのは `useCalculatorStore()` 等をProvider外で呼んだときの開発者向け`throw` 3件のみ）。
 8. **[完了・PR #22でマージ済み]** `es` / `pt-BR` / `de` / `fr` を追加し、UI文言・単位名(100件)・エラーメッセージ(33コード)・iOSウィジェットを4言語分埋めた（約320キー×4）。`tests/unit-names-localization.test.ts` を追加し、全単位・全解説が全言語そろっているかを検証する。
 9. **[完了・PR #23でマージ済み]** プリセット計算ノートの457フィールド（science 178 / practical 99 / physics 91 / materials 23 / categories 23 / sample-calculations 43）を4言語に翻訳。**アプリ全体が6言語対応になった**。
+10. **[完了]** 「電気代」「走行コスト」のプリセットの単価が日本円前提だったのを地域別にした（`lib/preset-price-defaults.ts`）。**通貨は言語ではなく地域で決める**（日本在住で英語UIのユーザーは円建てになるべき）。`currencyCode` → `regionCode`から引いた通貨 → 言語からの推測 → USD の順に解決する。**Webでは `currencyCode` が常に null で返る**（expo-localizationのweb実装の制約）ので、`regionCode` の段が無いとWebでは地域を全く見られない。差し替えは投入時の1回だけで、`localConstants` は言語切替時にも触らない決まりを維持している。
 
 ### 多言語化で踏んだ、テストでは検出できない罠（次に言語を足すとき用）
 
@@ -88,7 +89,6 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 ## 次にやりそうなこと（ユーザーから明示的な指示待ち）
 
 - さらに言語を増やすか（調査での次候補は `ko` / `zh-Hant` / `id`）。`APP_LANGUAGES` に足すと `Record<AppLanguage,T>` が一斉に型エラーになり、それが翻訳漏れのチェックリストになる。単位名の漏れは `tests/unit-names-localization.test.ts` が検出する
-- **`practical.ts` の既定値が日本円前提**の箇所が2つある（電気代の単価 `rate=31` 円/kWh、燃料価格 `price=170` 円/L）。地の文に通貨記号は出ないので誤表示にはならないが、他言語のユーザーには意味を持たない数値。ロケール別の既定値にするか、通貨に依存しない例に差し替えるかの判断待ち
 - iOSのApp Tracking Transparencyダイアログ文言（`app.config.ts`）の多言語化。Expoの`locales`機能はSDK 57に存在するが、実際に言語別に切り替わるかの検証にネイティブビルドが必要で未確認のため見送っている
 - ユーザー作成カテゴリにもサブカテゴリ機能を広げるか（今は未対応、スコープ外と判断した）
 - 他の実単位を使う分野の追加（要望があれば）

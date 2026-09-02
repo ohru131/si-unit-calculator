@@ -9,35 +9,46 @@ import { DEFAULT_PRESET_PRICE_CURRENCY, PRESET_PRICE_PROFILES, PresetPriceKind, 
 // その先で expo-localization → react-native の内部実装（Flow構文を含む生の .js）まで
 // 読み込まれてしまい、このvitest環境ではパースできない。ここではReactに依存しない
 // 純関数（presetConstantExpression）だけを検証したいので、実体を読み込ませずにモックする。
-vi.mock("@/lib/global-settings", () => ({ useGlobalSettings: () => ({ language: "en", currencyCode: null }) }));
+vi.mock("@/lib/global-settings", () => ({ useGlobalSettings: () => ({ language: "en", currencyCode: null, regionCode: null }) }));
 
 const KINDS: PresetPriceKind[] = ["electricityPerKWh", "fuelPerLiter"];
 
 describe("プリセットの金額の既定値", () => {
   it("端末の通貨が分かればそれを使う（言語より地域が優先される）", () => {
     // 日本在住で英語UIのユーザーは、ドル建てではなく円建ての値になるべき。
-    expect(resolvePresetPriceProfile("JPY", "en")).toBe(PRESET_PRICE_PROFILES.JPY);
-    expect(resolvePresetPriceProfile("EUR", "ja")).toBe(PRESET_PRICE_PROFILES.EUR);
+    expect(resolvePresetPriceProfile("JPY", "JP", "en")).toBe(PRESET_PRICE_PROFILES.JPY);
+    expect(resolvePresetPriceProfile("EUR", "DE", "ja")).toBe(PRESET_PRICE_PROFILES.EUR);
   });
 
   it("通貨コードの大文字小文字と前後の空白を無視する", () => {
-    expect(resolvePresetPriceProfile(" jpy ", "en")).toBe(PRESET_PRICE_PROFILES.JPY);
+    expect(resolvePresetPriceProfile(" jpy ", null, "en")).toBe(PRESET_PRICE_PROFILES.JPY);
+    expect(resolvePresetPriceProfile(null, " jp ", "en")).toBe(PRESET_PRICE_PROFILES.JPY);
   });
 
-  it("端末が通貨を返さないときは言語から推測する", () => {
-    expect(resolvePresetPriceProfile(null, "ja")).toBe(PRESET_PRICE_PROFILES.JPY);
-    expect(resolvePresetPriceProfile(undefined, "pt-BR")).toBe(PRESET_PRICE_PROFILES.BRL);
+  it("通貨が取れなくても地域が分かれば地域から引く（Webはこの経路になる）", () => {
+    // expo-localization の web 実装は currencyCode を常に null で返すが regionCode は取れる。
+    // ここが効かないと、Webでは地域を全く見ずに言語だけで決まってしまう。
+    expect(resolvePresetPriceProfile(null, "JP", "en")).toBe(PRESET_PRICE_PROFILES.JPY);
+    expect(resolvePresetPriceProfile(null, "MX", "es")).toBe(PRESET_PRICE_PROFILES.MXN);
+    expect(resolvePresetPriceProfile(null, "GB", "en")).toBe(PRESET_PRICE_PROFILES.GBP);
+    // ユーロ圏の国は言語を問わずEURになる。
+    expect(resolvePresetPriceProfile(null, "AT", "en")).toBe(PRESET_PRICE_PROFILES.EUR);
   });
 
-  it("表に無い通貨は言語からの推測に落ちる（USDに飛ばさない）", () => {
+  it("通貨も地域も分からないときだけ言語から推測する", () => {
+    expect(resolvePresetPriceProfile(null, null, "ja")).toBe(PRESET_PRICE_PROFILES.JPY);
+    expect(resolvePresetPriceProfile(undefined, undefined, "pt-BR")).toBe(PRESET_PRICE_PROFILES.BRL);
+  });
+
+  it("表に無い通貨・地域は次の段に落ちる（USDに飛ばさない）", () => {
     // スイスのドイツ語ならUSDよりEURの方が近い。
-    expect(resolvePresetPriceProfile("CHF", "de")).toBe(PRESET_PRICE_PROFILES.EUR);
-    expect(resolvePresetPriceProfile("KRW", "en")).toBe(PRESET_PRICE_PROFILES.USD);
+    expect(resolvePresetPriceProfile("CHF", "CH", "de")).toBe(PRESET_PRICE_PROFILES.EUR);
+    expect(resolvePresetPriceProfile("KRW", "KR", "en")).toBe(PRESET_PRICE_PROFILES.USD);
   });
 
   it("どの対応言語でもフォールバック先の通貨が表に存在する", () => {
     // 言語を追加したときに、対応する通貨を表に足し忘れると既定値が壊れるので機械的に検出する。
-    const missing = APP_LANGUAGES.filter((language) => !resolvePresetPriceProfile(null, language));
+    const missing = APP_LANGUAGES.filter((language) => !resolvePresetPriceProfile(null, null, language));
     expect(missing).toEqual([]);
     expect(PRESET_PRICE_PROFILES[DEFAULT_PRESET_PRICE_CURRENCY]).toBeDefined();
   });
