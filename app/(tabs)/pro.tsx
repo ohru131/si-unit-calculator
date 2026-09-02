@@ -27,7 +27,7 @@ export default function ProScreen() {
         </View>
 
         <View style={styles.featuresCard}>
-          {[['無制限の履歴', '過去の計算を最大500件まで端末に保存'], ['CSVエクスポート', '計算履歴を共有・記録用のCSVとして出力'], ['マイ単位セット', 'よく使う単位を保存し、入力を素早く']].map(([title, detail]) => (
+          {[['広告非表示', 'フリー版に表示されるバナー広告を非表示に'], ['無制限の履歴', '過去の計算を最大500件まで端末に保存'], ['CSVエクスポート', '計算履歴を共有・記録用のCSVとして出力'], ['マイ単位セット', 'よく使う単位を保存し、入力を素早く']].map(([title, detail]) => (
             <View key={title} style={styles.featureRow}>
               <View style={styles.featureMark}><Text style={styles.featureMarkText}>✓</Text></View>
               <View style={styles.featureCopy}><Text style={styles.featureTitle}>{title}</Text><Text style={styles.featureDetail}>{detail}</Text></View>
@@ -45,7 +45,7 @@ export default function ProScreen() {
             {!isNativePurchaseAvailable ? <Text style={styles.previewNote}>現在はWebプレビューです。実購入はiOS／Androidのストア版でご利用いただけます。</Text> : null}
           </View>
         ) : (
-          <View style={styles.activeCard}><Text style={styles.activeTitle}>Pro機能を利用できます</Text><Text style={styles.activeText}>計算タブからCSVエクスポートと保存済みのマイ単位を利用できます。</Text></View>
+          <View style={styles.activeCard}><Text style={styles.activeTitle}>Pro機能を利用できます</Text><Text style={styles.activeText}>広告なしで、計算タブからCSVエクスポートと保存済みのマイ単位を利用できます。</Text></View>
         )}
         {purchaseMessage ? <Text style={styles.message}>{purchaseMessage}</Text> : null}
 

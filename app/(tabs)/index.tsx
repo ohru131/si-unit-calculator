@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from "react-native-reanimated";
 
+import { CalculatorBannerAd } from "@/components/ads/calculator-banner-ad";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
@@ -52,7 +53,7 @@ export default function CalculatorScreen() {
   const { quick, presetExpression, presetUnit } = useLocalSearchParams<{ quick?: string | string[]; presetExpression?: string | string[]; presetUnit?: string | string[] }>();
   const { constants, history, favoriteUnits, notebooks, upsertConstant, addHistoryEntry, clearHistory } = useCalculatorStore();
   const { isPro } = usePro();
-  const { calculatorMode, completeOnboarding, hasSeenOnboarding, isReady, language, locale, measuringStandard, t, unitGroupLabel, unitSystem } = useGlobalSettings();
+  const { completeOnboarding, hasSeenOnboarding, isReady, language, locale, measuringStandard, t, unitGroupLabel, unitSystem } = useGlobalSettings();
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [expression, setExpression] = useState("5cm + 1mm");
   const [targetUnit, setTargetUnit] = useState("cm");
@@ -112,7 +113,8 @@ export default function CalculatorScreen() {
     );
   }, [errorShake]);
 
-  const isAdvancedMode = calculatorMode === "advanced";
+  // シンプル/上級の表示モード設定は廃止し、常に上級モード相当（角度・科学単位・数学関数を表示）で動作する。
+  const isAdvancedMode = true;
   const includeUnit = useCallback(
     (group: UnitGroup, unitOption: UnitOption) => isUnitGroupVisible(group, isAdvancedMode) && isUnitVisible(unitOption, isAdvancedMode),
     [isAdvancedMode],
@@ -168,11 +170,6 @@ export default function CalculatorScreen() {
     });
     return symbols.slice(0, 10);
   }, [compatibleUnitGroups, targetUnit, visibleGroupUnits]);
-
-  useEffect(() => {
-    if (!isAdvancedMode && !isUnitGroupVisible(UNIT_GROUPS.find((group) => group.id === inputGroupId) ?? UNIT_GROUPS[0], false)) setInputGroupId("length");
-    if (!isAdvancedMode && !isSampleCategoryVisible(sampleCategory as SampleCalculation["category"], false)) setSampleCategory("basic");
-  }, [inputGroupId, isAdvancedMode, sampleCategory]);
 
   const targetUnitForSample = (sample: SampleCalculation) => {
     if (unitSystem === "us") {
@@ -729,6 +726,8 @@ export default function CalculatorScreen() {
           <Pressable onPress={() => setShowSamples(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.samples}</Text></Pressable>
           {isAdvancedMode ? <Pressable onPress={() => setShowAdvancedKeys(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.math}</Text></Pressable> : null}
         </ScrollView>
+
+        <CalculatorBannerAd />
 
         <View style={styles.keypad}>
           {KEYS.map((key, index) => {
