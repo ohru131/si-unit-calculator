@@ -1,7 +1,7 @@
 # si-unit-calculator 多言語用語集（es / pt-BR / de / fr）
 
 対象: `lib/notebook-formulas/source/{materials,physics,practical,science,categories}.ts`、
-`lib/units.ts`（`UNIT_META` 97件・`BASE_UNIT_GROUPS` 18件）、`lib/unit-explanations.ts`、`lib/sample-calculations.ts`
+`lib/units.ts`（`UNIT_META` 100件・`BASE_UNIT_GROUPS` 18件）、`lib/unit-explanations.ts`、`lib/sample-calculations.ts`
 から実際に使われている `{ en, ja }` 文字列を抽出し、そこから訳がブレやすい専門用語を選定した。
 
 **凡例**: `※要確認` = 確信度が低い・地域差/レジスター差がある・複数の定訳が競合している語。後続の翻訳エージェントと人間レビュアーは重点的に確認すること。
@@ -65,7 +65,7 @@
 | 第一宇宙速度 | first cosmic velocity | primera velocidad cósmica | primeira velocidade cósmica | erste kosmische Geschwindigkeit | première vitesse cosmique |
 | 第二宇宙速度（脱出速度） | second cosmic velocity (escape velocity) | segunda velocidad cósmica (velocidad de escape) | segunda velocidade cósmica (velocidade de escape) | zweite kosmische Geschwindigkeit (Fluchtgeschwindigkeit) | deuxième vitesse cosmique (vitesse de libération) |
 | 制動距離 | braking distance | distancia de frenado | distância de frenagem | Bremsweg | distance de freinage |
-| 空走距離 ※要確認 | reaction distance | distancia de reacción | distância percorrida durante o tempo de reação | Reaktionsweg | distance parcourue pendant le temps de réaction |
+| 空走距離 | reaction distance | distancia de reacción | distância de reação | Reaktionsweg | distance parcourue pendant le temps de réaction（仏語のみ一語の定訳がなく説明的） |
 | 停止距離 | total stopping distance | distancia total de detención | distância total de parada | Anhalteweg | distance d'arrêt |
 | ギア比 | gear ratio | relación de transmisión / relación de marchas | relação de transmissão / marchas | Übersetzungsverhältnis | rapport de démultiplication |
 | 重さ（重力）と質量 | weight vs. mass | peso vs. masa | peso vs. massa | Gewicht(skraft) vs. Masse | poids vs. masse |
@@ -91,7 +91,7 @@
 | 振動数 | frequency | frecuencia | frequência | Frequenz | fréquence |
 | 基本振動数 | fundamental frequency | frecuencia fundamental | frequência fundamental | Grundfrequenz | fréquence fondamentale |
 | ドップラー効果 | Doppler effect | efecto Doppler | efeito Doppler | Dopplereffekt | effet Doppler |
-| 屈折率 ※要確認 | refractive index | índice de refracción | índice de refração | Brechzahl (Brechungsindex) | indice de réfraction |
+| 屈折率 | refractive index | índice de refracción | índice de refração | Brechzahl（大学レベルの `Brechungsindex` ではなく学校教育寄りの語を採用） | indice de réfraction |
 | 屈折の法則（スネルの法則） ※要確認 | law of refraction (Snell's law) | ley de Snell(-Descartes) | lei de Snell | Snelliussches Brechungsgesetz | loi de Snell-Descartes |
 | 入射角 | angle of incidence | ángulo de incidencia | ângulo de incidência | Einfallswinkel | angle d'incidence |
 | 反射角 | angle of reflection | ángulo de reflexión | ângulo de reflexão | Reflexionswinkel | angle de réflexion |
@@ -103,7 +103,7 @@
 
 | ja | en | es | pt-BR | de | fr |
 |---|---|---|---|---|---|
-| 電圧 ※要確認 | voltage | voltaje / tensión (eléctrica) | tensão (elétrica) / voltagem | (elektrische) Spannung | tension (électrique) |
+| 電圧 | voltage | **voltaje**（`tensión (eléctrica)` はスペインで併用される同義語だが、本アプリでは「応力」との衝突を避けるため使わない） | tensão (elétrica) | (elektrische) Spannung | tension (électrique) |
 | 電流 | electric current | corriente (eléctrica) | corrente (elétrica) | Stromstärke | courant (électrique) |
 | 抵抗 | (electrical) resistance | resistencia (eléctrica) | resistência (elétrica) | (elektrischer) Widerstand | résistance (électrique) |
 | 合成抵抗（直列・並列） | combined / equivalent resistance | resistencia equivalente | resistência equivalente | Ersatzwiderstand / Gesamtwiderstand | résistance équivalente |
@@ -111,7 +111,7 @@
 | 電力量 | energy consumption (electric energy) | energía eléctrica consumida | energia elétrica consumida | elektrische Arbeit / Energieverbrauch | énergie électrique consommée |
 | クーロンの法則 | Coulomb's law | ley de Coulomb | lei de Coulomb | coulombsches Gesetz | loi de Coulomb |
 | 静電容量 | capacitance | capacitancia / capacidad (eléctrica) | capacitância | Kapazität | capacité (électrique) |
-| 誘導起電力 ※要確認 | induced electromotive force (EMF) | fem inducida | fem induzida | induzierte Spannung | f.é.m. induite |
+| 誘導起電力 | induced electromotive force (EMF) | fem inducida | fem induzida | induzierte Spannung（大学レベルの `induzierte EMK` ではなく高校物理寄りの語を採用） | f.é.m. induite |
 | 力率 | power factor | factor de potencia | fator de potência | Leistungsfaktor | facteur de puissance |
 | ブレーカー容量 ※要確認 | breaker capacity (rated current) | capacidad del interruptor / disyuntor | capacidade do disjuntor | Nennstrom des Leitungsschutzschalters | calibre du disjoncteur |
 
@@ -140,7 +140,7 @@
 | 湿度 | (relative) humidity | humedad (relativa) | umidade (relativa) | (relative) Luftfeuchtigkeit | humidité (relative) |
 | 露点 | dew point | punto de rocío | ponto de orvalho | Taupunkt | point de rosée |
 | 飽和水蒸気量 ※要確認 | saturation vapor density | densidad de vapor de agua saturado | quantidade de vapor de água saturado | Sättigungsdampfdichte | quantité de vapeur d'eau saturante |
-| 震源 ※要確認 | epicenter / hypocenter | hipocentro (foco) | hipocentro | Hypozentrum (Erdbebenherd) | hypocentre |
+| 震源（本アプリでは震央距離の意味） | epicenter | epicentro | epicentro | Epizentrum | épicentre |
 | 初期微動継続時間（大森公式） ※要確認 | P–S time (Omori's formula) | tiempo S-P (fórmula de Omori) | intervalo P-S (fórmula de Omori) | S-P-Zeit (Omori-Formel) | durée S-P (formule d'Omori) |
 | P波 | P-wave (primary wave) | onda P (onda primaria) | onda P (onda primária) | P-Welle (Primärwelle) | onde P (onde primaire) |
 | S波 | S-wave (secondary wave) | onda S (onda secundaria) | onda S (onda secundária) | S-Welle (Sekundärwelle) | onde S (onde secondaire) |
@@ -186,7 +186,7 @@
 | 消費カロリー | calories burned | calorías quemadas | calorias queimadas | verbrannte Kalorien | calories brûlées |
 | 体格指数（BMI） | body mass index (BMI) | índice de masa corporal (IMC) | índice de massa corporal (IMC) | Body-Mass-Index (BMI) | indice de masse corporelle (IMC) |
 | 燃費 | fuel economy | consumo de combustible | consumo de combustível | Kraftstoffverbrauch | consommation de carburant |
-| ベーカーズパーセント（水分率） ※要確認 | baker's percentage (hydration) | porcentaje de panadero (hidratación) | percentual de padeiro (hidratação) | Bäckerprozent (Hydration) | pourcentage boulanger (hydratation) |
+| ベーカーズパーセント（水分率） | baker's percentage (hydration) | porcentaje panadero (hidratación) | percentual do padeiro (hidratação) | Bäckerprozent (Hydration) | pourcentage boulanger (hydratation) |
 
 ### 単位名 (Unit names, `UNIT_META` より抜粋)
 
@@ -196,7 +196,7 @@
 | カロリー | calorie | caloría | caloria | Kalorie | calorie |
 | モル | mole | mol | mol | Mol | mole |
 | 気圧 (atm) | standard atmosphere | atmósfera (atm) | atmosfera (atm) | (physikalische) Atmosphäre | atmosphère (atm) |
-| 馬力 ※要確認 | horsepower | caballo de fuerza (hp) | horsepower (hp) | Horsepower (hp, ≠PS) | horsepower (hp) |
+| 馬力（英馬力 745.7 W） | horsepower | caballo de fuerza (hp, imperial) | horsepower (hp) | britische Horsepower (hp) | horsepower anglais (hp) |
 | 標準重力 (G) | standard gravity | gravedad estándar | gravidade padrão | Erdbeschleunigung (Normfallbeschleunigung) | gravité standard |
 | カップ | cup | taza | xícara | Tasse | tasse |
 | 大さじ | tablespoon | cucharada | colher de sopa | Esslöffel | cuillère à soupe |
@@ -245,16 +245,21 @@
 
 ---
 
-## D. `※要確認` 一覧と理由
+## D. 判断が分かれた用語 — 迷った理由と、実装での決着
+
+**B節の表が正**（実装済みの訳語と一致させてある）。この節はその訳語を選んだ理由を残すためのもので、B節と食い違う記述があればB節を優先する。`※要確認` が残っている語は今も未確定で、ネイティブレビューの重点対象。
 
 1. **応力（stress）**: スペイン語は地域によって "esfuerzo"（中南米で優勢）と "tensión"（スペインの教科書で併用、ただし"tensión"は電圧とも訳語衝突しうる）が競合。本用語集では esfuerzo を第一候補としたが、翻訳担当が別の一次資料を根拠に tensión を選ぶ可能性がある。**CLAUDE.mdが挙げる「応力」のブレ例そのもの**なので最優先で確認すべき。
 2. **電圧（voltage）とドイツ語/スペイン語の訳語衝突**: ドイツ語では「電圧」も「応力」もどちらも文脈で "Spannung" になりうる（力学のSpannung=stress、電気のSpannung=voltage、同一語で意味が別）。スペイン語も「電圧」="tensión (eléctrica)"と「応力」="tensión"が同形になりうる。誤訳ではなく多義語なので実害は小さいが、レビュー時に文脈を混同しないよう注意喚起。
-3. **屈折率／スネルの法則の訳語**: ドイツ語で "Brechzahl"（学校教育でよく使われる）と "Brechungsindex"（より一般的・大学レベル）のどちらを採用するか未確定。スネルの法則の正式独語名も複数の言い方があり、検索で単一の定訳を確認しきれなかった。
-4. **誘導起電力（induced EMF）**: ドイツ語の "induzierte Spannung"（高校物理でよく使う簡易表現）と "induzierte EMK"（大学レベルの正式表現）のレジスター差。本アプリの対象読者（中高生〜一般）にはinduzierte Spannungが妥当と判断したが未確認。
+3. **屈折率／スネルの法則の訳語**: ドイツ語で "Brechzahl"（学校教育でよく使われる）と "Brechungsindex"（一般・大学レベル）が競合。**→ 対象読者が高校生なので `Brechzahl` に決着**。スネルの法則は `Brechungsgesetz (Snelliussches Gesetz)` を採用したが、独語名は複数の言い方があり単一の定訳は確認しきれていない（この点は未確定のまま）。
+4. **誘導起電力（induced EMF）**: ドイツ語の "induzierte Spannung"（高校物理でよく使う簡易表現）と "induzierte EMK"（大学レベルの正式表現）のレジスター差。**→ 対象読者から `induzierte Spannung` に決着**。es/pt-BR は `fem`、fr は `f.é.m.` と各言語で定着した略記をそのまま使う。
 5. **飽和水蒸気量**: 日本の理科教育特有の「1m³あたりの水蒸気の質量[g]」という定義。海外では露点・相対湿度の計算に別のアプローチ（飽和水蒸気圧ベース）を使うことが多く、直訳が現地の教科書表現と一致するか未確認。
-6. **震源（epicenter/hypocenter）**: 日本語の「震源」は本来3次元の破壊開始点（＝hypocenter、震央epicenterとは別語）だが、本アプリの文中では「震源までの距離」を地表からの距離として扱っており、英語版もepicenterと訳している（対象データが厳密に震央の意味で使われている可能性）。es/pt/de/fr訳もこの英語版の解釈（epicenter寄り）に合わせるべきか、日本語の原義（震源=hypocenter）に合わせるべきか要判断。
+6. **震源（epicenter/hypocenter）**: 日本語の「震源」は本来3次元の破壊開始点（＝hypocenter、震央epicenterとは別語）だが、本アプリの文中では「震源までの距離」を地表からの距離として扱っており、英語版もepicenterと訳している。**→ 英語版と実際の計算内容（大森公式が求めるのは震央距離）に合わせて epicenter 系に決着**（`epicentro` / `epicentro` / `Epizentrum` / `épicentre`）。日本語の原義に寄せる案は採らなかった。
 7. **初期微動継続時間・大森公式**: 日本の中学理科特有の用語・公式名。海外の地学教育で同じ公式が同名で扱われているか未確認（"S-Pタイム"に相当する語がそのまま定訳として通じるか要確認）。
-8. **空走距離／ブレーカー容量／座屈長さ係数／仕事の原理／ベーカーズパーセント**: これらは日本の教科書・実務でよく使う複合語だが、対応する定訳が海外の教科書に一語で存在するとは限らず、意訳（説明的な言い換え）になっている。特にベーカーズパーセントは英語圏でも「baker's percentage」という専門的借用語のまま使われることが多く、es/pt-BR/de/frでもそのままカタカナ的に借用される可能性がある。
+8. **空走距離／ブレーカー容量／座屈長さ係数／仕事の原理／ベーカーズパーセント**: 日本の教科書・実務でよく使う複合語で、海外の教科書に一語の定訳があるとは限らない。実装時に調べた結果:
+   - **ベーカーズパーセント → 4言語すべてに定訳が実在した**（`porcentaje panadero` / `percentual do padeiro` / `Bäckerprozent` / `pourcentage boulanger`）。借用語のままになるという当初の推測は外れ。
+   - **空走距離 → es/de/pt-BR は定訳あり**（`distancia de reacción` / `Reaktionsweg` / `distância de reação`）。**仏語のみ一語の定訳がなく**、`distance parcourue pendant le temps de réaction` と説明的に訳した。
+   - **ブレーカー容量・座屈長さ係数**はB節の表の語を採用したが、確認できたのは一部の言語だけなので `※要確認` を残している。**仕事の原理**も定訳を確認しきれず `※要確認` のまま。
 9. **馬力（horsepower）**: メートル馬力（PS/CV、735.5W）と英馬力（hp、745.7W）は値が異なる。`lib/units.ts`のBASE_UNITSでは `hp: unit(745.699871582, ...)` と**英馬力（hp）で定義**されている。ドイツ語・フランス語圏では日常的に「PS」「CV」（メートル馬力）を使うため、単位名の翻訳時に**hpのまま**なのかPS/CVに変えるべきかは実装判断（本用語集では単位定義に忠実に「hp」のまま訳語を当てた）。
 
 ---
@@ -295,13 +300,15 @@
 
 ---
 
-## F. 実装後に判明した訂正・確定事項
+## F. 実装後に判明した訂正の記録
+
+**B節の表とD節はすでにこの節の内容を反映済み**なので、訳語を引くときはB節を見ればよい。この節は「当初の推測が実装時にどう覆ったか」の記録として残す（同じ推測を繰り返さないため）。
 
 この用語集を使って実際に翻訳（PR #22 / #23）した結果、以下は当初の記載を訂正・確定した。
 
-- **ベーカーズパーセント**: D節8で「借用語のままかも」と推測していたが、**4言語すべてに定訳が実在した** — es `porcentaje panadero` / pt-BR `percentual do padeiro` / de `Bäckerprozent` / fr `pourcentage du boulanger`。
+- **ベーカーズパーセント**: D節8で「借用語のままかも」と推測していたが、**4言語すべてに定訳が実在した** — es `porcentaje panadero` / pt-BR `percentual do padeiro` / de `Bäckerprozent` / fr `pourcentage boulanger`。
 - **震源**: D節6は `hipocentro` 系（原義のhypocenter）を候補にしていたが、**epicenter系を採用した** — es `epicentro` / de `Epizentrum` / fr `épicentre`。理由は、英語版が既に "epicenter" であり、大森公式が実際に計算しているのは震央距離に相当するため。
-- **シャルルの法則**: 用語集に記載がなかったが、**独語圏では `Gesetz von Gay-Lussac` と呼ぶのが標準**（[LEIFIphysik](https://www.leifiphysik.de/waermelehre/allgemeines-gasgesetz/grundwissen/gesetz-von-gay-lussac)）。独語だけこの呼び方にし、他3言語は「シャルルの法則」の直訳。
+- **シャルルの法則**: 独語には `Gesetz von Gay-Lussac`（等圧変化に対して最も頻繁に使われる。[LEIFIphysik](https://www.leifiphysik.de/waermelehre/allgemeines-gasgesetz/grundwissen/gesetz-von-gay-lussac)）・`Gesetz von Charles`・`Charlessches Gesetz` の3通りがあり、いずれも同じ等圧の体積-温度関係を指す（[de.wikipedia: Allgemeine Gasgleichung](https://de.wikipedia.org/wiki/Allgemeine_Gasgleichung)）。**本アプリは `Isobare Zustandsänderung (Gesetz von Gay-Lussac)` を採用**（法則名だけに頼らず、どの状態変化かを併記して曖昧さを避ける方針）。`Gesetz von Charles` / `Charlessches Gesetz` も誤りではないので、既存訳を見かけても直す必要はない。他3言語は「シャルルの法則」の直訳（`ley de Charles` / `lei de Charles` / `loi de Charles`）。
 - **屈折率**: D節3の未確定を、対象読者が高校生であることから **`Brechzahl`** に確定。
 - **誘導起電力**: D節4の未確定を、同じ理由で **`induzierte Spannung`** に確定。
 - **空走距離**: es/de/pt-BR は定訳あり（`distancia de reacción` / `Reaktionsweg` / `distância de reação`）。**仏語のみ一語の定訳が無く**、`distance parcourue pendant le temps de réaction` と説明的に訳した。
