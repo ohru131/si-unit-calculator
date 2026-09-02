@@ -7,10 +7,9 @@ export type PresetNotebookCategory = {
 };
 
 export type NotebookSeedConstant = {
+  /** 数式（formulaLatex）の変数と同じ記号にする（下付き文字・ギリシャ文字も識別子として使えるため、表示用の別名は不要）。 */
   symbol: string;
   expression: string;
-  /** 定数一覧での表示用記号。数式（formulaLatex）の変数と揃えるためのUnicode下付き文字など。省略時はsymbolをそのまま表示する。 */
-  displaySymbol?: string;
 };
 export type NotebookSeedStep = {
   title: string;

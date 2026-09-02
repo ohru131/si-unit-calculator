@@ -32,14 +32,16 @@ import { SAMPLE_CALCULATIONS, SAMPLE_CATEGORIES, type SampleCalculation } from "
 import {
   analyzeExpression,
   getUnitInputHint,
+  getUnitInsertionRange,
   getUnitSuggestions,
-  insertUnitAtEnd,
   replaceExpressionRange,
   type ExpressionSegment,
   type UnitInputHint,
   type UnitSuggestion,
 } from "@/lib/unit-input";
-import { evaluateExpression, formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, getRegionalUnits, getUnitRegistration, parseConstantDefinition, Quantity, UNIT_GROUPS, type UnitGroup, type UnitOption } from "@/lib/units";
+import { evaluateExpression, formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, getRegionalUnits, getUnitRegistration, IDENTIFIER_BODY_CHAR_CLASS, IDENTIFIER_START_CHAR_CLASS, parseConstantDefinition, Quantity, UNIT_GROUPS, type UnitGroup, type UnitOption } from "@/lib/units";
+
+const CONSTANT_ASSIGNMENT_PATTERN = new RegExp(`^([${IDENTIFIER_START_CHAR_CLASS}][${IDENTIFIER_BODY_CHAR_CLASS}]*)\\s*=`);
 
 const KEYS = ["(", ")", "÷", "⌫", "7", "8", "9", "×", "4", "5", "6", "-", "1", "2", "3", "+", ".", "0", " ", "="];
 const ADVANCED_KEYS = ["sin(", "cos(", "tan(", "asin(", "acos(", "atan(", "atan2(", "ln(", "log(", "log2(", "sqrt(", "^", "π", "e"];
@@ -56,6 +58,12 @@ export default function CalculatorScreen() {
   const { completeOnboarding, hasSeenOnboarding, isReady, language, locale, measuringStandard, t, unitGroupLabel, unitSystem } = useGlobalSettings();
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [expression, setExpression] = useState("5cm + 1mm");
+  // キャレット（テキスト選択範囲）を追跡し、単位チップ・キーパッドの入力先を「末尾」ではなく
+  // 「今カーソルがある位置」にするために使う。pendingSelection はプログラムから挿入した直後だけ
+  // TextInput の selection props を強制するための一時的な値で、適用後すぐ null に戻して
+  // ユーザー自身のカーソル操作と競合しないようにする。
+  const [selection, setSelection] = useState<{ start: number; end: number }>({ start: expression.length, end: expression.length });
+  const [pendingSelection, setPendingSelection] = useState<{ start: number; end: number } | null>(null);
   const [targetUnit, setTargetUnit] = useState("cm");
   const [result, setResult] = useState<Quantity | null>(null);
   const [error, setError] = useState("");
@@ -155,8 +163,10 @@ export default function CalculatorScreen() {
       return { kind: "fix", fragment: fixSelection.text, start: fixSelection.start, end: fixSelection.end, candidates: getUnitSuggestions(fixSelection.text, { system: unitSystem, limit: RAIL_LIMIT, includeUnit }) };
     }
     // 直前に計算済みの analysis を渡して、同じ式をもう一度解析しないようにする。
-    return getUnitInputHint(expression, { system: unitSystem, recentUnits, identifiers, includeUnit, limit: RAIL_LIMIT, analysis });
-  }, [analysis, expression, fixSelection, identifiers, includeUnit, recentUnits, unitSystem]);
+    // キャレット位置（selection.start）を渡すことで、末尾ではなく今カーソルがある単位・数値を対象にする。
+    const caret = Math.min(selection.start, expression.length);
+    return getUnitInputHint(expression, { system: unitSystem, recentUnits, identifiers, includeUnit, limit: RAIL_LIMIT, analysis, caret });
+  }, [analysis, expression, fixSelection, identifiers, includeUnit, recentUnits, selection, unitSystem]);
 
   /** 結果のすぐ横で切り替えられる、同じ次元の単位。 */
   const conversionUnits = useMemo(() => {
@@ -257,7 +267,9 @@ export default function CalculatorScreen() {
     setError("");
     setNotice("");
     try {
-      const assignment = input.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=/);
+      // 定数名の判定はエンジン側（parseConstantDefinition）と同じ文字集合を使う。ここだけASCII限定に
+      // していると、mₒ や α のようなUnicodeの記号で定義しようとしても代入と見なされず保存できない。
+      const assignment = input.match(CONSTANT_ASSIGNMENT_PATTERN);
       const availableConstants = [...constants, ...autoConstants];
       const next = assignment ? parseConstantDefinition(input, availableConstants) : null;
       const quantity = next?.quantity ?? evaluateExpression(input, availableConstants);
@@ -314,19 +326,39 @@ export default function CalculatorScreen() {
     }
   };
 
+  /** プログラムから式を書き換えた直後にキャレットを挿入位置の直後へ移すための共通処理。
+   * pendingSelection は次のレンダー後に自動で解除され、以降はユーザー自身のカーソル操作を邪魔しない。 */
+  const placeCaret = (position: number) => {
+    const next = { start: position, end: position };
+    setSelection(next);
+    setPendingSelection(next);
+  };
+
   const pressKey = (key: string) => {
     if (key === "=") {
       void calculate();
       return;
     }
+    const start = Math.min(selection.start, expression.length);
+    const end = Math.min(selection.end, expression.length);
     if (key === "⌫") {
-      setExpression((current) => current.slice(0, -1));
+      // 選択範囲があればまとめて削除し、無ければキャレットの直前の1文字だけを消す
+      // （末尾を問わず、常にキャレット基準で削除する）。
+      if (start !== end) {
+        setExpression(replaceExpressionRange(expression, start, end, ""));
+        placeCaret(start);
+      } else if (start > 0) {
+        setExpression(replaceExpressionRange(expression, start - 1, start, ""));
+        placeCaret(start - 1);
+      }
       setFixSelection(null);
       return;
     }
     if (key === " ") return;
     const inserted = key === "×" ? "×" : key === "÷" ? "÷" : key;
-    setExpression((current) => `${current}${inserted}`);
+    // 選択範囲があれば置き換え、無ければキャレット位置へそのまま挿入する（末尾への追記ではない）。
+    setExpression(replaceExpressionRange(expression, start, end, inserted));
+    placeCaret(start + inserted.length);
     setFixSelection(null);
   };
 
@@ -340,10 +372,26 @@ export default function CalculatorScreen() {
     }
   };
 
+  /**
+   * 単位を反映する範囲を決める。ユーザーが範囲選択しているなら、その選択こそが「ここを置き換えたい」
+   * という明確な指示なので最優先する（選択を無視してキャレット基準で判定すると、例えば「5cm」の
+   * "cm" を選んで km を押したときに "5kmcm" になってしまう）。選択が無いときだけ fallback を使う。
+   */
+  const unitTargetRange = (fallback: { start: number; end: number }) => {
+    if (selection.start === selection.end) {
+      return { start: Math.min(fallback.start, expression.length), end: Math.min(fallback.end, expression.length) };
+    }
+    const start = Math.min(Math.min(selection.start, selection.end), expression.length);
+    const end = Math.min(Math.max(selection.start, selection.end), expression.length);
+    return { start, end };
+  };
+
   /** 入力補助バーの候補をタップしたとき、案内した範囲（修正・補完・単位付けの対象）をそのまま置き換える。 */
   const applyUnitCandidate = (symbol: string) => {
     const wasFixingError = hint.kind === "fix";
-    setExpression((current) => replaceExpressionRange(current, Math.min(hint.start, current.length), Math.min(hint.end, current.length), symbol));
+    const { start, end } = unitTargetRange({ start: hint.start, end: hint.end });
+    setExpression(replaceExpressionRange(expression, start, end, symbol));
+    placeCaret(start + symbol.length);
     setFixSelection(null);
     rememberUnit(symbol);
     setError("");
@@ -352,11 +400,13 @@ export default function CalculatorScreen() {
     else void Haptics.selectionAsync();
   };
 
-  /** 単位シート（検索・カテゴリ一覧）から選んだときは式の末尾を対象にする。
-   * 入力補助バーの hint とは無関係な操作なので hint の範囲は使わないが、
-   * 末尾が既に単位なら追加ではなく差し替える（末尾が数値のみのときだけ挿入する）。 */
+  /** 単位シート（検索・カテゴリ一覧）やインライン検索から選んだときも、キャレット位置に反映する
+   * （単位の上なら差し替え、数値の直後なら単位付け、それ以外はそのままキャレットへ挿入する）。 */
   const appendUnit = (symbol: string) => {
-    setExpression((current) => insertUnitAtEnd(current, symbol, identifiers));
+    const caret = Math.min(selection.start, expression.length);
+    const { start, end } = unitTargetRange(getUnitInsertionRange(expression, caret, identifiers));
+    setExpression(replaceExpressionRange(expression, start, end, symbol));
+    placeCaret(start + symbol.length);
     setFixSelection(null);
     rememberUnit(symbol);
     setError("");
@@ -383,6 +433,7 @@ export default function CalculatorScreen() {
 
   const restoreHistory = (entry: (typeof history)[number]) => {
     setExpression(entry.expression);
+    placeCaret(entry.expression.length);
     setTargetUnit(entry.targetUnit);
     setResult(entry.quantity);
     setFixSelection(null);
@@ -399,12 +450,21 @@ export default function CalculatorScreen() {
     });
   };
 
+  // pendingSelection は挿入直後の1回だけ TextInput のカーソル位置を強制するためのもの。
+  // 反映済みの次のレンダーで解除し、以降はユーザー自身の操作でカーソルを自由に動かせるようにする。
+  useEffect(() => {
+    if (!pendingSelection) return;
+    const timer = setTimeout(() => setPendingSelection(null), 0);
+    return () => clearTimeout(timer);
+  }, [pendingSelection]);
+
   useEffect(() => {
     const action = Array.isArray(quick) ? quick[0] : quick;
     const shortcut = getCalculatorQuickShortcut(action);
     if (!shortcut) return;
     if (shortcut.expression && shortcut.targetUnit) {
       setExpression(shortcut.expression);
+      placeCaret(shortcut.expression.length);
       setTargetUnit(shortcut.targetUnit);
       setResult(null);
       setFixSelection(null);
@@ -426,6 +486,7 @@ export default function CalculatorScreen() {
     const nextUnit = Array.isArray(presetUnit) ? presetUnit[0] : presetUnit;
     if (!nextExpression) return;
     setExpression(nextExpression);
+    placeCaret(nextExpression.length);
     setTargetUnit(nextUnit ?? "");
     setResult(null);
     setFixSelection(null);
@@ -436,6 +497,7 @@ export default function CalculatorScreen() {
   const applySample = (sample: SampleCalculation) => {
     const sampleTargetUnit = targetUnitForSample(sample);
     setExpression(sample.expression);
+    placeCaret(sample.expression.length);
     setTargetUnit(sampleTargetUnit);
     setResult(null);
     setFixSelection(null);
@@ -519,6 +581,10 @@ export default function CalculatorScreen() {
                 setError("");
                 setNotice("");
               }}
+              onSelectionChange={(event) => setSelection(event.nativeEvent.selection)}
+              // 挿入直後だけキャレットを強制する。それ以外は selection を渡さず、
+              // ユーザー自身のカーソル操作（タップ・ドラッグ選択）と競合しないようにする。
+              selection={pendingSelection ?? undefined}
               onSubmitEditing={() => void calculate()}
               placeholder={language === "en" ? "Example: 5cm + 1mm" : "例：5cm + 1mm"}
               placeholderTextColor={colors.placeholder}
