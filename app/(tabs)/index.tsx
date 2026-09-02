@@ -70,6 +70,12 @@ const EN_COPY = {
   skip: "Skip",
   getStarted: "Get started",
   next: "Next",
+  constantSaved: (symbol: string) => `Saved constant ${symbol}.`,
+  historySaveFailed: "Calculated, but could not save the history entry on this device.",
+  expressionCalculationFailed: "Could not calculate this expression.",
+  historyRestored: "Restored the saved calculation.",
+  historyExported: "Exported the calculation history as CSV.",
+  csvExportFailed: "Could not export the CSV file.",
 };
 const COPY: Record<AppLanguage, typeof EN_COPY> = {
   en: EN_COPY,
@@ -90,6 +96,12 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     skip: "スキップ",
     getStarted: "はじめる",
     next: "次へ",
+    constantSaved: (symbol: string) => `定数 ${symbol} を保存しました。`,
+    historySaveFailed: "計算しましたが、履歴を端末内へ保存できませんでした。",
+    expressionCalculationFailed: "式を計算できませんでした。",
+    historyRestored: "保存済みの計算結果を復元しました。",
+    historyExported: "計算履歴をCSVとして出力しました。",
+    csvExportFailed: "CSVを出力できませんでした。",
   },
 };
 
@@ -324,7 +336,7 @@ export default function CalculatorScreen() {
       const quantity = next?.quantity ?? evaluateExpression(input, availableConstants);
       if (next) {
         await upsertConstant(next.symbol, next.expression);
-        setNotice(`定数 ${next.symbol} を保存しました。`);
+        setNotice(copy.constantSaved(next.symbol));
       }
       setResult(quantity);
       playResultReveal();
@@ -363,13 +375,13 @@ export default function CalculatorScreen() {
           createdAt: new Date().toISOString(),
         });
       } catch {
-        setNotice("計算しましたが、履歴を端末内へ保存できませんでした。");
+        setNotice(copy.historySaveFailed);
       }
     } catch (cause) {
       setResult(null);
       // エンジンのエラー(UnitError)は現在の言語で表示する。UnitError以外は従来どおり
       // Error.message をそのまま出す（バックアップ処理など別系統のエラーもここを通るため）。
-      setError(cause instanceof Error ? (unitErrorMessage(cause, language) ?? cause.message) : "式を計算できませんでした。");
+      setError(cause instanceof Error ? (unitErrorMessage(cause, language) ?? cause.message) : copy.expressionCalculationFailed);
       playErrorShake();
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
@@ -487,7 +499,7 @@ export default function CalculatorScreen() {
     setResult(entry.quantity);
     setFixSelection(null);
     setError("");
-    setNotice("保存済みの計算結果を復元しました。");
+    setNotice(copy.historyRestored);
   };
 
   const toggleInlineUnitSearch = () => {
@@ -566,12 +578,12 @@ export default function CalculatorScreen() {
       return;
     }
     try {
-      await exportCalculationHistory(history);
-      setNotice("計算履歴をCSVとして出力しました。");
+      await exportCalculationHistory(history, language);
+      setNotice(copy.historyExported);
     } catch (cause) {
       // エンジンのエラー(UnitError)は現在の言語で表示する。UnitError以外は従来どおり
       // Error.message をそのまま出す（バックアップ処理など別系統のエラーもここを通るため）。
-      setError(cause instanceof Error ? (unitErrorMessage(cause, language) ?? cause.message) : "CSVを出力できませんでした。");
+      setError(cause instanceof Error ? (unitErrorMessage(cause, language) ?? cause.message) : copy.csvExportFailed);
     }
   };
 

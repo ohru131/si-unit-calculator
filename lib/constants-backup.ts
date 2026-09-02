@@ -1,4 +1,26 @@
+import { type AppLanguage } from "@/lib/i18n";
 import type { SavedConstant } from "@/lib/units";
+
+// このモジュールは入り口（parseConstantsBackup）が1個だけの浅いモジュールなので、
+// lib/units.tsのようにエラーコード化して表示側で翻訳する方式ではなく、
+// 呼び出し元から言語を直接受け取ってこの場でメッセージを組み立てる。
+const EN_BACKUP_MESSAGES = {
+  unreadable: "Could not read the constants backup. Check that it is valid JSON.",
+  invalidFormat: "The constants backup format is invalid.",
+  unsupportedFile: "This file is not a supported constants backup.",
+  invalidConstants: "The backup contains invalid constants.",
+  duplicateSymbols: "The backup contains duplicate constant symbols.",
+};
+const BACKUP_MESSAGES: Record<AppLanguage, typeof EN_BACKUP_MESSAGES> = {
+  en: EN_BACKUP_MESSAGES,
+  ja: {
+    unreadable: "定数バックアップを読み取れません。JSON形式を確認してください。",
+    invalidFormat: "定数バックアップの形式が正しくありません。",
+    unsupportedFile: "このファイルは対応している定数バックアップではありません。",
+    invalidConstants: "バックアップに無効な定数が含まれています。",
+    duplicateSymbols: "バックアップ内で定数記号が重複しています。",
+  },
+};
 
 export const CONSTANTS_BACKUP_FORMAT = "si-unit-calculator.constants";
 export const CONSTANTS_BACKUP_VERSION = 1;
@@ -31,20 +53,21 @@ export function serializeConstantsBackup(constants: SavedConstant[], exportedAt?
   return JSON.stringify(createConstantsBackup(constants, exportedAt), null, 2);
 }
 
-export function parseConstantsBackup(raw: string): ImportedConstant[] {
+export function parseConstantsBackup(raw: string, language: AppLanguage): ImportedConstant[] {
+  const messages = BACKUP_MESSAGES[language];
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    throw new Error("定数バックアップを読み取れません。JSON形式を確認してください。");
+    throw new Error(messages.unreadable);
   }
-  if (!parsed || typeof parsed !== "object") throw new Error("定数バックアップの形式が正しくありません。");
+  if (!parsed || typeof parsed !== "object") throw new Error(messages.invalidFormat);
   const backup = parsed as Partial<ConstantsBackup>;
   if (backup.format !== CONSTANTS_BACKUP_FORMAT || backup.version !== CONSTANTS_BACKUP_VERSION || !Array.isArray(backup.constants)) {
-    throw new Error("このファイルは対応している定数バックアップではありません。");
+    throw new Error(messages.unsupportedFile);
   }
-  if (!backup.constants.every(isImportedConstant)) throw new Error("バックアップに無効な定数が含まれています。");
+  if (!backup.constants.every(isImportedConstant)) throw new Error(messages.invalidConstants);
   const symbols = backup.constants.map((item) => item.symbol);
-  if (new Set(symbols).size !== symbols.length) throw new Error("バックアップ内で定数記号が重複しています。");
+  if (new Set(symbols).size !== symbols.length) throw new Error(messages.duplicateSymbols);
   return backup.constants;
 }

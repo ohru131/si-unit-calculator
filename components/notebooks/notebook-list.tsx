@@ -52,14 +52,14 @@ export function NotebookList({ language, locale, categoryLabel, notebooks, globa
   const previews = useMemo(() => {
     const map = new Map<string, string>();
     notebooks.forEach((notebook) => {
-      const { resolved } = resolveNotebookLocalConstants(notebook.localConstants, globalConstants);
+      const { resolved } = resolveNotebookLocalConstants(notebook.localConstants, globalConstants, language);
       const pool = [...globalConstants, ...resolved];
-      const results = evaluateNotebookSteps(notebook.steps, pool, [], locale);
+      const results = evaluateNotebookSteps(notebook.steps, pool, language, [], locale);
       const finalResult = [...results].reverse().find((result) => result.quantity);
       map.set(notebook.id, finalResult?.quantity ? (finalResult.formatted ?? formatQuantity(finalResult.quantity, undefined, locale)) : "");
     });
     return map;
-  }, [globalConstants, locale, notebooks]);
+  }, [globalConstants, language, locale, notebooks]);
 
   return (
     <View style={styles.container}>

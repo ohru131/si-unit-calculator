@@ -245,7 +245,7 @@ export default function ConstantsScreen() {
 
   const handleExportConstants = async () => {
     try {
-      await exportConstantsBackup(constants);
+      await exportConstantsBackup(constants, language);
       setBackupNotice(copy.exportDone);
     } catch (cause) {
       setBackupNotice(engineErrorMessage(cause));
@@ -254,7 +254,7 @@ export default function ConstantsScreen() {
 
   const handleImportConstants = async (mode: "merge" | "replace") => {
     try {
-      const entries = await pickConstantsBackup();
+      const entries = await pickConstantsBackup(language);
       if (!entries) return;
       if (mode === "replace") { setPendingReplaceImport(entries); return; }
       const count = await importConstants(entries, "merge");
@@ -296,7 +296,7 @@ export default function ConstantsScreen() {
   // 計算ノート全体のバックアップ（プリセットは対象外で、ユーザー作成分だけを書き出し・取り込む）。
   const handleExportNotebooks = async () => {
     try {
-      await exportNotebooksBackup(notebooks, notebookCategories);
+      await exportNotebooksBackup(notebooks, notebookCategories, language);
       setNotebookBackupNotice(copy.notebookExportDone);
     } catch (cause) {
       setNotebookBackupNotice(engineErrorMessage(cause));
@@ -305,7 +305,7 @@ export default function ConstantsScreen() {
 
   const handleImportNotebooks = async (mode: "merge" | "replace") => {
     try {
-      const entries = await pickNotebooksBackup();
+      const entries = await pickNotebooksBackup(language);
       if (!entries) return;
       if (mode === "replace") { setPendingReplaceNotebookImport(entries); return; }
       const count = await importNotebooks(entries, "merge");

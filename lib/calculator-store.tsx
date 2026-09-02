@@ -20,6 +20,24 @@ const NOTEBOOKS_SEEDED_PRESETS_STORAGE_KEY = "si-unit-calculator.notebooks-seede
 
 export const UNCATEGORIZED_CATEGORY_ID = "uncategorized";
 
+// このファイルはコンポーネント（CalculatorProvider）で、既にuseGlobalSettings()経由でlanguageを
+// 取得できるため、lib/notebook-engine.tsのような「引数でlanguageを受け取る」方式ではなく、
+// 既存のUI文言と同じRecord<AppLanguage, T>のCOPYパターンをそのまま使う。
+// 英語のキー集合を正にして、言語を足したときにキー漏れがその言語のブロックで型エラーになるようにする。
+const EN_STORE_MESSAGES = {
+  reservedAutoConstantSymbol: "a1, a2, and so on are reserved for automatic history constants.",
+  constantsImportFailed: (symbols: string) => `Could not load constants: ${symbols}. Check what they reference and their expressions.`,
+  categoryNameRequired: "Enter a category name.",
+};
+const STORE_MESSAGES: Record<AppLanguage, typeof EN_STORE_MESSAGES> = {
+  en: EN_STORE_MESSAGES,
+  ja: {
+    reservedAutoConstantSymbol: "a1、a2…は計算履歴の自動定数として予約されています。",
+    constantsImportFailed: (symbols: string) => `定数を読み込めませんでした：${symbols}。参照先と式を確認してください。`,
+    categoryNameRequired: "カテゴリ名を入力してください。",
+  },
+};
+
 export type SavedCalculation = {
   id: string;
   expression: string;
@@ -463,7 +481,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     async (symbolInput: string, expressionInput: string) => {
       const symbol = symbolInput.trim();
       const expression = expressionInput.trim();
-      if (/^a[1-9]\d*$/i.test(symbol)) throw new Error("a1、a2…は計算履歴の自動定数として予約されています。");
+      if (/^a[1-9]\d*$/i.test(symbol)) throw new Error(STORE_MESSAGES[language].reservedAutoConstantSymbol);
       const existing = constants.find((item) => item.symbol === symbol);
       const others = constants.filter((item) => item.symbol !== symbol);
       const parsed = parseConstantDefinition(`${symbol} = ${expression}`, others);
@@ -471,7 +489,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
       await persistConstants([...others, nextItem].sort((left, right) => left.symbol.localeCompare(right.symbol)));
       return nextItem;
     },
-    [constants, persistConstants],
+    [constants, language, persistConstants],
   );
 
   const removeConstant = useCallback(async (symbol: string) => {
@@ -497,10 +515,10 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
       }
       pending = remaining;
     }
-    if (pending.length) throw new Error(`定数を読み込めませんでした：${pending.map((item) => item.symbol).join(", ")}。参照先と式を確認してください。`);
+    if (pending.length) throw new Error(STORE_MESSAGES[language].constantsImportFailed(pending.map((item) => item.symbol).join(", ")));
     await persistConstants(next.sort((left, right) => left.symbol.localeCompare(right.symbol)));
     return entries.length;
-  }, [constants, persistConstants]);
+  }, [constants, language, persistConstants]);
 
   const clearConstants = useCallback(async () => {
     await AsyncStorage.setItem(CLEARED_CONSTANTS_STORAGE_KEY, JSON.stringify(constants));
@@ -605,7 +623,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
 
   const upsertNotebookCategory = useCallback(async (input: { id?: string; name: string }) => {
     const name = input.name.trim();
-    if (!name) throw new Error("カテゴリ名を入力してください。");
+    if (!name) throw new Error(STORE_MESSAGES[language].categoryNameRequired);
     const now = new Date().toISOString();
     const currentCategories = notebookCategoriesRef.current;
     const existing = input.id ? currentCategories.find((item) => item.id === input.id) : undefined;
@@ -613,7 +631,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     const next = [...currentCategories.filter((entry) => entry.id !== item.id), item].sort((left, right) => left.name.localeCompare(right.name));
     await persistNotebookCategories(next);
     return item;
-  }, [persistNotebookCategories]);
+  }, [language, persistNotebookCategories]);
 
   const removeNotebookCategory = useCallback(async (id: string) => {
     // カテゴリを消してもノートは消さず、未分類へ付け替える。

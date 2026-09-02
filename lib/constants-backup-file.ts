@@ -4,11 +4,27 @@ import * as Sharing from "expo-sharing";
 import { Platform } from "react-native";
 
 import { parseConstantsBackup, serializeConstantsBackup, type ImportedConstant } from "@/lib/constants-backup";
+import { type AppLanguage } from "@/lib/i18n";
 import type { SavedConstant } from "@/lib/units";
 
 const FILE_NAME = "si-unit-calculator-constants.json";
 
-export async function exportConstantsBackup(constants: SavedConstant[]) {
+// このモジュールは入り口（exportConstantsBackup・pickConstantsBackup）が2個だけの浅いモジュールなので、
+// lib/units.tsのようにエラーコード化して表示側で翻訳する方式ではなく、
+// 呼び出し元から言語を直接受け取ってこの場でメッセージを組み立てる。
+const EN_FILE_MESSAGES = {
+  sharingUnavailable: "Sharing is not available on this device.",
+  dialogTitle: "Share constants backup",
+};
+const FILE_MESSAGES: Record<AppLanguage, typeof EN_FILE_MESSAGES> = {
+  en: EN_FILE_MESSAGES,
+  ja: {
+    sharingUnavailable: "この端末では共有機能を利用できません。",
+    dialogTitle: "定数バックアップを共有",
+  },
+};
+
+export async function exportConstantsBackup(constants: SavedConstant[], language: AppLanguage) {
   const content = serializeConstantsBackup(constants);
   if (Platform.OS === "web") {
     const blob = new Blob([content], { type: "application/json;charset=utf-8" });
@@ -22,8 +38,8 @@ export async function exportConstantsBackup(constants: SavedConstant[]) {
   }
   const fileUri = `${FileSystem.cacheDirectory}${FILE_NAME}`;
   await FileSystem.writeAsStringAsync(fileUri, content, { encoding: FileSystem.EncodingType.UTF8 });
-  if (!(await Sharing.isAvailableAsync())) throw new Error("この端末では共有機能を利用できません。");
-  await Sharing.shareAsync(fileUri, { dialogTitle: "定数バックアップを共有", mimeType: "application/json" });
+  if (!(await Sharing.isAvailableAsync())) throw new Error(FILE_MESSAGES[language].sharingUnavailable);
+  await Sharing.shareAsync(fileUri, { dialogTitle: FILE_MESSAGES[language].dialogTitle, mimeType: "application/json" });
 }
 
 async function readPickedAsset(asset: DocumentPicker.DocumentPickerAsset) {
@@ -35,12 +51,12 @@ async function readPickedAsset(asset: DocumentPicker.DocumentPickerAsset) {
   return FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.UTF8 });
 }
 
-export async function pickConstantsBackup(): Promise<ImportedConstant[] | null> {
+export async function pickConstantsBackup(language: AppLanguage): Promise<ImportedConstant[] | null> {
   const result = await DocumentPicker.getDocumentAsync({
     type: ["application/json", "text/json", "text/plain"],
     copyToCacheDirectory: true,
   });
   if (result.canceled) return null;
   const content = await readPickedAsset(result.assets[0]);
-  return parseConstantsBackup(content);
+  return parseConstantsBackup(content, language);
 }

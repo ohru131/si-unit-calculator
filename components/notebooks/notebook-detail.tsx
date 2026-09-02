@@ -113,7 +113,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     return constantsDirty || stepsDirty;
   }, [editableConstants, editableSteps, notebook.localConstants, notebook.steps]);
 
-  const { resolved, errors } = useMemo(() => resolveNotebookLocalConstants(editableConstants, globalConstants), [editableConstants, globalConstants]);
+  const { resolved, errors } = useMemo(() => resolveNotebookLocalConstants(editableConstants, globalConstants, language), [editableConstants, globalConstants, language]);
   const resolvedBySymbol = useMemo(() => new Map(resolved.map((item) => [item.symbol, item])), [resolved]);
   const pool = useMemo(() => [...globalConstants, ...resolved], [globalConstants, resolved]);
   // ローカル定数の式が他の定数記号を参照しているとき、その記号が単位記号と同じ綴りでも
@@ -126,8 +126,8 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   // 依存配列に含めて設定変更時に再計算させる（値自体は参照するだけで使わない）。
   const stepResults = useMemo(() => {
     void measuringStandard;
-    return evaluateNotebookSteps(editableSteps, pool, [], locale);
-  }, [locale, editableSteps, pool, measuringStandard]);
+    return evaluateNotebookSteps(editableSteps, pool, language, [], locale);
+  }, [locale, editableSteps, pool, measuringStandard, language]);
 
   const updateConstant = (id: string, patch: Partial<NotebookLocalConstant>) => {
     setEditableConstants((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));

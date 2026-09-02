@@ -18,7 +18,7 @@ describe("プリセット計算ノートの全ステップがエラーなく計�
           symbol: constant.symbol,
           expression: constant.expression,
         }));
-        const { resolved, errors } = resolveNotebookLocalConstants(localConstants, []);
+        const { resolved, errors } = resolveNotebookLocalConstants(localConstants, [], "ja");
         expect(errors).toEqual({});
 
         const steps = seed.steps.map((step, index) => ({
@@ -31,7 +31,7 @@ describe("プリセット計算ノートの全ステップがエラーなく計�
           // 「resultSymbolがs1を上書きする」挙動と食い違ってしまうため必ず渡す。
           resultSymbol: step.resultSymbol,
         }));
-        const results = evaluateNotebookSteps(steps, resolved);
+        const results = evaluateNotebookSteps(steps, resolved, "ja");
         for (const result of results) {
           expect(result.error, `${ja(seed.title)} > ${result.step.title}: ${result.error}`).toBeUndefined();
           expect(result.formatted).toBeTruthy();
@@ -46,10 +46,10 @@ describe("代表的なプリセットノートの数値が物理的に妥当な�
     const seed = PRESET_NOTEBOOK_SEEDS[categoryId]?.find((candidate) => ja(candidate.title) === seedTitle);
     if (!seed) throw new Error(`seed not found: ${categoryId} / ${seedTitle}`);
     const localConstants = seed.localConstants.map((constant, index) => ({ id: `c${index}`, symbol: constant.symbol, expression: constant.expression }));
-    const { resolved, errors } = resolveNotebookLocalConstants(localConstants, []);
+    const { resolved, errors } = resolveNotebookLocalConstants(localConstants, [], "ja");
     expect(errors).toEqual({});
     const steps = seed.steps.map((step, index) => ({ id: `s${index}`, title: ja(step.title), expression: step.expression, targetUnit: step.targetUnit, formulaLatex: step.formulaLatex, resultSymbol: step.resultSymbol }));
-    const results = evaluateNotebookSteps(steps, resolved);
+    const results = evaluateNotebookSteps(steps, resolved, "ja");
     return results[results.length - 1];
   }
 

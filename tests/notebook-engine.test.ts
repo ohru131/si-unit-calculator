@@ -45,7 +45,7 @@ describe("計算ノートのローカル定数解決", () => {
       { symbol: "h", expression: "200mm" },
       { symbol: "Z", expression: "b*h^2/6" },
     ]);
-    const { resolved, errors } = resolveNotebookLocalConstants(localConstants, []);
+    const { resolved, errors } = resolveNotebookLocalConstants(localConstants, [], "ja");
     expect(errors).toEqual({});
     const z = resolved.find((item) => item.symbol === "Z");
     expect(z?.quantity.siValue).toBeCloseTo(0.1 * 0.2 ** 2 / 6);
@@ -54,7 +54,7 @@ describe("計算ノートのローカル定数解決", () => {
   it("ローカル定数はグローバル定数と同名でも優先される（シャドーイング）", () => {
     const globalConstants = [{ symbol: "W", expression: "1m", quantity: { siValue: 1, dimension: [1, 0, 0, 0, 0, 0, 0] as [number, number, number, number, number, number, number] }, createdAt: "" }];
     const localConstants = toLocalConstants([{ symbol: "W", expression: "5m" }]);
-    const { resolved } = resolveNotebookLocalConstants(localConstants, globalConstants);
+    const { resolved } = resolveNotebookLocalConstants(localConstants, globalConstants, "ja");
     expect(resolved[0].quantity.siValue).toBe(5);
   });
 
@@ -64,7 +64,7 @@ describe("計算ノートのローカル定数解決", () => {
       { symbol: "bad", expression: "notAUnit" },
       { symbol: "h", expression: "200mm" },
     ]);
-    const { resolved, errors } = resolveNotebookLocalConstants(localConstants, []);
+    const { resolved, errors } = resolveNotebookLocalConstants(localConstants, [], "ja");
     expect(resolved.map((item) => item.symbol)).toEqual(["b", "h"]);
     expect(errors["local-1"]).toBeTruthy();
   });
@@ -82,6 +82,7 @@ describe("計算ノートのステップ評価", () => {
     const results = evaluateNotebookSteps(
       [{ id: "step-1", title: "長さ", expression: "5m", targetUnit: "kg" }],
       [],
+      "ja",
       [],
     );
     expect(results[0].error).toBeTruthy();
@@ -89,20 +90,20 @@ describe("計算ノートのステップ評価", () => {
   });
 
   it("式が空の場合はエラーを返す", () => {
-    const results = evaluateNotebookSteps([{ id: "step-1", title: "空", expression: "", targetUnit: "" }], [], []);
+    const results = evaluateNotebookSteps([{ id: "step-1", title: "空", expression: "", targetUnit: "" }], [], "ja", []);
     expect(results[0].error).toBeTruthy();
     expect(results[0].quantity).toBeUndefined();
   });
 
   it("各手順をs1、s2の順に計算し、後続の手順から参照できる（連鎖）", () => {
-    const results = evaluateNotebookSteps([step("100N"), step("0.01m^2"), step("s1 ÷ s2")], [], []);
+    const results = evaluateNotebookSteps([step("100N"), step("0.01m^2"), step("s1 ÷ s2")], [], "ja", []);
     expect(results.map((item) => item.symbol)).toEqual(["s1", "s2", "s3"]);
     expect(results[2].error).toBeUndefined();
     expect(results[2].quantity?.siValue).toBeCloseTo(10000);
   });
 
   it("計算できない手順の結果は後続の手順から参照できず、はっきりエラーになる", () => {
-    const results = evaluateNotebookSteps([step("1cm + 1kg"), step(`${notebookStepSymbol(0)} + 1m`)], [], []);
+    const results = evaluateNotebookSteps([step("1cm + 1kg"), step(`${notebookStepSymbol(0)} + 1m`)], [], "ja", []);
     expect(results[0].error).toBeTruthy();
     expect(results[0].quantity).toBeUndefined();
     expect(results[1].error).toBeTruthy();
@@ -119,6 +120,7 @@ describe("計算ノートのステップ評価", () => {
         { symbol: "a", expression: "2m/s^2", quantity: { siValue: 2, dimension: [1, 0, -2, 0, 0, 0, 0] as [number, number, number, number, number, number, number] }, createdAt: "" },
         { symbol: "t", expression: "3s", quantity: { siValue: 3, dimension: [0, 0, 1, 0, 0, 0, 0] as [number, number, number, number, number, number, number] }, createdAt: "" },
       ],
+      "ja",
       [],
     );
     expect(results[0].symbol).toBe("v");
@@ -131,14 +133,14 @@ describe("計算ノートのステップ評価", () => {
   });
 
   it("resultSymbolが省略されていれば従来通りs1、s2にフォールバックする", () => {
-    const results = evaluateNotebookSteps([step("100N"), step("0.01m^2")], [], []);
+    const results = evaluateNotebookSteps([step("100N"), step("0.01m^2")], [], "ja", []);
     expect(results.map((item) => item.symbol)).toEqual(["s1", "s2"]);
   });
 
   it("resultSymbolが文字列でない壊れたデータでもs1にフォールバックし、実行時エラーにならない", () => {
     // 手編集されたJSONや旧データ由来で resultSymbol が文字列でない場合を想定。
     const malformedStep = { id: "step-1", title: "x", expression: "100N", targetUnit: "", resultSymbol: 123 as unknown as string };
-    const results = evaluateNotebookSteps([malformedStep], [], []);
+    const results = evaluateNotebookSteps([malformedStep], [], "ja", []);
     expect(results[0].symbol).toBe("s1");
     expect(results[0].error).toBeUndefined();
   });
@@ -158,10 +160,10 @@ describe("材料力学プリセットの数値検証", () => {
     const seed = seeds.find((item) => ja(item.title) === title);
     if (!seed) throw new Error(`seed not found: ${title}`);
     const localConstants = toLocalConstants(seed.localConstants);
-    const { resolved, errors } = resolveNotebookLocalConstants(localConstants, []);
+    const { resolved, errors } = resolveNotebookLocalConstants(localConstants, [], "ja");
     expect(errors).toEqual({});
     const steps = seed.steps.map((step, index) => ({ id: `step-${index}`, title: ja(step.title), expression: step.expression, targetUnit: step.targetUnit }));
-    return evaluateNotebookSteps(steps, resolved, []);
+    return evaluateNotebookSteps(steps, resolved, "ja", []);
   }
 
   it("断面二次モーメント・断面係数", () => {
