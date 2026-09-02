@@ -123,10 +123,16 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   const [saveError, setSaveError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
-  // mₒ・nₜ のようなUnicode下付き文字は端末キーボードで直接入力できないため、フォーカス中の式
-  // フィールドの直下に「タップで挿入」ボタンの列を出す。フィールドごとに一意なキー
-  // （`constant:${id}` / `step:${id}`）で、どのフィールドで表示中かを管理する。
-  const [focusedRailKey, setFocusedRailKey] = useState<string | null>(null);
+  // mₒ・nₜ のようなUnicode下付き文字は端末キーボードで直接入力できないため、式フィールドの
+  // 直下に「タップで挿入」ボタンの列を出す。フィールドごとに一意なキー（`constant:${id}` /
+  // `step:${id}`）で、どのフィールドのレールを表示中かを管理する。
+  // 【なぜフォーカスと連動させないか】以前は「フォーカス中のフィールド」に厳密に連動させ、onBlurで
+  // 150ms後に消していた。しかしチップ（単位・定数）はTextInputの外にあるPressableなので、それを
+  // 押した瞬間にonBlurが先に発火してレールごと消え、目的のボタンを押せなくなってしまう
+  // （app/(tabs)/constants.tsxの記号レールで実際に踏んだ不具合と同じ構造）。そこで「最後にフォーカス
+  // したフィールド」のレールを、別のフィールドにフォーカスが移るまで表示し続ける方式に変える。
+  // TextInputのonBlurではもう何もしない（scheduleRailBlurは廃止）。
+  const [activeRailKey, setActiveRailKey] = useState<string | null>(null);
   // 各フィールドの現在のキャレット/選択範囲（onSelectionChangeで更新）。ボタンをタップしたとき
   // 末尾ではなく、この位置に記号を挿し込むために使う。
   const [fieldSelections, setFieldSelections] = useState<Record<string, { start: number; end: number }>>({});
@@ -148,9 +154,16 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     setSaveError("");
   }
 
-  // 別のノートを開いたときは、前のノートで選んだ表示単位を引き継がない。
+  // 別のノートを開いたときは、前のノートで選んだ表示単位・レール状態を引き継がない。
+  // このコンポーネントはノートを切り替えても（例: 別のピン留めチップを続けて開く）unmountされずに
+  // props（notebook）だけが変わることがあるため、activeRailKey等が前のノートのフィールドキー
+  // （idベース）を指したまま残ると、新しいノートの同じ位置のフィールドに古いキャレット位置が
+  // 誤って復元されてしまう。
   useEffect(() => {
     setUnitOverrides({});
+    setActiveRailKey(null);
+    setFieldSelections({});
+    setForcedSelection(null);
   }, [notebook.id]);
 
   const copy = COPY[language];
@@ -257,16 +270,8 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     setForcedSelection((current) => (current?.key === key ? null : current));
   };
 
-  // Pressableのタップより先にonBlurでレール表示を消してしまうと押下が成立しないことがあるため、
-  // 少し遅らせてから消す（同じフィールドにまだフォーカスが戻っていなければ消す）。
-  const scheduleRailBlur = (key: string) => {
-    setTimeout(() => {
-      setFocusedRailKey((current) => (current === key ? null : current));
-    }, 150);
-  };
-
   const renderConstantsRail = (key: string, symbols: string[], onInsert: (symbol: string) => void) => {
-    if (focusedRailKey !== key || !symbols.length) return null;
+    if (activeRailKey !== key || !symbols.length) return null;
     return (
       <View>
         <Text style={styles.constantsRailLabel}>{copy.constantsRailLabel}</Text>
@@ -359,8 +364,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                       updateConstant(item.id, { symbol: name, expression: value });
                       setForcedSelection((current) => (current?.key === railKey ? null : current));
                     }}
-                    onFocus={() => setFocusedRailKey(railKey)}
-                    onBlur={() => scheduleRailBlur(railKey)}
+                    onFocus={() => setActiveRailKey(railKey)}
                     onSelectionChange={(event) => handleSelectionChange(railKey, event.nativeEvent.selection)}
                     selection={isRailForced ? forcedSelection.selection : undefined}
                     editable={!isSaving}
@@ -447,8 +451,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                       updateStepField(result.step.id, nextStepNamePatch(result.step, name, value));
                       setForcedSelection((current) => (current?.key === stepRailKey ? null : current));
                     }}
-                    onFocus={() => setFocusedRailKey(stepRailKey)}
-                    onBlur={() => scheduleRailBlur(stepRailKey)}
+                    onFocus={() => setActiveRailKey(stepRailKey)}
                     onSelectionChange={(event) => handleSelectionChange(stepRailKey, event.nativeEvent.selection)}
                     selection={forcedSelection?.key === stepRailKey ? forcedSelection.selection : undefined}
                     editable={!isSaving}
