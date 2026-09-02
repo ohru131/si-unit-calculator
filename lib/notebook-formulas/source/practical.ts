@@ -18,7 +18,9 @@ export const ELECTRICITY_BASICS_SEEDS: NotebookSeed[] = [
     localConstants: [
       { symbol: "P", expression: "1200W" },
       { symbol: "t", expression: "3h" },
-      { symbol: "rate", expression: "31" },
+      // 電力量単価。妥当な値が通貨圏ごとに桁から違うので、投入時に端末の通貨に応じた値へ差し替える
+      // （expression は通貨が判別できなかったときのフォールバック）。
+      { symbol: "rate", expression: "31", localizedPrice: "electricityPerKWh" },
     ],
     steps: [
       { title: { en: "Energy used E", ja: "使用電力量 E", es: "Energía usada E", "pt-BR": "Energia usada E", de: "Verbrauchte Energie E", fr: "Énergie utilisée E" }, expression: "P*t", targetUnit: "kWh", formulaLatex: "E = Pt" },
@@ -270,7 +272,8 @@ export const VEHICLES_SEEDS: NotebookSeed[] = [
     localConstants: [
       { symbol: "distance", expression: "300km" },
       { symbol: "fuelEconomy", expression: "15km/L" },
-      { symbol: "price", expression: "170" },
+      // 燃料単価（1リットルあたり）。上の rate と同じ理由で通貨に応じて差し替える。
+      { symbol: "price", expression: "170", localizedPrice: "fuelPerLiter" },
     ],
     steps: [
       { title: { en: "Fuel needed", ja: "必要な燃料", es: "Combustible necesario", "pt-BR": "Combustível necessário", de: "Benötigter Kraftstoff", fr: "Carburant nécessaire" }, expression: "distance/fuelEconomy", targetUnit: "L", formulaLatex: "\\text{fuel} = \\dfrac{\\text{distance}}{\\text{fuelEconomy}}" },

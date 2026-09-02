@@ -5,6 +5,8 @@ import { ImportedConstant } from "@/lib/constants-backup";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { APP_LANGUAGES, AppLanguage, isAppLanguage, localizedText, LocalizedText } from "@/lib/i18n";
 import { PRESET_NOTEBOOK_CATEGORIES, PRESET_NOTEBOOK_SEEDS } from "@/lib/notebook-formulas";
+import type { NotebookSeedConstant } from "@/lib/notebook-formulas/types";
+import { PresetPriceProfile, resolvePresetPriceProfile } from "@/lib/preset-price-defaults";
 import type { ImportedNotebook } from "@/lib/notebooks-backup";
 import { parseConstantDefinition, Quantity, SavedConstant } from "@/lib/units";
 
@@ -200,6 +202,16 @@ function parseStoredArray(raw: string | null): unknown[] {
   }
 }
 
+// プリセットのローカル定数の式を決める。localizedPrice が付いている定数（電気代の単価・
+// 燃料単価）は妥当な値が地域によって桁ごと違うので、端末の通貨に応じた値に差し替える。
+// それ以外はシードの expression をそのまま使う。
+// 投入時に一度だけ適用する。localConstants はユーザーが編集する前提のフィールドで、
+// 言語切替時にも触らない決まりなので、あとから通貨が変わっても上書きしない。
+export function presetConstantExpression(constant: NotebookSeedConstant, priceProfile: PresetPriceProfile): string {
+  if (!constant.localizedPrice) return constant.expression;
+  return String(priceProfile[constant.localizedPrice]);
+}
+
 // プリセット投入時のIDの採番規則。投入する側・言語切替で逆引きする側・テストが
 // それぞれ別々に文字列を組み立てていると、採番がズレたまま誰も気付かない状態になるため、
 // この4つの関数だけを通す。
@@ -316,7 +328,7 @@ export function localizePresetNotebooks(notebooks: CalculationNotebook[], langua
 }
 
 export function CalculatorProvider({ children }: { children: ReactNode }) {
-  const { language, isReady: isGlobalSettingsReady } = useGlobalSettings();
+  const { language, currencyCode, regionCode, isReady: isGlobalSettingsReady } = useGlobalSettings();
   const [constants, setConstants] = useState<SavedConstant[]>([]);
   const [history, setHistory] = useState<SavedCalculation[]>([]);
   const [favoriteUnits, setFavoriteUnits] = useState<string[]>([]);
@@ -434,6 +446,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         // カテゴリ単位・冪等に投入するため、後から新カテゴリを追加しても既存データを壊さない。
         const missingPresetCategories = PRESET_NOTEBOOK_CATEGORIES.filter((category) => !seededPresetIds.includes(category.id));
         if (missingPresetCategories.length) {
+          const priceProfile = resolvePresetPriceProfile(currencyCode, regionCode, language);
           const now = new Date().toISOString();
           missingPresetCategories.forEach((category) => {
             const seeds = PRESET_NOTEBOOK_SEEDS[category.id] ?? [];
@@ -451,7 +464,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
                 localConstants: seed.localConstants.map((constant, constantIndex) => ({
                   id: presetConstantId(category.id, seedIndex, constantIndex),
                   symbol: constant.symbol,
-                  expression: constant.expression,
+                  expression: presetConstantExpression(constant, priceProfile),
                 })),
                 steps: seed.steps.map((step, stepIndex) => ({
                   id: presetStepId(category.id, seedIndex, stepIndex),

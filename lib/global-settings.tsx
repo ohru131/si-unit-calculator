@@ -12,6 +12,18 @@ export type { AppLanguage };
 type GlobalSettings = {
   language: AppLanguage;
   locale: string;
+  /**
+   * 端末の通貨コード（例 "JPY"）。取得できないときは null。
+   * 金額の既定値は言語ではなく地域で決まる（ドイツ語話者がスイスにいればCHF）ため、
+   * language ではなくこちらを使う。
+   */
+  currencyCode: string | null;
+  /**
+   * 端末の地域コード（例 "JP"）。取得できないときは null。
+   * Webでは currencyCode が常に null で返る（expo-localizationのweb実装の制約）ので、
+   * 金額の既定値を地域で決めるにはこちらが必要になる。
+   */
+  regionCode: string | null;
   unitSystem: UnitSystem;
   measuringStandard: MeasuringStandard;
   isReady: boolean;
@@ -388,9 +400,13 @@ export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
   const deviceLanguageCode = deviceLanguageTag?.split("-")[0]?.toLowerCase();
   const selectedLanguageCode = language.split("-")[0].toLowerCase();
   const locale = deviceLanguageTag && deviceLanguageCode === selectedLanguageCode ? deviceLanguageTag : LANGUAGE_META[language].locale;
+  const currencyCode = deviceLocale?.currencyCode ?? null;
+  const regionCode = deviceLocale?.regionCode ?? null;
   const value = useMemo<GlobalSettings>(() => ({
     language,
     locale,
+    currencyCode,
+    regionCode,
     unitSystem,
     measuringStandard,
     isReady,
@@ -401,7 +417,7 @@ export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
     completeOnboarding,
     t: (key) => COPY[language][key],
     unitGroupLabel: (groupId) => GROUP_NAMES[groupId]?.[language] ?? groupId,
-  }), [completeOnboarding, hasSeenOnboarding, isReady, language, locale, measuringStandard, setLanguage, setMeasuringStandard, setUnitSystem, unitSystem]);
+  }), [completeOnboarding, currencyCode, hasSeenOnboarding, isReady, language, locale, measuringStandard, regionCode, setLanguage, setMeasuringStandard, setUnitSystem, unitSystem]);
 
   return <GlobalSettingsContext.Provider value={value}>{children}</GlobalSettingsContext.Provider>;
 }
