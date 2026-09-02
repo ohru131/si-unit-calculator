@@ -18,6 +18,8 @@ type AdsContextValue = {
   isReady: boolean;
   /** Pro購入または解除コードのどちらかにより広告を非表示にすべきか。 */
   adFree: boolean;
+  /** 同意取得とAdMob SDKの初期化が完了し、実際に広告をリクエストしてよい状態か。 */
+  canRequestAds: boolean;
   redeemMessage: string | null;
   redeemCode: (code: string) => Promise<void>;
 };
@@ -29,6 +31,7 @@ export function AdsProvider({ children }: { children: ReactNode }) {
   const isAdsPlatformAvailable = Platform.OS === "ios" || Platform.OS === "android";
   const [adFreeOverride, setAdFreeOverride] = useState(false);
   const [isAdFreeOverrideRestored, setIsAdFreeOverrideRestored] = useState(false);
+  const [canRequestAds, setCanRequestAds] = useState(false);
   const [redeemMessage, setRedeemMessage] = useState<string | null>(null);
   const adFree = isPro || adFreeOverride;
   const isReady = isProReady && isAdFreeOverrideRestored;
@@ -44,9 +47,16 @@ export function AdsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Pro/解除コードのどちらかで広告なしと確定しているユーザーには、同意フォーム表示や
-    // SDK初期化そのものを行わない。
+    // SDK初期化そのものを行わない。canRequestAdsはinitializeMobileAdsが実際に
+    // 同意取得・SDK初期化まで終えるまでtrueにならないため、バナー側もそれまで描画されない。
     if (!isAdsPlatformAvailable || !isReady || adFree) return;
-    void initializeMobileAds();
+    let active = true;
+    void initializeMobileAds().then((ok) => {
+      if (active) setCanRequestAds(ok);
+    });
+    return () => {
+      active = false;
+    };
   }, [adFree, isAdsPlatformAvailable, isReady]);
 
   const redeemCode = useCallback(async (code: string) => {
@@ -69,10 +79,11 @@ export function AdsProvider({ children }: { children: ReactNode }) {
       isAdsPlatformAvailable,
       isReady,
       adFree,
+      canRequestAds,
       redeemMessage,
       redeemCode,
     }),
-    [adFree, isAdsPlatformAvailable, isReady, redeemCode, redeemMessage],
+    [adFree, canRequestAds, isAdsPlatformAvailable, isReady, redeemCode, redeemMessage],
   );
 
   return <AdsContext.Provider value={value}>{children}</AdsContext.Provider>;
