@@ -1,4 +1,5 @@
 import type { LocalizedText } from "../i18n";
+import type { PresetPriceKind } from "../preset-price-defaults";
 
 export type PresetNotebookCategory = {
   id: string;
@@ -11,6 +12,12 @@ export type NotebookSeedConstant = {
   /** 数式（formulaLatex）の変数と同じ記号にする（下付き文字・ギリシャ文字も識別子として使えるため、表示用の別名は不要）。 */
   symbol: string;
   expression: string;
+  /**
+   * 金額の既定値。妥当な値が地域（通貨）によって全く違うものだけ指定する。
+   * 指定すると投入時に端末の通貨に応じた値へ差し替わり、expression は
+   * 通貨が判別できなかったときのフォールバックとして使われる。
+   */
+  localizedPrice?: PresetPriceKind;
 };
 export type NotebookSeedStep = {
   title: LocalizedText;
