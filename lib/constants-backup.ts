@@ -20,6 +20,34 @@ const BACKUP_MESSAGES: Record<AppLanguage, typeof EN_BACKUP_MESSAGES> = {
     invalidConstants: "バックアップに無効な定数が含まれています。",
     duplicateSymbols: "バックアップ内で定数記号が重複しています。",
   },
+  es: {
+    unreadable: "No se pudo leer la copia de seguridad de constantes. Comprueba que sea un JSON válido.",
+    invalidFormat: "El formato de la copia de seguridad de constantes no es válido.",
+    unsupportedFile: "Este archivo no es una copia de seguridad de constantes admitida.",
+    invalidConstants: "La copia de seguridad contiene constantes no válidas.",
+    duplicateSymbols: "La copia de seguridad contiene símbolos de constante duplicados.",
+  },
+  "pt-BR": {
+    unreadable: "Não foi possível ler o backup de constantes. Verifique se é um JSON válido.",
+    invalidFormat: "O formato do backup de constantes é inválido.",
+    unsupportedFile: "Este arquivo não é um backup de constantes compatível.",
+    invalidConstants: "O backup contém constantes inválidas.",
+    duplicateSymbols: "O backup contém símbolos de constante duplicados.",
+  },
+  de: {
+    unreadable: "Das Konstanten-Backup konnte nicht gelesen werden. Prüfe, ob es sich um gültiges JSON handelt.",
+    invalidFormat: "Das Format des Konstanten-Backups ist ungültig.",
+    unsupportedFile: "Diese Datei ist kein unterstütztes Konstanten-Backup.",
+    invalidConstants: "Das Backup enthält ungültige Konstanten.",
+    duplicateSymbols: "Das Backup enthält doppelte Konstantensymbole.",
+  },
+  fr: {
+    unreadable: "Impossible de lire la sauvegarde des constantes. Vérifiez qu'il s'agit d'un JSON valide.",
+    invalidFormat: "Le format de la sauvegarde des constantes n'est pas valide.",
+    unsupportedFile: "Ce fichier n'est pas une sauvegarde de constantes prise en charge.",
+    invalidConstants: "La sauvegarde contient des constantes non valides.",
+    duplicateSymbols: "La sauvegarde contient des symboles de constante en double.",
+  },
 };
 
 export const CONSTANTS_BACKUP_FORMAT = "si-unit-calculator.constants";

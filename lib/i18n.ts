@@ -1,7 +1,11 @@
 // アプリのUI言語。この配列を単一の情報源にして、型・入力検証・設定画面の選択肢を全てここから導出する。
 // 以前は "en" | "ja" のユニオン型直書きで、言語を足すたびに型・AsyncStorageのガード・
 // 画面側の三項演算子を別々に直す必要があった。
-export const APP_LANGUAGES = ["en", "ja"] as const;
+// 追加言語は市場調査（アプリのダウンロード規模と課金単価）で選んだ。
+// es: 話者5.6億人・中南米。pt-BR: ブラジルはGoogle PlayのDL数が世界最上位。
+// de/fr: 課金単価が高い西欧。ar等のRTLは対応コストが大きい上にKaTeXの数式を
+// LTRで出す追加対応が要るため、ruはGoogle Playがロシアでの課金を停止しているため見送った。
+export const APP_LANGUAGES = ["en", "ja", "es", "pt-BR", "de", "fr"] as const;
 
 export type AppLanguage = (typeof APP_LANGUAGES)[number];
 
@@ -12,6 +16,10 @@ export const DEFAULT_LANGUAGE: AppLanguage = "en";
 export const LANGUAGE_META: Record<AppLanguage, { endonym: string; locale: string }> = {
   en: { endonym: "English", locale: "en-US" },
   ja: { endonym: "日本語", locale: "ja-JP" },
+  es: { endonym: "Español", locale: "es-ES" },
+  "pt-BR": { endonym: "Português (Brasil)", locale: "pt-BR" },
+  de: { endonym: "Deutsch", locale: "de-DE" },
+  fr: { endonym: "Français", locale: "fr-FR" },
 };
 
 export function isAppLanguage(value: unknown): value is AppLanguage {

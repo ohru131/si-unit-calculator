@@ -22,6 +22,22 @@ const FILE_MESSAGES: Record<AppLanguage, typeof EN_FILE_MESSAGES> = {
     sharingUnavailable: "この端末では共有機能を利用できません。",
     dialogTitle: "定数バックアップを共有",
   },
+  es: {
+    sharingUnavailable: "La función de compartir no está disponible en este dispositivo.",
+    dialogTitle: "Compartir copia de seguridad de constantes",
+  },
+  "pt-BR": {
+    sharingUnavailable: "O compartilhamento não está disponível neste dispositivo.",
+    dialogTitle: "Compartilhar backup de constantes",
+  },
+  de: {
+    sharingUnavailable: "Teilen ist auf diesem Gerät nicht verfügbar.",
+    dialogTitle: "Konstanten-Backup teilen",
+  },
+  fr: {
+    sharingUnavailable: "Le partage n'est pas disponible sur cet appareil.",
+    dialogTitle: "Partager la sauvegarde des constantes",
+  },
 };
 
 export async function exportConstantsBackup(constants: SavedConstant[], language: AppLanguage) {

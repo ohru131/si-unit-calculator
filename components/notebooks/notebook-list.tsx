@@ -38,6 +38,30 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     delete: "削除", deleteConfirm: "このノートを削除しますか？元に戻せません。", cancel: "キャンセル",
     pin: "電卓画面にピン留め", unpin: "ピン留めを解除", builtIn: "プリセット",
   },
+  es: {
+    empty: "Todavía no hay cuadernos en esta categoría", emptyHint: "Toca el botón + para añadir uno.",
+    steps: (count: number) => `${count} paso${count === 1 ? "" : "s"}`,
+    delete: "Eliminar", deleteConfirm: "¿Eliminar este cuaderno? Esta acción no se puede deshacer.", cancel: "Cancelar",
+    pin: "Fijar en la calculadora", unpin: "Quitar de fijados", builtIn: "Integrado",
+  },
+  "pt-BR": {
+    empty: "Ainda não há cadernos nesta categoria", emptyHint: "Toque no botão + para adicionar um.",
+    steps: (count: number) => `${count} etapa${count === 1 ? "" : "s"}`,
+    delete: "Excluir", deleteConfirm: "Excluir este caderno? Isso não pode ser desfeito.", cancel: "Cancelar",
+    pin: "Fixar na calculadora", unpin: "Desafixar", builtIn: "Integrado",
+  },
+  de: {
+    empty: "Noch keine Rechenhefte in dieser Kategorie", emptyHint: "Tippe auf das +, um eines hinzuzufügen.",
+    steps: (count: number) => (count === 1 ? "1 Schritt" : `${count} Schritte`),
+    delete: "Löschen", deleteConfirm: "Dieses Rechenheft löschen? Das kann nicht rückgängig gemacht werden.", cancel: "Abbrechen",
+    pin: "Im Rechner anheften", unpin: "Anheften lösen", builtIn: "Integriert",
+  },
+  fr: {
+    empty: "Pas encore de carnet dans cette catégorie", emptyHint: "Touchez le bouton + pour en ajouter un.",
+    steps: (count: number) => `${count} étape${count === 1 ? "" : "s"}`,
+    delete: "Supprimer", deleteConfirm: "Supprimer ce carnet ? Cette action est irréversible.", cancel: "Annuler",
+    pin: "Épingler à la calculatrice", unpin: "Désépingler", builtIn: "Intégré",
+  },
 };
 
 export function NotebookList({ language, locale, categoryLabel, notebooks, globalConstants, onBack, onOpen, onDelete, onTogglePinned }: Props) {

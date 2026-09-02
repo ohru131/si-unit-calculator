@@ -15,6 +15,16 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 
 ## アーキテクチャの要点
 
+- `lib/i18n.ts` — **多言語化の土台。`APP_LANGUAGES` 配列が唯一の情報源**で、型（`AppLanguage`）・入力検証（`isAppLanguage`）・端末ロケール判定（`resolveDeviceLanguage`）・Intlロケールと設定画面の言語名（`LANGUAGE_META`、言語名はその言語自身の表記=endonym）を全てここから導出する。**言語を足すときはこの配列に追加するだけ**で、あとは型エラーが出た箇所を埋めていけばよい。
+  - 対応言語: `en` / `ja` / `es` / `pt-BR` / `de` / `fr`。RTL（`ar` 等）は対応コストが大きく、KaTeXの数式をRTL文脈でもLTRで出す追加対応が要るため見送り。`ru` はGoogle Playがロシアでの課金を停止しているため見送り。
+  - **文言の持ち方が2種類あるので使い分ける**:
+    - **UI文言** → `const EN_COPY = {...} as const;` + `const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = { en: EN_COPY, ja: {...}, ... }`。**英語のキー集合が正**で、他の言語でキーが欠けると**その言語ブロックの行に「どのキーが足りないか」の型エラーが出る**（これが翻訳漏れのチェックリストになる）。値に関数や入れ子配列が混ざる場合は `Record<AppLanguage, typeof EN_COPY>`（`as const` は外す）。
+    - **コンテンツ** → `LocalizedText`（`{ en: string } & Partial<Record<AppLanguage, string>>`）+ `localizedText(text, language)`。**en必須・他は任意で英語にフォールバック**するので、件数の多いデータ（プリセット計算ノート等）を段階的に翻訳できる。
+  - `titleEn` / `labelEn` のように**言語名を型名に埋め込む方式は廃止済み**（3言語目で破綻するため）。復活させないこと。
+  - 設定画面の言語選択は `APP_LANGUAGES.map(...)` + `LANGUAGE_META[id].endonym` で作る。`t("english")` のように言語名ごとに翻訳キーを持つと言語数の2乗でキーが増える。
+  - **`pt-BR` はキーにハイフンを含む**ので、オブジェクトのキーに書くときは引用符が必要（`"pt-BR": {...}`）。
+- `lib/unit-errors.ts` — 計算エンジンのエラーメッセージ。`UnitError`（`code` + `params`）を投げ、表示側で `unitErrorMessage(error, language)` が言語ごとのカタログから引く。**`Error.message` は英語**にしてあるので、翻訳を通さず `cause.message` を直接出している箇所が残っても日本語が漏れない。
+  - **設計の使い分け**: `lib/units.ts` は深い再帰評価の中から35箇所throwしていて全内部関数に言語を引き回すのが侵襲的すぎるので**コード方式**。一方 `lib/notebook-engine.ts` やバックアップ系は入り口が1〜2個の浅いモジュールなので**エントリポイントに `language: AppLanguage` 引数を追加する方式**。引数は**デフォルト値を付けない**（付けると渡し忘れた呼び出し元が黙って英語になり気付けない）。
 - `lib/units.ts` — 単位計算エンジン。7次元ベクトル `[length, mass, time, current, temperature, amount, luminousIntensity]`。`BASE_UNITS` に完全一致キーがあり、なければ `PREFIXES`（SI接頭辞）で分解を試みる**完全一致優先**の解決順。新しい単位記号を足すときはこの順序のおかげで大抵の接頭辞と衝突しない（例: `cal` は `c`+`al` と誤解釈されない）。
   - `parseUnit`（裸の数値に付く単位サフィックス、例 `"5kN*m"`）は **括弧非対応**。`*` `/` `^` の連続でチェーンする必要がある。
   - `evaluateExpression`（完全な数式）は括弧対応。ローカル定数の式は必ずこちら経由なので括弧が使える。
@@ -57,9 +67,14 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 4. **[完了・PR #17でマージ済み]** 初回起動時（OSがダークモード）に背景が白いままになるバグを修正（`useSyncExternalStore`で`Appearance`/`AppState`を購読）。
 5. **[完了・PR #18でマージ済み]** プリセットの定数名をLaTeX数式の記号そのもの（Unicodeの下付き・ギリシャ文字）に変更し、エンジンの識別子解析を拡張。ノート定義を`source/`配下に一元化。単位の置換・挿入をカーソル位置基準に。式欄の下に定数の挿入ボタン列を追加。
 6. **[完了]** 計算ノートに「理科（小・中）」カテゴリ（9サブカテゴリ・46件）を追加し、カテゴリ順を 理科 先頭・材料力学 最後に変更。ノート詳細画面の戻る/保存を固定ヘッダー・フッター化し、カテゴリグリッドをスクロール可能に修正。
+7. **[完了・PR #21でマージ済み]** 多言語化の土台を整備（`lib/i18n.ts` / `LocalizedText` / UI文言のRecord化）。あわせて既存の穴を全部塞いだ: `pro.tsx` の全文日本語決め打ち、`units.ts` のエラー35箇所、`lib`配下の表示文言29件、課金・広告12件、`GROUP_NAMES` の `amount` 欠落、言語切替後もプリセット112件が投入時の言語のまま残る問題。**ユーザーに表示される日本語決め打ちは0件**になった（残るのは `useCalculatorStore()` 等をProvider外で呼んだときの開発者向け`throw` 3件のみ）。
+8. **[進行中]** `es` / `pt-BR` / `de` / `fr` の4言語を投入。UI文言・単位名・エラーメッセージを先に完成させ（`Record<AppLanguage,T>` は全言語必須なので）、プリセット計算ノートは`LocalizedText`の英語フォールバックで動かしてから別PRで翻訳する。
 
 ## 次にやりそうなこと（ユーザーから明示的な指示待ち）
 
+- プリセット計算ノート112件（`title`/`description`/`steps[].title`/`formulas[].explanation` の計391フィールド）の4言語翻訳。`LocalizedText` なので未翻訳の言語は英語で出る＝段階的に足せる
+- さらに言語を増やすか（調査での次候補は `ko` / `zh-Hant` / `id` / `hi`）
+- iOSのApp Tracking Transparencyダイアログ文言（`app.config.ts`）の多言語化。Expoの`locales`機能はSDK 57に存在するが、実際に言語別に切り替わるかの検証にネイティブビルドが必要で未確認のため見送っている
 - ユーザー作成カテゴリにもサブカテゴリ機能を広げるか（今は未対応、スコープ外と判断した）
 - 他の実単位を使う分野の追加（要望があれば）
 - Shipaton 2026提出に向けた残タスクの確認

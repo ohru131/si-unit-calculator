@@ -19,6 +19,22 @@ const EXPORT_MESSAGES: Record<AppLanguage, typeof EN_EXPORT_MESSAGES> = {
     sharingUnavailable: "この端末では共有機能を利用できません。",
     dialogTitle: "計算履歴をCSVで共有",
   },
+  es: {
+    sharingUnavailable: "La función de compartir no está disponible en este dispositivo.",
+    dialogTitle: "Compartir historial de cálculos como CSV",
+  },
+  "pt-BR": {
+    sharingUnavailable: "O compartilhamento não está disponível neste dispositivo.",
+    dialogTitle: "Compartilhar histórico de cálculos como CSV",
+  },
+  de: {
+    sharingUnavailable: "Teilen ist auf diesem Gerät nicht verfügbar.",
+    dialogTitle: "Berechnungsverlauf als CSV teilen",
+  },
+  fr: {
+    sharingUnavailable: "Le partage n'est pas disponible sur cet appareil.",
+    dialogTitle: "Partager l'historique des calculs au format CSV",
+  },
 };
 
 export async function exportCalculationHistory(entries: SavedCalculation[], language: AppLanguage) {

@@ -40,6 +40,30 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     deleteConfirm: "このカテゴリを削除しますか？中のノートは未分類へ移動します。",
     notebookCount: (count: number) => `${count}件のノート`,
   },
+  es: {
+    newCategory: "Nueva categoría", categoryName: "Nombre de la categoría", save: "Guardar", cancel: "Cancelar",
+    uncategorized: "Sin categoría", preset: "Integrado", rename: "Renombrar", delete: "Eliminar",
+    deleteConfirm: "¿Eliminar esta categoría? Sus cuadernos pasarán a Sin categoría.",
+    notebookCount: (count: number) => `${count} cuaderno${count === 1 ? "" : "s"}`,
+  },
+  "pt-BR": {
+    newCategory: "Nova categoria", categoryName: "Nome da categoria", save: "Salvar", cancel: "Cancelar",
+    uncategorized: "Sem categoria", preset: "Integrado", rename: "Renomear", delete: "Excluir",
+    deleteConfirm: "Excluir esta categoria? Os cadernos dela vão para Sem categoria.",
+    notebookCount: (count: number) => `${count} caderno${count === 1 ? "" : "s"}`,
+  },
+  de: {
+    newCategory: "Neue Kategorie", categoryName: "Kategoriename", save: "Speichern", cancel: "Abbrechen",
+    uncategorized: "Ohne Kategorie", preset: "Integriert", rename: "Umbenennen", delete: "Löschen",
+    deleteConfirm: "Diese Kategorie löschen? Deine Rechenhefte werden zu Ohne Kategorie verschoben.",
+    notebookCount: (count: number) => `${count} ${count === 1 ? "Rechenheft" : "Rechenhefte"}`,
+  },
+  fr: {
+    newCategory: "Nouvelle catégorie", categoryName: "Nom de la catégorie", save: "Enregistrer", cancel: "Annuler",
+    uncategorized: "Sans catégorie", preset: "Intégré", rename: "Renommer", delete: "Supprimer",
+    deleteConfirm: "Supprimer cette catégorie ? Ses carnets seront déplacés vers Sans catégorie.",
+    notebookCount: (count: number) => `${count} carnet${count === 1 ? "" : "s"}`,
+  },
 };
 
 export function NotebookCategoryGrid({ language, notebooks, notebookCategories, parentCategoryId, onSelectCategory, onSelectParentCategory, onBack, onCreateCategory, onRenameCategory, onDeleteCategory }: Props) {

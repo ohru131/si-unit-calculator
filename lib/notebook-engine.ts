@@ -38,6 +38,30 @@ const ENGINE_MESSAGES: Record<AppLanguage, typeof EN_ENGINE_MESSAGES> = {
     targetUnitFallback: (targetUnit: string) => `「${targetUnit}」には変換できないため、SI標準で表示しました。`,
     expressionCalculationFailed: "この式を計算できませんでした。",
   },
+  es: {
+    constantCalculationFailed: "No se pudo calcular esta constante.",
+    emptyExpression: "Introduce una expresión.",
+    targetUnitFallback: (targetUnit: string) => `No se pudo convertir a "${targetUnit}"; se muestra el valor base del SI en su lugar.`,
+    expressionCalculationFailed: "No se pudo calcular esta expresión.",
+  },
+  "pt-BR": {
+    constantCalculationFailed: "Não foi possível calcular esta constante.",
+    emptyExpression: "Informe uma expressão.",
+    targetUnitFallback: (targetUnit: string) => `Não foi possível converter para "${targetUnit}"; exibindo o valor em unidades SI base.`,
+    expressionCalculationFailed: "Não foi possível calcular esta expressão.",
+  },
+  de: {
+    constantCalculationFailed: "Diese Konstante konnte nicht berechnet werden.",
+    emptyExpression: "Gib einen Ausdruck ein.",
+    targetUnitFallback: (targetUnit: string) => `Umrechnung in „${targetUnit}“ nicht möglich – stattdessen wird der SI-Basiswert angezeigt.`,
+    expressionCalculationFailed: "Dieser Ausdruck konnte nicht berechnet werden.",
+  },
+  fr: {
+    constantCalculationFailed: "Impossible de calculer cette constante.",
+    emptyExpression: "Saisissez une expression.",
+    targetUnitFallback: (targetUnit: string) => `Conversion vers « ${targetUnit} » impossible ; la valeur en unités SI de base est affichée à la place.`,
+    expressionCalculationFailed: "Impossible de calculer cette expression.",
+  },
 };
 
 // parseConstantDefinition/evaluateExpressionが投げるUnitErrorはError.messageが常に英語で
