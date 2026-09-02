@@ -156,6 +156,11 @@ const config: ExpoConfig = {
   experiments: {
     typedRoutes: true,
     reactCompiler: true,
+    // GitHub Pagesはリポジトリ名のサブパス配下（https://<user>.github.io/<repo>/）で配信されるため、
+    // その静的書き出しビルドでのみサブパスを付与する。GITHUB_PAGES_BASE_PATHはPages用のCIワークフロー
+    // でのみ設定する専用の環境変数なので、通常のExpo Go/開発サーバー起動やモバイルのネイティブビルド
+    // （eas build, expo run:ios/android）には一切影響しない。
+    ...(process.env.GITHUB_PAGES_BASE_PATH ? { baseUrl: process.env.GITHUB_PAGES_BASE_PATH } : {}),
   },
 };
 
