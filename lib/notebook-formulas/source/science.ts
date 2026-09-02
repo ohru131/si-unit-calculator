@@ -18,8 +18,8 @@ export const SCIENCE_MOTION_SEEDS: NotebookSeed[] = [
     ],
     steps: [
       { title: { en: "Speed v", ja: "速さ v", es: "Velocidad v", "pt-BR": "Velocidade v", de: "Geschwindigkeit v", fr: "Vitesse v" }, expression: "d/t", targetUnit: "km/h", formulaLatex: "v = \\dfrac{d}{t}", resultSymbol: "v" },
-      { title: { en: "Distance covered in 3 hours", ja: "3時間で進む道のり", es: "Distancia recorrida en 3 horas", "pt-BR": "Distância percorrida em 3 horas", de: "In 3 Stunden zurückgelegte Strecke", fr: "Distance parcourue en 3 heures" }, expression: "v*t₂", targetUnit: "km", formulaLatex: "d_2 = v t_2" },
-      { title: { en: "Time needed to cover 245km", ja: "245km進むのにかかる時間", es: "Tiempo necesario para recorrer 245km", "pt-BR": "Tempo necessário para percorrer 245km", de: "Benötigte Zeit für 245km", fr: "Temps nécessaire pour parcourir 245km" }, expression: "d₃/v", targetUnit: "h", formulaLatex: "t_3 = \\dfrac{d_3}{v}" },
+      { title: { en: "Distance covered in time t₂", ja: "時間 t₂ で進む道のり", es: "Distancia recorrida en el tiempo t₂", "pt-BR": "Distância percorrida no tempo t₂", de: "In der Zeit t₂ zurückgelegte Strecke", fr: "Distance parcourue pendant le temps t₂" }, expression: "v*t₂", targetUnit: "km", formulaLatex: "d_2 = v t_2" },
+      { title: { en: "Time needed to cover distance d₃", ja: "道のり d₃ を進むのにかかる時間", es: "Tiempo necesario para recorrer la distancia d₃", "pt-BR": "Tempo necessário para percorrer a distância d₃", de: "Benötigte Zeit für die Strecke d₃", fr: "Temps nécessaire pour parcourir la distance d₃" }, expression: "d₃/v", targetUnit: "h", formulaLatex: "t_3 = \\dfrac{d_3}{v}" },
     ],
   },
   {
@@ -93,8 +93,8 @@ export const SCIENCE_DENSITY_SEEDS: NotebookSeed[] = [
     ],
     steps: [
       { title: { en: "Density ρ", ja: "密度 ρ", es: "Densidad ρ", "pt-BR": "Densidade ρ", de: "Dichte ρ", fr: "Masse volumique ρ" }, expression: "m/V", targetUnit: "g/cm³", formulaLatex: "\\rho = \\dfrac{m}{V}", resultSymbol: "ρ" },
-      { title: { en: "Mass of 10cm³ of the same metal", ja: "体積10cm³の質量", es: "Masa de 10cm³ del mismo metal", "pt-BR": "Massa de 10cm³ do mesmo metal", de: "Masse von 10cm³ desselben Metalls", fr: "Masse de 10cm³ du même métal" }, expression: "ρ*V₂", targetUnit: "g", formulaLatex: "m_2 = \\rho V_2" },
-      { title: { en: "Volume of 81g of the same metal", ja: "質量81gの体積", es: "Volumen de 81g del mismo metal", "pt-BR": "Volume de 81g do mesmo metal", de: "Volumen von 81g desselben Metalls", fr: "Volume de 81g du même métal" }, expression: "m₃/ρ", targetUnit: "cm³", formulaLatex: "V_3 = \\dfrac{m_3}{\\rho}" },
+      { title: { en: "Mass of volume V₂ of the same metal", ja: "体積 V₂ の質量", es: "Masa del volumen V₂ del mismo metal", "pt-BR": "Massa do volume V₂ do mesmo metal", de: "Masse des Volumens V₂ desselben Metalls", fr: "Masse du volume V₂ du même métal" }, expression: "ρ*V₂", targetUnit: "g", formulaLatex: "m_2 = \\rho V_2" },
+      { title: { en: "Volume of mass m₃ of the same metal", ja: "質量 m₃ の体積", es: "Volumen de la masa m₃ del mismo metal", "pt-BR": "Volume da massa m₃ do mesmo metal", de: "Volumen der Masse m₃ desselben Metalls", fr: "Volume de la masse m₃ du même métal" }, expression: "m₃/ρ", targetUnit: "cm³", formulaLatex: "V_3 = \\dfrac{m_3}{\\rho}" },
     ],
   },
   {
@@ -164,8 +164,8 @@ export const SCIENCE_PRESSURE_SEEDS: NotebookSeed[] = [
       { symbol: "A₂", expression: "0.04m²" },
     ],
     steps: [
-      { title: { en: "Pressure P1 with a 0.01m² face", ja: "面積0.01m²のときの圧力 P1", es: "Presión P1 con una cara de 0,01m²", "pt-BR": "Pressão P1 com uma face de 0,01m²", de: "Druck P1 bei einer Fläche von 0,01m²", fr: "Pression P1 avec une face de 0,01m²" }, expression: "F/A₁", targetUnit: "Pa", formulaLatex: "P_1 = \\dfrac{F}{A_1}" },
-      { title: { en: "Pressure P2 with a 0.04m² face", ja: "面積0.04m²のときの圧力 P2", es: "Presión P2 con una cara de 0,04m²", "pt-BR": "Pressão P2 com uma face de 0,04m²", de: "Druck P2 bei einer Fläche von 0,04m²", fr: "Pression P2 avec une face de 0,04m²" }, expression: "F/A₂", targetUnit: "Pa", formulaLatex: "P_2 = \\dfrac{F}{A_2}" },
+      { title: { en: "Pressure P1 with a face of area A₁", ja: "面積 A₁ のときの圧力 P1", es: "Presión P1 con una cara de área A₁", "pt-BR": "Pressão P1 com uma face de área A₁", de: "Druck P1 bei einer Fläche von A₁", fr: "Pression P1 avec une face d'aire A₁" }, expression: "F/A₁", targetUnit: "Pa", formulaLatex: "P_1 = \\dfrac{F}{A_1}" },
+      { title: { en: "Pressure P2 with a face of area A₂", ja: "面積 A₂ のときの圧力 P2", es: "Presión P2 con una cara de área A₂", "pt-BR": "Pressão P2 com uma face de área A₂", de: "Druck P2 bei einer Fläche von A₂", fr: "Pression P2 avec une face d'aire A₂" }, expression: "F/A₂", targetUnit: "Pa", formulaLatex: "P_2 = \\dfrac{F}{A_2}" },
     ],
   },
   {
@@ -340,8 +340,8 @@ export const SCIENCE_ELECTRICITY_SEEDS: NotebookSeed[] = [
     ],
     steps: [
       { title: { en: "Resistance R", ja: "抵抗 R", es: "Resistencia R", "pt-BR": "Resistência R", de: "Widerstand R", fr: "Résistance R" }, expression: "V/I", targetUnit: "Ohm", formulaLatex: "R = \\dfrac{V}{I}", resultSymbol: "R" },
-      { title: { en: "Voltage V2 when the current is 0.5A", ja: "電流0.5Aのときの電圧 V2", es: "Voltaje V2 cuando la corriente es 0,5A", "pt-BR": "Tensão V2 quando a corrente é 0,5A", de: "Spannung V2 bei einer Stromstärke von 0,5A", fr: "Tension V2 lorsque le courant est de 0,5A" }, expression: "I₂*R", targetUnit: "V", formulaLatex: "V_2 = I_2 R" },
-      { title: { en: "Current I3 when the voltage is 15V", ja: "電圧15Vのときの電流 I3", es: "Corriente I3 cuando el voltaje es 15V", "pt-BR": "Corrente I3 quando a tensão é 15V", de: "Stromstärke I3 bei einer Spannung von 15V", fr: "Courant I3 lorsque la tension est de 15V" }, expression: "V₃/R", targetUnit: "A", formulaLatex: "I_3 = \\dfrac{V_3}{R}" },
+      { title: { en: "Voltage V2 when the current is I₂", ja: "電流 I₂ のときの電圧 V2", es: "Voltaje V2 cuando la corriente es I₂", "pt-BR": "Tensão V2 quando a corrente é I₂", de: "Spannung V2 bei einer Stromstärke von I₂", fr: "Tension V2 lorsque le courant vaut I₂" }, expression: "I₂*R", targetUnit: "V", formulaLatex: "V_2 = I_2 R" },
+      { title: { en: "Current I3 when the voltage is V₃", ja: "電圧 V₃ のときの電流 I3", es: "Corriente I3 cuando el voltaje es V₃", "pt-BR": "Corrente I3 quando a tensão é V₃", de: "Stromstärke I3 bei einer Spannung von V₃", fr: "Courant I3 lorsque la tension vaut V₃" }, expression: "V₃/R", targetUnit: "A", formulaLatex: "I_3 = \\dfrac{V_3}{R}" },
     ],
   },
   {
@@ -450,7 +450,7 @@ export const SCIENCE_EARTH_SEEDS: NotebookSeed[] = [
     ],
     steps: [
       { title: { en: "Humidity from vapor content", ja: "水蒸気量からの湿度", es: "Humedad a partir del vapor de agua", "pt-BR": "Umidade a partir do vapor de água", de: "Luftfeuchtigkeit aus dem Wasserdampfgehalt", fr: "Humidité à partir de la vapeur d'eau" }, expression: "a/aₛₐₜ", targetUnit: "%", formulaLatex: "RH = \\dfrac{a}{a_{sat}} \\times 100\\%" },
-      { title: { en: "Humidity from the dew point (20°C)", ja: "露点(20℃)からの湿度", es: "Humedad a partir del punto de rocío (20°C)", "pt-BR": "Umidade a partir do ponto de orvalho (20°C)", de: "Luftfeuchtigkeit aus dem Taupunkt (20°C)", fr: "Humidité à partir du point de rosée (20°C)" }, expression: "a_dew/aₛₐₜ", targetUnit: "%", formulaLatex: "RH = \\dfrac{a_{dew}}{a_{sat}} \\times 100\\%" },
+      { title: { en: "Humidity from the dew point", ja: "露点からの湿度", es: "Humedad a partir del punto de rocío", "pt-BR": "Umidade a partir do ponto de orvalho", de: "Luftfeuchtigkeit aus dem Taupunkt", fr: "Humidité à partir du point de rosée" }, expression: "a_dew/aₛₐₜ", targetUnit: "%", formulaLatex: "RH = \\dfrac{a_{dew}}{a_{sat}} \\times 100\\%" },
     ],
   },
   {
