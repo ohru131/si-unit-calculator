@@ -71,10 +71,24 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
   const { language } = useGlobalSettings();
   const copy = COPY[language];
   const [isPro, setIsPro] = useState(false);
-  const [isReady, setIsReady] = useState(false);
+  const [isNativeReady, setIsNativeReady] = useState(false);
   const [purchaseMessageKey, setPurchaseMessageKey] = useState<PurchaseMessageKey | null>(null);
-  const purchaseMessage = purchaseMessageKey ? copy[purchaseMessageKey] : null;
   const isNativePurchaseAvailable = Platform.OS === "ios" || Platform.OS === "android";
+  const platformKey = getPlatformKey();
+
+  // ネイティブ購入が使えない環境(Web)とSDKキーが未設定の環境では、そもそも初期化する余地が無い。
+  // どちらもPlatformと環境変数だけで決まる=レンダー時に分かるので、エフェクトの中で
+  // setStateせずに導出する（エフェクト内の同期setStateは余計な再レンダーを生むうえ、
+  // react-hooks/set-state-in-effect のlintエラーにもなる）。
+  const blockedReasonKey: PurchaseMessageKey | null = !isNativePurchaseAvailable
+    ? "purchaseStoreOnly"
+    : !platformKey
+      ? "revenueCatKeyMissing"
+      : null;
+  // 初期化する余地が無い環境では待つものが無いので、最初から準備完了として扱う。
+  const isReady = blockedReasonKey !== null ? true : isNativeReady;
+  // 購入操作などで設定されたメッセージを優先し、無ければ上記の「使えない理由」を出す。
+  const purchaseMessage = purchaseMessageKey ? copy[purchaseMessageKey] : blockedReasonKey ? copy[blockedReasonKey] : null;
 
   const refreshCustomerInfo = useCallback(async () => {
     const customerInfo = await Purchases.getCustomerInfo();
@@ -82,22 +96,12 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // 初期化する余地が無い環境（Web・SDKキー未設定）は blockedReasonKey で判別済みなので、
+    // ここでは何もしない。メッセージと準備完了状態はレンダー時に導出している。
+    if (blockedReasonKey !== null) return;
+    // blockedReasonKey が null ならキーは必ずある。型を絞るためだけのガード。
+    if (!platformKey) return;
     let active = true;
-    const key = getPlatformKey();
-    if (!isNativePurchaseAvailable) {
-      setPurchaseMessageKey("purchaseStoreOnly");
-      setIsReady(true);
-      return () => {
-        active = false;
-      };
-    }
-    if (!key) {
-      setPurchaseMessageKey("revenueCatKeyMissing");
-      setIsReady(true);
-      return () => {
-        active = false;
-      };
-    }
 
     // リスナーを名前付き関数として保持し、cleanupで確実に解除できるようにする
     // （匿名関数だと参照が残らず削除できず、再マウント・Strict Modeの2度実行で
@@ -110,16 +114,20 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
       try {
         if (__DEV__) Purchases.setLogLevel(LOG_LEVEL.DEBUG);
         if (!purchasesConfigured) {
-          Purchases.configure({ apiKey: key });
+          Purchases.configure({ apiKey: platformKey });
           purchasesConfigured = true;
         }
         const customerInfo = await Purchases.getCustomerInfo();
-        if (active) setIsPro(hasProEntitlement(customerInfo));
+        // await を跨ぐ間にアンマウント（cleanup）が走っている可能性がある。
+        // その場合はリスナーを登録しない。登録してしまうと cleanup では解除できず、
+        // 消えた画面向けの更新が届き続ける。
+        if (!active) return;
+        setIsPro(hasProEntitlement(customerInfo));
         Purchases.addCustomerInfoUpdateListener(handleCustomerInfoUpdate);
       } catch {
         if (active) setPurchaseMessageKey("customerInfoFetchFailed");
       } finally {
-        if (active) setIsReady(true);
+        if (active) setIsNativeReady(true);
       }
     };
     void configure();
@@ -127,7 +135,7 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
       active = false;
       Purchases.removeCustomerInfoUpdateListener(handleCustomerInfoUpdate);
     };
-  }, [isNativePurchaseAvailable]);
+  }, [blockedReasonKey, platformKey]);
 
   const presentPaywall = useCallback(async () => {
     if (!isNativePurchaseAvailable) {
