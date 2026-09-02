@@ -14,6 +14,7 @@ import { UNIT_GROUPS } from "@/lib/units";
 // featuresが[title, detail]の配列を持つため、値はstringに揃えられない。
 // キーの集合と各値のシグネチャを揃えるためtypeof EN_COPYで言語ごとの形を要求する。
 const EN_COPY = {
+  heroEyebrowActive: "PRO ACTIVE", heroEyebrowUpgrade: "UNIT CALCULATOR PRO",
   heroTitleActive: "You're on Pro", heroTitleUpgrade: "Calculate with more freedom.",
   heroTextActive: "All Pro features are enabled.", heroTextUpgrade: "History, custom unit sets, and exports — everything for serious work, in one place.",
   features: [
@@ -31,6 +32,7 @@ const EN_COPY = {
 const COPY: Record<AppLanguage, typeof EN_COPY> = {
   en: EN_COPY,
   ja: {
+    heroEyebrowActive: "PRO 利用中", heroEyebrowUpgrade: "単位付き電卓 PRO",
     heroTitleActive: "Proをご利用中です", heroTitleUpgrade: "計算を、もっと自在に。",
     heroTextActive: "Pro機能がすべて有効です。", heroTextUpgrade: "専門作業に必要な履歴・単位セット・エクスポートをひとつに。",
     features: [
@@ -61,7 +63,7 @@ export default function ProScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
           <View style={styles.heroIcon}><IconSymbol name="crown.fill" size={32} color={colors.onPrimary} /></View>
-          <Text style={styles.heroEyebrow}>{isPro ? "PRO ACTIVE" : "UNIT CALCULATOR PRO"}</Text>
+          <Text style={styles.heroEyebrow}>{isPro ? copy.heroEyebrowActive : copy.heroEyebrowUpgrade}</Text>
           <Text style={styles.heroTitle}>{isPro ? copy.heroTitleActive : copy.heroTitleUpgrade}</Text>
           <Text style={styles.heroText}>{isPro ? copy.heroTextActive : copy.heroTextUpgrade}</Text>
         </View>

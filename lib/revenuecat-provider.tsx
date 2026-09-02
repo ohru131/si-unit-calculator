@@ -46,6 +46,17 @@ type ProContextValue = {
 
 const ProContext = createContext<ProContextValue | null>(null);
 
+// 購入メッセージはCOPYのキーで状態に持ち、表示直前にcopy[key]へ解決する。
+// 翻訳済み文字列そのものをstateに入れると、エフェクトやコールバックの
+// 依存配列にcopy（言語切替のたびに参照が変わる）を含める必要が生まれてしまう。
+type PurchaseMessageKey = keyof typeof EN_COPY;
+
+// Purchases.configure() は多重に呼ぶとSDK内部の状態がリセットされうるため、
+// モジュールスコープのフラグで一度きりの実行を保証する。依存配列からcopyを
+// 外せば言語切替では再実行されなくなるが、React 18のStrict Mode（開発時）は
+// マウント時にエフェクトを2回実行するため、保険として入れておく。
+let purchasesConfigured = false;
+
 function getPlatformKey() {
   if (Platform.OS === "ios") return process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
   if (Platform.OS === "android") return process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY;
@@ -61,7 +72,8 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
   const copy = COPY[language];
   const [isPro, setIsPro] = useState(false);
   const [isReady, setIsReady] = useState(false);
-  const [purchaseMessage, setPurchaseMessage] = useState<string | null>(null);
+  const [purchaseMessageKey, setPurchaseMessageKey] = useState<PurchaseMessageKey | null>(null);
+  const purchaseMessage = purchaseMessageKey ? copy[purchaseMessageKey] : null;
   const isNativePurchaseAvailable = Platform.OS === "ios" || Platform.OS === "android";
 
   const refreshCustomerInfo = useCallback(async () => {
@@ -73,31 +85,39 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
     let active = true;
     const key = getPlatformKey();
     if (!isNativePurchaseAvailable) {
-      setPurchaseMessage(copy.purchaseStoreOnly);
+      setPurchaseMessageKey("purchaseStoreOnly");
       setIsReady(true);
       return () => {
         active = false;
       };
     }
     if (!key) {
-      setPurchaseMessage(copy.revenueCatKeyMissing);
+      setPurchaseMessageKey("revenueCatKeyMissing");
       setIsReady(true);
       return () => {
         active = false;
       };
     }
 
+    // リスナーを名前付き関数として保持し、cleanupで確実に解除できるようにする
+    // （匿名関数だと参照が残らず削除できず、再マウント・Strict Modeの2度実行で
+    // リスナーが積み重なってしまう）。
+    const handleCustomerInfoUpdate = (updatedInfo: CustomerInfo) => {
+      if (active) setIsPro(hasProEntitlement(updatedInfo));
+    };
+
     const configure = async () => {
       try {
         if (__DEV__) Purchases.setLogLevel(LOG_LEVEL.DEBUG);
-        Purchases.configure({ apiKey: key });
+        if (!purchasesConfigured) {
+          Purchases.configure({ apiKey: key });
+          purchasesConfigured = true;
+        }
         const customerInfo = await Purchases.getCustomerInfo();
         if (active) setIsPro(hasProEntitlement(customerInfo));
-        Purchases.addCustomerInfoUpdateListener((updatedInfo) => {
-          if (active) setIsPro(hasProEntitlement(updatedInfo));
-        });
+        Purchases.addCustomerInfoUpdateListener(handleCustomerInfoUpdate);
       } catch {
-        if (active) setPurchaseMessage(copy.customerInfoFetchFailed);
+        if (active) setPurchaseMessageKey("customerInfoFetchFailed");
       } finally {
         if (active) setIsReady(true);
       }
@@ -105,37 +125,38 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
     void configure();
     return () => {
       active = false;
+      Purchases.removeCustomerInfoUpdateListener(handleCustomerInfoUpdate);
     };
-  }, [copy, isNativePurchaseAvailable]);
+  }, [isNativePurchaseAvailable]);
 
   const presentPaywall = useCallback(async () => {
     if (!isNativePurchaseAvailable) {
-      setPurchaseMessage(copy.proUpgradeStoreOnly);
+      setPurchaseMessageKey("proUpgradeStoreOnly");
       return;
     }
     try {
-      setPurchaseMessage(null);
+      setPurchaseMessageKey(null);
       await RevenueCatUI.presentPaywallIfNeeded({ requiredEntitlementIdentifier: PRO_ENTITLEMENT_IDENTIFIER });
       await refreshCustomerInfo();
     } catch {
-      setPurchaseMessage(copy.paywallOpenFailed);
+      setPurchaseMessageKey("paywallOpenFailed");
     }
-  }, [copy, isNativePurchaseAvailable, refreshCustomerInfo]);
+  }, [isNativePurchaseAvailable, refreshCustomerInfo]);
 
   const restorePurchases = useCallback(async () => {
     if (!isNativePurchaseAvailable) {
-      setPurchaseMessage(copy.restoreStoreOnly);
+      setPurchaseMessageKey("restoreStoreOnly");
       return;
     }
     try {
-      setPurchaseMessage(null);
+      setPurchaseMessageKey(null);
       const customerInfo = await Purchases.restorePurchases();
       setIsPro(hasProEntitlement(customerInfo));
-      setPurchaseMessage(hasProEntitlement(customerInfo) ? copy.proRestored : copy.noRestorablePurchase);
+      setPurchaseMessageKey(hasProEntitlement(customerInfo) ? "proRestored" : "noRestorablePurchase");
     } catch {
-      setPurchaseMessage(copy.restoreFailed);
+      setPurchaseMessageKey("restoreFailed");
     }
-  }, [copy, isNativePurchaseAvailable]);
+  }, [isNativePurchaseAvailable]);
 
   const value = useMemo(
     () => ({ isPro, isReady, isNativePurchaseAvailable, purchaseMessage, presentPaywall, restorePurchases }),

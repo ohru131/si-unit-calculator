@@ -193,12 +193,16 @@ export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.setItem(ONBOARDING_SEEN_KEY, "true");
   }, []);
 
-  // 端末のlanguageTagが選択中の言語と同じ言語コードで始まる場合はそれをそのまま使う
+  // 端末のlanguageTagが選択中の言語と同じ言語コードなら、それをそのまま使う
   // （例: 選択言語が"en"で端末が"en-GB"/"en-AU"なら地域差のある実際のタグを尊重する）。
   // 一致しない場合はLANGUAGE_METAのデフォルトロケールにフォールバックする。
+  // 比較は必ず「両側の言語コード部分」で行う。選択言語側にも pt-BR のように地域が付くことが
+  // あるため、選択言語をそのまま比べると pt-BR を選んだ端末の pt-PT / pt-BR が一致せず、
+  // 数値の地域差(小数点・桁区切り)が既定ロケールに落ちてしまう。
   const deviceLanguageTag = deviceLocale?.languageTag;
   const deviceLanguageCode = deviceLanguageTag?.split("-")[0]?.toLowerCase();
-  const locale = deviceLanguageTag && deviceLanguageCode === language ? deviceLanguageTag : LANGUAGE_META[language].locale;
+  const selectedLanguageCode = language.split("-")[0].toLowerCase();
+  const locale = deviceLanguageTag && deviceLanguageCode === selectedLanguageCode ? deviceLanguageTag : LANGUAGE_META[language].locale;
   const value = useMemo<GlobalSettings>(() => ({
     language,
     locale,

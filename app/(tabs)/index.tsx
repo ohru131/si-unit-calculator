@@ -540,7 +540,12 @@ export default function CalculatorScreen() {
       setShowInlineUnitSearch(true);
       setTimeout(() => inlineUnitSearchRef.current?.focus(), 250);
     }
-  }, [copy, language, quick]);
+    // 使い終わったルートパラメータは消す。消さないと画面に残り続け、
+    // 言語切替などでこのエフェクトが再実行されたときに入力途中の式を上書きしてしまう。
+    // 適用済みフラグで抑える手もあるが、それだと同じクイックアクションを2回タップしても
+    // 2回目が無視されてしまう。
+    router.setParams({ quick: undefined });
+  }, [copy, language, quick, router]);
 
   useEffect(() => {
     const nextExpression = Array.isArray(presetExpression) ? presetExpression[0] : presetExpression;
@@ -553,7 +558,9 @@ export default function CalculatorScreen() {
     setFixSelection(null);
     setError("");
     setNotice(copy.savedItemLoaded);
-  }, [copy, language, presetExpression, presetUnit]);
+    // quick と同じ理由でルートパラメータを消す。
+    router.setParams({ presetExpression: undefined, presetUnit: undefined });
+  }, [copy, language, presetExpression, presetUnit, router]);
 
   const applySample = (sample: SampleCalculation) => {
     const sampleTargetUnit = targetUnitForSample(sample);
