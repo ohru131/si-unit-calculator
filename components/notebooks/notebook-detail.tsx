@@ -20,6 +20,7 @@ type Props = {
   unitSystem: UnitSystem;
   measuringStandard: MeasuringStandard;
   notebook: CalculationNotebook;
+  categoryLabel: string;
   globalConstants: SavedConstant[];
   onBack: () => void;
   onEdit: () => void;
@@ -27,7 +28,7 @@ type Props = {
   onSaveValues: (localConstants: NotebookLocalConstant[], steps: CalculationNoteStep[]) => Promise<void>;
 };
 
-export function NotebookDetail({ language, locale, unitSystem, measuringStandard, notebook, globalConstants, onBack, onEdit, onTogglePinned, onSaveValues }: Props) {
+export function NotebookDetail({ language, locale, unitSystem, measuringStandard, notebook, categoryLabel, globalConstants, onBack, onEdit, onTogglePinned, onSaveValues }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [editableConstants, setEditableConstants] = useState<NotebookLocalConstant[]>(() => notebook.localConstants.map((item) => ({ ...item })));
@@ -232,223 +233,237 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     );
   };
 
-  return (
-    <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.container}>
-      <Pressable onPress={onBack} style={({ pressed }) => [styles.backRow, pressed && styles.pressed]}>
-        <IconSymbol name="chevron.left" size={16} color={colors.primary} />
-        <Text style={styles.backLabel}>{language === "en" ? "Back" : "戻る"}</Text>
-      </Pressable>
+  // 戻る先のカテゴリ名が空になることは基本無いが、propsの契約上は空文字も来うるため
+  // 「戻る」ラベルへフォールバックする（呼び出し側のcategoryLabel()は常に非空を返す）。
+  const backLabel = categoryLabel || (language === "en" ? "Back" : "戻る");
 
-      <View style={styles.header}>
-        <View style={styles.headerMain}>
-          <Text style={styles.title}>{notebook.title}</Text>
-          {notebook.description ? <Text style={styles.description}>{notebook.description}</Text> : null}
-        </View>
-        <View style={styles.headerActions}>
-          <Pressable accessibilityLabel={notebook.pinned ? copy.unpin : copy.pin} onPress={onTogglePinned} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
-            <IconSymbol name="pin.fill" size={16} color={notebook.pinned ? colors.primary : colors.muted} />
+  return (
+    <View style={styles.root}>
+      <View style={styles.stickyHeader}>
+        <View style={styles.stickyTopRow}>
+          <Pressable onPress={onBack} style={({ pressed }) => [styles.backRow, pressed && styles.pressed]}>
+            <IconSymbol name="chevron.left" size={16} color={colors.primary} />
+            <Text numberOfLines={1} style={styles.backLabel}>{backLabel}</Text>
           </Pressable>
-          <Pressable accessibilityLabel={copy.edit} onPress={onEdit} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
-            <IconSymbol name="pencil" size={16} color={colors.primary} />
-          </Pressable>
+          <View style={styles.headerActions}>
+            <Pressable accessibilityLabel={notebook.pinned ? copy.unpin : copy.pin} onPress={onTogglePinned} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
+              <IconSymbol name="pin.fill" size={16} color={notebook.pinned ? colors.primary : colors.muted} />
+            </Pressable>
+            <Pressable accessibilityLabel={copy.edit} onPress={onEdit} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
+              <IconSymbol name="pencil" size={16} color={colors.primary} />
+            </Pressable>
+          </View>
         </View>
+        <Text numberOfLines={1} style={styles.stickyTitle}>{notebook.title}</Text>
       </View>
 
+      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.container}>
+        {notebook.description ? <Text style={styles.description}>{notebook.description}</Text> : null}
+
+        {notebook.formulas.length ? (
+          <>
+            <Text style={styles.sectionLabel}>{copy.formulas}</Text>
+            <View style={styles.formulaCard}>
+              {notebook.formulas.map((formula) => (
+                <View key={formula.id} style={styles.formulaRow}>
+                  {formula.explanation ? <Text style={styles.formulaExplanation}>{formula.explanation}</Text> : null}
+                  <LatexView latex={formula.latex} color={colors.foreground} fontSize={15} displayMode={false} />
+                </View>
+              ))}
+            </View>
+          </>
+        ) : notebook.steps.some((step) => step.formulaLatex) ? (
+          <>
+            <Text style={styles.sectionLabel}>{copy.formulas}</Text>
+            <View style={styles.formulaCard}>
+              {notebook.steps.map((step) =>
+                step.formulaLatex ? (
+                  <View key={step.id} style={styles.formulaRow}>
+                    <LatexView latex={step.formulaLatex} color={colors.foreground} fontSize={15} displayMode={false} />
+                  </View>
+                ) : null,
+              )}
+            </View>
+          </>
+        ) : null}
+
+        <Text style={styles.sectionLabel}>{copy.inputs}</Text>
+        {notebook.localConstants.length ? (
+          <View style={styles.inputCard}>
+            {editableConstants.map((item, constantIndex) => {
+              const inputUnits = compatibleUnitsFor(resolvedBySymbol.get(item.symbol.trim())?.quantity);
+              const railKey = constantFieldKey(item.id);
+              const isRailForced = forcedSelection?.key === railKey;
+              return (
+                <View key={item.id} style={styles.inputRow}>
+                  <TextInput
+                    value={formatNameValue(item.symbol, item.expression)}
+                    onChangeText={(text) => {
+                      const { name, value } = parseNameValue(text);
+                      updateConstant(item.id, { symbol: name, expression: value });
+                      setForcedSelection((current) => (current?.key === railKey ? null : current));
+                    }}
+                    onFocus={() => setFocusedRailKey(railKey)}
+                    onBlur={() => scheduleRailBlur(railKey)}
+                    onSelectionChange={(event) => handleSelectionChange(railKey, event.nativeEvent.selection)}
+                    selection={isRailForced ? forcedSelection.selection : undefined}
+                    editable={!isSaving}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    style={[styles.inputField, errors[item.id] && styles.inputFieldError]}
+                  />
+                  {renderConstantsRail(railKey, getLocalConstantFieldSuggestions(editableConstants, globalConstants, constantIndex), (symbol) =>
+                    insertSymbolIntoField(railKey, item.symbol, item.expression, symbol, (nextExpression) => updateConstant(item.id, { expression: nextExpression })),
+                  )}
+                  {inputUnits.length ? (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.unitRail}>
+                      {inputUnits.map((unitOption) => (
+                        <Pressable
+                          key={unitOption.symbol}
+                          disabled={isSaving}
+                          onPress={() => insertUnitIntoField(railKey, item.symbol, item.expression, unitOption.symbol, (nextExpression) => updateConstant(item.id, { expression: nextExpression }))}
+                          style={({ pressed }) => [styles.unitChip, pressed && styles.pressed]}
+                        >
+                          <Text style={styles.unitChipText}>{unitOption.label}</Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  ) : null}
+                  {errors[item.id] ? <Text numberOfLines={1} style={styles.inputError}>{errors[item.id]}</Text> : null}
+                </View>
+              );
+            })}
+          </View>
+        ) : (
+          <Text style={styles.emptyHint}>{copy.noInputs}</Text>
+        )}
+
+        <Text style={styles.sectionLabel}>{copy.results}</Text>
+        {stepResults.length ? (
+          <View style={styles.resultsList}>
+            {stepResults.map((result, index) => {
+              const isFinalStep = index === stepResults.length - 1;
+              const overrideUnit = unitOverrides[result.step.id];
+              const compatibleUnits = compatibleUnitsFor(result.quantity);
+              let displayValue = result.formatted;
+              let displayError = result.error;
+              if (result.quantity && overrideUnit !== undefined) {
+                if (overrideUnit === "") {
+                  displayValue = result.siFallback;
+                  displayError = undefined;
+                } else {
+                  try {
+                    displayValue = formatQuantity(result.quantity, overrideUnit, locale);
+                    displayError = undefined;
+                  } catch (cause) {
+                    displayValue = result.siFallback;
+                    displayError = cause instanceof Error ? cause.message : displayError;
+                  }
+                }
+              }
+              const effectiveUnit = overrideUnit ?? result.step.targetUnit.trim();
+              if (displayValue && effectiveUnit) {
+                const label = compatibleUnits.find((unitOption) => unitOption.symbol === effectiveUnit)?.label;
+                if (label && label !== effectiveUnit && displayValue.endsWith(effectiveUnit)) {
+                  displayValue = `${displayValue.slice(0, -effectiveUnit.length)}${label}`;
+                }
+              }
+              const stepRailKey = stepFieldKey(result.step.id);
+              return (
+                <View key={result.step.id} style={[styles.resultCard, isFinalStep && result.quantity ? styles.resultCardFinal : null]}>
+                  <TextInput
+                    value={formatNameValue(result.step.resultSymbol ?? "", result.step.expression)}
+                    onChangeText={(text) => {
+                      const { name, value } = parseNameValue(text);
+                      // 名前が無いとき（＝を付けていない通常の式）はtitleへ触れない。既存の表示用タイトルを空欄で上書きしないため。
+                      updateStepField(result.step.id, name ? { resultSymbol: name, title: name, expression: value } : { resultSymbol: undefined, expression: value });
+                      setForcedSelection((current) => (current?.key === stepRailKey ? null : current));
+                    }}
+                    onFocus={() => setFocusedRailKey(stepRailKey)}
+                    onBlur={() => scheduleRailBlur(stepRailKey)}
+                    onSelectionChange={(event) => handleSelectionChange(stepRailKey, event.nativeEvent.selection)}
+                    selection={forcedSelection?.key === stepRailKey ? forcedSelection.selection : undefined}
+                    editable={!isSaving}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    style={styles.resultExpressionInput}
+                  />
+                  {renderConstantsRail(stepRailKey, getStepFieldSuggestions(editableConstants, globalConstants, editableSteps, index), (symbol) =>
+                    insertSymbolIntoField(stepRailKey, result.step.resultSymbol ?? "", result.step.expression, symbol, (nextExpression) =>
+                      updateStepField(result.step.id, { expression: nextExpression }),
+                    ),
+                  )}
+                  <View style={styles.resultHeader}>
+                    <View style={styles.resultHeaderMain}>
+                      {isFinalStep && result.quantity ? <Text style={styles.finalBadge}>{copy.finalResult}</Text> : null}
+                      <Text style={styles.resultTitle}>{result.step.title}</Text>
+                    </View>
+                    {displayValue ? (
+                      <Pressable accessibilityLabel={copy.copy} onPress={() => void copyResult(result.step.title, displayValue!)} style={({ pressed }) => [styles.copyButton, pressed && styles.pressed]}>
+                        <IconSymbol name="doc.on.doc" size={14} color={colors.primary} />
+                      </Pressable>
+                    ) : null}
+                  </View>
+                  {displayError && !displayValue ? (
+                    <Text style={styles.resultError}>{displayError}</Text>
+                  ) : (
+                    <>
+                      <Text numberOfLines={2} adjustsFontSizeToFit style={styles.resultValue}>{displayValue}</Text>
+                      {displayError ? <Text style={styles.resultWarning}>{displayError}</Text> : null}
+                    </>
+                  )}
+                  {compatibleUnits.length ? (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.unitRail}>
+                      <Pressable onPress={() => setUnitOverrides((current) => ({ ...current, [result.step.id]: "" }))} style={({ pressed }) => [styles.unitChip, !effectiveUnit && styles.unitChipActive, pressed && styles.pressed]}>
+                        <Text style={[styles.unitChipText, !effectiveUnit && styles.unitChipTextActive]}>{copy.si}</Text>
+                      </Pressable>
+                      {compatibleUnits.map((unitOption) => (
+                        <Pressable key={unitOption.symbol} onPress={() => setUnitOverrides((current) => ({ ...current, [result.step.id]: unitOption.symbol }))} style={({ pressed }) => [styles.unitChip, effectiveUnit === unitOption.symbol && styles.unitChipActive, pressed && styles.pressed]}>
+                          <Text style={[styles.unitChipText, effectiveUnit === unitOption.symbol && styles.unitChipTextActive]}>{unitOption.label}</Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  ) : null}
+                  {!isFinalStep && result.quantity ? <Text style={styles.resultReferenceHint}>{copy.referenceHint.replace("{symbol}", result.symbol)}</Text> : null}
+                </View>
+              );
+            })}
+          </View>
+        ) : (
+          <Text style={styles.emptyHint}>{copy.noSteps}</Text>
+        )}
+      </ScrollView>
+
       {isDirty ? (
-        <>
+        <View style={styles.saveFooter}>
           <Pressable disabled={isSaving} onPress={() => void handleSave()} style={({ pressed }) => [styles.saveBar, (pressed || isSaving) && styles.pressed]}>
             <Text style={styles.saveBarText}>{copy.save}</Text>
           </Pressable>
           {saveError ? <Text style={styles.saveErrorText}>{saveError}</Text> : null}
-        </>
-      ) : null}
-
-      {notebook.formulas.length ? (
-        <>
-          <Text style={styles.sectionLabel}>{copy.formulas}</Text>
-          <View style={styles.formulaCard}>
-            {notebook.formulas.map((formula) => (
-              <View key={formula.id} style={styles.formulaRow}>
-                {formula.explanation ? <Text style={styles.formulaExplanation}>{formula.explanation}</Text> : null}
-                <LatexView latex={formula.latex} color={colors.foreground} fontSize={15} displayMode={false} />
-              </View>
-            ))}
-          </View>
-        </>
-      ) : notebook.steps.some((step) => step.formulaLatex) ? (
-        <>
-          <Text style={styles.sectionLabel}>{copy.formulas}</Text>
-          <View style={styles.formulaCard}>
-            {notebook.steps.map((step) =>
-              step.formulaLatex ? (
-                <View key={step.id} style={styles.formulaRow}>
-                  <LatexView latex={step.formulaLatex} color={colors.foreground} fontSize={15} displayMode={false} />
-                </View>
-              ) : null,
-            )}
-          </View>
-        </>
-      ) : null}
-
-      <Text style={styles.sectionLabel}>{copy.inputs}</Text>
-      {notebook.localConstants.length ? (
-        <View style={styles.inputCard}>
-          {editableConstants.map((item, constantIndex) => {
-            const inputUnits = compatibleUnitsFor(resolvedBySymbol.get(item.symbol.trim())?.quantity);
-            const railKey = constantFieldKey(item.id);
-            const isRailForced = forcedSelection?.key === railKey;
-            return (
-              <View key={item.id} style={styles.inputRow}>
-                <TextInput
-                  value={formatNameValue(item.symbol, item.expression)}
-                  onChangeText={(text) => {
-                    const { name, value } = parseNameValue(text);
-                    updateConstant(item.id, { symbol: name, expression: value });
-                    setForcedSelection((current) => (current?.key === railKey ? null : current));
-                  }}
-                  onFocus={() => setFocusedRailKey(railKey)}
-                  onBlur={() => scheduleRailBlur(railKey)}
-                  onSelectionChange={(event) => handleSelectionChange(railKey, event.nativeEvent.selection)}
-                  selection={isRailForced ? forcedSelection.selection : undefined}
-                  editable={!isSaving}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  style={[styles.inputField, errors[item.id] && styles.inputFieldError]}
-                />
-                {renderConstantsRail(railKey, getLocalConstantFieldSuggestions(editableConstants, globalConstants, constantIndex), (symbol) =>
-                  insertSymbolIntoField(railKey, item.symbol, item.expression, symbol, (nextExpression) => updateConstant(item.id, { expression: nextExpression })),
-                )}
-                {inputUnits.length ? (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.unitRail}>
-                    {inputUnits.map((unitOption) => (
-                      <Pressable
-                        key={unitOption.symbol}
-                        disabled={isSaving}
-                        onPress={() => insertUnitIntoField(railKey, item.symbol, item.expression, unitOption.symbol, (nextExpression) => updateConstant(item.id, { expression: nextExpression }))}
-                        style={({ pressed }) => [styles.unitChip, pressed && styles.pressed]}
-                      >
-                        <Text style={styles.unitChipText}>{unitOption.label}</Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                ) : null}
-                {errors[item.id] ? <Text numberOfLines={1} style={styles.inputError}>{errors[item.id]}</Text> : null}
-              </View>
-            );
-          })}
         </View>
-      ) : (
-        <Text style={styles.emptyHint}>{copy.noInputs}</Text>
-      )}
-
-      <Text style={styles.sectionLabel}>{copy.results}</Text>
-      {stepResults.length ? (
-        <View style={styles.resultsList}>
-          {stepResults.map((result, index) => {
-            const isFinalStep = index === stepResults.length - 1;
-            const overrideUnit = unitOverrides[result.step.id];
-            const compatibleUnits = compatibleUnitsFor(result.quantity);
-            let displayValue = result.formatted;
-            let displayError = result.error;
-            if (result.quantity && overrideUnit !== undefined) {
-              if (overrideUnit === "") {
-                displayValue = result.siFallback;
-                displayError = undefined;
-              } else {
-                try {
-                  displayValue = formatQuantity(result.quantity, overrideUnit, locale);
-                  displayError = undefined;
-                } catch (cause) {
-                  displayValue = result.siFallback;
-                  displayError = cause instanceof Error ? cause.message : displayError;
-                }
-              }
-            }
-            const effectiveUnit = overrideUnit ?? result.step.targetUnit.trim();
-            if (displayValue && effectiveUnit) {
-              const label = compatibleUnits.find((unitOption) => unitOption.symbol === effectiveUnit)?.label;
-              if (label && label !== effectiveUnit && displayValue.endsWith(effectiveUnit)) {
-                displayValue = `${displayValue.slice(0, -effectiveUnit.length)}${label}`;
-              }
-            }
-            const stepRailKey = stepFieldKey(result.step.id);
-            return (
-              <View key={result.step.id} style={[styles.resultCard, isFinalStep && result.quantity ? styles.resultCardFinal : null]}>
-                <TextInput
-                  value={formatNameValue(result.step.resultSymbol ?? "", result.step.expression)}
-                  onChangeText={(text) => {
-                    const { name, value } = parseNameValue(text);
-                    // 名前が無いとき（＝を付けていない通常の式）はtitleへ触れない。既存の表示用タイトルを空欄で上書きしないため。
-                    updateStepField(result.step.id, name ? { resultSymbol: name, title: name, expression: value } : { resultSymbol: undefined, expression: value });
-                    setForcedSelection((current) => (current?.key === stepRailKey ? null : current));
-                  }}
-                  onFocus={() => setFocusedRailKey(stepRailKey)}
-                  onBlur={() => scheduleRailBlur(stepRailKey)}
-                  onSelectionChange={(event) => handleSelectionChange(stepRailKey, event.nativeEvent.selection)}
-                  selection={forcedSelection?.key === stepRailKey ? forcedSelection.selection : undefined}
-                  editable={!isSaving}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  style={styles.resultExpressionInput}
-                />
-                {renderConstantsRail(stepRailKey, getStepFieldSuggestions(editableConstants, globalConstants, editableSteps, index), (symbol) =>
-                  insertSymbolIntoField(stepRailKey, result.step.resultSymbol ?? "", result.step.expression, symbol, (nextExpression) =>
-                    updateStepField(result.step.id, { expression: nextExpression }),
-                  ),
-                )}
-                <View style={styles.resultHeader}>
-                  <View style={styles.resultHeaderMain}>
-                    {isFinalStep && result.quantity ? <Text style={styles.finalBadge}>{copy.finalResult}</Text> : null}
-                    <Text style={styles.resultTitle}>{result.step.title}</Text>
-                  </View>
-                  {displayValue ? (
-                    <Pressable accessibilityLabel={copy.copy} onPress={() => void copyResult(result.step.title, displayValue!)} style={({ pressed }) => [styles.copyButton, pressed && styles.pressed]}>
-                      <IconSymbol name="doc.on.doc" size={14} color={colors.primary} />
-                    </Pressable>
-                  ) : null}
-                </View>
-                {displayError && !displayValue ? (
-                  <Text style={styles.resultError}>{displayError}</Text>
-                ) : (
-                  <>
-                    <Text numberOfLines={2} adjustsFontSizeToFit style={styles.resultValue}>{displayValue}</Text>
-                    {displayError ? <Text style={styles.resultWarning}>{displayError}</Text> : null}
-                  </>
-                )}
-                {compatibleUnits.length ? (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.unitRail}>
-                    <Pressable onPress={() => setUnitOverrides((current) => ({ ...current, [result.step.id]: "" }))} style={({ pressed }) => [styles.unitChip, !effectiveUnit && styles.unitChipActive, pressed && styles.pressed]}>
-                      <Text style={[styles.unitChipText, !effectiveUnit && styles.unitChipTextActive]}>{copy.si}</Text>
-                    </Pressable>
-                    {compatibleUnits.map((unitOption) => (
-                      <Pressable key={unitOption.symbol} onPress={() => setUnitOverrides((current) => ({ ...current, [result.step.id]: unitOption.symbol }))} style={({ pressed }) => [styles.unitChip, effectiveUnit === unitOption.symbol && styles.unitChipActive, pressed && styles.pressed]}>
-                        <Text style={[styles.unitChipText, effectiveUnit === unitOption.symbol && styles.unitChipTextActive]}>{unitOption.label}</Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                ) : null}
-                {!isFinalStep && result.quantity ? <Text style={styles.resultReferenceHint}>{copy.referenceHint.replace("{symbol}", result.symbol)}</Text> : null}
-              </View>
-            );
-          })}
-        </View>
-      ) : (
-        <Text style={styles.emptyHint}>{copy.noSteps}</Text>
-      )}
-    </ScrollView>
+      ) : null}
+    </View>
   );
 }
 
 const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
-  container: { gap: 12, paddingBottom: 40 },
-  backRow: { alignItems: "center", flexDirection: "row", gap: 4 },
-  backLabel: { color: colors.primary, fontSize: 14, fontWeight: "800" },
-  header: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between" },
-  headerMain: { flex: 1, paddingRight: 10 },
-  title: { color: colors.foreground, fontSize: 21, fontWeight: "800" },
+  root: { flex: 1 },
+  // 戻る・タイトル・ピン留め/編集ボタンは常に押せる位置に留めるため、スクロール外の固定行にする。
+  // 端末幅が狭いと「戻る＋タイトル＋ボタン」を1行に詰めるとタイトルがほぼ読めなくなるため、
+  // 上段（戻る・ピン留め/編集）と下段（ノート名）の2段に分けて、どちらも省略されないようにする。
+  stickyHeader: { backgroundColor: colors.background, borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth, gap: 6, paddingBottom: 10, paddingTop: 4 },
+  stickyTopRow: { alignItems: "center", flexDirection: "row", gap: 10, justifyContent: "space-between" },
+  scroll: { flex: 1 },
+  container: { gap: 12, paddingBottom: 40, paddingTop: 12 },
+  backRow: { alignItems: "center", flexDirection: "row", flexShrink: 1, gap: 4 },
+  backLabel: { color: colors.primary, flexShrink: 1, fontSize: 14, fontWeight: "800" },
+  stickyTitle: { color: colors.foreground, fontSize: 16, fontWeight: "800" },
   description: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 4 },
   headerActions: { flexDirection: "row", gap: 8 },
   headerButton: { alignItems: "center", backgroundColor: colors.primarySurface, borderRadius: 18, height: 36, justifyContent: "center", width: 36 },
+  // isDirty時のみ表示される固定フッター。スクロール本文の外に置くことで、
+  // 下の方の値を編集してもボタンまでスクロールし直す必要がないようにする。
+  saveFooter: { backgroundColor: colors.background, borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth, paddingBottom: 14, paddingTop: 12 },
   saveBar: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 12, paddingVertical: 12 },
   saveBarText: { color: colors.onPrimary, fontSize: 14, fontWeight: "800" },
   saveErrorText: { color: colors.error, fontSize: 12, lineHeight: 17, marginTop: 4 },
