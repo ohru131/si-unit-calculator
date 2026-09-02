@@ -15,6 +15,7 @@ import {
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from "react-native-reanimated";
 
 import { CalculatorBannerAd } from "@/components/ads/calculator-banner-ad";
+import { NOTEBOOK_HISTORY_SHEET_COPY, NotebookHistorySheet } from "@/components/notebooks/notebook-history-sheet";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
@@ -26,6 +27,7 @@ import { exportCalculationHistory } from "@/lib/calculation-export";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { historyToAutoConstants } from "@/lib/history-auto-constants";
 import { localizedText, type AppLanguage } from "@/lib/i18n";
+import { resolveNotebookHistory } from "@/lib/notebook-history";
 import { getCalculatorQuickShortcut } from "@/lib/quick-shortcuts";
 import { usePro } from "@/lib/revenuecat-provider";
 import { unitErrorMessage } from "@/lib/unit-errors";
@@ -252,7 +254,7 @@ export default function CalculatorScreen() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { quick, presetExpression, presetUnit } = useLocalSearchParams<{ quick?: string | string[]; presetExpression?: string | string[]; presetUnit?: string | string[] }>();
-  const { constants, history, favoriteUnits, notebooks, upsertConstant, addHistoryEntry, clearHistory, isLoading: isHistoryLoading } = useCalculatorStore();
+  const { constants, history, favoriteUnits, notebooks, notebookCategories, notebookHistory, upsertConstant, addHistoryEntry, clearHistory, clearNotebookHistory, isLoading: isHistoryLoading } = useCalculatorStore();
   const { isPro } = usePro();
   const { completeOnboarding, hasSeenOnboarding, isReady, language, locale, measuringStandard, t, unitGroupLabel, unitSystem } = useGlobalSettings();
   const [onboardingStep, setOnboardingStep] = useState(0);
@@ -276,6 +278,7 @@ export default function CalculatorScreen() {
   const [showSamples, setShowSamples] = useState(false);
   const [showUnitPicker, setShowUnitPicker] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showNotebookHistory, setShowNotebookHistory] = useState(false);
   const [showAdvancedKeys, setShowAdvancedKeys] = useState(false);
   const [unitPickerMode, setUnitPickerMode] = useState<"insert" | "target">("insert");
   const [unitInfoSymbol, setUnitInfoSymbol] = useState<string | null>(null);
@@ -367,6 +370,8 @@ export default function CalculatorScreen() {
   const visibleSamples = useMemo(() => SAMPLE_CALCULATIONS.filter((sample) => sample.category === sampleCategory && isSampleCategoryVisible(sample.category, isAdvancedMode)), [isAdvancedMode, sampleCategory]);
   const visibleHistory = isPro ? history : history.slice(0, 5);
   const pinnedNotebooks = useMemo(() => notebooks.filter((notebook) => notebook.pinned), [notebooks]);
+  // 履歴シートに渡す突き合わせ結果は毎レンダー作り直すと(他の派生値と同様に)無駄な再計算になるためuseMemoでくるむ。
+  const resolvedNotebookHistory = useMemo(() => resolveNotebookHistory(notebookHistory, notebooks), [notebookHistory, notebooks]);
   const autoConstants = useMemo(() => historyToAutoConstants(history), [history]);
   const unitInfo = useMemo(() => getUnitExplanation(unitInfoSymbol ?? ""), [unitInfoSymbol]);
   const targetUnitRegistration = useMemo(() => getUnitRegistration(targetUnit), [targetUnit]);
@@ -763,6 +768,14 @@ export default function CalculatorScreen() {
     router.push({ pathname: "/constants", params: { openNotebookId: notebook.id } });
   };
 
+  // 履歴シートからの選択もopenPinnedNotebookと同じ遷移方法(openNotebookIdパラメータ)に揃える。
+  // シートは選択直後に自分で閉じないため、ここで明示的に閉じてから遷移する。
+  const openNotebookFromHistory = (notebookId: string) => {
+    setShowNotebookHistory(false);
+    void Haptics.selectionAsync();
+    router.push({ pathname: "/constants", params: { openNotebookId: notebookId } });
+  };
+
   const exportHistory = async () => {
     if (!isPro) {
       router.push("/pro");
@@ -1044,6 +1057,11 @@ export default function CalculatorScreen() {
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.toolRail} keyboardShouldPersistTaps="handled">
           <Pressable onPress={() => setShowSamples(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.samples}</Text></Pressable>
+          {/* ピン留めチップ列(常時ピン留めしたノートだけ)・履歴バー(計算結果の履歴)とは役割が別なので、
+              「最近開いたノート」を辿る入口はサンプル・数学と同じツールレールに置く。
+              件数が0でもボタン自体は隠さない(押すたびに出たり消えたりする方がかえって分かりにくいため)。
+              空のときはシート側の空状態表示に任せる。 */}
+          <Pressable onPress={() => setShowNotebookHistory(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{NOTEBOOK_HISTORY_SHEET_COPY[language].notebooksButton}</Text></Pressable>
           {isAdvancedMode ? <Pressable onPress={() => setShowAdvancedKeys(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.math}</Text></Pressable> : null}
         </ScrollView>
 
@@ -1160,6 +1178,16 @@ export default function CalculatorScreen() {
       <Modal visible={showHistory} transparent animationType="slide" onRequestClose={() => setShowHistory(false)}>
         <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><View style={styles.sheetHeaderMain}><Text style={styles.sheetTitle}>{copy.savedHistory}</Text><Text style={styles.sheetSubtitle}>{copy.historyHint}</Text></View><Pressable accessibilityLabel={copy.close} onPress={() => setShowHistory(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.historyActions}><Pressable onPress={() => void exportHistory()} style={({ pressed }) => [styles.exportHistoryButton, pressed && styles.pressed]}><IconSymbol name="square.and.arrow.up" size={15} color={colors.primary} /><Text style={styles.exportHistoryText}>CSV</Text></Pressable><Pressable onPress={() => void clearHistory()} style={({ pressed }) => [styles.clearHistoryButton, pressed && styles.pressed]}><Text style={styles.clearHistoryText}>{copy.clear}</Text></Pressable></View>{visibleHistory.length ? <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleHistory.map((entry, index) => <Pressable key={entry.id} onPress={() => { restoreHistory(entry); setShowHistory(false); }} style={({ pressed }) => [styles.historyRow, pressed && styles.cardPressed]}><View style={styles.historyExpressionWrap}><Text style={styles.historyAutoSymbol}>a{index + 1}</Text><Text numberOfLines={1} style={styles.historyExpression}>{entry.expression}</Text></View><Text numberOfLines={1} style={styles.historyResult}>{entry.resultText}</Text></Pressable>)}</ScrollView> : <View style={styles.emptyState}><IconSymbol name="clock" size={22} color={colors.muted} /><Text style={styles.emptyStateTitle}>{copy.noHistory}</Text><Text style={styles.emptyStateText}>{copy.noHistoryHint}</Text></View>}</View></View>
       </Modal>
+
+      <NotebookHistorySheet
+        visible={showNotebookHistory}
+        language={language}
+        entries={resolvedNotebookHistory}
+        notebookCategories={notebookCategories}
+        onSelect={openNotebookFromHistory}
+        onClear={() => void clearNotebookHistory()}
+        onClose={() => setShowNotebookHistory(false)}
+      />
 
       <Modal visible={showHelp} transparent animationType="fade" onRequestClose={() => setShowHelp(false)}>
         <View style={styles.helpBackdrop}>
