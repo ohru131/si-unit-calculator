@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { presetConstantExpression } from "../lib/calculator-store";
-import { APP_LANGUAGES } from "../lib/i18n";
+import { APP_LANGUAGES, AppLanguage } from "../lib/i18n";
 import { DEFAULT_PRESET_PRICE_CURRENCY, PRESET_PRICE_PROFILES, PresetPriceKind, resolvePresetPriceProfile } from "../lib/preset-price-defaults";
 
 // vi.mock は vitest が import より上にホイストするため、importの後に書いてよい。
@@ -46,10 +46,26 @@ describe("プリセットの金額の既定値", () => {
     expect(resolvePresetPriceProfile("KRW", "KR", "en")).toBe(PRESET_PRICE_PROFILES.USD);
   });
 
-  it("どの対応言語でもフォールバック先の通貨が表に存在する", () => {
-    // 言語を追加したときに、対応する通貨を表に足し忘れると既定値が壊れるので機械的に検出する。
-    const missing = APP_LANGUAGES.filter((language) => !resolvePresetPriceProfile(null, null, language));
-    expect(missing).toEqual([]);
+  it("どの対応言語でも意図した通貨にフォールバックする", () => {
+    // 言語→通貨の対応を足し忘れると、その言語は黙って DEFAULT_PRESET_PRICE_CURRENCY(USD) に
+    // 落ちる。戻り値が truthy かどうかだけを見ると必ず通ってしまう（この関数は最後に必ず
+    // USDを返すため）ので、言語ごとに「どの通貨になるべきか」を明示して突き合わせる。
+    // 言語を追加すると、この表に書き足すまで型エラーになる（＝チェックリストになる）。
+    const expected: Record<AppLanguage, keyof typeof PRESET_PRICE_PROFILES> = {
+      en: "USD",
+      ja: "JPY",
+      es: "EUR",
+      "pt-BR": "BRL",
+      de: "EUR",
+      fr: "EUR",
+    };
+    const wrong = APP_LANGUAGES.filter(
+      (language) => resolvePresetPriceProfile(null, null, language) !== PRESET_PRICE_PROFILES[expected[language]],
+    );
+    expect(wrong).toEqual([]);
+    // 上の表がUSD以外を指している言語は、対応漏れ（USDへの暗黙のフォールバック）と
+    // 区別できている必要がある。
+    expect(APP_LANGUAGES.filter((language) => expected[language] !== DEFAULT_PRESET_PRICE_CURRENCY).length).toBeGreaterThan(0);
     expect(PRESET_PRICE_PROFILES[DEFAULT_PRESET_PRICE_CURRENCY]).toBeDefined();
   });
 
