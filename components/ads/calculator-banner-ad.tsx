@@ -1,5 +1,6 @@
 import { useCallback, useRef } from "react";
 import { View } from "react-native";
+import type { PaidEvent } from "react-native-google-mobile-ads";
 import { BannerAd, BannerAdSize, TestIds } from "react-native-google-mobile-ads";
 
 import {
@@ -47,7 +48,7 @@ export function CalculatorBannerAd() {
     trackBannerFailedToLoad(BANNER_UNIT_ID);
   }, []);
 
-  const handlePaid = useCallback((event: { currency: string; precision: number; value: number }) => {
+  const handlePaid = useCallback((event: PaidEvent) => {
     trackBannerRevenue(BANNER_UNIT_ID, impressionIdRef.current, event);
   }, []);
 

@@ -1,3 +1,5 @@
+import type { PaidEvent } from "react-native-google-mobile-ads";
+import { RevenuePrecisions } from "react-native-google-mobile-ads";
 import Purchases, { AdFormat, AdMediatorName, AdRevenuePrecision } from "react-native-purchases";
 
 /**
@@ -7,13 +9,12 @@ import Purchases, { AdFormat, AdMediatorName, AdRevenuePrecision } from "react-n
  * https://www.revenuecat.com/docs/ad-monetization/admob
  */
 
-// AdMob (AdValue.PrecisionType: UNKNOWN=0, ESTIMATED=1, PUBLISHER_PROVIDED=2, PRECISE=3) を
-// RevenueCatのAdRevenuePrecision文字列へ変換する。
-const PRECISION_BY_ADMOB_CODE: Record<number, string> = {
-  0: AdRevenuePrecision.unknown,
-  1: AdRevenuePrecision.estimated,
-  2: AdRevenuePrecision.publisherDefined,
-  3: AdRevenuePrecision.exact,
+// react-native-google-mobile-adsのRevenuePrecisionsを、RevenueCatのAdRevenuePrecision文字列へ変換する。
+const PRECISION_BY_ADMOB_CODE: Record<RevenuePrecisions, string> = {
+  [RevenuePrecisions.UNKNOWN]: AdRevenuePrecision.unknown,
+  [RevenuePrecisions.ESTIMATED]: AdRevenuePrecision.estimated,
+  [RevenuePrecisions.PUBLISHER_PROVIDED]: AdRevenuePrecision.publisherDefined,
+  [RevenuePrecisions.PRECISE]: AdRevenuePrecision.exact,
 };
 
 export function createBannerImpressionId() {
@@ -45,11 +46,7 @@ export function trackBannerFailedToLoad(adUnitId: string) {
 }
 
 /** react-native-google-mobile-adsのonPaidイベント（valueは通貨単位の小数）をRevenueCatへ転送する。 */
-export function trackBannerRevenue(
-  adUnitId: string,
-  impressionId: string,
-  paid: { currency: string; precision: number; value: number },
-) {
+export function trackBannerRevenue(adUnitId: string, impressionId: string, paid: PaidEvent) {
   void Purchases.adTracker
     .trackAdRevenue({
       mediatorName: AdMediatorName.adMob,
