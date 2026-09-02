@@ -34,6 +34,9 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   const [unitOverrides, setUnitOverrides] = useState<Record<string, string>>({});
   const [saveError, setSaveError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  // フォーカス中は編集できるよう生の記号（英数字）を表示し、フォーカスが外れたら
+  // displaySymbol（数式と揃えたUnicode下付き文字、例："mₒ"）があればそちらを表示する。
+  const [focusedConstantId, setFocusedConstantId] = useState<string | null>(null);
 
   // notebook.localConstants / notebook.steps は編集シートで構成が変わることがあるため、
   // このコンポーネントが再マウントされずに新しいノートを受け取っても追従させる。
@@ -210,14 +213,22 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
         <View style={styles.inputCard}>
           {editableConstants.map((item) => {
             const inputUnits = compatibleUnitsFor(resolvedBySymbol.get(item.symbol.trim())?.quantity);
+            const isConstantFocused = focusedConstantId === item.id;
+            const displayName = !isConstantFocused && item.displaySymbol ? item.displaySymbol : item.symbol;
             return (
               <View key={item.id} style={styles.inputRow}>
                 <TextInput
-                  value={formatNameValue(item.symbol, item.expression)}
+                  value={formatNameValue(displayName, item.expression)}
                   onChangeText={(text) => {
                     const { name, value } = parseNameValue(text);
-                    updateConstant(item.id, { symbol: name, expression: value });
+                    // 記号そのものを書き換えたときは、数式と揃えていた表示用記号が
+                    // 古いままになってしまうので、生の記号にフォールバックさせる。
+                    const patch: Partial<NotebookLocalConstant> = { symbol: name, expression: value };
+                    if (item.displaySymbol && name !== item.symbol) patch.displaySymbol = undefined;
+                    updateConstant(item.id, patch);
                   }}
+                  onFocus={() => setFocusedConstantId(item.id)}
+                  onBlur={() => setFocusedConstantId((current) => (current === item.id ? null : current))}
                   editable={!isSaving}
                   autoCapitalize="none"
                   autoCorrect={false}
