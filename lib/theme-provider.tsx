@@ -36,9 +36,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     void AsyncStorage.setItem(THEME_PREFERENCE_KEY, preference);
   }, []);
 
-  const applyScheme = useCallback((scheme: ColorScheme) => {
+  const applyScheme = useCallback((scheme: ColorScheme, preference: ThemePreference) => {
     nativewindColorScheme.set(scheme);
-    Appearance.setColorScheme?.(scheme);
+    // "system"のときはOS側の値をそのまま上書き固定してしまわず、"unspecified"を渡して
+    // Appearanceにシステム追従を保たせる（そうしないと、後でOS側のテーマを切り替えても
+    // Appearance.getColorScheme()/useColorScheme()を直接参照する他のコード・ライブラリ側が
+    // 追従できなくなる）。ライト/ダークを明示選択したときだけ実際に固定する。
+    Appearance.setColorScheme?.(preference === "system" ? "unspecified" : scheme);
     if (typeof document !== "undefined") {
       const root = document.documentElement;
       root.dataset.theme = scheme;
@@ -56,14 +60,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const isFirstSchemeRender = useRef(true);
 
   useEffect(() => {
-    applyScheme(colorScheme);
+    applyScheme(colorScheme, themePreference);
     if (isFirstSchemeRender.current) {
       isFirstSchemeRender.current = false;
       return;
     }
     // eslint-disable-next-line react-hooks/immutability -- Reanimated shared value
     themeFade.value = withSequence(withTiming(0.4, { duration: 90 }), withTiming(1, { duration: 220 }));
-  }, [applyScheme, colorScheme, themeFade]);
+  }, [applyScheme, colorScheme, themeFade, themePreference]);
 
   const themeVariables = useMemo(
     () =>

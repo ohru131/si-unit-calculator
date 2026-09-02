@@ -44,7 +44,7 @@ export default function SettingsScreen() {
       <View style={styles.card}>
         <Text style={styles.label}>{t("theme")}</Text>
         <Text style={styles.description}>{t("themeHint")}</Text>
-        <View style={styles.options}>{themeOptions.map((option) => <Pressable accessibilityLabel={`${t("theme")}: ${option.label}`} key={option.id} onPress={() => setThemePreference(option.id)} style={({ pressed }) => [styles.option, themePreference === option.id && styles.optionActive, pressed && styles.pressed]}><Text style={[styles.optionText, themePreference === option.id && styles.optionTextActive]}>{option.label}</Text></Pressable>)}</View>
+        <View style={styles.options}>{themeOptions.map((option) => <Pressable accessibilityRole="radio" accessibilityState={{ selected: themePreference === option.id }} accessibilityLabel={`${t("theme")}: ${option.label}`} key={option.id} onPress={() => setThemePreference(option.id)} style={({ pressed }) => [styles.option, themePreference === option.id && styles.optionActive, pressed && styles.pressed]}><Text style={[styles.optionText, themePreference === option.id && styles.optionTextActive]}>{option.label}</Text></Pressable>)}</View>
       </View>
       {isAdsPlatformAvailable ? (
         <View style={styles.card}>

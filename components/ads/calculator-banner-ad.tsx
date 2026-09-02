@@ -8,10 +8,14 @@ const PRODUCTION_BANNER_UNIT_ID = process.env.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID;
 // Googleのテスト広告ユニットIDにフォールバックする。
 const BANNER_UNIT_ID = PRODUCTION_BANNER_UNIT_ID || TestIds.BANNER;
 
-/** フリープランのユーザーにのみ表示するバナー広告。Web版・Pro・広告なし解除コード適用時は何も描画しない。 */
+/**
+ * フリープランのユーザーにのみ表示するバナー広告。Web版・Pro・広告なし解除コード適用時は
+ * 何も描画しない。Pro状態・解除コードの復元が終わる（isReady）までは、広告なしユーザーへ
+ * 一瞬でも広告が出ないよう描画を待つ。
+ */
 export function CalculatorBannerAd() {
-  const { isAdsPlatformAvailable, adFree } = useAds();
-  if (!isAdsPlatformAvailable || adFree) return null;
+  const { isAdsPlatformAvailable, isReady, adFree } = useAds();
+  if (!isAdsPlatformAvailable || !isReady || adFree) return null;
 
   return (
     <View style={{ alignItems: "center", marginTop: 4 }}>
