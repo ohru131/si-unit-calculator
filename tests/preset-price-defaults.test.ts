@@ -35,6 +35,23 @@ describe("プリセットの金額の既定値", () => {
     expect(resolvePresetPriceProfile(null, "AT", "en")).toBe(PRESET_PRICE_PROFILES.EUR);
   });
 
+  it("ユーロを使う地域がすべてEURに解決する", () => {
+    // 地域→通貨の表からユーロ圏の国を1つ落とすと、その国の英語UIユーザーだけが
+    // 黙ってUSDの値になり、他の地域のテストでは気付けない（実際にブルガリアが
+    // 抜けていた）。加入国が増えたらこの一覧にも足す。
+    const euroRegions = [
+      // ユーロ圏21カ国（BGは2026年1月加入）。
+      "AT", "BE", "BG", "CY", "DE", "EE", "ES", "FI", "FR", "GR", "HR",
+      "IE", "IT", "LT", "LU", "LV", "MT", "NL", "PT", "SI", "SK",
+      // 通貨協定でユーロを使うミニ国家と、事実上ユーロを使っている地域。
+      "AD", "MC", "SM", "VA", "ME", "XK",
+    ];
+    const notEuro = euroRegions.filter(
+      (region) => resolvePresetPriceProfile(null, region, "en") !== PRESET_PRICE_PROFILES.EUR,
+    );
+    expect(notEuro).toEqual([]);
+  });
+
   it("通貨も地域も分からないときだけ言語から推測する", () => {
     expect(resolvePresetPriceProfile(null, null, "ja")).toBe(PRESET_PRICE_PROFILES.JPY);
     expect(resolvePresetPriceProfile(undefined, undefined, "pt-BR")).toBe(PRESET_PRICE_PROFILES.BRL);

@@ -52,11 +52,16 @@ const CURRENCY_BY_REGION: Record<string, string> = {
   GB: "GBP",
   BR: "BRL",
   MX: "MXN",
-  // ユーロ圏。プリセットの言語(de/fr/es)に関係する国だけでなく、
-  // 端末の地域がユーロ圏なら言語を問わずEURになるように並べておく。
-  AT: "EUR", BE: "EUR", CY: "EUR", DE: "EUR", EE: "EUR", ES: "EUR", FI: "EUR",
-  FR: "EUR", GR: "EUR", HR: "EUR", IE: "EUR", IT: "EUR", LT: "EUR", LU: "EUR",
-  LV: "EUR", MT: "EUR", NL: "EUR", PT: "EUR", SI: "EUR", SK: "EUR",
+  // ユーロ圏21カ国（2026年1月にブルガリアが加入して21カ国になった）。
+  // プリセットの言語(de/fr/es)に関係する国だけでなく、端末の地域がユーロ圏なら
+  // 言語を問わずEURになるように並べておく。**ここを1カ国でも落とすと、その国の
+  // 英語UIユーザーだけが黙ってUSDの値になる**ので、加入国が増えたら追加する。
+  AT: "EUR", BE: "EUR", BG: "EUR", CY: "EUR", DE: "EUR", EE: "EUR", ES: "EUR",
+  FI: "EUR", FR: "EUR", GR: "EUR", HR: "EUR", IE: "EUR", IT: "EUR", LT: "EUR",
+  LU: "EUR", LV: "EUR", MT: "EUR", NL: "EUR", PT: "EUR", SI: "EUR", SK: "EUR",
+  // ユーロ圏ではないがユーロを法定通貨にしている地域。通貨協定を結んでいる
+  // ミニ国家(AD/MC/SM/VA)と、協定なしで事実上ユーロを使っている地域(ME/XK)。
+  AD: "EUR", MC: "EUR", SM: "EUR", VA: "EUR", ME: "EUR", XK: "EUR",
 };
 
 // 端末が通貨コードを返さなかったときの当て。地域が分からないので言語から推測するしかない。
