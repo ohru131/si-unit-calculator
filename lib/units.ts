@@ -60,6 +60,37 @@ type Token =
   | { type: "leftParen" }
   | { type: "rightParen" };
 
+/**
+ * 識別子（ローカル定数名など）で追加的に使えるUnicode文字。
+ * 数式表示（LaTeX）の変数と揃えた記号（下付き文字・ギリシャ文字）をそのまま実体の記号名として
+ * 使えるようにするための拡張。tokenize()・parseConstantDefinition()（本ファイル）に加え、
+ * lib/notebook-engine.ts・lib/unit-input.ts でも同じ文字集合を使い、ルールがずれないようにする。
+ *
+ * 除外した文字とその理由:
+ * - Ω（ギリシャ大文字オメガ、U+03A9）: オーム単位の記号そのもの。ギリシャ大文字の範囲は
+ *   Α-Ψ（U+0391-U+03A8）までにして明示的にΩを外している。
+ * - µ（マイクロ記号、U+00B5）: SI接頭辞（マイクロ）専用の文字。識別子には含めない。
+ * - %, °: 単位の記号。tokenize() には単位専用のフォールバック分岐が別にある。
+ * ギリシャ小文字のμ（mu, U+03BC。マイクロ記号µ U+00B5とは別のコードポイント）は識別子として
+ * 許可しても安全: tokenize() では「数値の直後に続く単位」の分岐が識別子の分岐より先に評価されるため、
+ * 「2μm」は引き続き2マイクロメートルという単位として解釈され、式中に単独で現れる「μ」だけが
+ * 識別子（定数名）として解決される。
+ */
+export const UNICODE_IDENTIFIER_EXTRA_CHARS =
+  "Α-Ψ" + // ギリシャ大文字 Α-Ψ（Ωは除外）
+  "α-ω" + // ギリシャ小文字 α-ω（μを含む）
+  "₀-₉" + // 下付き数字 ₀-₉
+  "ₐ-ₜ" + // 下付き小文字 ₐₑₕₖₗₘₙₒₚₛₜ など
+  "ᵢ-ᵪ" + // 下付き小文字 ᵢᵣᵤᵥ とギリシャ下付き ᵦᵧᵨᵩᵪ
+  "ⱼ"; // 下付き小文字 j（ⱼ）
+
+/** 識別子の1文字目・2文字目以降に使える文字クラス（角括弧の中身のみ。両方とも同じ集合で問題ない）。 */
+export const IDENTIFIER_START_CHAR_CLASS = `A-Za-z_${UNICODE_IDENTIFIER_EXTRA_CHARS}`;
+export const IDENTIFIER_BODY_CHAR_CLASS = `A-Za-z0-9_${UNICODE_IDENTIFIER_EXTRA_CHARS}`;
+
+/** 識別子（定数名）全体にマッチする正規表現。入力の先頭からの部分一致に使う（^始まり、末尾アンカーなし）。 */
+export const IDENTIFIER_PATTERN = new RegExp(`^[${IDENTIFIER_START_CHAR_CLASS}][${IDENTIFIER_BODY_CHAR_CLASS}]*`, "u");
+
 const ZERO: Dimension = [0, 0, 0, 0, 0, 0, 0];
 const DIMENSIONS = {
   length: [1, 0, 0, 0, 0, 0, 0],
@@ -637,7 +668,7 @@ function tokenize(input: string): Token[] {
       continue;
     }
 
-    const identifierMatch = source.slice(index).match(/^[A-Za-z_][A-Za-z0-9_]*/u);
+    const identifierMatch = source.slice(index).match(IDENTIFIER_PATTERN);
     if (identifierMatch) {
       tokens.push({ type: "identifier", value: identifierMatch[0] });
       index += identifierMatch[0].length;
@@ -788,8 +819,10 @@ export function evaluateExpression(
   return result;
 }
 
+const CONSTANT_DEFINITION_PATTERN = new RegExp(`^([${IDENTIFIER_START_CHAR_CLASS}][${IDENTIFIER_BODY_CHAR_CLASS}]*)\\s*=\\s*(.+)$`);
+
 export function parseConstantDefinition(input: string, constants: SavedConstant[] = []) {
-  const match = input.trim().match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)$/);
+  const match = input.trim().match(CONSTANT_DEFINITION_PATTERN);
   if (!match) throw new Error("定数は「W = 3cm」の形式で定義してください。");
   const [, symbol, expression] = match;
   return { symbol, expression, quantity: evaluateExpression(expression, constants) };

@@ -234,3 +234,47 @@ describe("単位付き計算", () => {
     expect(() => evaluateExpression("1m + 1s")).toThrow("同じ次元");
   });
 });
+
+describe("Unicode識別子（下付き文字・ギリシャ文字の定数名）", () => {
+  it("下付き文字を含む定数名をevaluateExpressionで参照できる", () => {
+    const mo = { ...parseConstantDefinition("mₒ = 200g"), createdAt: "" };
+    const result = evaluateExpression("mₒ*2", [mo]);
+    expect(formatQuantity(result, "g")).toBe("400 g");
+  });
+
+  it("ギリシャ文字を含む定数名をevaluateExpressionで参照できる", () => {
+    const theta = { ...parseConstantDefinition("θ₁ = 30deg"), createdAt: "" };
+    const result = evaluateExpression("θ₁", [theta]);
+    expect(formatQuantity(result, "deg")).toBe("30 deg");
+  });
+
+  it("parseConstantDefinitionがUnicode識別子の名前を認識する", () => {
+    const parsed = parseConstantDefinition("λ = 0.77m");
+    expect(parsed.symbol).toBe("λ");
+    expect(formatQuantity(parsed.quantity, "m")).toBe("0.77 m");
+  });
+
+  it("2μmは引き続き2マイクロメートルという単位として解釈される（数値直後は単位解決が優先）", () => {
+    const result = evaluateExpression("2μm");
+    expect(formatQuantity(result, "µm")).toBe("2 µm");
+  });
+
+  it("式中に単独で現れるμは定数として解決される（識別子解決が単位解決より先）", () => {
+    const mu = { ...parseConstantDefinition("μ = 0.7"), createdAt: "" };
+    const result = evaluateExpression("μ*9.8*50", [mu]);
+    expect(result.siValue).toBeCloseTo(343);
+  });
+
+  it("Cという名前の定数はファラド単位をシャドーイングして参照でき、電気量C*Vはクーロン単位に変換できる", () => {
+    const capacitance = { ...parseConstantDefinition("C = 100uF"), createdAt: "" };
+    const result = evaluateExpression("C*12V", [capacitance]);
+    expect(formatQuantity(result, "mC")).toBe("1.2 mC");
+  });
+
+  it("Ω・%・°・Ohmの解釈はUnicode識別子の追加後も変わらない", () => {
+    expect(formatQuantity(evaluateExpression("5Ohm"), "Ω")).toBe("5 Ω");
+    expect(evaluateExpression("Ω").dimension).toEqual(evaluateExpression("Ohm").dimension);
+    expect(formatQuantity(evaluateExpression("350°F"), "°C")).toBe("176.6666667 °C");
+    expect(formatQuantity(evaluateExpression("10%"))).toBe("0.1");
+  });
+});

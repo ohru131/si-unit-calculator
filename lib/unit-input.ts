@@ -1,6 +1,8 @@
 import {
   findRegisteredUnit,
   getRegionalUnits,
+  IDENTIFIER_BODY_CHAR_CLASS,
+  IDENTIFIER_START_CHAR_CLASS,
   parseUnit,
   UNIT_GROUPS,
   unitSearchText,
@@ -61,10 +63,12 @@ export type UnitInputHint = {
 
 const BUILT_IN_IDENTIFIERS = ["sin", "cos", "tan", "asin", "acos", "atan", "atan2", "sqrt", "ln", "log", "log2", "pi", "e"];
 
-const WORD_START_PATTERN = /[A-Za-zΩµμ%°_]/;
-const WORD_BODY_PATTERN = /[A-Za-zΩµμ%°_0-9⁰¹²³⁴⁵⁶⁷⁸⁹⁻^]/;
+// lib/units.ts の識別子文字集合（下付き文字・ギリシャ文字）と揃える。ここでは単位専用の記号
+// （Ω・µ・μ・%・°）も同じ語の切り出しに使うため、識別子クラスへ追加で含めている。
+const WORD_START_PATTERN = new RegExp(`[Ωµμ%°${IDENTIFIER_START_CHAR_CLASS}]`);
+const WORD_BODY_PATTERN = new RegExp(`[Ωµμ%°⁰¹²³⁴⁵⁶⁷⁸⁹⁻^${IDENTIFIER_BODY_CHAR_CLASS}]`);
 const NUMBER_PATTERN = /[0-9.]/;
-const DEFINITION_PATTERN = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=/;
+const DEFINITION_PATTERN = new RegExp(`^\\s*([${IDENTIFIER_START_CHAR_CLASS}][${IDENTIFIER_BODY_CHAR_CLASS}]*)\\s*=`);
 
 const DEFAULT_UNITS: Record<UnitSystem, string[]> = {
   metric: ["mm", "cm", "m", "km", "g", "kg", "s", "min", "h", "°C", "L", "m²"],

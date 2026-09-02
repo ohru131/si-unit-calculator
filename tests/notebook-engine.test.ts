@@ -25,6 +25,13 @@ describe("名前＝式の1行入力パース", () => {
     expect(formatNameValue("v0", "5m/s")).toBe("v0=5m/s");
     expect(formatNameValue("", "5m/s")).toBe("5m/s");
   });
+
+  it("下付き文字・ギリシャ文字を含む名前もparseNameValue/formatNameValueで往復できる", () => {
+    expect(parseNameValue("mₒ=200g")).toEqual({ name: "mₒ", value: "200g" });
+    expect(formatNameValue("mₒ", "200g")).toBe("mₒ=200g");
+    expect(parseNameValue("θ₁=30deg")).toEqual({ name: "θ₁", value: "30deg" });
+    expect(formatNameValue("θ₁", "30deg")).toBe("θ₁=30deg");
+  });
 });
 
 describe("計算ノートのローカル定数解決", () => {

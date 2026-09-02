@@ -53,10 +53,9 @@ type LegacyCalculationNote = {
 /** ノート専用のローカル定数。定義順に解決され、後の行は前の行を参照できる（lib/notebook-engine.ts）。 */
 export type NotebookLocalConstant = {
   id: string;
+  /** 数式の変数と同じ記号にする（下付き文字・ギリシャ文字も識別子として使えるため、表示用の別名は不要）。 */
   symbol: string;
   expression: string;
-  /** 定数一覧での表示用記号。数式の変数と揃えるためのUnicode下付き文字など。省略時はsymbolをそのまま表示する。 */
-  displaySymbol?: string;
 };
 
 /** 「説明文＋数式」のペア。計算手順（steps）とは独立に、複数個並べて解説できる。 */
@@ -279,7 +278,6 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
                   id: `preset-${category.id}-${seedIndex}-constant-${constantIndex}`,
                   symbol: constant.symbol,
                   expression: constant.expression,
-                  displaySymbol: constant.displaySymbol,
                 })),
                 steps: seed.steps.map((step, stepIndex) => ({
                   id: `preset-${category.id}-${seedIndex}-step-${stepIndex}`,

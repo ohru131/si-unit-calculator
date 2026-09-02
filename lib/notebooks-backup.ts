@@ -5,7 +5,7 @@ export const NOTEBOOKS_BACKUP_FORMAT = "si-unit-calculator.notebooks";
 export const NOTEBOOKS_BACKUP_VERSION = 1;
 
 export type ImportedNotebookFormula = { explanation: string; latex: string };
-export type ImportedNotebookConstant = { symbol: string; expression: string; displaySymbol?: string };
+export type ImportedNotebookConstant = { symbol: string; expression: string };
 export type ImportedNotebookStep = { title: string; expression: string; targetUnit: string; formulaLatex?: string; resultSymbol?: string };
 
 export type ImportedNotebook = {
@@ -36,7 +36,7 @@ function isImportedNotebookFormula(value: unknown): value is ImportedNotebookFor
 function isImportedNotebookConstant(value: unknown): value is ImportedNotebookConstant {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<ImportedNotebookConstant>;
-  return typeof candidate.symbol === "string" && typeof candidate.expression === "string" && (candidate.displaySymbol === undefined || typeof candidate.displaySymbol === "string");
+  return typeof candidate.symbol === "string" && typeof candidate.expression === "string";
 }
 
 function isImportedNotebookStep(value: unknown): value is ImportedNotebookStep {
@@ -76,7 +76,7 @@ export function createNotebooksBackup(notebooks: CalculationNotebook[], categori
       description: notebook.description,
       ...resolveExportedCategory(notebook, categories),
       formulas: notebook.formulas.map(({ explanation, latex }) => ({ explanation, latex })),
-      localConstants: notebook.localConstants.map(({ symbol, expression, displaySymbol }) => ({ symbol, expression, displaySymbol })),
+      localConstants: notebook.localConstants.map(({ symbol, expression }) => ({ symbol, expression })),
       steps: notebook.steps.map(({ title, expression, targetUnit, formulaLatex, resultSymbol }) => ({ title, expression, targetUnit, formulaLatex, resultSymbol })),
     })),
   };
