@@ -38,6 +38,7 @@ import { formatNameValue, parseNameValue } from "@/lib/notebook-engine";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
 import { type ImportedNotebook } from "@/lib/notebooks-backup";
 import { exportNotebooksBackup, pickNotebooksBackup } from "@/lib/notebooks-backup-file";
+import { unitErrorMessage } from "@/lib/unit-errors";
 import { formatQuantity, SavedConstant } from "@/lib/units";
 
 type TopSection = "notebooks" | "constants";
@@ -79,6 +80,7 @@ const EN_COPY = {
   notebookBackup: "Backup", notebookExport: "Export", notebookImportDone: "{count} notebooks imported.",
   notebookExportDone: "Notebooks backup exported.", notebookReplaceImportConfirm: "Replace all your notebooks with the ones in this file? Preset notebooks are kept. This cannot be undone.",
   notebookMerge: "Merge and replace matches", notebookReplace: "Replace all notebooks",
+  notebookTitlePlaceholder: "Bending stress", notebookDescriptionPlaceholder: "Optional note",
 } as const;
 const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   en: EN_COPY,
@@ -109,6 +111,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     notebookBackup: "バックアップ", notebookExport: "書き出す", notebookImportDone: "{count}件の計算ノートを読み込みました。",
     notebookExportDone: "計算ノートのバックアップを書き出しました。", notebookReplaceImportConfirm: "自分の計算ノートをすべて、このファイルの内容へ置き換えますか？プリセットは残ります。元に戻せません。",
     notebookMerge: "追加・同名は置換", notebookReplace: "すべての計算ノートを置換",
+    notebookTitlePlaceholder: "曲げ応力", notebookDescriptionPlaceholder: "任意のメモ",
   },
 };
 
@@ -173,6 +176,11 @@ export default function ConstantsScreen() {
 
   const copy = COPY[language];
 
+  // エンジンのエラー(UnitError)は現在の言語で表示する。UnitError以外は従来どおり
+  // Error.message をそのまま出す（バックアップ処理など別系統のエラーもここを通るため）。
+  // このファイルのcatch節はどれもフォールバックがcopy.validationで共通なので、まとめて1箇所にする。
+  const engineErrorMessage = (cause: unknown) => (cause instanceof Error ? (unitErrorMessage(cause, language) ?? cause.message) : copy.validation);
+
   const sectionItems: { id: TopSection; label: string }[] = [
     { id: "notebooks", label: copy.notebooksTab },
     { id: "constants", label: copy.constantsTab },
@@ -231,7 +239,7 @@ export default function ConstantsScreen() {
       await upsertConstant(symbol, constantExpressionInput.trim());
       setConstantEditorVisible(false);
     } catch (cause) {
-      setConstantError(cause instanceof Error ? cause.message : copy.validation);
+      setConstantError(engineErrorMessage(cause));
     } finally { setIsSaving(false); }
   };
 
@@ -240,7 +248,7 @@ export default function ConstantsScreen() {
       await exportConstantsBackup(constants);
       setBackupNotice(copy.exportDone);
     } catch (cause) {
-      setBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+      setBackupNotice(engineErrorMessage(cause));
     }
   };
 
@@ -252,7 +260,7 @@ export default function ConstantsScreen() {
       const count = await importConstants(entries, "merge");
       setBackupNotice(copy.importDone.replace("{count}", String(count)));
     } catch (cause) {
-      setBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+      setBackupNotice(engineErrorMessage(cause));
     }
   };
 
@@ -264,7 +272,7 @@ export default function ConstantsScreen() {
       const count = await importConstants(entries, "replace");
       setBackupNotice(copy.importDone.replace("{count}", String(count)));
     } catch (cause) {
-      setBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+      setBackupNotice(engineErrorMessage(cause));
     }
   };
 
@@ -273,7 +281,7 @@ export default function ConstantsScreen() {
       await clearConstants();
       setBackupNotice(copy.cleared);
     } catch (cause) {
-      setBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+      setBackupNotice(engineErrorMessage(cause));
     }
   };
 
@@ -281,7 +289,7 @@ export default function ConstantsScreen() {
     try {
       if (await restoreClearedConstants()) setBackupNotice(copy.restored);
     } catch (cause) {
-      setBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+      setBackupNotice(engineErrorMessage(cause));
     }
   };
 
@@ -291,7 +299,7 @@ export default function ConstantsScreen() {
       await exportNotebooksBackup(notebooks, notebookCategories);
       setNotebookBackupNotice(copy.notebookExportDone);
     } catch (cause) {
-      setNotebookBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+      setNotebookBackupNotice(engineErrorMessage(cause));
     }
   };
 
@@ -303,7 +311,7 @@ export default function ConstantsScreen() {
       const count = await importNotebooks(entries, "merge");
       setNotebookBackupNotice(copy.notebookImportDone.replace("{count}", String(count)));
     } catch (cause) {
-      setNotebookBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+      setNotebookBackupNotice(engineErrorMessage(cause));
     }
   };
 
@@ -315,7 +323,7 @@ export default function ConstantsScreen() {
       const count = await importNotebooks(entries, "replace");
       setNotebookBackupNotice(copy.notebookImportDone.replace("{count}", String(count)));
     } catch (cause) {
-      setNotebookBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+      setNotebookBackupNotice(engineErrorMessage(cause));
     }
   };
 
@@ -405,7 +413,7 @@ export default function ConstantsScreen() {
       await upsertNotebook({ id: editingNotebookId, title, description: notebookDescription.trim(), categoryId: notebookCategoryId, formulas: normalizedFormulas, localConstants: normalizedConstants, steps: normalizedSteps });
       setNotebookEditorVisible(false);
     } catch (cause) {
-      setNotebookError(cause instanceof Error ? cause.message : copy.validation);
+      setNotebookError(engineErrorMessage(cause));
     } finally {
       setIsSaving(false);
     }
@@ -551,9 +559,9 @@ export default function ConstantsScreen() {
         <View style={styles.sheet}><View style={styles.sheetHandle} /><View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>{editingNotebookId ? copy.notebookEdit : copy.notebookNew}</Text></View><Pressable accessibilityLabel={copy.close} onPress={closeNotebookEditor} style={({ pressed }) => [styles.closeButton, pressed && styles.iconPressed]}><IconSymbol name="xmark" size={21} color={colors.muted} /></Pressable></View>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <Text style={styles.fieldLabel}>{copy.notebookTitleLabel}</Text>
-            <TextInput value={notebookTitle} onChangeText={setNotebookTitle} placeholder={language === "en" ? "Bending stress" : "曲げ応力"} placeholderTextColor={colors.placeholder} style={styles.input} />
+            <TextInput value={notebookTitle} onChangeText={setNotebookTitle} placeholder={copy.notebookTitlePlaceholder} placeholderTextColor={colors.placeholder} style={styles.input} />
             <Text style={styles.fieldLabel}>{copy.notebookDescriptionLabel}</Text>
-            <TextInput value={notebookDescription} onChangeText={setNotebookDescription} placeholder={language === "en" ? "Optional note" : "任意のメモ"} placeholderTextColor={colors.placeholder} style={styles.input} />
+            <TextInput value={notebookDescription} onChangeText={setNotebookDescription} placeholder={copy.notebookDescriptionPlaceholder} placeholderTextColor={colors.placeholder} style={styles.input} />
 
             <Text style={styles.fieldLabel}>{copy.category}</Text>
             <View style={styles.categoryPicker}>

@@ -27,6 +27,7 @@ const EN_COPY = {
   noStepsError: "This notebook needs at least one step.",
   constantsRailLabel: "Constants",
   insertConstant: "Insert",
+  back: "Back",
 } as const;
 const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   en: EN_COPY,
@@ -41,6 +42,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     noStepsError: "手順が最低1つ必要です。",
     constantsRailLabel: "定数",
     insertConstant: "挿入",
+    back: "戻る",
   },
 };
 
@@ -243,7 +245,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
 
   // 戻る先のカテゴリ名が空になることは基本無いが、propsの契約上は空文字も来うるため
   // 「戻る」ラベルへフォールバックする（呼び出し側のcategoryLabel()は常に非空を返す）。
-  const backLabel = categoryLabel || (language === "en" ? "Back" : "戻る");
+  const backLabel = categoryLabel || copy.back;
 
   return (
     <View style={styles.root}>

@@ -3,7 +3,37 @@ import { Platform } from "react-native";
 import Purchases, { CustomerInfo, LOG_LEVEL } from "react-native-purchases";
 import RevenueCatUI from "react-native-purchases-ui";
 
+import { useGlobalSettings } from "@/lib/global-settings";
+import { type AppLanguage } from "@/lib/i18n";
+
 export const PRO_ENTITLEMENT_IDENTIFIER = "pro";
+
+// 英語のキー集合を正にして、言語を足したときにキー漏れがその言語のブロックで型エラーになるようにする。
+const EN_COPY = {
+  purchaseStoreOnly: "Purchases are available in the iOS or Android store version.",
+  revenueCatKeyMissing: "The RevenueCat public SDK key is not configured.",
+  customerInfoFetchFailed: "Could not fetch purchase information. Please try again in the store version.",
+  proUpgradeStoreOnly: "Upgrading to Pro is available in the published iOS or Android app.",
+  paywallOpenFailed: "Could not open the purchase screen. Please check your store settings and network connection.",
+  restoreStoreOnly: "Restoring purchases is available in the published iOS or Android app.",
+  proRestored: "Your Pro purchase has been restored.",
+  noRestorablePurchase: "No restorable Pro purchase was found.",
+  restoreFailed: "Could not restore your purchase. Please try again.",
+} as const;
+const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
+  en: EN_COPY,
+  ja: {
+    purchaseStoreOnly: "購入はiOSまたはAndroidのストア版で利用できます。",
+    revenueCatKeyMissing: "RevenueCatの公開SDKキーが未設定です。",
+    customerInfoFetchFailed: "購入情報を取得できませんでした。ストア版で再度お試しください。",
+    proUpgradeStoreOnly: "Proへのアップグレードは、公開後のiOSまたはAndroidアプリで利用できます。",
+    paywallOpenFailed: "購入画面を開けませんでした。ストア設定とネットワーク接続を確認してください。",
+    restoreStoreOnly: "購入の復元は、公開後のiOSまたはAndroidアプリで利用できます。",
+    proRestored: "Proの購入を復元しました。",
+    noRestorablePurchase: "復元できるPro購入は見つかりませんでした。",
+    restoreFailed: "購入を復元できませんでした。もう一度お試しください。",
+  },
+};
 
 type ProContextValue = {
   isPro: boolean;
@@ -27,6 +57,8 @@ function hasProEntitlement(customerInfo: CustomerInfo) {
 }
 
 export function RevenueCatProvider({ children }: { children: ReactNode }) {
+  const { language } = useGlobalSettings();
+  const copy = COPY[language];
   const [isPro, setIsPro] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [purchaseMessage, setPurchaseMessage] = useState<string | null>(null);
@@ -41,14 +73,14 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
     let active = true;
     const key = getPlatformKey();
     if (!isNativePurchaseAvailable) {
-      setPurchaseMessage("購入はiOSまたはAndroidのストア版で利用できます。");
+      setPurchaseMessage(copy.purchaseStoreOnly);
       setIsReady(true);
       return () => {
         active = false;
       };
     }
     if (!key) {
-      setPurchaseMessage("RevenueCatの公開SDKキーが未設定です。");
+      setPurchaseMessage(copy.revenueCatKeyMissing);
       setIsReady(true);
       return () => {
         active = false;
@@ -65,7 +97,7 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
           if (active) setIsPro(hasProEntitlement(updatedInfo));
         });
       } catch {
-        if (active) setPurchaseMessage("購入情報を取得できませんでした。ストア版で再度お試しください。");
+        if (active) setPurchaseMessage(copy.customerInfoFetchFailed);
       } finally {
         if (active) setIsReady(true);
       }
@@ -74,11 +106,11 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, [isNativePurchaseAvailable]);
+  }, [copy, isNativePurchaseAvailable]);
 
   const presentPaywall = useCallback(async () => {
     if (!isNativePurchaseAvailable) {
-      setPurchaseMessage("Proへのアップグレードは、公開後のiOSまたはAndroidアプリで利用できます。");
+      setPurchaseMessage(copy.proUpgradeStoreOnly);
       return;
     }
     try {
@@ -86,24 +118,24 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
       await RevenueCatUI.presentPaywallIfNeeded({ requiredEntitlementIdentifier: PRO_ENTITLEMENT_IDENTIFIER });
       await refreshCustomerInfo();
     } catch {
-      setPurchaseMessage("購入画面を開けませんでした。ストア設定とネットワーク接続を確認してください。");
+      setPurchaseMessage(copy.paywallOpenFailed);
     }
-  }, [isNativePurchaseAvailable, refreshCustomerInfo]);
+  }, [copy, isNativePurchaseAvailable, refreshCustomerInfo]);
 
   const restorePurchases = useCallback(async () => {
     if (!isNativePurchaseAvailable) {
-      setPurchaseMessage("購入の復元は、公開後のiOSまたはAndroidアプリで利用できます。");
+      setPurchaseMessage(copy.restoreStoreOnly);
       return;
     }
     try {
       setPurchaseMessage(null);
       const customerInfo = await Purchases.restorePurchases();
       setIsPro(hasProEntitlement(customerInfo));
-      setPurchaseMessage(hasProEntitlement(customerInfo) ? "Proの購入を復元しました。" : "復元できるPro購入は見つかりませんでした。");
+      setPurchaseMessage(hasProEntitlement(customerInfo) ? copy.proRestored : copy.noRestorablePurchase);
     } catch {
-      setPurchaseMessage("購入を復元できませんでした。もう一度お試しください。");
+      setPurchaseMessage(copy.restoreFailed);
     }
-  }, [isNativePurchaseAvailable]);
+  }, [copy, isNativePurchaseAvailable]);
 
   const value = useMemo(
     () => ({ isPro, isReady, isNativePurchaseAvailable, purchaseMessage, presentPaywall, restorePurchases }),

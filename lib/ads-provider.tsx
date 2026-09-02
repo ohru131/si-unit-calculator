@@ -3,9 +3,26 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import { Platform } from "react-native";
 
 import { initializeMobileAds } from "@/lib/ads-native-init";
+import { useGlobalSettings } from "@/lib/global-settings";
+import { type AppLanguage } from "@/lib/i18n";
 import { usePro } from "@/lib/revenuecat-provider";
 
 const AD_FREE_OVERRIDE_KEY = "si-unit-calculator.ad-free-override.v1";
+
+// 英語のキー集合を正にして、言語を足したときにキー漏れがその言語のブロックで型エラーになるようにする。
+const EN_COPY = {
+  redeemCodeNotConfigured: "The unlock code is not configured.",
+  redeemCodeIncorrect: "That code is incorrect.",
+  redeemCodeSuccess: "Ads are now hidden.",
+} as const;
+const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
+  en: EN_COPY,
+  ja: {
+    redeemCodeNotConfigured: "解除コードが設定されていません。",
+    redeemCodeIncorrect: "コードが違います。",
+    redeemCodeSuccess: "広告を非表示にしました。",
+  },
+};
 
 type AdsContextValue = {
   /** 広告SDKが利用できるプラットフォームか（Webでは非対応）。 */
@@ -28,6 +45,8 @@ const AdsContext = createContext<AdsContextValue | null>(null);
 
 export function AdsProvider({ children }: { children: ReactNode }) {
   const { isPro, isReady: isProReady } = usePro();
+  const { language } = useGlobalSettings();
+  const copy = COPY[language];
   const isAdsPlatformAvailable = Platform.OS === "ios" || Platform.OS === "android";
   const [adFreeOverride, setAdFreeOverride] = useState(false);
   const [isAdFreeOverrideRestored, setIsAdFreeOverrideRestored] = useState(false);
@@ -62,17 +81,17 @@ export function AdsProvider({ children }: { children: ReactNode }) {
   const redeemCode = useCallback(async (code: string) => {
     const expected = process.env.EXPO_PUBLIC_ADFREE_REDEEM_CODE;
     if (!expected) {
-      setRedeemMessage("解除コードが設定されていません。");
+      setRedeemMessage(copy.redeemCodeNotConfigured);
       return;
     }
     if (code.trim() !== expected) {
-      setRedeemMessage("コードが違います。");
+      setRedeemMessage(copy.redeemCodeIncorrect);
       return;
     }
     setAdFreeOverride(true);
     await AsyncStorage.setItem(AD_FREE_OVERRIDE_KEY, "true");
-    setRedeemMessage("広告を非表示にしました。");
-  }, []);
+    setRedeemMessage(copy.redeemCodeSuccess);
+  }, [copy]);
 
   const value = useMemo<AdsContextValue>(
     () => ({
