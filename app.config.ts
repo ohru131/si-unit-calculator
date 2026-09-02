@@ -152,6 +152,28 @@ const config: ExpoConfig = {
         },
       },
     ],
+    // 無料プランに表示する広告（AdMob）。本番のApp IDは環境変数で上書きし、開発中の未設定時は
+    // Googleがドキュメントで公開しているテストApp IDにフォールバックする（RevenueCatの
+    // 公開SDKキーと同じ、CIやローカル.envで差し替える方式）。ただしEAS本番ビルド
+    // （eas build --profile production）でテストApp IDのまま出荷してしまう事故を防ぐため、
+    // そのプロファイルでは未設定だとビルド自体を失敗させる。
+    [
+      "react-native-google-mobile-ads",
+      (() => {
+        const androidAppId = process.env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID;
+        const iosAppId = process.env.EXPO_PUBLIC_ADMOB_IOS_APP_ID;
+        if (process.env.EAS_BUILD_PROFILE === "production" && (!androidAppId || !iosAppId)) {
+          throw new Error(
+            "本番ビルドにはEXPO_PUBLIC_ADMOB_ANDROID_APP_IDとEXPO_PUBLIC_ADMOB_IOS_APP_IDの設定が必須です（Googleのテスト広告IDのまま出荷させないため）。",
+          );
+        }
+        return {
+          androidAppId: androidAppId || "ca-app-pub-3940256099942544~3347511713",
+          iosAppId: iosAppId || "ca-app-pub-3940256099942544~1458002511",
+          userTrackingUsageDescription: "計算履歴に関連する広告を表示するために使用します。",
+        };
+      })(),
+    ],
   ],
   experiments: {
     typedRoutes: true,

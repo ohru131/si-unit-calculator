@@ -8,6 +8,7 @@ import "react-native-reanimated";
 import { Platform } from "react-native";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
+import { AdsProvider } from "@/lib/ads-provider";
 import { CalculatorProvider } from "@/lib/calculator-store";
 import { RevenueCatProvider } from "@/lib/revenuecat-provider";
 import { GlobalSettingsProvider } from "@/lib/global-settings";
@@ -87,6 +88,7 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <GlobalSettingsProvider>
           <RevenueCatProvider>
+          <AdsProvider>
           <CalculatorProvider>
             {/* Default to hiding native headers so raw route segments don't appear (e.g. "(tabs)", "products/[id]"). */}
             {/* If a screen needs the native header, explicitly enable it and set a human title via Stack.Screen options. */}
@@ -97,6 +99,7 @@ export default function RootLayout() {
             </Stack>
             <StatusBar style="auto" />
           </CalculatorProvider>
+          </AdsProvider>
           </RevenueCatProvider>
           </GlobalSettingsProvider>
         </QueryClientProvider>
