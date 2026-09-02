@@ -21,6 +21,34 @@ const BACKUP_MESSAGES: Record<AppLanguage, typeof EN_BACKUP_MESSAGES> = {
     unsupportedVersion: (version: string) => `このバックアップのバージョン（${version}）には対応していません。`,
     invalidNotebooks: "バックアップに無効な計算ノートが含まれています。",
   },
+  es: {
+    unreadable: "No se pudo leer la copia de seguridad de los cuadernos. Comprueba que sea un JSON válido.",
+    invalidFormat: "El formato de la copia de seguridad de los cuadernos no es válido.",
+    unsupportedFile: "Este archivo no es una copia de seguridad de cuadernos admitida.",
+    unsupportedVersion: (version: string) => `Esta versión de copia de seguridad (${version}) no es compatible.`,
+    invalidNotebooks: "La copia de seguridad contiene cuadernos no válidos.",
+  },
+  "pt-BR": {
+    unreadable: "Não foi possível ler o backup dos cadernos de cálculo. Verifique se é um JSON válido.",
+    invalidFormat: "O formato do backup dos cadernos de cálculo é inválido.",
+    unsupportedFile: "Este arquivo não é um backup de cadernos de cálculo compatível.",
+    unsupportedVersion: (version: string) => `Esta versão do backup (${version}) não é compatível.`,
+    invalidNotebooks: "O backup contém cadernos de cálculo inválidos.",
+  },
+  de: {
+    unreadable: "Das Rechenheft-Backup konnte nicht gelesen werden. Prüfe, ob es sich um gültiges JSON handelt.",
+    invalidFormat: "Das Format des Rechenheft-Backups ist ungültig.",
+    unsupportedFile: "Diese Datei ist kein unterstütztes Rechenheft-Backup.",
+    unsupportedVersion: (version: string) => `Diese Backup-Version (${version}) wird nicht unterstützt.`,
+    invalidNotebooks: "Das Backup enthält ungültige Rechenhefte.",
+  },
+  fr: {
+    unreadable: "Impossible de lire la sauvegarde des carnets de calcul. Vérifiez qu'il s'agit d'un JSON valide.",
+    invalidFormat: "Le format de la sauvegarde des carnets de calcul n'est pas valide.",
+    unsupportedFile: "Ce fichier n'est pas une sauvegarde de carnets de calcul prise en charge.",
+    unsupportedVersion: (version: string) => `Cette version de sauvegarde (${version}) n'est pas prise en charge.`,
+    invalidNotebooks: "La sauvegarde contient des carnets de calcul non valides.",
+  },
 };
 
 export const NOTEBOOKS_BACKUP_FORMAT = "si-unit-calculator.notebooks";
