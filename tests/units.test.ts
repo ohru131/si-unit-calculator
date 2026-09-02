@@ -105,10 +105,11 @@ describe("単位付き計算", () => {
   });
 
   it("三角関数・べき乗・平方根の不正な次元と定義域を拒否する", () => {
-    expect(() => evaluateExpression("sin(1m)")).toThrow("角度または無次元");
-    expect(() => evaluateExpression("(2m)^0.5")).toThrow("整数のべき指数");
-    expect(() => evaluateExpression("sqrt(2m)")).toThrow("指数が偶数");
-    expect(() => evaluateExpression("sqrt(-1)")).toThrow("負の値");
+    // Error.message はUnitError設計上つねに英語（表示側でunitErrorMessage()を使って言語別に訳す）。
+    expect(() => evaluateExpression("sin(1m)")).toThrow("angle or a dimensionless");
+    expect(() => evaluateExpression("(2m)^0.5")).toThrow("integer exponent");
+    expect(() => evaluateExpression("sqrt(2m)")).toThrow("must be even");
+    expect(() => evaluateExpression("sqrt(-1)")).toThrow("negative value");
   });
 
   it("逆三角関数・対数・atan2を計算し、角度へ変換する", () => {
@@ -122,10 +123,10 @@ describe("単位付き計算", () => {
   });
 
   it("逆三角関数・対数・atan2の不正な引数を拒否する", () => {
-    expect(() => evaluateExpression("asin(2)")).toThrow("-1 から 1");
-    expect(() => evaluateExpression("log(0)")).toThrow("0より大きい");
-    expect(() => evaluateExpression("ln(1m)")).toThrow("角度または無次元");
-    expect(() => evaluateExpression("atan2(1m, 1s)")).toThrow("同じ次元");
+    expect(() => evaluateExpression("asin(2)")).toThrow("-1 and 1");
+    expect(() => evaluateExpression("log(0)")).toThrow("greater than 0");
+    expect(() => evaluateExpression("ln(1m)")).toThrow("angle or a dimensionless");
+    expect(() => evaluateExpression("atan2(1m, 1s)")).toThrow("same dimension");
   });
 
   it("自作関数を引数付きで呼び出し、次元演算を再利用する", () => {
@@ -134,8 +135,8 @@ describe("単位付き計算", () => {
   });
 
   it("自作関数の引数数と再帰呼び出しを拒否する", () => {
-    expect(() => evaluateExpression("circleArea()", [], [{ name: "circleArea", parameters: ["r"], expression: "pi × r^2" }])).toThrow("1個の引数");
-    expect(() => evaluateExpression("loop(1)", [], [{ name: "loop", parameters: ["x"], expression: "loop(x)" }])).toThrow("再帰的");
+    expect(() => evaluateExpression("circleArea()", [], [{ name: "circleArea", parameters: ["r"], expression: "pi × r^2" }])).toThrow("requires 1 argument");
+    expect(() => evaluateExpression("loop(1)", [], [{ name: "loop", parameters: ["x"], expression: "loop(x)" }])).toThrow("recursively");
   });
 
   it("質量と標準重力の乗算から力を計算し、加速度候補を地域別に提示する", () => {
@@ -231,7 +232,7 @@ describe("単位付き計算", () => {
   });
 
   it("異なる次元の加算を拒否する", () => {
-    expect(() => evaluateExpression("1m + 1s")).toThrow("同じ次元");
+    expect(() => evaluateExpression("1m + 1s")).toThrow("same dimension");
   });
 });
 
