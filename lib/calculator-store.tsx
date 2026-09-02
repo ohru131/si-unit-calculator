@@ -287,6 +287,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
                   expression: step.expression,
                   targetUnit: step.targetUnit,
                   formulaLatex: step.formulaLatex,
+                  resultSymbol: step.resultSymbol,
                 })),
                 pinned: false,
                 isPreset: true,

@@ -14,7 +14,7 @@ export default function TabLayout() {
   const { language, t } = useGlobalSettings();
   const insets = useSafeAreaInsets();
   const bottomPadding = Platform.OS === "web" ? 12 : Math.max(insets.bottom, 8);
-  const tabBarHeight = 56 + bottomPadding;
+  const tabBarHeight = 64 + bottomPadding;
 
   useQuickActionRouting();
 
@@ -49,6 +49,13 @@ export default function TabLayout() {
           backgroundColor: colors.background,
           borderTopColor: colors.border,
           borderTopWidth: 0.5,
+        },
+        // 既定値だとCJKフォントの字形高がラベル行の高さに収まらず上下が欠けるため、
+        // 行高を明示的に確保する。
+        tabBarLabelStyle: {
+          fontSize: 11,
+          lineHeight: 16,
+          marginTop: 2,
         },
       }}
     >
