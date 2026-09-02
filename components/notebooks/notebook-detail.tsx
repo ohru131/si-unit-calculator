@@ -278,6 +278,18 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
             }
             return (
               <View key={result.step.id} style={[styles.resultCard, isFinalStep && result.quantity ? styles.resultCardFinal : null]}>
+                <TextInput
+                  value={formatNameValue(result.step.resultSymbol ?? "", result.step.expression)}
+                  onChangeText={(text) => {
+                    const { name, value } = parseNameValue(text);
+                    // 名前が無いとき（＝を付けていない通常の式）はtitleへ触れない。既存の表示用タイトルを空欄で上書きしないため。
+                    updateStepField(result.step.id, name ? { resultSymbol: name, title: name, expression: value } : { resultSymbol: undefined, expression: value });
+                  }}
+                  editable={!isSaving}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={styles.resultExpressionInput}
+                />
                 <View style={styles.resultHeader}>
                   <View style={styles.resultHeaderMain}>
                     {isFinalStep && result.quantity ? <Text style={styles.finalBadge}>{copy.finalResult}</Text> : null}
@@ -309,18 +321,6 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                     ))}
                   </ScrollView>
                 ) : null}
-                <TextInput
-                  value={formatNameValue(result.step.resultSymbol ?? "", result.step.expression)}
-                  onChangeText={(text) => {
-                    const { name, value } = parseNameValue(text);
-                    // 名前が無いとき（＝を付けていない通常の式）はtitleへ触れない。既存の表示用タイトルを空欄で上書きしないため。
-                    updateStepField(result.step.id, name ? { resultSymbol: name, title: name, expression: value } : { resultSymbol: undefined, expression: value });
-                  }}
-                  editable={!isSaving}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  style={styles.resultExpressionInput}
-                />
                 {!isFinalStep && result.quantity ? <Text style={styles.resultReferenceHint}>{copy.referenceHint.replace("{symbol}", result.symbol)}</Text> : null}
               </View>
             );
@@ -365,7 +365,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   resultTitle: { color: colors.foreground, fontSize: 13, fontWeight: "800" },
   copyButton: { alignItems: "center", height: 26, justifyContent: "center", width: 30 },
   resultValue: { color: colors.primaryStrong, fontFamily: mono, fontSize: 24, fontWeight: "700", marginTop: 4 },
-  resultExpressionInput: { borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth, color: colors.foreground, fontFamily: mono, fontSize: 12, marginTop: 6, paddingVertical: 2 },
+  resultExpressionInput: { borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth, color: colors.foreground, fontFamily: mono, fontSize: 12, marginBottom: 8, paddingVertical: 2 },
   resultError: { color: colors.error, fontSize: 12, lineHeight: 17, marginTop: 4 },
   resultWarning: { color: colors.warning, fontSize: 11, lineHeight: 15, marginTop: 4 },
   resultReferenceHint: { color: colors.muted, fontSize: 10, marginTop: 5 },

@@ -612,20 +612,6 @@ export default function ConstantsScreen() {
                   <Pressable onPress={() => setNotebookSteps((current) => current.filter((entry) => entry.id !== step.id))}><Text style={styles.removeStepText}>{copy.removeRow}</Text></Pressable>
                 </View>
                 <TextInput value={step.targetUnit} onChangeText={(text) => updateStep(step.id, { targetUnit: text })} placeholder={copy.outputUnitLabel} placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.stepInput} />
-                <TextInput
-                  value={step.formulaLatex ?? ""}
-                  onChangeText={(text) => updateStep(step.id, { formulaLatex: text || undefined })}
-                  placeholder={copy.formulaLatexPlaceholder}
-                  placeholderTextColor={colors.placeholder}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  style={styles.stepInput}
-                />
-                {step.formulaLatex ? (
-                  <View style={styles.latexPreview}>
-                    <LatexView latex={step.formulaLatex} color={colors.foreground} fontSize={15} displayMode={false} />
-                  </View>
-                ) : null}
               </View>
             ))}
             <Pressable onPress={() => setNotebookSteps((current) => [...current, { id: nextStepId(), title: "", expression: "", targetUnit: "" }])} style={({ pressed }) => [styles.addStepButton, pressed && styles.buttonPressed]}><Text style={styles.addStepText}>＋ {copy.addStep}</Text></Pressable>
