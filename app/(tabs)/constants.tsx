@@ -103,6 +103,8 @@ export default function ConstantsScreen() {
   const [notebookLocalConstants, setNotebookLocalConstants] = useState<NotebookLocalConstant[]>([]);
   const [notebookSteps, setNotebookSteps] = useState<CalculationNoteStep[]>([]);
   const [notebookError, setNotebookError] = useState("");
+  // カテゴリピッカーの第2段（サブカテゴリ行）を、どの大分類について開いているか。閉じているときはnull。
+  const [categoryPickerExpandedParentId, setCategoryPickerExpandedParentId] = useState<string | null>(null);
   const [showNewCategoryField, setShowNewCategoryField] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [notebookBackupNotice, setNotebookBackupNotice] = useState("");
@@ -179,6 +181,26 @@ export default function ConstantsScreen() {
   ], [copy.uncategorized, language, notebookCategories, parentCategoryIds]);
 
   const categoryLabel = (categoryId: string) => categoryOptions.find((item) => item.id === categoryId)?.label ?? copy.uncategorized;
+
+  // 親カテゴリID→子カテゴリ一覧。編集シートのカテゴリピッカーを2段（大分類→サブカテゴリ）にするための対応表。
+  const childCategoriesByParentId = useMemo(() => {
+    const map = new Map<string, { id: string; label: string }[]>();
+    PRESET_NOTEBOOK_CATEGORIES.forEach((category) => {
+      if (!category.parentId) return;
+      const label = language === "en" ? category.labelEn : category.label;
+      map.set(category.parentId, [...(map.get(category.parentId) ?? []), { id: category.id, label }]);
+    });
+    return map;
+  }, [language]);
+
+  // ピッカーの第1段（最上位）。プリセットの大分類・葉カテゴリ、ユーザー作成カテゴリ、未分類の順に並べる。
+  const topLevelCategoryOptions = useMemo(() => [
+    ...PRESET_NOTEBOOK_CATEGORIES.filter((category) => !category.parentId).map((category) => ({ id: category.id, label: language === "en" ? category.labelEn : category.label, hasChildren: childCategoriesByParentId.has(category.id) })),
+    ...notebookCategories.map((category) => ({ id: category.id, label: category.name, hasChildren: false })),
+    { id: UNCATEGORIZED_CATEGORY_ID, label: copy.uncategorized, hasChildren: false },
+  ], [childCategoriesByParentId, copy.uncategorized, language, notebookCategories]);
+
+  const categoryParentId = (categoryId: string) => PRESET_NOTEBOOK_CATEGORIES.find((category) => category.id === categoryId)?.parentId ?? null;
 
   const resetConstantEditor = () => {
     setEditingConstantSymbol(undefined); setConstantSymbolInput(""); setConstantExpressionInput(""); setConstantError("");
@@ -293,7 +315,10 @@ export default function ConstantsScreen() {
   // 計算ノート：編集シートの開閉。
   const resetNotebookEditor = () => {
     setEditingNotebookId(undefined); setNotebookTitle(""); setNotebookDescription("");
-    setNotebookCategoryId(selectedCategoryId ?? UNCATEGORIZED_CATEGORY_ID);
+    const initialCategoryId = selectedCategoryId ?? UNCATEGORIZED_CATEGORY_ID;
+    setNotebookCategoryId(initialCategoryId);
+    // selectedCategoryIdが理科・高校物理のサブカテゴリなら、ピッカーの第2段を最初から開いておく（自分の選択を見るための再ナビゲーションを不要にする）。
+    setCategoryPickerExpandedParentId(categoryParentId(initialCategoryId));
     setNotebookFormulas([]); setNotebookLocalConstants([]); setNotebookSteps([]); setNotebookError("");
     setShowNewCategoryField(false); setNewCategoryName("");
   };
@@ -309,6 +334,7 @@ export default function ConstantsScreen() {
     setNotebookTitle(notebook.title);
     setNotebookDescription(notebook.description);
     setNotebookCategoryId(notebook.categoryId);
+    setCategoryPickerExpandedParentId(categoryParentId(notebook.categoryId));
     setNotebookFormulas(notebook.formulas.map((item) => ({ ...item })));
     setNotebookLocalConstants(notebook.localConstants.map((item) => ({ ...item })));
     setNotebookSteps(notebook.steps.map((item) => ({ ...item })));
@@ -383,6 +409,8 @@ export default function ConstantsScreen() {
     if (!name) return;
     const created = await upsertNotebookCategory({ name });
     setNotebookCategoryId(created.id);
+    // 新規作成のユーザーカテゴリは常に最上位の葉カテゴリなので、開いていたサブカテゴリ行は閉じる。
+    setCategoryPickerExpandedParentId(null);
     setShowNewCategoryField(false);
     setNewCategoryName("");
   };
@@ -522,15 +550,43 @@ export default function ConstantsScreen() {
 
             <Text style={styles.fieldLabel}>{copy.category}</Text>
             <View style={styles.categoryPicker}>
-              {categoryOptions.map((option) => (
-                <Pressable key={option.id} onPress={() => setNotebookCategoryId(option.id)} style={({ pressed }) => [styles.sectionChip, notebookCategoryId === option.id && styles.sectionChipActive, pressed && styles.buttonPressed]}>
-                  <Text style={[styles.sectionChipText, notebookCategoryId === option.id && styles.sectionChipTextActive]}>{option.label}</Text>
-                </Pressable>
-              ))}
+              {topLevelCategoryOptions.map((option) => {
+                // 大分類チップは「選択中」または「選択中カテゴリの親」のとき強調表示する（子を開いていなくても今どこにいるか分かるように）。
+                const isActive = notebookCategoryId === option.id || (option.hasChildren && categoryParentId(notebookCategoryId) === option.id);
+                // サブカテゴリ行は最上位チップ全部の下に出るため、どの大分類を開いているのかを
+                // チップ側でも示す（未選択のまま開いただけの状態を「選択中」と区別する）。
+                const isExpanded = categoryPickerExpandedParentId === option.id && !isActive;
+                return (
+                  <Pressable
+                    key={option.id}
+                    onPress={() => {
+                      if (option.hasChildren) {
+                        // 大分類はグループ化のためだけの存在でノート自体の所属先にはできない。タップではサブカテゴリ行を開閉するだけにする。
+                        setCategoryPickerExpandedParentId((current) => (current === option.id ? null : option.id));
+                        return;
+                      }
+                      setNotebookCategoryId(option.id);
+                      setCategoryPickerExpandedParentId(null);
+                    }}
+                    style={({ pressed }) => [styles.sectionChip, isExpanded && styles.sectionChipExpanded, isActive && styles.sectionChipActive, pressed && styles.buttonPressed]}
+                  >
+                    <Text style={[styles.sectionChipText, isExpanded && styles.sectionChipExpandedText, isActive && styles.sectionChipTextActive]}>{option.label}</Text>
+                  </Pressable>
+                );
+              })}
               <Pressable onPress={() => setShowNewCategoryField((current) => !current)} style={({ pressed }) => [styles.sectionChip, pressed && styles.buttonPressed]}>
                 <Text style={styles.sectionChipText}>＋ {copy.newCategory}</Text>
               </Pressable>
             </View>
+            {categoryPickerExpandedParentId ? (
+              <View style={styles.categoryPickerChild}>
+                {(childCategoriesByParentId.get(categoryPickerExpandedParentId) ?? []).map((option) => (
+                  <Pressable key={option.id} onPress={() => setNotebookCategoryId(option.id)} style={({ pressed }) => [styles.sectionChip, notebookCategoryId === option.id && styles.sectionChipActive, pressed && styles.buttonPressed]}>
+                    <Text style={[styles.sectionChipText, notebookCategoryId === option.id && styles.sectionChipTextActive]}>{option.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
             {showNewCategoryField ? (
               <View style={styles.inlineCategoryRow}>
                 <TextInput value={newCategoryName} onChangeText={setNewCategoryName} placeholder={copy.categoryName} placeholderTextColor={colors.placeholder} style={[styles.input, styles.inlineCategoryInput]} onSubmitEditing={() => void createCategoryInline()} returnKeyType="done" />
@@ -688,6 +744,10 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   modalBackdrop: { backgroundColor: colors.overlay, flex: 1, justifyContent: "flex-end" }, sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 26, borderTopRightRadius: 26, maxHeight: "92%", paddingBottom: 36, paddingHorizontal: 22, paddingTop: 10 }, sheetHandle: { alignSelf: "center", backgroundColor: colors.border, borderRadius: 3, height: 5, width: 42 }, sheetHeader: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between", paddingBottom: 16, paddingTop: 17 }, sheetTitle: { color: colors.foreground, fontSize: 21, fontWeight: "700" }, closeButton: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderRadius: 18, height: 36, justifyContent: "center", width: 36 },
   fieldLabel: { color: colors.foreground, fontSize: 13, fontWeight: "700", marginBottom: 7, marginTop: 12 }, hintText: { color: colors.muted, fontSize: 11, lineHeight: 16, marginBottom: 8, marginTop: -4 }, input: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 12, borderWidth: 1, color: colors.foreground, fontFamily: mono, fontSize: 16, minHeight: 48, paddingHorizontal: 14 }, error: { color: colors.error, fontSize: 13, lineHeight: 19, marginTop: 11 }, saveButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 13, marginTop: 22, minHeight: 52, justifyContent: "center" }, saveText: { color: colors.onPrimary, fontSize: 16, fontWeight: "700" },
   categoryPicker: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
+  sectionChipExpanded: { backgroundColor: colors.primarySurface },
+  sectionChipExpandedText: { color: colors.primary },
+  // サブカテゴリ行。少し右にインデントし、上に余白を足して親カテゴリの下位であることを視覚的に示す。
+  categoryPickerChild: { borderLeftColor: colors.border, borderLeftWidth: 2, flexDirection: "row", flexWrap: "wrap", gap: 7, marginLeft: 6, marginTop: 8, paddingLeft: 8 },
   inlineCategoryRow: { flexDirection: "row", gap: 8, marginTop: 8 },
   inlineCategoryInput: { flex: 1, minHeight: 44 },
   inlineCategoryButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 10, justifyContent: "center", paddingHorizontal: 16 },
