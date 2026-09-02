@@ -6,10 +6,11 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { UNCATEGORIZED_CATEGORY_ID, type CalculationNotebook, type NotebookCategory } from "@/lib/calculator-store";
+import { localizedText, type AppLanguage } from "@/lib/i18n";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
 
 type Props = {
-  language: "en" | "ja";
+  language: AppLanguage;
   notebooks: CalculationNotebook[];
   notebookCategories: NotebookCategory[];
   /** 表示中の親カテゴリID。未指定なら最上位（大分類）のグリッドを表示する。 */
@@ -23,6 +24,24 @@ type Props = {
   onDeleteCategory: (id: string) => void;
 };
 
+// notebookCountが関数値（複数形の出し分け）を持つため、値はstringに揃えられない。
+// キーの集合と各値のシグネチャを揃えるためtypeof EN_COPYで言語ごとの形を要求する。
+const EN_COPY = {
+  newCategory: "New category", categoryName: "Category name", save: "Save", cancel: "Cancel",
+  uncategorized: "Uncategorized", preset: "Built-in", rename: "Rename", delete: "Delete",
+  deleteConfirm: "Delete this category? Its notebooks move to Uncategorized.",
+  notebookCount: (count: number) => `${count} notebook${count === 1 ? "" : "s"}`,
+};
+const COPY: Record<AppLanguage, typeof EN_COPY> = {
+  en: EN_COPY,
+  ja: {
+    newCategory: "新しいカテゴリ", categoryName: "カテゴリ名", save: "保存", cancel: "キャンセル",
+    uncategorized: "未分類", preset: "プリセット", rename: "改名", delete: "削除",
+    deleteConfirm: "このカテゴリを削除しますか？中のノートは未分類へ移動します。",
+    notebookCount: (count: number) => `${count}件のノート`,
+  },
+};
+
 export function NotebookCategoryGrid({ language, notebooks, notebookCategories, parentCategoryId, onSelectCategory, onSelectParentCategory, onBack, onCreateCategory, onRenameCategory, onDeleteCategory }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -31,17 +50,7 @@ export function NotebookCategoryGrid({ language, notebooks, notebookCategories, 
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
-  const copy = language === "en" ? {
-    newCategory: "New category", categoryName: "Category name", save: "Save", cancel: "Cancel",
-    uncategorized: "Uncategorized", preset: "Built-in", rename: "Rename", delete: "Delete",
-    deleteConfirm: "Delete this category? Its notebooks move to Uncategorized.",
-    notebookCount: (count: number) => `${count} notebook${count === 1 ? "" : "s"}`,
-  } : {
-    newCategory: "新しいカテゴリ", categoryName: "カテゴリ名", save: "保存", cancel: "キャンセル",
-    uncategorized: "未分類", preset: "プリセット", rename: "改名", delete: "削除",
-    deleteConfirm: "このカテゴリを削除しますか？中のノートは未分類へ移動します。",
-    notebookCount: (count: number) => `${count}件のノート`,
-  };
+  const copy = COPY[language];
 
   const childIdsByParent = useMemo(() => {
     const map = new Map<string, string[]>();
@@ -53,20 +62,20 @@ export function NotebookCategoryGrid({ language, notebooks, notebookCategories, 
   }, []);
 
   const parentCategory = parentCategoryId ? PRESET_NOTEBOOK_CATEGORIES.find((category) => category.id === parentCategoryId) : undefined;
-  const parentLabel = parentCategory ? (language === "en" ? parentCategory.labelEn : parentCategory.label) : "";
+  const parentLabel = parentCategory ? localizedText(parentCategory.label, language) : "";
 
   const rows = useMemo(() => {
     const countFor = (categoryId: string) => notebooks.filter((item) => item.categoryId === categoryId).length;
     if (parentCategoryId) {
       const childIds = childIdsByParent.get(parentCategoryId) ?? [];
       return PRESET_NOTEBOOK_CATEGORIES.filter((category) => childIds.includes(category.id)).map((category) => ({
-        id: category.id, label: language === "en" ? category.labelEn : category.label, count: countFor(category.id), isPreset: true, hasChildren: false,
+        id: category.id, label: localizedText(category.label, language), count: countFor(category.id), isPreset: true, hasChildren: false,
       }));
     }
     const presetRows = PRESET_NOTEBOOK_CATEGORIES.filter((category) => !category.parentId).map((category) => {
       const childIds = childIdsByParent.get(category.id) ?? [];
       const count = childIds.length ? childIds.reduce((sum, childId) => sum + countFor(childId), 0) : countFor(category.id);
-      return { id: category.id, label: language === "en" ? category.labelEn : category.label, count, isPreset: true, hasChildren: childIds.length > 0 };
+      return { id: category.id, label: localizedText(category.label, language), count, isPreset: true, hasChildren: childIds.length > 0 };
     });
     const userRows = notebookCategories.map((category) => ({ id: category.id, label: category.name, count: countFor(category.id), isPreset: false, hasChildren: false }));
     const uncategorizedCount = countFor(UNCATEGORIZED_CATEGORY_ID);

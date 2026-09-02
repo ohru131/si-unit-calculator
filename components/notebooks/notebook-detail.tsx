@@ -7,6 +7,7 @@ import { LatexView } from "@/components/ui/latex-view";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { type CalculationNotebook, type CalculationNoteStep, type NotebookLocalConstant } from "@/lib/calculator-store";
+import { type AppLanguage } from "@/lib/i18n";
 import { getLocalConstantFieldSuggestions, getStepFieldSuggestions, insertConstantSymbol, mapCombinedSelectionToExpressionRange } from "@/lib/notebook-constant-suggestions";
 import { evaluateNotebookSteps, formatNameValue, parseNameValue, resolveNotebookLocalConstants, trimResultSymbol } from "@/lib/notebook-engine";
 import { getUnitInsertionRange, replaceExpressionRange } from "@/lib/unit-input";
@@ -14,8 +15,39 @@ import { formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, type M
 
 const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" });
 
+// 英語のキー集合を正にして、言語を足したときにキー漏れがその言語のブロックで型エラーになるようにする。
+const EN_COPY = {
+  edit: "Edit", save: "Save values", copy: "Copy", copied: "Copied",
+  formulas: "Formula", inputs: "Inputs", results: "Results", noInputs: "This notebook has no local constants.", noSteps: "This notebook has no steps yet.",
+  si: "SI base", finalResult: "Final result", referenceHint: "Use {symbol} in a later step.",
+  pin: "Pin to calculator", unpin: "Unpin from calculator",
+  invalidConstantName: "Enter each constant as name=value (e.g. v0=5m/s).",
+  invalidStepName: "Enter each step as name=expression (e.g. v=v0+a*t), or remove the \"=\" to leave it unnamed.",
+  saveFailed: "Could not save. Please try again.",
+  noStepsError: "This notebook needs at least one step.",
+  constantsRailLabel: "Constants",
+  insertConstant: "Insert",
+  back: "Back",
+} as const;
+const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
+  en: EN_COPY,
+  ja: {
+    edit: "編集", save: "値を保存", copy: "コピー", copied: "コピーしました",
+    formulas: "数式", inputs: "定数（入力値）", results: "結果", noInputs: "このノートにはローカル定数がありません。", noSteps: "このノートにはまだ手順がありません。",
+    si: "SI標準", finalResult: "最終結果", referenceHint: "後の手順で {symbol} として使えます。",
+    pin: "電卓画面にピン留め", unpin: "ピン留めを解除",
+    invalidConstantName: "定数は「名前＝値」の形式（例：v0=5m/s）で入力してください。",
+    invalidStepName: "手順は「名前＝式」の形式（例：v=v0+a*t）で入力するか、「＝」を外して名前なしにしてください。",
+    saveFailed: "保存できませんでした。もう一度お試しください。",
+    noStepsError: "手順が最低1つ必要です。",
+    constantsRailLabel: "定数",
+    insertConstant: "挿入",
+    back: "戻る",
+  },
+};
+
 type Props = {
-  language: "en" | "ja";
+  language: AppLanguage;
   locale?: string;
   unitSystem: UnitSystem;
   measuringStandard: MeasuringStandard;
@@ -67,29 +99,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     setUnitOverrides({});
   }, [notebook.id]);
 
-  const copy = language === "en" ? {
-    edit: "Edit", save: "Save values", copy: "Copy", copied: "Copied",
-    formulas: "Formula", inputs: "Inputs", results: "Results", noInputs: "This notebook has no local constants.", noSteps: "This notebook has no steps yet.",
-    si: "SI base", finalResult: "Final result", referenceHint: "Use {symbol} in a later step.",
-    pin: "Pin to calculator", unpin: "Unpin from calculator",
-    invalidConstantName: "Enter each constant as name=value (e.g. v0=5m/s).",
-    invalidStepName: "Enter each step as name=expression (e.g. v=v0+a*t), or remove the \"=\" to leave it unnamed.",
-    saveFailed: "Could not save. Please try again.",
-    noStepsError: "This notebook needs at least one step.",
-    constantsRailLabel: "Constants",
-    insertConstant: "Insert",
-  } : {
-    edit: "編集", save: "値を保存", copy: "コピー", copied: "コピーしました",
-    formulas: "数式", inputs: "定数（入力値）", results: "結果", noInputs: "このノートにはローカル定数がありません。", noSteps: "このノートにはまだ手順がありません。",
-    si: "SI標準", finalResult: "最終結果", referenceHint: "後の手順で {symbol} として使えます。",
-    pin: "電卓画面にピン留め", unpin: "ピン留めを解除",
-    invalidConstantName: "定数は「名前＝値」の形式（例：v0=5m/s）で入力してください。",
-    invalidStepName: "手順は「名前＝式」の形式（例：v=v0+a*t）で入力するか、「＝」を外して名前なしにしてください。",
-    saveFailed: "保存できませんでした。もう一度お試しください。",
-    noStepsError: "手順が最低1つ必要です。",
-    constantsRailLabel: "定数",
-    insertConstant: "挿入",
-  };
+  const copy = COPY[language];
 
   const isDirty = useMemo(() => {
     const constantsDirty = editableConstants.some((item) => {
@@ -103,7 +113,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     return constantsDirty || stepsDirty;
   }, [editableConstants, editableSteps, notebook.localConstants, notebook.steps]);
 
-  const { resolved, errors } = useMemo(() => resolveNotebookLocalConstants(editableConstants, globalConstants), [editableConstants, globalConstants]);
+  const { resolved, errors } = useMemo(() => resolveNotebookLocalConstants(editableConstants, globalConstants, language), [editableConstants, globalConstants, language]);
   const resolvedBySymbol = useMemo(() => new Map(resolved.map((item) => [item.symbol, item])), [resolved]);
   const pool = useMemo(() => [...globalConstants, ...resolved], [globalConstants, resolved]);
   // ローカル定数の式が他の定数記号を参照しているとき、その記号が単位記号と同じ綴りでも
@@ -116,8 +126,8 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   // 依存配列に含めて設定変更時に再計算させる（値自体は参照するだけで使わない）。
   const stepResults = useMemo(() => {
     void measuringStandard;
-    return evaluateNotebookSteps(editableSteps, pool, [], locale);
-  }, [locale, editableSteps, pool, measuringStandard]);
+    return evaluateNotebookSteps(editableSteps, pool, language, [], locale);
+  }, [locale, editableSteps, pool, measuringStandard, language]);
 
   const updateConstant = (id: string, patch: Partial<NotebookLocalConstant>) => {
     setEditableConstants((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
@@ -235,7 +245,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
 
   // 戻る先のカテゴリ名が空になることは基本無いが、propsの契約上は空文字も来うるため
   // 「戻る」ラベルへフォールバックする（呼び出し側のcategoryLabel()は常に非空を返す）。
-  const backLabel = categoryLabel || (language === "en" ? "Back" : "戻る");
+  const backLabel = categoryLabel || copy.back;
 
   return (
     <View style={styles.root}>

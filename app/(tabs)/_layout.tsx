@@ -8,6 +8,24 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Platform } from "react-native";
 import { useColors } from "@/hooks/use-colors";
 import { useGlobalSettings } from "@/lib/global-settings";
+import { type AppLanguage } from "@/lib/i18n";
+
+// クイックアクションのtitle/subtitleは言語ごとに丸ごと複製する（英語を正としたRecordにして
+// 言語追加時のキー漏れ・要素数のずれを型エラーで検出できるようにする）。
+const QUICK_ACTIONS: Record<AppLanguage, RouterAction[]> = {
+  en: [
+    { id: "speed", title: "Speed calculator", subtitle: "Distance ÷ time", icon: "time", params: { href: "/?quick=speed" } },
+    { id: "pressure", title: "Pressure calculator", subtitle: "Force ÷ area", icon: "symbol:gauge.with.dots.needle.67percent", params: { href: "/?quick=pressure" } },
+    { id: "samples", title: "Try examples", subtitle: "Start from a formula", icon: "bookmark", params: { href: "/?quick=samples" } },
+    { id: "search", title: "Search units", subtitle: "Find units quickly", icon: "search", params: { href: "/?quick=search" } },
+  ],
+  ja: [
+    { id: "speed", title: "速度を計算", subtitle: "距離 ÷ 時間", icon: "time", params: { href: "/?quick=speed" } },
+    { id: "pressure", title: "圧力を計算", subtitle: "力 ÷ 面積", icon: "symbol:gauge.with.dots.needle.67percent", params: { href: "/?quick=pressure" } },
+    { id: "samples", title: "サンプルを試す", subtitle: "代表式から開始", icon: "bookmark", params: { href: "/?quick=samples" } },
+    { id: "search", title: "単位を検索", subtitle: "単位を素早く探す", icon: "search", params: { href: "/?quick=search" } },
+  ],
+};
 
 export default function TabLayout() {
   const colors = useColors();
@@ -20,17 +38,7 @@ export default function TabLayout() {
 
   useEffect(() => {
     if (Platform.OS === "web") return;
-    const actions: RouterAction[] = language === "en" ? [
-      { id: "speed", title: "Speed calculator", subtitle: "Distance ÷ time", icon: "time", params: { href: "/?quick=speed" } },
-      { id: "pressure", title: "Pressure calculator", subtitle: "Force ÷ area", icon: "symbol:gauge.with.dots.needle.67percent", params: { href: "/?quick=pressure" } },
-      { id: "samples", title: "Try examples", subtitle: "Start from a formula", icon: "bookmark", params: { href: "/?quick=samples" } },
-      { id: "search", title: "Search units", subtitle: "Find units quickly", icon: "search", params: { href: "/?quick=search" } },
-    ] : [
-      { id: "speed", title: "速度を計算", subtitle: "距離 ÷ 時間", icon: "time", params: { href: "/?quick=speed" } },
-      { id: "pressure", title: "圧力を計算", subtitle: "力 ÷ 面積", icon: "symbol:gauge.with.dots.needle.67percent", params: { href: "/?quick=pressure" } },
-      { id: "samples", title: "サンプルを試す", subtitle: "代表式から開始", icon: "bookmark", params: { href: "/?quick=samples" } },
-      { id: "search", title: "単位を検索", subtitle: "単位を素早く探す", icon: "search", params: { href: "/?quick=search" } },
-    ];
+    const actions = QUICK_ACTIONS[language];
     void QuickActions.isSupported().then((supported) => {
       if (supported) return QuickActions.setItems(actions);
     });

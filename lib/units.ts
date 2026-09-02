@@ -1,3 +1,6 @@
+import { APP_LANGUAGES, type LocalizedText } from "./i18n";
+import { dimensionlessLabel, languageFromLocale, UnitError } from "./unit-errors";
+
 export type Dimension = [number, number, number, number, number, number, number];
 
 export type Quantity = {
@@ -24,7 +27,7 @@ export type UnitOption = {
   /** 同じ単位を指す別表記。入力の解釈、検索、表記ゆれの修正候補に使う。 */
   aliases?: string[];
   /** 記号だけでは分かりにくい単位に添える読み。 */
-  name?: { en: string; ja: string };
+  name?: LocalizedText;
 };
 
 export type UnitSystem = "metric" | "us" | "uk";
@@ -110,7 +113,10 @@ const BASE_UNIT_GROUPS: UnitGroup[] = [
   { id: "mass", label: "質量", dimension: DIMENSIONS.mass, units: [{ symbol: "kg", label: "kg" }, { symbol: "g", label: "g" }, { symbol: "mg", label: "mg" }, { symbol: "t", label: "t" }, { symbol: "lb", label: "lb" }, { symbol: "oz", label: "oz" }, { symbol: "st", label: "st" }] },
   { id: "temperature", label: "温度", dimension: DIMENSIONS.temperature, units: [{ symbol: "K", label: "K" }, { symbol: "°C", label: "°C" }, { symbol: "°F", label: "°F" }] },
   { id: "velocity", label: "速度", dimension: [1, 0, -1, 0, 0, 0, 0], units: [{ symbol: "m/s", label: "m/s" }, { symbol: "km/s", label: "km/s" }, { symbol: "m/min", label: "m/min" }, { symbol: "km/min", label: "km/min" }, { symbol: "m/h", label: "m/h" }, { symbol: "km/h", label: "km/h" }, { symbol: "cm/s", label: "cm/s" }, { symbol: "kine", label: "kine" }, { symbol: "ft/s", label: "ft/s" }, { symbol: "mph", label: "mph" }, { symbol: "kt", label: "kt" }] },
-  { id: "acceleration", label: "加速度", dimension: [1, 0, -2, 0, 0, 0, 0], units: [{ symbol: "m/s²", label: "m/s²" }, { symbol: "cm/s²", label: "cm/s²" }, { symbol: "Gal", label: "Gal (gal)" }, { symbol: "mGal", label: "mGal" }, { symbol: "µGal", label: "µGal" }, { symbol: "G", label: "G (標準重力)" }, { symbol: "ft/s²", label: "ft/s²" }] },
+  // units[].label は単位チップとしてそのまま画面に出るので、記号だけにして言語非依存に保つ。
+  // 以前 G だけ "G (標準重力)" と日本語の補足が入っていて、英語UIでも日本語が出ていた。
+  // 単位の正式名称は UNIT_META の name(LocalizedText) と lib/unit-explanations.ts が持っている。
+  { id: "acceleration", label: "加速度", dimension: [1, 0, -2, 0, 0, 0, 0], units: [{ symbol: "m/s²", label: "m/s²" }, { symbol: "cm/s²", label: "cm/s²" }, { symbol: "Gal", label: "Gal (gal)" }, { symbol: "mGal", label: "mGal" }, { symbol: "µGal", label: "µGal" }, { symbol: "G", label: "G" }, { symbol: "ft/s²", label: "ft/s²" }] },
   { id: "force", label: "力", dimension: [1, 1, -2, 0, 0, 0, 0], units: [{ symbol: "N", label: "N" }, { symbol: "kN", label: "kN" }] },
   { id: "pressure", label: "圧力", dimension: [-1, 1, -2, 0, 0, 0, 0], units: [{ symbol: "Pa", label: "Pa" }, { symbol: "kPa", label: "kPa" }, { symbol: "MPa", label: "MPa" }, { symbol: "bar", label: "bar" }, { symbol: "psi", label: "psi" }, { symbol: "atm", label: "atm" }] },
   { id: "energy", label: "エネルギー", dimension: [2, 1, -2, 0, 0, 0, 0], units: [{ symbol: "J", label: "J" }, { symbol: "kJ", label: "kJ" }, { symbol: "Wh", label: "Wh" }, { symbol: "BTU", label: "BTU" }, { symbol: "cal", label: "cal" }, { symbol: "kcal", label: "kcal" }, { symbol: "eV", label: "eV" }] },
@@ -123,7 +129,7 @@ const BASE_UNIT_GROUPS: UnitGroup[] = [
   { id: "amount", label: "物質量", dimension: DIMENSIONS.amount, units: [{ symbol: "mol", label: "mol" }, { symbol: "mmol", label: "mmol" }] },
 ];
 
-type UnitMeta = { aliases?: string[]; name?: { en: string; ja: string } };
+type UnitMeta = { aliases?: string[]; name?: LocalizedText };
 
 /**
  * 記号だけでは伝わりにくい単位に読みと別表記を添える。
@@ -264,7 +270,8 @@ export function canonicalUnitSymbol(input: string): string {
 
 /** 候補一覧に使う検索用テキスト。記号・読み・別表記・カテゴリ名をまとめる。 */
 export function unitSearchText(group: UnitGroup, unitOption: UnitOption): string {
-  return [group.id, group.label, unitOption.symbol, unitOption.label, unitOption.name?.en, unitOption.name?.ja, ...(unitOption.aliases ?? [])].filter(Boolean).join(" ").toLowerCase();
+  const localizedNames = APP_LANGUAGES.map((language) => unitOption.name?.[language]);
+  return [group.id, group.label, unitOption.symbol, unitOption.label, ...localizedNames, ...(unitOption.aliases ?? [])].filter(Boolean).join(" ").toLowerCase();
 }
 
 const multiplyDimensions = (left: Dimension, right: Dimension): Dimension =>
@@ -488,12 +495,14 @@ function resolveUnitSymbol(symbol: string): UnitDefinition {
     }
   }
 
-  throw new Error(`未対応の単位「${symbol}」です。`);
+  throw new UnitError("unsupportedUnit", { symbol });
 }
 
 export function parseUnit(input: string): UnitDefinition {
   const source = normalize(input).replace(/\*/g, "·");
-  if (!source || source === "1" || source === "無次元") return unit(1, ZERO);
+  // "無次元"はformatQuantity/formatDimensionが返す無次元ラベルの日本語文言、"dimensionless"は
+  // その英語文言。どちらを単位欄に貼り戻しても空単位として解釈できるよう両方を受け付ける。
+  if (!source || source === "1" || source === "無次元" || source.toLowerCase() === "dimensionless") return unit(1, ZERO);
 
   let result = unit(1, ZERO);
   let operation: "multiply" | "divide" = "multiply";
@@ -510,11 +519,11 @@ export function parseUnit(input: string): UnitDefinition {
     }
 
     const match = factor.match(/^([A-Za-zΩµμ%°]+)(?:\^?(-?\d+))?$/);
-    if (!match) throw new Error(`単位「${input}」の書式を解釈できません。`);
+    if (!match) throw new UnitError("unparsableUnitFormat", { input });
     const [, symbol, rawPower] = match;
     const power = rawPower ? Number(rawPower) : 1;
     const resolved = resolveUnitSymbol(symbol);
-    if (resolved.offset !== undefined && (power !== 1 || factors.length !== 1)) throw new Error("摂氏・華氏は単独の温度値として入力してください。");
+    if (resolved.offset !== undefined && (power !== 1 || factors.length !== 1)) throw new UnitError("temperatureUnitStandalone");
     if (resolved.offset !== undefined) {
       result = resolved;
       continue;
@@ -540,20 +549,20 @@ export function getUnitRegistration(input: string): UnitRegistration {
 }
 
 function quantity(value: number, dimension: Dimension = ZERO): Quantity {
-  if (!Number.isFinite(value)) throw new Error("有限の数値を入力してください。");
+  if (!Number.isFinite(value)) throw new UnitError("nonFiniteNumber");
   return { siValue: value, dimension: [...dimension] as Dimension };
 }
 
 function add(left: Quantity, right: Quantity): Quantity {
   if (!sameDimension(left.dimension, right.dimension)) {
-    throw new Error("加算・減算できるのは同じ次元の値だけです。");
+    throw new UnitError("dimensionMismatchAddSubtract");
   }
   return quantity(left.siValue + right.siValue, left.dimension);
 }
 
 function subtract(left: Quantity, right: Quantity): Quantity {
   if (!sameDimension(left.dimension, right.dimension)) {
-    throw new Error("加算・減算できるのは同じ次元の値だけです。");
+    throw new UnitError("dimensionMismatchAddSubtract");
   }
   return quantity(left.siValue - right.siValue, left.dimension);
 }
@@ -563,34 +572,34 @@ function multiply(left: Quantity, right: Quantity): Quantity {
 }
 
 function divide(left: Quantity, right: Quantity): Quantity {
-  if (right.siValue === 0) throw new Error("0では割れません。");
+  if (right.siValue === 0) throw new UnitError("divideByZero");
   return quantity(left.siValue / right.siValue, divideDimensions(left.dimension, right.dimension));
 }
 
 function exponentiate(base: Quantity, exponent: Quantity): Quantity {
-  if (!isDimensionless(exponent.dimension)) throw new Error("べき指数は無次元の値にしてください。");
-  if (!Number.isFinite(exponent.siValue)) throw new Error("べき指数は有限の数値にしてください。");
-  if (base.siValue < 0 && !Number.isInteger(exponent.siValue)) throw new Error("負の値には整数のべき指数だけを使用できます。");
+  if (!isDimensionless(exponent.dimension)) throw new UnitError("exponentMustBeDimensionless");
+  if (!Number.isFinite(exponent.siValue)) throw new UnitError("exponentMustBeFinite");
+  if (base.siValue < 0 && !Number.isInteger(exponent.siValue)) throw new UnitError("negativeBaseRequiresIntegerExponent");
   if (!isDimensionless(base.dimension) && !Number.isInteger(exponent.siValue)) {
-    throw new Error("単位付きの値には整数のべき指数だけを使用できます。");
+    throw new UnitError("unitValueRequiresIntegerExponent");
   }
   return quantity(base.siValue ** exponent.siValue, powerDimension(base.dimension, exponent.siValue));
 }
 
 function squareRoot(input: Quantity): Quantity {
-  if (input.siValue < 0) throw new Error("負の値の平方根は計算できません。");
-  if (input.dimension.some((power) => power % 2 !== 0)) throw new Error("単位付きの平方根では、各次元の指数が偶数である必要があります。");
+  if (input.siValue < 0) throw new UnitError("negativeSquareRoot");
+  if (input.dimension.some((power) => power % 2 !== 0)) throw new UnitError("squareRootRequiresEvenDimension");
   return quantity(Math.sqrt(input.siValue), input.dimension.map((power) => power / 2) as Dimension);
 }
 
 function applyMathFunction(name: string, input: Quantity): Quantity {
   if (name === "sqrt") return squareRoot(input);
-  if (!isDimensionless(input.dimension)) throw new Error(`${name}() の引数は角度または無次元の値にしてください。`);
+  if (!isDimensionless(input.dimension)) throw new UnitError("functionArgMustBeDimensionless", { name });
   if (["asin", "acos"].includes(name) && (input.siValue < -1 || input.siValue > 1)) {
-    throw new Error(`${name}() の引数は -1 から 1 の範囲にしてください。`);
+    throw new UnitError("functionArgOutOfRange", { name });
   }
   if (["ln", "log", "log2"].includes(name) && input.siValue <= 0) {
-    throw new Error(`${name}() の引数は0より大きい値にしてください。`);
+    throw new UnitError("functionArgMustBePositive", { name });
   }
   const functions: Record<string, (value: number) => number> = {
     sin: Math.sin, cos: Math.cos, tan: Math.tan,
@@ -598,7 +607,7 @@ function applyMathFunction(name: string, input: Quantity): Quantity {
     ln: Math.log, log: Math.log10, log2: Math.log2,
   };
   const evaluator = functions[name];
-  if (!evaluator) throw new Error(`未対応の関数「${name}」です。`);
+  if (!evaluator) throw new UnitError("unsupportedFunction", { name });
   return quantity(evaluator(input.siValue));
 }
 
@@ -680,7 +689,7 @@ function tokenize(input: string): Token[] {
       continue;
     }
 
-    throw new Error(`「${current}」を解釈できません。`);
+    throw new UnitError("unparsableCharacter", { character: current });
   }
 
   return tokens;
@@ -693,13 +702,13 @@ export function evaluateExpression(
   activeFunctionNames: string[] = [],
 ): Quantity {
   const tokens = tokenize(input);
-  if (!tokens.length) throw new Error("式を入力してください。");
+  if (!tokens.length) throw new UnitError("emptyExpression");
   const constantMap = new Map(constants.map((item) => [item.symbol, item.quantity]));
   let position = 0;
 
   const parsePrimary = (): Quantity => {
     const token = tokens[position];
-    if (!token) throw new Error("式が途中で終わっています。");
+    if (!token) throw new UnitError("unexpectedEndOfExpression");
     if (token.type === "operator" && (token.value === "+" || token.value === "-")) {
       position += 1;
       const inner = parsePrimary();
@@ -715,7 +724,7 @@ export function evaluateExpression(
       if (constant) return constant;
       const customFunction = customFunctions.find((item) => item.name === token.value);
       if (customFunction && tokens[position]?.type === "leftParen") {
-        if (activeFunctionNames.includes(customFunction.name)) throw new Error(`自作関数「${customFunction.name}」が再帰的に呼び出されています。`);
+        if (activeFunctionNames.includes(customFunction.name)) throw new UnitError("recursiveCustomFunction", { name: customFunction.name });
         position += 1;
         const argumentsList: Quantity[] = [];
         if (tokens[position]?.type !== "rightParen") {
@@ -725,10 +734,10 @@ export function evaluateExpression(
             position += 1;
           }
         }
-        if (tokens[position]?.type !== "rightParen") throw new Error(`自作関数「${customFunction.name}」の閉じ括弧が不足しています。`);
+        if (tokens[position]?.type !== "rightParen") throw new UnitError("customFunctionMissingClosingParen", { name: customFunction.name });
         position += 1;
         if (argumentsList.length !== customFunction.parameters.length) {
-          throw new Error(`自作関数「${customFunction.name}」は${customFunction.parameters.length}個の引数を必要とします。`);
+          throw new UnitError("customFunctionArgumentCountMismatch", { name: customFunction.name, count: customFunction.parameters.length });
         }
         const parameterConstants: SavedConstant[] = customFunction.parameters.map((symbol, index) => ({
           symbol,
@@ -739,22 +748,22 @@ export function evaluateExpression(
         return evaluateExpression(customFunction.expression, [...constants, ...parameterConstants], customFunctions, [...activeFunctionNames, customFunction.name]);
       }
       if (token.value === "atan2") {
-        if (tokens[position]?.type !== "leftParen") throw new Error("atan2() の後に括弧を付けてください。");
+        if (tokens[position]?.type !== "leftParen") throw new UnitError("atan2MissingOpenParen");
         position += 1;
         const y = parseAddSubtract();
-        if (tokens[position]?.type !== "comma") throw new Error("atan2() は atan2(y, x) の形式で入力してください。");
+        if (tokens[position]?.type !== "comma") throw new UnitError("atan2MissingComma");
         position += 1;
         const x = parseAddSubtract();
-        if (tokens[position]?.type !== "rightParen") throw new Error("atan2() の閉じ括弧が不足しています。");
+        if (tokens[position]?.type !== "rightParen") throw new UnitError("atan2MissingClosingParen");
         position += 1;
-        if (!sameDimension(y.dimension, x.dimension)) throw new Error("atan2() の2つの引数は同じ次元にしてください。");
+        if (!sameDimension(y.dimension, x.dimension)) throw new UnitError("atan2DimensionMismatch");
         return quantity(Math.atan2(y.siValue, x.siValue));
       }
       if (["sin", "cos", "tan", "asin", "acos", "atan", "sqrt", "ln", "log", "log2"].includes(token.value)) {
-        if (tokens[position]?.type !== "leftParen") throw new Error(`${token.value}() の後に括弧を付けてください。`);
+        if (tokens[position]?.type !== "leftParen") throw new UnitError("functionMissingOpenParen", { name: token.value });
         position += 1;
         const inner = parseAddSubtract();
-        if (tokens[position]?.type !== "rightParen") throw new Error(`${token.value}() の閉じ括弧が不足しています。`);
+        if (tokens[position]?.type !== "rightParen") throw new UnitError("functionMissingClosingParen", { name: token.value });
         position += 1;
         return applyMathFunction(token.value, inner);
       }
@@ -767,17 +776,17 @@ export function evaluateExpression(
         const parsed = parseUnit(token.value);
         return quantity(parsed.scale, parsed.dimension);
       } catch {
-        throw new Error(`定数または単位「${token.value}」が見つかりません。`);
+        throw new UnitError("unknownIdentifier", { name: token.value });
       }
     }
     if (token.type === "leftParen") {
       position += 1;
       const inner = parseAddSubtract();
-      if (tokens[position]?.type !== "rightParen") throw new Error("閉じ括弧が不足しています。");
+      if (tokens[position]?.type !== "rightParen") throw new UnitError("missingClosingParen");
       position += 1;
       return inner;
     }
-    throw new Error("式の構文が正しくありません。");
+    throw new UnitError("invalidExpressionSyntax");
   };
 
   const parsePower = (): Quantity => {
@@ -817,7 +826,7 @@ export function evaluateExpression(
   };
 
   const result = parseAddSubtract();
-  if (position !== tokens.length) throw new Error("式の構文が正しくありません。");
+  if (position !== tokens.length) throw new UnitError("invalidExpressionSyntax");
   return result;
 }
 
@@ -825,7 +834,7 @@ const CONSTANT_DEFINITION_PATTERN = new RegExp(`^([${IDENTIFIER_START_CHAR_CLASS
 
 export function parseConstantDefinition(input: string, constants: SavedConstant[] = []) {
   const match = input.trim().match(CONSTANT_DEFINITION_PATTERN);
-  if (!match) throw new Error("定数は「W = 3cm」の形式で定義してください。");
+  if (!match) throw new UnitError("invalidConstantDefinitionFormat");
   const [, symbol, expression] = match;
   return { symbol, expression, quantity: evaluateExpression(expression, constants) };
 }
@@ -842,7 +851,10 @@ export function formatNumberForLocale(value: number, locale?: string): string {
   return new Intl.NumberFormat(locale, { maximumSignificantDigits: 10, useGrouping: false }).format(Object.is(value, -0) ? 0 : value);
 }
 
-export function formatDimension(dimension: Dimension): string {
+// dimension・localeから組み立てる文字列自体は無次元かどうかの判定に使わず、
+// isDimensionless(dimension)を直接見て判定する（言語によって文言が変わるため、
+// 以前のような「戻り値の文字列が"無次元"かどうかを比較する」実装だと英語UIで壊れる）。
+export function formatDimension(dimension: Dimension, locale?: string): string {
   const labels = ["m", "kg", "s", "A", "K", "mol", "cd"];
   const numerator: string[] = [];
   const denominator: string[] = [];
@@ -850,26 +862,26 @@ export function formatDimension(dimension: Dimension): string {
     if (power > 0) numerator.push(`${labels[index]}${power === 1 ? "" : toSuperscript(power)}`);
     if (power < 0) denominator.push(`${labels[index]}${power === -1 ? "" : toSuperscript(-power)}`);
   });
-  if (!numerator.length && !denominator.length) return "無次元";
+  if (!numerator.length && !denominator.length) return dimensionlessLabel(languageFromLocale(locale));
   if (!denominator.length) return numerator.join("·");
   return `${numerator.length ? numerator.join("·") : "1"}/${denominator.join("·")}`;
 }
 
-export function convertQuantity(input: Quantity, targetUnit: string): { value: number; unit: string } {
+export function convertQuantity(input: Quantity, targetUnit: string, locale?: string): { value: number; unit: string } {
   const parsed = parseUnit(targetUnit);
   if (!sameDimension(input.dimension, parsed.dimension)) {
-    throw new Error(`結果を「${targetUnit}」へ変換できません。次元が一致していません。`);
+    throw new UnitError("incompatibleTargetUnit", { targetUnit });
   }
-  return { value: (input.siValue - (parsed.offset ?? 0)) / parsed.scale, unit: targetUnit.trim() || "無次元" };
+  return { value: (input.siValue - (parsed.offset ?? 0)) / parsed.scale, unit: targetUnit.trim() || dimensionlessLabel(languageFromLocale(locale)) };
 }
 
 export function formatQuantity(input: Quantity, targetUnit?: string, locale?: string): string {
   if (targetUnit?.trim()) {
-    const converted = convertQuantity(input, targetUnit);
+    const converted = convertQuantity(input, targetUnit, locale);
     return `${formatNumberForLocale(converted.value, locale)} ${converted.unit}`;
   }
-  const dimension = formatDimension(input.dimension);
-  return dimension === "無次元" ? formatNumberForLocale(input.siValue, locale) : `${formatNumberForLocale(input.siValue, locale)} ${dimension}`;
+  if (isDimensionless(input.dimension)) return formatNumberForLocale(input.siValue, locale);
+  return `${formatNumberForLocale(input.siValue, locale)} ${formatDimension(input.dimension, locale)}`;
 }
 
 export function hasSameDimension(left: Quantity, right: Quantity) {

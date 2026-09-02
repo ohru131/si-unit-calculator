@@ -2,9 +2,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Localization from "expo-localization";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
+import { AppLanguage, isAppLanguage, LANGUAGE_META, resolveDeviceLanguage } from "@/lib/i18n";
 import { MeasuringStandard, setMeasuringStandard as applyMeasuringStandard, UnitSystem } from "@/lib/units";
 
-export type AppLanguage = "en" | "ja";
+// AppLanguage の唯一の定義は lib/i18n.ts。既存のimport元（他ファイルが
+// "@/lib/global-settings" から AppLanguage をimportしている）を壊さないよう、ここではre-exportする。
+export type { AppLanguage };
 
 type GlobalSettings = {
   language: AppLanguage;
@@ -21,58 +24,61 @@ type GlobalSettings = {
   unitGroupLabel: (groupId: string) => string;
 };
 
-type TranslationKey = keyof typeof COPY.en;
+type TranslationKey = keyof typeof EN_COPY;
 
 const LANGUAGE_KEY = "si-unit-calculator.language.v1";
 const UNIT_SYSTEM_KEY = "si-unit-calculator.unit-system.v1";
 const ONBOARDING_SEEN_KEY = "si-unit-calculator.onboarding-seen.v1";
 const MEASURING_STANDARD_KEY = "si-unit-calculator.measuring-standard.v1";
 
-const COPY = {
-  en: {
-    calculator: "Unit Calculator",
-    calculatorSubtitle: "Calculate in SI. Display in compatible units.",
-    constants: "Library",
-    pro: "Pro",
-    examples: "Start with examples",
-    examplesHint: "Choose an example to load the expression, display unit, and result.",
-    expression: "Expression",
-    expressionHint: "Supports ×, ÷, parentheses, constants, and advanced math",
-    result: "Result",
-    displayUnit: "Display unit",
-    compatibleOnly: "Only units with the same dimension are shown.",
-    enterUnit: "Enter a unit",
-    enterUnitHint: "Choose a category, then tap a unit to add it to the expression.",
-    settings: "Preferences",
-    settingsSubtitle: "Language, regional units, and accessible display choices.",
-    language: "App language",
-    units: "Preferred unit system",
-    systemMetric: "Metric",
-    systemUS: "US customary",
-    systemUK: "Imperial / UK",
-    systemHint: "Your preference prioritizes familiar units without changing SI calculation accuracy.",
-    theme: "Appearance",
-    themeSystem: "System",
-    themeLight: "Light",
-    themeDark: "Dark",
-    themeHint: "Choose Light or Dark to override your device setting, or follow System.",
-    adsTitle: "Ads",
-    adsHint: "The free version shows a small banner ad. Upgrade to Pro, or enter a code, to remove it.",
-    adsFreeActive: "Ads are hidden.",
-    adsUpgrade: "See Pro plans",
-    adsRedeemPlaceholder: "Enter a code",
-    adsRedeemButton: "Apply",
-    accessibility: "Accessible by design",
-    accessibilityHint: "VoiceOver and TalkBack labels describe controls; text follows your device size settings.",
-    region: "Region",
-    saved: "Saved",
-    english: "English",
-    japanese: "Japanese",
-    measuringStandard: "Cup & spoon standard",
-    measuringStandardHint: "Sets the actual size used for cup, tbsp, and tsp everywhere in the app.",
-    standardUS: "US customary (cup ≈ 236.6 mL)",
-    standardJIS: "Japanese JIS (cup = 200 mL)",
-  },
+// 英語のキー集合を正にして、他の言語は同じキーが全部揃っていないと型エラーにする。
+// COPY 全体を satisfies Record<AppLanguage, Record<string, string>> とするとキー漏れをその場で検出できず、
+// t() の定義行で「どの言語の何のキーが足りないのか分からないエラー」になってしまう。
+const EN_COPY = {
+  calculator: "Unit Calculator",
+  calculatorSubtitle: "Calculate in SI. Display in compatible units.",
+  constants: "Library",
+  pro: "Pro",
+  examples: "Start with examples",
+  examplesHint: "Choose an example to load the expression, display unit, and result.",
+  expression: "Expression",
+  expressionHint: "Supports ×, ÷, parentheses, constants, and advanced math",
+  result: "Result",
+  displayUnit: "Display unit",
+  compatibleOnly: "Only units with the same dimension are shown.",
+  enterUnit: "Enter a unit",
+  enterUnitHint: "Choose a category, then tap a unit to add it to the expression.",
+  settings: "Preferences",
+  settingsSubtitle: "Language, regional units, and accessible display choices.",
+  language: "App language",
+  units: "Preferred unit system",
+  systemMetric: "Metric",
+  systemUS: "US customary",
+  systemUK: "Imperial / UK",
+  systemHint: "Your preference prioritizes familiar units without changing SI calculation accuracy.",
+  theme: "Appearance",
+  themeSystem: "System",
+  themeLight: "Light",
+  themeDark: "Dark",
+  themeHint: "Choose Light or Dark to override your device setting, or follow System.",
+  adsTitle: "Ads",
+  adsHint: "The free version shows a small banner ad. Upgrade to Pro, or enter a code, to remove it.",
+  adsFreeActive: "Ads are hidden.",
+  adsUpgrade: "See Pro plans",
+  adsRedeemPlaceholder: "Enter a code",
+  adsRedeemButton: "Apply",
+  accessibility: "Accessible by design",
+  accessibilityHint: "VoiceOver and TalkBack labels describe controls; text follows your device size settings.",
+  region: "Region",
+  saved: "Saved",
+  measuringStandard: "Cup & spoon standard",
+  measuringStandardHint: "Sets the actual size used for cup, tbsp, and tsp everywhere in the app.",
+  standardUS: "US customary (cup ≈ 236.6 mL)",
+  standardJIS: "Japanese JIS (cup = 200 mL)",
+} as const;
+
+const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
+  en: EN_COPY,
   ja: {
     calculator: "単位付き電卓",
     calculatorSubtitle: "SIで計算し、互換性のある単位で表示します。",
@@ -110,17 +116,18 @@ const COPY = {
     accessibilityHint: "VoiceOver・TalkBack向けの説明を付け、端末の文字サイズ設定に対応します。",
     region: "地域",
     saved: "保存済み",
-    english: "English",
-    japanese: "日本語",
     measuringStandard: "カップ・大さじ・小さじの規格",
     measuringStandardHint: "アプリ内すべてのカップ・大さじ・小さじの実際の量をまとめて切り替えます。",
     standardUS: "米国基準（カップ ≈ 236.6mL）",
     standardJIS: "日本のJIS規格（カップ = 200mL）",
   },
-} as const;
+};
 
-const GROUP_NAMES: Record<string, { en: string; ja: string }> = {
-  length: { en: "Length", ja: "長さ" }, area: { en: "Area", ja: "面積" }, volume: { en: "Volume", ja: "体積" }, time: { en: "Time", ja: "時間" }, mass: { en: "Mass", ja: "質量" }, temperature: { en: "Temperature", ja: "温度" }, velocity: { en: "Speed", ja: "速度" }, acceleration: { en: "Acceleration", ja: "加速度" }, force: { en: "Force", ja: "力" }, pressure: { en: "Pressure", ja: "圧力" }, energy: { en: "Energy", ja: "エネルギー" }, power: { en: "Power", ja: "電力" }, current: { en: "Current", ja: "電流" }, voltage: { en: "Voltage", ja: "電圧" }, frequency: { en: "Frequency", ja: "周波数" }, angle: { en: "Angle", ja: "角度" }, ratio: { en: "Ratio", ja: "割合・無次元" },
+// lib/units.ts の BASE_UNIT_GROUPS（18グループ）と1対1で揃える必要がある。
+// キーが欠けると unitGroupLabel が生の group id をそのままUIに出してしまう
+// （実際に amount が抜けていて "amount" という文字列が表示されるバグがあった）。
+const GROUP_NAMES: Record<string, Record<AppLanguage, string>> = {
+  length: { en: "Length", ja: "長さ" }, area: { en: "Area", ja: "面積" }, volume: { en: "Volume", ja: "体積" }, time: { en: "Time", ja: "時間" }, mass: { en: "Mass", ja: "質量" }, temperature: { en: "Temperature", ja: "温度" }, velocity: { en: "Speed", ja: "速度" }, acceleration: { en: "Acceleration", ja: "加速度" }, force: { en: "Force", ja: "力" }, pressure: { en: "Pressure", ja: "圧力" }, energy: { en: "Energy", ja: "エネルギー" }, power: { en: "Power", ja: "電力" }, current: { en: "Current", ja: "電流" }, voltage: { en: "Voltage", ja: "電圧" }, frequency: { en: "Frequency", ja: "周波数" }, angle: { en: "Angle", ja: "角度" }, ratio: { en: "Ratio", ja: "割合・無次元" }, amount: { en: "Amount of substance", ja: "物質量" },
 };
 
 const GlobalSettingsContext = createContext<GlobalSettings | null>(null);
@@ -139,7 +146,7 @@ function defaultUnitSystem(locale: Localization.Locale | undefined): UnitSystem 
 
 export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
   const deviceLocale = Localization.useLocales()[0];
-  const defaultLanguage: AppLanguage = deviceLocale?.languageCode === "ja" ? "ja" : "en";
+  const defaultLanguage: AppLanguage = resolveDeviceLanguage(deviceLocale?.languageTag, deviceLocale?.languageCode);
   const [language, setLanguageState] = useState<AppLanguage>(defaultLanguage);
   const [unitSystem, setUnitSystemState] = useState<UnitSystem>(() => defaultUnitSystem(deviceLocale));
   const [measuringStandard, setMeasuringStandardState] = useState<MeasuringStandard>(() => defaultMeasuringStandard(defaultLanguage));
@@ -153,8 +160,8 @@ export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
 
     Promise.all([AsyncStorage.getItem(LANGUAGE_KEY), AsyncStorage.getItem(UNIT_SYSTEM_KEY), AsyncStorage.getItem(ONBOARDING_SEEN_KEY), AsyncStorage.getItem(MEASURING_STANDARD_KEY)])
       .then(([storedLanguage, storedUnitSystem, storedOnboardingSeen, storedMeasuringStandard]) => {
-        const resolvedLanguage = storedLanguage === "en" || storedLanguage === "ja" ? storedLanguage : defaultLanguage;
-        if (storedLanguage === "en" || storedLanguage === "ja") setLanguageState(storedLanguage);
+        const resolvedLanguage = isAppLanguage(storedLanguage) ? storedLanguage : defaultLanguage;
+        if (isAppLanguage(storedLanguage)) setLanguageState(storedLanguage);
         if (storedUnitSystem === "metric" || storedUnitSystem === "us" || storedUnitSystem === "uk") setUnitSystemState(storedUnitSystem);
         if (storedOnboardingSeen === "true") setHasSeenOnboarding(true);
         const resolvedStandard = storedMeasuringStandard === "us" || storedMeasuringStandard === "jis" ? storedMeasuringStandard : defaultMeasuringStandard(resolvedLanguage);
@@ -186,7 +193,16 @@ export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.setItem(ONBOARDING_SEEN_KEY, "true");
   }, []);
 
-  const locale = language === "ja" ? "ja-JP" : deviceLocale?.languageTag?.startsWith("en") ? deviceLocale.languageTag : "en-US";
+  // 端末のlanguageTagが選択中の言語と同じ言語コードなら、それをそのまま使う
+  // （例: 選択言語が"en"で端末が"en-GB"/"en-AU"なら地域差のある実際のタグを尊重する）。
+  // 一致しない場合はLANGUAGE_METAのデフォルトロケールにフォールバックする。
+  // 比較は必ず「両側の言語コード部分」で行う。選択言語側にも pt-BR のように地域が付くことが
+  // あるため、選択言語をそのまま比べると pt-BR を選んだ端末の pt-PT / pt-BR が一致せず、
+  // 数値の地域差(小数点・桁区切り)が既定ロケールに落ちてしまう。
+  const deviceLanguageTag = deviceLocale?.languageTag;
+  const deviceLanguageCode = deviceLanguageTag?.split("-")[0]?.toLowerCase();
+  const selectedLanguageCode = language.split("-")[0].toLowerCase();
+  const locale = deviceLanguageTag && deviceLanguageCode === selectedLanguageCode ? deviceLanguageTag : LANGUAGE_META[language].locale;
   const value = useMemo<GlobalSettings>(() => ({
     language,
     locale,

@@ -1,7 +1,8 @@
+import type { LocalizedText } from "../i18n";
+
 export type PresetNotebookCategory = {
   id: string;
-  label: string;
-  labelEn: string;
+  label: LocalizedText;
   /** 親カテゴリのid。未設定なら最上位（大分類）として扱う。 */
   parentId?: string;
 };
@@ -12,8 +13,7 @@ export type NotebookSeedConstant = {
   expression: string;
 };
 export type NotebookSeedStep = {
-  title: string;
-  titleEn: string;
+  title: LocalizedText;
   expression: string;
   targetUnit: string;
   /** 見やすい表示用のLaTeX数式。省略時は式（expression）をそのまま表示する。 */
@@ -23,15 +23,12 @@ export type NotebookSeedStep = {
 };
 /** 「説明文＋数式」のペア。手順（steps）の計算結果とは独立に、複数個並べて解説できる。 */
 export type NotebookSeedFormula = {
-  explanation: string;
-  explanationEn: string;
+  explanation: LocalizedText;
   latex: string;
 };
 export type NotebookSeed = {
-  title: string;
-  titleEn: string;
-  description: string;
-  descriptionEn: string;
+  title: LocalizedText;
+  description: LocalizedText;
   /** 解説＋数式のペア一覧。省略時は各手順のformulaLatexをそのまま「数式」欄に並べる（従来どおり）。 */
   formulas?: NotebookSeedFormula[];
   localConstants: NotebookSeedConstant[];
