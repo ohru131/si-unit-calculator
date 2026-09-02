@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { type CalculationNoteStep, type NotebookLocalConstant } from "../lib/calculator-store";
 import {
+  clampSelectionRange,
   getLocalConstantFieldSuggestions,
   getStepFieldSuggestions,
   insertConstantSymbol,
@@ -141,5 +142,28 @@ describe("記号の挿入（insertConstantSymbol）", () => {
     const result = insertConstantSymbol("v", "", 2, 2, "nₜ");
     expect(result.expression).toBe("nₜ");
     expect(result.combinedCaret).toBe(4);
+  });
+});
+
+describe("clampSelectionRange", () => {
+  it("記録が無ければ末尾を指す（フォーカス直後はまだonSelectionChangeが来ていない）", () => {
+    expect(clampSelectionRange(undefined, 5)).toEqual({ start: 5, end: 5 });
+    expect(clampSelectionRange(undefined, 0)).toEqual({ start: 0, end: 0 });
+  });
+
+  it("範囲内の記録はそのまま使う", () => {
+    expect(clampSelectionRange({ start: 2, end: 4 }, 10)).toEqual({ start: 2, end: 4 });
+  });
+
+  // 文字列が短くなった直後などに、記録が実際の長さを超えていることがある。そのまま渡すと
+  // 挿入位置が意図しない場所になるので、末尾へ丸める。
+  it("文字列長を超える記録は末尾へ丸める", () => {
+    expect(clampSelectionRange({ start: 20, end: 30 }, 5)).toEqual({ start: 5, end: 5 });
+    expect(clampSelectionRange({ start: 3, end: 30 }, 5)).toEqual({ start: 3, end: 5 });
+  });
+
+  it("負の値やstartがendを超える記録も破綻させない", () => {
+    expect(clampSelectionRange({ start: -3, end: 2 }, 5)).toEqual({ start: 0, end: 2 });
+    expect(clampSelectionRange({ start: 4, end: 1 }, 5)).toEqual({ start: 4, end: 4 });
   });
 });

@@ -9,7 +9,8 @@ import { useColors } from "@/hooks/use-colors";
 import { type CalculationNotebook, type CalculationNoteStep, type NotebookLocalConstant } from "@/lib/calculator-store";
 import { type AppLanguage } from "@/lib/i18n";
 import { getLocalConstantFieldSuggestions, getStepFieldSuggestions, insertConstantSymbol, mapCombinedSelectionToExpressionRange } from "@/lib/notebook-constant-suggestions";
-import { evaluateNotebookSteps, formatNameValue, parseNameValue, resolveNotebookLocalConstants, trimResultSymbol } from "@/lib/notebook-engine";
+import { evaluateNotebookSteps, formatNameValue, normalizeStepForSave, parseNameValue, resolveNotebookLocalConstants, trimResultSymbol } from "@/lib/notebook-engine";
+import { nextStepNamePatch, stepDisplayTitle } from "@/lib/notebook-step-title";
 import { getUnitInsertionRange, replaceExpressionRange } from "@/lib/unit-input";
 import { formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, type MeasuringStandard, type Quantity, type SavedConstant, type UnitSystem } from "@/lib/units";
 
@@ -19,7 +20,7 @@ const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "mon
 const EN_COPY = {
   edit: "Edit", save: "Save values", copy: "Copy", copied: "Copied",
   formulas: "Formula", inputs: "Inputs", results: "Results", noInputs: "This notebook has no local constants.", noSteps: "This notebook has no steps yet.",
-  si: "SI base", finalResult: "Final result", referenceHint: "Use {symbol} in a later step.",
+  si: "SI base", referenceHint: "Use {symbol} in a later step.",
   pin: "Pin to calculator", unpin: "Unpin from calculator",
   invalidConstantName: "Enter each constant as name=value (e.g. v0=5m/s).",
   invalidStepName: "Enter each step as name=expression (e.g. v=v0+a*t), or remove the \"=\" to leave it unnamed.",
@@ -34,7 +35,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   ja: {
     edit: "編集", save: "値を保存", copy: "コピー", copied: "コピーしました",
     formulas: "数式", inputs: "定数（入力値）", results: "結果", noInputs: "このノートにはローカル定数がありません。", noSteps: "このノートにはまだ手順がありません。",
-    si: "SI標準", finalResult: "最終結果", referenceHint: "後の手順で {symbol} として使えます。",
+    si: "SI標準", referenceHint: "後の手順で {symbol} として使えます。",
     pin: "電卓画面にピン留め", unpin: "ピン留めを解除",
     invalidConstantName: "定数は「名前＝値」の形式（例：v0=5m/s）で入力してください。",
     invalidStepName: "手順は「名前＝式」の形式（例：v=v0+a*t）で入力するか、「＝」を外して名前なしにしてください。",
@@ -47,7 +48,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   es: {
     edit: "Editar", save: "Guardar valores", copy: "Copiar", copied: "Copiado",
     formulas: "Fórmula", inputs: "Entradas", results: "Resultados", noInputs: "Este cuaderno no tiene constantes locales.", noSteps: "Este cuaderno todavía no tiene pasos.",
-    si: "SI base", finalResult: "Resultado final", referenceHint: "Usa {symbol} en un paso posterior.",
+    si: "SI base", referenceHint: "Usa {symbol} en un paso posterior.",
     pin: "Fijar en la calculadora", unpin: "Quitar de fijados",
     invalidConstantName: "Escribe cada constante como nombre=valor (por ejemplo, v0=5m/s).",
     invalidStepName: "Escribe cada paso como nombre=expresión (por ejemplo, v=v0+a*t), o quita el \"=\" para dejarlo sin nombre.",
@@ -60,7 +61,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   "pt-BR": {
     edit: "Editar", save: "Salvar valores", copy: "Copiar", copied: "Copiado",
     formulas: "Fórmula", inputs: "Entradas", results: "Resultados", noInputs: "Este caderno não tem constantes locais.", noSteps: "Este caderno ainda não tem etapas.",
-    si: "SI base", finalResult: "Resultado final", referenceHint: "Use {symbol} em uma etapa posterior.",
+    si: "SI base", referenceHint: "Use {symbol} em uma etapa posterior.",
     pin: "Fixar na calculadora", unpin: "Desafixar",
     invalidConstantName: "Digite cada constante como nome=valor (por exemplo, v0=5m/s).",
     invalidStepName: "Digite cada etapa como nome=expressão (por exemplo, v=v0+a*t), ou remova o \"=\" para deixar sem nome.",
@@ -73,7 +74,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   de: {
     edit: "Bearbeiten", save: "Werte speichern", copy: "Kopieren", copied: "Kopiert",
     formulas: "Formel", inputs: "Eingaben", results: "Ergebnisse", noInputs: "Dieses Rechenheft hat keine lokalen Konstanten.", noSteps: "Dieses Rechenheft hat noch keine Schritte.",
-    si: "SI-Basis", finalResult: "Endergebnis", referenceHint: "Verwende {symbol} in einem späteren Schritt.",
+    si: "SI-Basis", referenceHint: "Verwende {symbol} in einem späteren Schritt.",
     pin: "Im Rechner anheften", unpin: "Anheften lösen",
     invalidConstantName: "Gib jede Konstante als Name=Wert ein (z. B. v0=5m/s).",
     invalidStepName: "Gib jeden Schritt als Name=Ausdruck ein (z. B. v=v0+a*t), oder entferne das \"=\", um ihn unbenannt zu lassen.",
@@ -86,7 +87,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   fr: {
     edit: "Modifier", save: "Enregistrer les valeurs", copy: "Copier", copied: "Copié",
     formulas: "Formule", inputs: "Entrées", results: "Résultats", noInputs: "Ce carnet n'a pas de constante locale.", noSteps: "Ce carnet n'a pas encore d'étape.",
-    si: "SI de base", finalResult: "Résultat final", referenceHint: "Utilisez {symbol} dans une étape suivante.",
+    si: "SI de base", referenceHint: "Utilisez {symbol} dans une étape suivante.",
     pin: "Épingler à la calculatrice", unpin: "Désépingler",
     invalidConstantName: "Saisissez chaque constante sous la forme nom=valeur (par exemple v0=5m/s).",
     invalidStepName: "Saisissez chaque étape sous la forme nom=expression (par exemple v=v0+a*t), ou retirez le \"=\" pour la laisser sans nom.",
@@ -198,7 +199,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     if (editableSteps.some((step) => !trimResultSymbol(step) && step.expression.includes("="))) { setSaveError(copy.invalidStepName); return; }
     // 空欄のまま残った行や前後の空白は、エディタ側のsaveNotebookと同じ基準で除いてから保存する。
     const normalizedConstants = editableConstants.filter((item) => item.symbol.trim() && item.expression.trim()).map((item) => ({ ...item, symbol: item.symbol.trim(), expression: item.expression.trim() }));
-    const normalizedSteps = editableSteps.filter((step) => step.expression.trim()).map((step) => ({ ...step, expression: step.expression.trim(), targetUnit: step.targetUnit.trim(), resultSymbol: trimResultSymbol(step) || undefined }));
+    const normalizedSteps = editableSteps.filter((step) => step.expression.trim()).map(normalizeStepForSave);
     if (!normalizedSteps.length) { setSaveError(copy.noStepsError); return; }
     setSaveError("");
     setIsSaving(true);
@@ -437,8 +438,17 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                     value={formatNameValue(result.step.resultSymbol ?? "", result.step.expression)}
                     onChangeText={(text) => {
                       const { name, value } = parseNameValue(text);
-                      // 名前が無いとき（＝を付けていない通常の式）はtitleへ触れない。既存の表示用タイトルを空欄で上書きしないため。
-                      updateStepField(result.step.id, name ? { resultSymbol: name, title: name, expression: value } : { resultSymbol: undefined, expression: value });
+                      // 以前は名前があると問答無用でtitleを記号名(name)に置き換えていたが、それだと
+                      // プリセットの翻訳済み表示タイトル（例:「速さ v」）を名前欄に触れただけで記号名だけに
+                      // 潰してしまっていた。titleが「以前この仕組みで記号から自動生成されたもの」
+                      // （空、または直前のresultSymbolと同じ）のときだけ追従させ、人間が書いた/
+                      // プリセットのタイトルはそのまま保つ。
+                      // 名前を消したとき（name=""）も同じ判定で追従させて空に戻す。ここでtitleを触らずに
+                      // 残すと、記号だけが消えて古い記号名のタイトルが残り、自動生成の目印
+                      // （title===resultSymbol）が失われる。すると次に別の記号を入れてももう自動生成扱いに
+                      // ならず、タイトルが古い記号のまま固定されてしまう。空に戻ったtitleは
+                      // stepDisplayTitleが式で埋めるので、見出しが空欄になることはない。
+                      updateStepField(result.step.id, nextStepNamePatch(result.step, name, value));
                       setForcedSelection((current) => (current?.key === stepRailKey ? null : current));
                     }}
                     onFocus={() => setFocusedRailKey(stepRailKey)}
@@ -457,11 +467,10 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                   )}
                   <View style={styles.resultHeader}>
                     <View style={styles.resultHeaderMain}>
-                      {isFinalStep && result.quantity ? <Text style={styles.finalBadge}>{copy.finalResult}</Text> : null}
-                      <Text style={styles.resultTitle}>{result.step.title}</Text>
+                      <Text style={styles.resultTitle}>{stepDisplayTitle(result.step.title, result.step.expression)}</Text>
                     </View>
                     {displayValue ? (
-                      <Pressable accessibilityLabel={copy.copy} onPress={() => void copyResult(result.step.title, displayValue!)} style={({ pressed }) => [styles.copyButton, pressed && styles.pressed]}>
+                      <Pressable accessibilityLabel={copy.copy} onPress={() => void copyResult(stepDisplayTitle(result.step.title, result.step.expression), displayValue!)} style={({ pressed }) => [styles.copyButton, pressed && styles.pressed]}>
                         <IconSymbol name="doc.on.doc" size={14} color={colors.primary} />
                       </Pressable>
                     ) : null}
@@ -544,7 +553,6 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   resultCardFinal: { borderColor: colors.primary, borderWidth: 2 },
   resultHeader: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between" },
   resultHeaderMain: { flex: 1, paddingRight: 8 },
-  finalBadge: { color: colors.primary, fontSize: 10, fontWeight: "800", letterSpacing: 0.5, marginBottom: 3, textTransform: "uppercase" },
   resultTitle: { color: colors.foreground, fontSize: 13, fontWeight: "800" },
   copyButton: { alignItems: "center", height: 26, justifyContent: "center", width: 30 },
   resultValue: { color: colors.primaryStrong, fontFamily: mono, fontSize: 24, fontWeight: "700", marginTop: 4 },

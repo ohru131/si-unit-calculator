@@ -89,3 +89,17 @@ export function insertConstantSymbol(
   const nextExpression = replaceExpressionRange(expression, start, end, symbol);
   return { expression: nextExpression, combinedCaret: prefixLength + start + symbol.length };
 }
+
+/**
+ * 記録しておいたキャレット/選択範囲を、今の文字列長に収まる範囲へ丸める。
+ *
+ * なぜ必要か: 記号ボタンは「最後にonSelectionChangeで記録した位置」へ挿し込むが、記録は
+ * フィールドの文字列とは別に持っているため、文字列が短くなった直後などに実際の長さを超えて
+ * いることがある。そのまま渡すと挿入位置が意図しない場所になる。まだ一度も記録が無い
+ * （フォーカス直後などの）フィールドは末尾を指す。
+ */
+export function clampSelectionRange(recorded: { start: number; end: number } | undefined, length: number): { start: number; end: number } {
+  if (!recorded) return { start: length, end: length };
+  const start = Math.min(Math.max(recorded.start, 0), length);
+  return { start, end: Math.min(Math.max(recorded.end, start), length) };
+}
