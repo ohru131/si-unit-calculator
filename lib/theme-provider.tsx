@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Appearance, useColorScheme as useSystemColorScheme } from "react-native";
 import { colorScheme as nativewindColorScheme, vars } from "nativewind";
@@ -5,16 +6,35 @@ import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } 
 
 import { SchemeColors, type ColorScheme } from "@/constants/theme";
 
+export type ThemePreference = "system" | "light" | "dark";
+
+const THEME_PREFERENCE_KEY = "si-unit-calculator.theme-preference.v1";
+
 type ThemeContextValue = {
   colorScheme: ColorScheme;
-  setColorScheme: (scheme: ColorScheme) => void;
+  themePreference: ThemePreference;
+  setThemePreference: (preference: ThemePreference) => void;
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemScheme: ColorScheme = useSystemColorScheme() === "dark" ? "dark" : "light";
-  const [colorScheme, setColorSchemeState] = useState<ColorScheme>(systemScheme);
+  const [themePreference, setThemePreferenceState] = useState<ThemePreference>("system");
+  const colorScheme: ColorScheme = themePreference === "system" ? systemScheme : themePreference;
+
+  useEffect(() => {
+    AsyncStorage.getItem(THEME_PREFERENCE_KEY)
+      .then((stored) => {
+        if (stored === "system" || stored === "light" || stored === "dark") setThemePreferenceState(stored);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const setThemePreference = useCallback((preference: ThemePreference) => {
+    setThemePreferenceState(preference);
+    void AsyncStorage.setItem(THEME_PREFERENCE_KEY, preference);
+  }, []);
 
   const applyScheme = useCallback((scheme: ColorScheme) => {
     nativewindColorScheme.set(scheme);
@@ -29,11 +49,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       });
     }
   }, []);
-
-  const setColorScheme = useCallback((scheme: ColorScheme) => {
-    setColorSchemeState(scheme);
-    applyScheme(scheme);
-  }, [applyScheme]);
 
   // 明暗切替のたびに配色が瞬時に切り替わるのを和らげるため、短いフェードを挟む。
   const themeFade = useSharedValue(1);
@@ -69,9 +84,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(
     () => ({
       colorScheme,
-      setColorScheme,
+      themePreference,
+      setThemePreference,
     }),
-    [colorScheme, setColorScheme],
+    [colorScheme, themePreference, setThemePreference],
   );
   return (
     <ThemeContext.Provider value={value}>

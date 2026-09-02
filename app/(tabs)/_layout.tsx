@@ -78,6 +78,8 @@ export default function TabLayout() {
         options={{
           title: t("pro"),
           tabBarIcon: ({ color }) => <IconSymbol size={25} name="crown.fill" color={color} />,
+          // タブバーからは消すが、設定画面などからのリンク先ルートとしては残す。
+          href: null,
         }}
       />
       <Tabs.Screen

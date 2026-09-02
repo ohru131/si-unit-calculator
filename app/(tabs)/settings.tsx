@@ -1,20 +1,27 @@
-import { useMemo } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useMemo, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useRouter } from "expo-router";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
-import { AppLanguage, CalculatorMode, useGlobalSettings } from "@/lib/global-settings";
+import { useAds } from "@/lib/ads-provider";
+import { AppLanguage, useGlobalSettings } from "@/lib/global-settings";
+import { type ThemePreference, useThemeContext } from "@/lib/theme-provider";
 import { MeasuringStandard, UnitSystem } from "@/lib/units";
 
 export default function SettingsScreen() {
-  const { calculatorMode, language, locale, measuringStandard, setCalculatorMode, setLanguage, setMeasuringStandard, t, unitSystem, setUnitSystem } = useGlobalSettings();
+  const { language, locale, measuringStandard, setLanguage, setMeasuringStandard, t, unitSystem, setUnitSystem } = useGlobalSettings();
+  const { themePreference, setThemePreference } = useThemeContext();
+  const { adFree, isAdsPlatformAvailable, redeemMessage, redeemCode } = useAds();
+  const [redeemInput, setRedeemInput] = useState("");
+  const router = useRouter();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const languages: { id: AppLanguage; label: string }[] = [{ id: "en", label: t("english") }, { id: "ja", label: t("japanese") }];
   const systems: { id: UnitSystem; label: string }[] = [{ id: "metric", label: t("systemMetric") }, { id: "us", label: t("systemUS") }, { id: "uk", label: t("systemUK") }];
-  const calculatorModes: { id: CalculatorMode; label: string }[] = [{ id: "simple", label: t("simpleMode") }, { id: "advanced", label: t("advancedMode") }];
+  const themeOptions: { id: ThemePreference; label: string }[] = [{ id: "system", label: t("themeSystem") }, { id: "light", label: t("themeLight") }, { id: "dark", label: t("themeDark") }];
   const measuringStandards: { id: MeasuringStandard; label: string }[] = [{ id: "us", label: t("standardUS") }, { id: "jis", label: t("standardJIS") }];
 
   return <ScreenContainer className="px-5" containerClassName="bg-background">
@@ -35,10 +42,42 @@ export default function SettingsScreen() {
         <View style={styles.systemList}>{measuringStandards.map((option) => <Pressable accessibilityRole="radio" accessibilityState={{ selected: measuringStandard === option.id }} accessibilityLabel={`${t("measuringStandard")}: ${option.label}`} key={option.id} onPress={() => void setMeasuringStandard(option.id)} style={({ pressed }) => [styles.systemRow, measuringStandard === option.id && styles.systemRowActive, pressed && styles.pressed]}><View style={[styles.radio, measuringStandard === option.id && styles.radioActive]}>{measuringStandard === option.id ? <View style={styles.radioInner} /> : null}</View><Text style={styles.systemText}>{option.label}</Text></Pressable>)}</View>
       </View>
       <View style={styles.card}>
-        <Text style={styles.label}>{t("displayMode")}</Text>
-        <Text style={styles.description}>{t("displayModeHint")}</Text>
-        <View style={styles.options}>{calculatorModes.map((option) => <Pressable accessibilityLabel={`${t("displayMode")}: ${option.label}`} key={option.id} onPress={() => void setCalculatorMode(option.id)} style={({ pressed }) => [styles.option, calculatorMode === option.id && styles.optionActive, pressed && styles.pressed]}><Text style={[styles.optionText, calculatorMode === option.id && styles.optionTextActive]}>{option.label}</Text></Pressable>)}</View>
+        <Text style={styles.label}>{t("theme")}</Text>
+        <Text style={styles.description}>{t("themeHint")}</Text>
+        <View style={styles.options}>{themeOptions.map((option) => <Pressable accessibilityLabel={`${t("theme")}: ${option.label}`} key={option.id} onPress={() => setThemePreference(option.id)} style={({ pressed }) => [styles.option, themePreference === option.id && styles.optionActive, pressed && styles.pressed]}><Text style={[styles.optionText, themePreference === option.id && styles.optionTextActive]}>{option.label}</Text></Pressable>)}</View>
       </View>
+      {isAdsPlatformAvailable ? (
+        <View style={styles.card}>
+          <Text style={styles.label}>{t("adsTitle")}</Text>
+          <Text style={styles.description}>{adFree ? t("adsFreeActive") : t("adsHint")}</Text>
+          {!adFree ? (
+            <>
+              <Pressable onPress={() => router.push("/pro")} style={({ pressed }) => [styles.upgradeButton, pressed && styles.pressed]}>
+                <Text style={styles.upgradeButtonText}>{t("adsUpgrade")}</Text>
+              </Pressable>
+              <View style={styles.redeemRow}>
+                <TextInput
+                  value={redeemInput}
+                  onChangeText={setRedeemInput}
+                  placeholder={t("adsRedeemPlaceholder")}
+                  placeholderTextColor={colors.placeholder}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={styles.redeemInput}
+                />
+                <Pressable
+                  disabled={!redeemInput.trim()}
+                  onPress={() => { void redeemCode(redeemInput); setRedeemInput(""); }}
+                  style={({ pressed }) => [styles.redeemButton, !redeemInput.trim() && styles.redeemButtonDisabled, pressed && styles.pressed]}
+                >
+                  <Text style={styles.redeemButtonText}>{t("adsRedeemButton")}</Text>
+                </Pressable>
+              </View>
+              {redeemMessage ? <Text style={styles.redeemMessage}>{redeemMessage}</Text> : null}
+            </>
+          ) : null}
+        </View>
+      ) : null}
       <View style={styles.card}>
         <View style={styles.a11yTitle}><IconSymbol name="accessibility" size={22} color={colors.primary} /><Text style={styles.label}>{t("accessibility")}</Text></View>
         <Text style={styles.description}>{t("accessibilityHint")}</Text>
@@ -56,4 +95,9 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   systemList: { gap: 8, marginTop: 15 }, systemRow: { alignItems: "center", borderColor: colors.border, borderRadius: 12, borderWidth: 1, flexDirection: "row", minHeight: 50, paddingHorizontal: 12 }, systemRowActive: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder }, systemText: { color: colors.foreground, fontSize: 14, fontWeight: "700", marginLeft: 10 },
   radio: { alignItems: "center", borderColor: colors.placeholder, borderRadius: 10, borderWidth: 1.5, height: 20, justifyContent: "center", width: 20 }, radioActive: { borderColor: colors.primary }, radioInner: { backgroundColor: colors.primary, borderRadius: 5, height: 10, width: 10 }, a11yTitle: { alignItems: "center", flexDirection: "row", gap: 8 },
   regionCard: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 14, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 15, paddingVertical: 13 }, regionLabel: { color: colors.muted, fontSize: 12, fontWeight: "700" }, regionValue: { color: colors.primary, fontFamily: "monospace", fontSize: 13, fontWeight: "800" }, pressed: { opacity: 0.72, transform: [{ scale: 0.98 }] },
+  upgradeButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 12, marginTop: 14, paddingVertical: 11 }, upgradeButtonText: { color: colors.onPrimary, fontSize: 14, fontWeight: "800" },
+  redeemRow: { flexDirection: "row", gap: 8, marginTop: 10 },
+  redeemInput: { borderColor: colors.border, borderRadius: 12, borderWidth: 1, color: colors.foreground, flex: 1, fontSize: 14, paddingHorizontal: 12, paddingVertical: 10 },
+  redeemButton: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderRadius: 12, justifyContent: "center", paddingHorizontal: 14 }, redeemButtonDisabled: { opacity: 0.5 }, redeemButtonText: { color: colors.foreground, fontSize: 13, fontWeight: "700" },
+  redeemMessage: { color: colors.muted, fontSize: 12, marginTop: 8 },
 });

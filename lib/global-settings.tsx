@@ -5,19 +5,16 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import { MeasuringStandard, setMeasuringStandard as applyMeasuringStandard, UnitSystem } from "@/lib/units";
 
 export type AppLanguage = "en" | "ja";
-export type CalculatorMode = "simple" | "advanced";
 
 type GlobalSettings = {
   language: AppLanguage;
   locale: string;
   unitSystem: UnitSystem;
-  calculatorMode: CalculatorMode;
   measuringStandard: MeasuringStandard;
   isReady: boolean;
   hasSeenOnboarding: boolean;
   setLanguage: (language: AppLanguage) => Promise<void>;
   setUnitSystem: (system: UnitSystem) => Promise<void>;
-  setCalculatorMode: (mode: CalculatorMode) => Promise<void>;
   setMeasuringStandard: (standard: MeasuringStandard) => Promise<void>;
   completeOnboarding: () => Promise<void>;
   t: (key: TranslationKey) => string;
@@ -28,7 +25,6 @@ type TranslationKey = keyof typeof COPY.en;
 
 const LANGUAGE_KEY = "si-unit-calculator.language.v1";
 const UNIT_SYSTEM_KEY = "si-unit-calculator.unit-system.v1";
-const CALCULATOR_MODE_KEY = "si-unit-calculator.calculator-mode.v1";
 const ONBOARDING_SEEN_KEY = "si-unit-calculator.onboarding-seen.v1";
 const MEASURING_STANDARD_KEY = "si-unit-calculator.measuring-standard.v1";
 
@@ -55,10 +51,17 @@ const COPY = {
     systemUS: "US customary",
     systemUK: "Imperial / UK",
     systemHint: "Your preference prioritizes familiar units without changing SI calculation accuracy.",
-    displayMode: "Calculator display",
-    simpleMode: "Simple",
-    advancedMode: "Advanced",
-    displayModeHint: "Simple keeps uncommon units and functions out of view. Advanced shows angles, scientific units, and math functions.",
+    theme: "Appearance",
+    themeSystem: "System",
+    themeLight: "Light",
+    themeDark: "Dark",
+    themeHint: "Choose Light or Dark to override your device setting, or follow System.",
+    adsTitle: "Ads",
+    adsHint: "The free version shows a small banner ad. Upgrade to Pro, or enter a code, to remove it.",
+    adsFreeActive: "Ads are hidden.",
+    adsUpgrade: "See Pro plans",
+    adsRedeemPlaceholder: "Enter a code",
+    adsRedeemButton: "Apply",
     accessibility: "Accessible by design",
     accessibilityHint: "VoiceOver and TalkBack labels describe controls; text follows your device size settings.",
     region: "Region",
@@ -92,10 +95,17 @@ const COPY = {
     systemUS: "米国慣用単位",
     systemUK: "英・帝国単位",
     systemHint: "SIによる正確な計算は維持したまま、慣用的な単位を先に表示します。",
-    displayMode: "電卓の表示モード",
-    simpleMode: "シンプル",
-    advancedMode: "上級",
-    displayModeHint: "シンプルでは一般的でない単位・関数を隠します。上級では角度、科学単位、数学関数も表示します。",
+    theme: "外観",
+    themeSystem: "端末設定に従う",
+    themeLight: "ライト",
+    themeDark: "ダーク",
+    themeHint: "ライト・ダークを選ぶと端末設定に関わらず固定できます。",
+    adsTitle: "広告",
+    adsHint: "フリー版には小さなバナー広告が表示されます。Proへのアップグレード、またはコードの入力で非表示にできます。",
+    adsFreeActive: "広告は非表示になっています。",
+    adsUpgrade: "Proプランを見る",
+    adsRedeemPlaceholder: "コードを入力",
+    adsRedeemButton: "適用",
     accessibility: "アクセシビリティ",
     accessibilityHint: "VoiceOver・TalkBack向けの説明を付け、端末の文字サイズ設定に対応します。",
     region: "地域",
@@ -132,7 +142,6 @@ export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
   const defaultLanguage: AppLanguage = deviceLocale?.languageCode === "ja" ? "ja" : "en";
   const [language, setLanguageState] = useState<AppLanguage>(defaultLanguage);
   const [unitSystem, setUnitSystemState] = useState<UnitSystem>(() => defaultUnitSystem(deviceLocale));
-  const [calculatorMode, setCalculatorModeState] = useState<CalculatorMode>("simple");
   const [measuringStandard, setMeasuringStandardState] = useState<MeasuringStandard>(() => defaultMeasuringStandard(defaultLanguage));
   const [isReady, setIsReady] = useState(false);
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
@@ -142,12 +151,11 @@ export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
     // （同じ関数の中で）反映させる。useEffectの依存配列経由で追従させると1回分遅れて反映される。
     applyMeasuringStandard(defaultMeasuringStandard(defaultLanguage));
 
-    Promise.all([AsyncStorage.getItem(LANGUAGE_KEY), AsyncStorage.getItem(UNIT_SYSTEM_KEY), AsyncStorage.getItem(CALCULATOR_MODE_KEY), AsyncStorage.getItem(ONBOARDING_SEEN_KEY), AsyncStorage.getItem(MEASURING_STANDARD_KEY)])
-      .then(([storedLanguage, storedUnitSystem, storedCalculatorMode, storedOnboardingSeen, storedMeasuringStandard]) => {
+    Promise.all([AsyncStorage.getItem(LANGUAGE_KEY), AsyncStorage.getItem(UNIT_SYSTEM_KEY), AsyncStorage.getItem(ONBOARDING_SEEN_KEY), AsyncStorage.getItem(MEASURING_STANDARD_KEY)])
+      .then(([storedLanguage, storedUnitSystem, storedOnboardingSeen, storedMeasuringStandard]) => {
         const resolvedLanguage = storedLanguage === "en" || storedLanguage === "ja" ? storedLanguage : defaultLanguage;
         if (storedLanguage === "en" || storedLanguage === "ja") setLanguageState(storedLanguage);
         if (storedUnitSystem === "metric" || storedUnitSystem === "us" || storedUnitSystem === "uk") setUnitSystemState(storedUnitSystem);
-        if (storedCalculatorMode === "simple" || storedCalculatorMode === "advanced") setCalculatorModeState(storedCalculatorMode);
         if (storedOnboardingSeen === "true") setHasSeenOnboarding(true);
         const resolvedStandard = storedMeasuringStandard === "us" || storedMeasuringStandard === "jis" ? storedMeasuringStandard : defaultMeasuringStandard(resolvedLanguage);
         applyMeasuringStandard(resolvedStandard);
@@ -173,11 +181,6 @@ export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.setItem(MEASURING_STANDARD_KEY, nextStandard);
   }, []);
 
-  const setCalculatorMode = useCallback(async (nextMode: CalculatorMode) => {
-    setCalculatorModeState(nextMode);
-    await AsyncStorage.setItem(CALCULATOR_MODE_KEY, nextMode);
-  }, []);
-
   const completeOnboarding = useCallback(async () => {
     setHasSeenOnboarding(true);
     await AsyncStorage.setItem(ONBOARDING_SEEN_KEY, "true");
@@ -188,18 +191,16 @@ export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
     language,
     locale,
     unitSystem,
-    calculatorMode,
     measuringStandard,
     isReady,
     hasSeenOnboarding,
     setLanguage,
     setUnitSystem,
-    setCalculatorMode,
     setMeasuringStandard,
     completeOnboarding,
     t: (key) => COPY[language][key],
     unitGroupLabel: (groupId) => GROUP_NAMES[groupId]?.[language] ?? groupId,
-  }), [calculatorMode, completeOnboarding, hasSeenOnboarding, isReady, language, locale, measuringStandard, setCalculatorMode, setLanguage, setMeasuringStandard, setUnitSystem, unitSystem]);
+  }), [completeOnboarding, hasSeenOnboarding, isReady, language, locale, measuringStandard, setLanguage, setMeasuringStandard, setUnitSystem, unitSystem]);
 
   return <GlobalSettingsContext.Provider value={value}>{children}</GlobalSettingsContext.Provider>;
 }
