@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Appearance, useColorScheme as useSystemColorScheme } from "react-native";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { AppState, Appearance } from "react-native";
 import { colorScheme as nativewindColorScheme, vars } from "nativewind";
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from "react-native-reanimated";
 
@@ -9,6 +9,31 @@ import { SchemeColors, type ColorScheme } from "@/constants/theme";
 export type ThemePreference = "system" | "light" | "dark";
 
 const THEME_PREFERENCE_KEY = "si-unit-calculator.theme-preference.v1";
+
+function readSystemScheme(): ColorScheme {
+  return Appearance.getColorScheme() === "dark" ? "dark" : "light";
+}
+
+// React NativeのuseColorScheme()はAndroidでコールドスタート直後、実際のOSテーマ（既にダーク）
+// より古い値（ライト）を初期値として返すことがあり、その後OS側で実際のテーマ変更イベントが
+// 発生しない限り更新されない（起動時から既にダークモードだと変更イベント自体が起きないため）。
+// useSyncExternalStoreならマウント直後にgetSnapshotを再評価して初期値のズレを検知・修正して
+// くれるので、手動でuseEffect内からsetStateする（react-hooks/set-state-in-effectに反する）
+// 必要がない。AppStateのフォアグラウンド復帰も購読し、変更イベントが飛ばないケースに備える。
+function subscribeToSystemScheme(onStoreChange: () => void) {
+  const appearanceSubscription = Appearance.addChangeListener(() => onStoreChange());
+  const appStateSubscription = AppState.addEventListener("change", (state) => {
+    if (state === "active") onStoreChange();
+  });
+  return () => {
+    appearanceSubscription.remove();
+    appStateSubscription.remove();
+  };
+}
+
+function getServerSystemScheme(): ColorScheme {
+  return "light";
+}
 
 type ThemeContextValue = {
   colorScheme: ColorScheme;
@@ -19,7 +44,7 @@ type ThemeContextValue = {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const systemScheme: ColorScheme = useSystemColorScheme() === "dark" ? "dark" : "light";
+  const systemScheme = useSyncExternalStore(subscribeToSystemScheme, readSystemScheme, getServerSystemScheme);
   const [themePreference, setThemePreferenceState] = useState<ThemePreference>("system");
   const colorScheme: ColorScheme = themePreference === "system" ? systemScheme : themePreference;
 
