@@ -6,11 +6,12 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { type CalculationNotebook } from "@/lib/calculator-store";
+import { type AppLanguage } from "@/lib/i18n";
 import { evaluateNotebookSteps, resolveNotebookLocalConstants } from "@/lib/notebook-engine";
 import { formatQuantity, type SavedConstant } from "@/lib/units";
 
 type Props = {
-  language: "en" | "ja";
+  language: AppLanguage;
   locale?: string;
   categoryLabel: string;
   notebooks: CalculationNotebook[];
@@ -21,36 +22,44 @@ type Props = {
   onTogglePinned: (notebookId: string) => void;
 };
 
+// stepsが関数値（複数形の出し分け）を持つため、値はstringに揃えられない。
+// キーの集合と各値のシグネチャを揃えるためtypeof EN_COPYで言語ごとの形を要求する。
+const EN_COPY = {
+  empty: "No notebooks in this category yet", emptyHint: "Tap the + button to add one.",
+  steps: (count: number) => `${count} step${count === 1 ? "" : "s"}`,
+  delete: "Delete", deleteConfirm: "Delete this notebook? This cannot be undone.", cancel: "Cancel",
+  pin: "Pin to calculator", unpin: "Unpin from calculator", builtIn: "Built-in",
+};
+const COPY: Record<AppLanguage, typeof EN_COPY> = {
+  en: EN_COPY,
+  ja: {
+    empty: "このカテゴリにはまだノートがありません", emptyHint: "右上の＋ボタンから追加できます。",
+    steps: (count: number) => `${count}件の手順`,
+    delete: "削除", deleteConfirm: "このノートを削除しますか？元に戻せません。", cancel: "キャンセル",
+    pin: "電卓画面にピン留め", unpin: "ピン留めを解除", builtIn: "プリセット",
+  },
+};
+
 export function NotebookList({ language, locale, categoryLabel, notebooks, globalConstants, onBack, onOpen, onDelete, onTogglePinned }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
-  const copy = language === "en" ? {
-    empty: "No notebooks in this category yet", emptyHint: "Tap the + button to add one.",
-    steps: (count: number) => `${count} step${count === 1 ? "" : "s"}`,
-    delete: "Delete", deleteConfirm: "Delete this notebook? This cannot be undone.", cancel: "Cancel",
-    pin: "Pin to calculator", unpin: "Unpin from calculator", builtIn: "Built-in",
-  } : {
-    empty: "このカテゴリにはまだノートがありません", emptyHint: "右上の＋ボタンから追加できます。",
-    steps: (count: number) => `${count}件の手順`,
-    delete: "削除", deleteConfirm: "このノートを削除しますか？元に戻せません。", cancel: "キャンセル",
-    pin: "電卓画面にピン留め", unpin: "ピン留めを解除", builtIn: "プリセット",
-  };
+  const copy = COPY[language];
 
   // ノートごとの最終結果プレビューは再計算のコストがあるため、notebooksや
   // globalConstantsが変わらない限り（無関係な再描画のたびには）作り直さない。
   const previews = useMemo(() => {
     const map = new Map<string, string>();
     notebooks.forEach((notebook) => {
-      const { resolved } = resolveNotebookLocalConstants(notebook.localConstants, globalConstants);
+      const { resolved } = resolveNotebookLocalConstants(notebook.localConstants, globalConstants, language);
       const pool = [...globalConstants, ...resolved];
-      const results = evaluateNotebookSteps(notebook.steps, pool, [], locale);
+      const results = evaluateNotebookSteps(notebook.steps, pool, language, [], locale);
       const finalResult = [...results].reverse().find((result) => result.quantity);
       map.set(notebook.id, finalResult?.quantity ? (finalResult.formatted ?? formatQuantity(finalResult.quantity, undefined, locale)) : "");
     });
     return map;
-  }, [globalConstants, locale, notebooks]);
+  }, [globalConstants, language, locale, notebooks]);
 
   return (
     <View style={styles.container}>

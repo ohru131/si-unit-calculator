@@ -3,7 +3,37 @@ import { Platform } from "react-native";
 import Purchases, { CustomerInfo, LOG_LEVEL } from "react-native-purchases";
 import RevenueCatUI from "react-native-purchases-ui";
 
+import { useGlobalSettings } from "@/lib/global-settings";
+import { type AppLanguage } from "@/lib/i18n";
+
 export const PRO_ENTITLEMENT_IDENTIFIER = "pro";
+
+// 英語のキー集合を正にして、言語を足したときにキー漏れがその言語のブロックで型エラーになるようにする。
+const EN_COPY = {
+  purchaseStoreOnly: "Purchases are available in the iOS or Android store version.",
+  revenueCatKeyMissing: "The RevenueCat public SDK key is not configured.",
+  customerInfoFetchFailed: "Could not fetch purchase information. Please try again in the store version.",
+  proUpgradeStoreOnly: "Upgrading to Pro is available in the published iOS or Android app.",
+  paywallOpenFailed: "Could not open the purchase screen. Please check your store settings and network connection.",
+  restoreStoreOnly: "Restoring purchases is available in the published iOS or Android app.",
+  proRestored: "Your Pro purchase has been restored.",
+  noRestorablePurchase: "No restorable Pro purchase was found.",
+  restoreFailed: "Could not restore your purchase. Please try again.",
+} as const;
+const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
+  en: EN_COPY,
+  ja: {
+    purchaseStoreOnly: "購入はiOSまたはAndroidのストア版で利用できます。",
+    revenueCatKeyMissing: "RevenueCatの公開SDKキーが未設定です。",
+    customerInfoFetchFailed: "購入情報を取得できませんでした。ストア版で再度お試しください。",
+    proUpgradeStoreOnly: "Proへのアップグレードは、公開後のiOSまたはAndroidアプリで利用できます。",
+    paywallOpenFailed: "購入画面を開けませんでした。ストア設定とネットワーク接続を確認してください。",
+    restoreStoreOnly: "購入の復元は、公開後のiOSまたはAndroidアプリで利用できます。",
+    proRestored: "Proの購入を復元しました。",
+    noRestorablePurchase: "復元できるPro購入は見つかりませんでした。",
+    restoreFailed: "購入を復元できませんでした。もう一度お試しください。",
+  },
+};
 
 type ProContextValue = {
   isPro: boolean;
@@ -16,6 +46,17 @@ type ProContextValue = {
 
 const ProContext = createContext<ProContextValue | null>(null);
 
+// 購入メッセージはCOPYのキーで状態に持ち、表示直前にcopy[key]へ解決する。
+// 翻訳済み文字列そのものをstateに入れると、エフェクトやコールバックの
+// 依存配列にcopy（言語切替のたびに参照が変わる）を含める必要が生まれてしまう。
+type PurchaseMessageKey = keyof typeof EN_COPY;
+
+// Purchases.configure() は多重に呼ぶとSDK内部の状態がリセットされうるため、
+// モジュールスコープのフラグで一度きりの実行を保証する。依存配列からcopyを
+// 外せば言語切替では再実行されなくなるが、React 18のStrict Mode（開発時）は
+// マウント時にエフェクトを2回実行するため、保険として入れておく。
+let purchasesConfigured = false;
+
 function getPlatformKey() {
   if (Platform.OS === "ios") return process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
   if (Platform.OS === "android") return process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY;
@@ -27,10 +68,27 @@ function hasProEntitlement(customerInfo: CustomerInfo) {
 }
 
 export function RevenueCatProvider({ children }: { children: ReactNode }) {
+  const { language } = useGlobalSettings();
+  const copy = COPY[language];
   const [isPro, setIsPro] = useState(false);
-  const [isReady, setIsReady] = useState(false);
-  const [purchaseMessage, setPurchaseMessage] = useState<string | null>(null);
+  const [isNativeReady, setIsNativeReady] = useState(false);
+  const [purchaseMessageKey, setPurchaseMessageKey] = useState<PurchaseMessageKey | null>(null);
   const isNativePurchaseAvailable = Platform.OS === "ios" || Platform.OS === "android";
+  const platformKey = getPlatformKey();
+
+  // ネイティブ購入が使えない環境(Web)とSDKキーが未設定の環境では、そもそも初期化する余地が無い。
+  // どちらもPlatformと環境変数だけで決まる=レンダー時に分かるので、エフェクトの中で
+  // setStateせずに導出する（エフェクト内の同期setStateは余計な再レンダーを生むうえ、
+  // react-hooks/set-state-in-effect のlintエラーにもなる）。
+  const blockedReasonKey: PurchaseMessageKey | null = !isNativePurchaseAvailable
+    ? "purchaseStoreOnly"
+    : !platformKey
+      ? "revenueCatKeyMissing"
+      : null;
+  // 初期化する余地が無い環境では待つものが無いので、最初から準備完了として扱う。
+  const isReady = blockedReasonKey !== null ? true : isNativeReady;
+  // 購入操作などで設定されたメッセージを優先し、無ければ上記の「使えない理由」を出す。
+  const purchaseMessage = purchaseMessageKey ? copy[purchaseMessageKey] : blockedReasonKey ? copy[blockedReasonKey] : null;
 
   const refreshCustomerInfo = useCallback(async () => {
     const customerInfo = await Purchases.getCustomerInfo();
@@ -38,70 +96,73 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // 初期化する余地が無い環境（Web・SDKキー未設定）は blockedReasonKey で判別済みなので、
+    // ここでは何もしない。メッセージと準備完了状態はレンダー時に導出している。
+    if (blockedReasonKey !== null) return;
+    // blockedReasonKey が null ならキーは必ずある。型を絞るためだけのガード。
+    if (!platformKey) return;
     let active = true;
-    const key = getPlatformKey();
-    if (!isNativePurchaseAvailable) {
-      setPurchaseMessage("購入はiOSまたはAndroidのストア版で利用できます。");
-      setIsReady(true);
-      return () => {
-        active = false;
-      };
-    }
-    if (!key) {
-      setPurchaseMessage("RevenueCatの公開SDKキーが未設定です。");
-      setIsReady(true);
-      return () => {
-        active = false;
-      };
-    }
+
+    // リスナーを名前付き関数として保持し、cleanupで確実に解除できるようにする
+    // （匿名関数だと参照が残らず削除できず、再マウント・Strict Modeの2度実行で
+    // リスナーが積み重なってしまう）。
+    const handleCustomerInfoUpdate = (updatedInfo: CustomerInfo) => {
+      if (active) setIsPro(hasProEntitlement(updatedInfo));
+    };
 
     const configure = async () => {
       try {
         if (__DEV__) Purchases.setLogLevel(LOG_LEVEL.DEBUG);
-        Purchases.configure({ apiKey: key });
+        if (!purchasesConfigured) {
+          Purchases.configure({ apiKey: platformKey });
+          purchasesConfigured = true;
+        }
         const customerInfo = await Purchases.getCustomerInfo();
-        if (active) setIsPro(hasProEntitlement(customerInfo));
-        Purchases.addCustomerInfoUpdateListener((updatedInfo) => {
-          if (active) setIsPro(hasProEntitlement(updatedInfo));
-        });
+        // await を跨ぐ間にアンマウント（cleanup）が走っている可能性がある。
+        // その場合はリスナーを登録しない。登録してしまうと cleanup では解除できず、
+        // 消えた画面向けの更新が届き続ける。
+        if (!active) return;
+        setIsPro(hasProEntitlement(customerInfo));
+        Purchases.addCustomerInfoUpdateListener(handleCustomerInfoUpdate);
       } catch {
-        if (active) setPurchaseMessage("購入情報を取得できませんでした。ストア版で再度お試しください。");
+        if (active) setPurchaseMessageKey("customerInfoFetchFailed");
       } finally {
-        if (active) setIsReady(true);
+        if (active) setIsNativeReady(true);
       }
     };
     void configure();
     return () => {
       active = false;
+      Purchases.removeCustomerInfoUpdateListener(handleCustomerInfoUpdate);
     };
-  }, [isNativePurchaseAvailable]);
+  }, [blockedReasonKey, platformKey]);
 
   const presentPaywall = useCallback(async () => {
     if (!isNativePurchaseAvailable) {
-      setPurchaseMessage("Proへのアップグレードは、公開後のiOSまたはAndroidアプリで利用できます。");
+      setPurchaseMessageKey("proUpgradeStoreOnly");
       return;
     }
     try {
-      setPurchaseMessage(null);
+      setPurchaseMessageKey(null);
       await RevenueCatUI.presentPaywallIfNeeded({ requiredEntitlementIdentifier: PRO_ENTITLEMENT_IDENTIFIER });
       await refreshCustomerInfo();
     } catch {
-      setPurchaseMessage("購入画面を開けませんでした。ストア設定とネットワーク接続を確認してください。");
+      setPurchaseMessageKey("paywallOpenFailed");
     }
   }, [isNativePurchaseAvailable, refreshCustomerInfo]);
 
   const restorePurchases = useCallback(async () => {
     if (!isNativePurchaseAvailable) {
-      setPurchaseMessage("購入の復元は、公開後のiOSまたはAndroidアプリで利用できます。");
+      setPurchaseMessageKey("restoreStoreOnly");
       return;
     }
     try {
-      setPurchaseMessage(null);
+      setPurchaseMessageKey(null);
       const customerInfo = await Purchases.restorePurchases();
       setIsPro(hasProEntitlement(customerInfo));
-      setPurchaseMessage(hasProEntitlement(customerInfo) ? "Proの購入を復元しました。" : "復元できるPro購入は見つかりませんでした。");
+      setPurchaseMessageKey(hasProEntitlement(customerInfo) ? "proRestored" : "noRestorablePurchase");
     } catch {
-      setPurchaseMessage("購入を復元できませんでした。もう一度お試しください。");
+      setPurchaseMessageKey("restoreFailed");
     }
   }, [isNativePurchaseAvailable]);
 

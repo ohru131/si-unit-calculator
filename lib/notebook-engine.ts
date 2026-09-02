@@ -1,4 +1,6 @@
 import { type CalculationNoteStep, type NotebookLocalConstant } from "@/lib/calculator-store";
+import { type AppLanguage } from "@/lib/i18n";
+import { unitErrorMessage } from "@/lib/unit-errors";
 import {
   type CustomFunctionDefinition,
   evaluateExpression,
@@ -17,6 +19,35 @@ export type ResolvedNotebookConstants = {
 
 // lib/units.ts の識別子文字集合と揃える（下付き文字・ギリシャ文字を名前に使えるようにするため）。
 const NAME_VALUE_PATTERN = new RegExp(`^\\s*([${IDENTIFIER_START_CHAR_CLASS}][${IDENTIFIER_BODY_CHAR_CLASS}]*)\\s*=\\s*(.*)$`, "s");
+
+// このモジュールはlib/units.tsと違い入り口（resolveNotebookLocalConstants・evaluateNotebookSteps）が
+// 2個だけの浅いモジュールなので、units.tsのようにエラーコード化して表示側で翻訳する方式ではなく、
+// 呼び出し元から言語を直接受け取ってこの場でメッセージを組み立てる（呼び出し元の洗い出しがコンパイル時に済む）。
+// 英語のキー集合を正にして、言語を足したときにキー漏れがその言語のブロックで型エラーになるようにする。
+const EN_ENGINE_MESSAGES = {
+  constantCalculationFailed: "Could not calculate this constant.",
+  emptyExpression: "Enter an expression.",
+  targetUnitFallback: (targetUnit: string) => `Could not convert to "${targetUnit}" — showing the SI base value instead.`,
+  expressionCalculationFailed: "Could not calculate this expression.",
+};
+const ENGINE_MESSAGES: Record<AppLanguage, typeof EN_ENGINE_MESSAGES> = {
+  en: EN_ENGINE_MESSAGES,
+  ja: {
+    constantCalculationFailed: "この定数を計算できませんでした。",
+    emptyExpression: "式が未入力です。",
+    targetUnitFallback: (targetUnit: string) => `「${targetUnit}」には変換できないため、SI標準で表示しました。`,
+    expressionCalculationFailed: "この式を計算できませんでした。",
+  },
+};
+
+// parseConstantDefinition/evaluateExpressionが投げるUnitErrorはError.messageが常に英語で
+// 組み立てられる設計（lib/unit-errors.ts）のため、cause.messageをそのまま使うと日本語UIでも
+// 英語エラーが漏れる。unitErrorMessageで現在の言語に翻訳し、UnitError以外はcause.messageへ
+// フォールバックする（他の呼び出し元と同じ扱い方に揃える）。
+function describeCause(cause: unknown, language: AppLanguage, fallback: string): string {
+  if (!(cause instanceof Error)) return fallback;
+  return unitErrorMessage(cause, language) ?? cause.message;
+}
 
 /**
  * 「v0=5m/s」のようなローカル定数・手順の1行入力を名前と式に分割する。
@@ -41,7 +72,9 @@ export function formatNameValue(name: string, value: string): string {
 export function resolveNotebookLocalConstants(
   localConstants: NotebookLocalConstant[],
   globalConstants: SavedConstant[],
+  language: AppLanguage,
 ): ResolvedNotebookConstants {
+  const messages = ENGINE_MESSAGES[language];
   const resolved: SavedConstant[] = [];
   const errors: Record<string, string> = {};
   for (const local of localConstants) {
@@ -52,7 +85,7 @@ export function resolveNotebookLocalConstants(
       const parsed = parseConstantDefinition(`${symbol} = ${expression}`, [...globalConstants, ...resolved]);
       resolved.push({ ...parsed, createdAt: "" });
     } catch (cause) {
-      errors[local.id] = cause instanceof Error ? cause.message : "この定数を計算できませんでした。";
+      errors[local.id] = describeCause(cause, language, messages.constantCalculationFailed);
     }
   }
   return { resolved, errors };
@@ -87,14 +120,16 @@ export function trimResultSymbol(step: Pick<CalculationNoteStep, "resultSymbol">
 export function evaluateNotebookSteps(
   steps: CalculationNoteStep[],
   pool: SavedConstant[],
+  language: AppLanguage,
   customFunctions: CustomFunctionDefinition[] = [],
   locale?: string,
 ): NotebookStepResult[] {
+  const messages = ENGINE_MESSAGES[language];
   const availableConstants = [...pool];
   return steps.map((step, index) => {
     const symbol = trimResultSymbol(step) || notebookStepSymbol(index);
     const expression = step.expression.trim();
-    if (!expression) return { step, symbol, error: "式が未入力です。" };
+    if (!expression) return { step, symbol, error: messages.emptyExpression };
     try {
       const quantity = evaluateExpression(expression, availableConstants, customFunctions);
       availableConstants.push({ symbol, expression, quantity, createdAt: "" });
@@ -104,10 +139,10 @@ export function evaluateNotebookSteps(
       try {
         return { step, symbol, quantity, formatted: formatQuantity(quantity, targetUnit, locale), siFallback };
       } catch {
-        return { step, symbol, quantity, formatted: siFallback, siFallback, error: `「${targetUnit}」には変換できないため、SI標準で表示しました。` };
+        return { step, symbol, quantity, formatted: siFallback, siFallback, error: messages.targetUnitFallback(targetUnit) };
       }
     } catch (cause) {
-      return { step, symbol, error: cause instanceof Error ? cause.message : "この式を計算できませんでした。" };
+      return { step, symbol, error: describeCause(cause, language, messages.expressionCalculationFailed) };
     }
   });
 }

@@ -1,14 +1,12 @@
-export type SupportedLanguage = "en" | "ja";
+import type { LocalizedText } from "./i18n";
 
 export type UnitExplanation = {
   symbol: string;
-  name: Record<SupportedLanguage, string>;
-  summary: Record<SupportedLanguage, string>;
+  name: LocalizedText;
+  summary: LocalizedText;
   siConversion: string;
-  usage: Record<SupportedLanguage, string>;
+  usage: LocalizedText;
 };
-
-const ACCELERATION_DIMENSION = "加速度";
 
 export const SPECIAL_UNIT_EXPLANATIONS: Record<string, UnitExplanation> = {
   Gal: {
@@ -79,5 +77,3 @@ export const SPECIAL_UNIT_EXPLANATIONS: Record<string, UnitExplanation> = {
 export function getUnitExplanation(symbol: string): UnitExplanation | undefined {
   return SPECIAL_UNIT_EXPLANATIONS[symbol];
 }
-
-export const SPECIAL_UNIT_EXPLANATION_DIMENSION = ACCELERATION_DIMENSION;

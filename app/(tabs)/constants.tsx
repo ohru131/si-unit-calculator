@@ -33,10 +33,12 @@ import {
   useCalculatorStore,
 } from "@/lib/calculator-store";
 import { useGlobalSettings } from "@/lib/global-settings";
+import { localizedText, type AppLanguage } from "@/lib/i18n";
 import { formatNameValue, parseNameValue } from "@/lib/notebook-engine";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
 import { type ImportedNotebook } from "@/lib/notebooks-backup";
 import { exportNotebooksBackup, pickNotebooksBackup } from "@/lib/notebooks-backup-file";
+import { unitErrorMessage } from "@/lib/unit-errors";
 import { formatQuantity, SavedConstant } from "@/lib/units";
 
 type TopSection = "notebooks" | "constants";
@@ -50,6 +52,68 @@ const nextLocalConstantId = () => `local-${Date.now()}-${localConstantSeq++}`;
 const nextStepId = () => `step-${Date.now()}-${stepSeq++}`;
 const nextFormulaId = () => `formula-${Date.now()}-${formulaSeq++}`;
 
+// 英語のキー集合を正にして、言語を足したときにキー漏れがその言語のブロックで型エラーになるようにする。
+const EN_COPY = {
+  title: "Library", subtitle: "Save reusable calculation notebooks and global constants on this device.",
+  notebooksTab: "Notebooks", constantsTab: "Global constants",
+  add: "Add", close: "Close", save: "Save", saving: "Saving…", delete: "Delete", cancel: "Cancel",
+  constantEmpty: "No constants yet", constantEmptyHint: "Store a reusable value such as W = 3cm.",
+  titleLabel: "Name", descriptionLabel: "Description", expressionLabel: "Expression", symbolLabel: "Symbol",
+  constantEditor: "Constant",
+  deleteConfirm: "Delete this item? This cannot be undone.", validation: "Please fill in the required fields.",
+  backup: "Backup", export: "Export", clearAll: "Clear all", restore: "Restore",
+  exportDone: "Constants backup exported.",
+  merge: "Merge and replace matches", replace: "Replace all constants", importDone: "{count} constants imported.",
+  clearConfirm: "Clear all saved constants? You can restore the latest cleared set.",
+  cleared: "Constants cleared. You can restore them from this device.", restored: "Cleared constants restored.",
+  replaceImportConfirm: "Replace all saved constants with the ones in this file? This cannot be undone.",
+  notebookNew: "New notebook", notebookEdit: "Edit notebook", notebookTitleLabel: "Title", notebookDescriptionLabel: "Description",
+  category: "Category", newCategory: "New category", categoryName: "Category name", uncategorized: "Uncategorized",
+  localConstants: "Local constants (inputs)", localConstantsHint: "Enter as name=value, e.g. v0=5m/s. Later rows can reference earlier ones.",
+  invalidConstantName: "Enter each constant as name=value (e.g. v0=5m/s).",
+  invalidStepName: "Enter each step as name=expression (e.g. v=v0+a*t), or remove the \"=\" to leave it unnamed.",
+  addLocalConstant: "Add constant", steps: "Steps (results)", stepsHint: "Enter as name=expression, e.g. v=v0+a*t. Can reference constants and earlier steps.", addStep: "Add step", stepTitlePlaceholder: "v=v0+a*t",
+  outputUnitLabel: "Display unit (optional)", removeRow: "Remove",
+  formulaLatexPlaceholder: "Display formula, optional LaTeX (e.g. v = v_0 + at)",
+  formulasLabel: "Formula explanations", formulasHint: "Optional. Add an explanation with its formula right below it; add as many pairs as you like.",
+  addFormula: "Add formula", formulaExplanationPlaceholder: "Explanation (e.g. This gives the velocity)",
+  notebookBackup: "Backup", notebookExport: "Export", notebookImportDone: "{count} notebooks imported.",
+  notebookExportDone: "Notebooks backup exported.", notebookReplaceImportConfirm: "Replace all your notebooks with the ones in this file? Preset notebooks are kept. This cannot be undone.",
+  notebookMerge: "Merge and replace matches", notebookReplace: "Replace all notebooks",
+  notebookTitlePlaceholder: "Bending stress", notebookDescriptionPlaceholder: "Optional note",
+} as const;
+const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
+  en: EN_COPY,
+  ja: {
+    title: "ライブラリ", subtitle: "よく使う計算ノート・グローバル定数を、この端末に保存して再利用できます。",
+    notebooksTab: "計算ノート", constantsTab: "グローバル定数",
+    add: "追加", close: "閉じる", save: "保存", saving: "保存中…", delete: "削除", cancel: "キャンセル",
+    constantEmpty: "定数はまだありません", constantEmptyHint: "例：W = 3cm のように、よく使う値を保存できます。",
+    titleLabel: "名前", descriptionLabel: "説明", expressionLabel: "式", symbolLabel: "記号",
+    constantEditor: "定数",
+    deleteConfirm: "この項目を削除しますか？元に戻せません。", validation: "必須項目を入力してください。",
+    backup: "バックアップ", export: "書き出す", clearAll: "すべて消去", restore: "復活",
+    exportDone: "定数バックアップを書き出しました。",
+    merge: "追加・同名は置換", replace: "すべての定数を置換", importDone: "{count}件の定数を読み込みました。",
+    clearConfirm: "保存済みの定数をすべて消去しますか？直前に消去した一覧は復活できます。",
+    cleared: "定数を消去しました。この端末上で復活できます。", restored: "消去した定数を復活しました。",
+    replaceImportConfirm: "保存済みの定数をすべて、このファイルの内容へ置き換えますか？元に戻せません。",
+    notebookNew: "新しい計算ノート", notebookEdit: "計算ノートを編集", notebookTitleLabel: "タイトル", notebookDescriptionLabel: "説明",
+    category: "カテゴリ", newCategory: "新しいカテゴリ", categoryName: "カテゴリ名", uncategorized: "未分類",
+    localConstants: "ローカル定数（入力値）", localConstantsHint: "「名前＝値」の形で入力します。例：v0=5m/s。後の行で前の行を参照できます。",
+    invalidConstantName: "定数は「名前＝値」の形式（例：v0=5m/s）で入力してください。",
+    invalidStepName: "手順は「名前＝式」の形式（例：v=v0+a*t）で入力するか、「＝」を外して名前なしにしてください。",
+    addLocalConstant: "定数を追加", steps: "手順（結果）", stepsHint: "「名前＝式」の形で入力します。例：v=v0+a*t。定数や前の手順を参照できます。", addStep: "手順を追加", stepTitlePlaceholder: "v=v0+a*t",
+    outputUnitLabel: "表示単位（任意）", removeRow: "削除",
+    formulaLatexPlaceholder: "表示用の数式（任意、LaTeX。例：v = v_0 + at）",
+    formulasLabel: "数式の解説", formulasHint: "任意。説明文とその数式をペアで並べられます。説明文のすぐ下に数式を置き、ペアはいくつでも追加できます。",
+    addFormula: "数式を追加", formulaExplanationPlaceholder: "説明文（例：速度を求める式です）",
+    notebookBackup: "バックアップ", notebookExport: "書き出す", notebookImportDone: "{count}件の計算ノートを読み込みました。",
+    notebookExportDone: "計算ノートのバックアップを書き出しました。", notebookReplaceImportConfirm: "自分の計算ノートをすべて、このファイルの内容へ置き換えますか？プリセットは残ります。元に戻せません。",
+    notebookMerge: "追加・同名は置換", notebookReplace: "すべての計算ノートを置換",
+    notebookTitlePlaceholder: "曲げ応力", notebookDescriptionPlaceholder: "任意のメモ",
+  },
+};
 
 export default function ConstantsScreen() {
   const router = useRouter();
@@ -110,61 +174,12 @@ export default function ConstantsScreen() {
   const [notebookBackupNotice, setNotebookBackupNotice] = useState("");
   const [pendingReplaceNotebookImport, setPendingReplaceNotebookImport] = useState<ImportedNotebook[] | null>(null);
 
-  const copy = language === "en" ? {
-    title: "Library", subtitle: "Save reusable calculation notebooks and global constants on this device.",
-    notebooksTab: "Notebooks", constantsTab: "Global constants",
-    add: "Add", close: "Close", save: "Save", saving: "Saving…", delete: "Delete", cancel: "Cancel",
-    constantEmpty: "No constants yet", constantEmptyHint: "Store a reusable value such as W = 3cm.",
-    titleLabel: "Name", descriptionLabel: "Description", expressionLabel: "Expression", symbolLabel: "Symbol",
-    constantEditor: "Constant",
-    deleteConfirm: "Delete this item? This cannot be undone.", validation: "Please fill in the required fields.",
-    backup: "Backup", export: "Export", clearAll: "Clear all", restore: "Restore",
-    exportDone: "Constants backup exported.",
-    merge: "Merge and replace matches", replace: "Replace all constants", importDone: "{count} constants imported.",
-    clearConfirm: "Clear all saved constants? You can restore the latest cleared set.",
-    cleared: "Constants cleared. You can restore them from this device.", restored: "Cleared constants restored.",
-    replaceImportConfirm: "Replace all saved constants with the ones in this file? This cannot be undone.",
-    notebookNew: "New notebook", notebookEdit: "Edit notebook", notebookTitleLabel: "Title", notebookDescriptionLabel: "Description",
-    category: "Category", newCategory: "New category", categoryName: "Category name", uncategorized: "Uncategorized",
-    localConstants: "Local constants (inputs)", localConstantsHint: "Enter as name=value, e.g. v0=5m/s. Later rows can reference earlier ones.",
-    invalidConstantName: "Enter each constant as name=value (e.g. v0=5m/s).",
-    invalidStepName: "Enter each step as name=expression (e.g. v=v0+a*t), or remove the \"=\" to leave it unnamed.",
-    addLocalConstant: "Add constant", steps: "Steps (results)", stepsHint: "Enter as name=expression, e.g. v=v0+a*t. Can reference constants and earlier steps.", addStep: "Add step", stepTitlePlaceholder: "v=v0+a*t",
-    outputUnitLabel: "Display unit (optional)", removeRow: "Remove",
-    formulaLatexPlaceholder: "Display formula, optional LaTeX (e.g. v = v_0 + at)",
-    formulasLabel: "Formula explanations", formulasHint: "Optional. Add an explanation with its formula right below it; add as many pairs as you like.",
-    addFormula: "Add formula", formulaExplanationPlaceholder: "Explanation (e.g. This gives the velocity)",
-    notebookBackup: "Backup", notebookExport: "Export", notebookImportDone: "{count} notebooks imported.",
-    notebookExportDone: "Notebooks backup exported.", notebookReplaceImportConfirm: "Replace all your notebooks with the ones in this file? Preset notebooks are kept. This cannot be undone.",
-    notebookMerge: "Merge and replace matches", notebookReplace: "Replace all notebooks",
-  } : {
-    title: "ライブラリ", subtitle: "よく使う計算ノート・グローバル定数を、この端末に保存して再利用できます。",
-    notebooksTab: "計算ノート", constantsTab: "グローバル定数",
-    add: "追加", close: "閉じる", save: "保存", saving: "保存中…", delete: "削除", cancel: "キャンセル",
-    constantEmpty: "定数はまだありません", constantEmptyHint: "例：W = 3cm のように、よく使う値を保存できます。",
-    titleLabel: "名前", descriptionLabel: "説明", expressionLabel: "式", symbolLabel: "記号",
-    constantEditor: "定数",
-    deleteConfirm: "この項目を削除しますか？元に戻せません。", validation: "必須項目を入力してください。",
-    backup: "バックアップ", export: "書き出す", clearAll: "すべて消去", restore: "復活",
-    exportDone: "定数バックアップを書き出しました。",
-    merge: "追加・同名は置換", replace: "すべての定数を置換", importDone: "{count}件の定数を読み込みました。",
-    clearConfirm: "保存済みの定数をすべて消去しますか？直前に消去した一覧は復活できます。",
-    cleared: "定数を消去しました。この端末上で復活できます。", restored: "消去した定数を復活しました。",
-    replaceImportConfirm: "保存済みの定数をすべて、このファイルの内容へ置き換えますか？元に戻せません。",
-    notebookNew: "新しい計算ノート", notebookEdit: "計算ノートを編集", notebookTitleLabel: "タイトル", notebookDescriptionLabel: "説明",
-    category: "カテゴリ", newCategory: "新しいカテゴリ", categoryName: "カテゴリ名", uncategorized: "未分類",
-    localConstants: "ローカル定数（入力値）", localConstantsHint: "「名前＝値」の形で入力します。例：v0=5m/s。後の行で前の行を参照できます。",
-    invalidConstantName: "定数は「名前＝値」の形式（例：v0=5m/s）で入力してください。",
-    invalidStepName: "手順は「名前＝式」の形式（例：v=v0+a*t）で入力するか、「＝」を外して名前なしにしてください。",
-    addLocalConstant: "定数を追加", steps: "手順（結果）", stepsHint: "「名前＝式」の形で入力します。例：v=v0+a*t。定数や前の手順を参照できます。", addStep: "手順を追加", stepTitlePlaceholder: "v=v0+a*t",
-    outputUnitLabel: "表示単位（任意）", removeRow: "削除",
-    formulaLatexPlaceholder: "表示用の数式（任意、LaTeX。例：v = v_0 + at）",
-    formulasLabel: "数式の解説", formulasHint: "任意。説明文とその数式をペアで並べられます。説明文のすぐ下に数式を置き、ペアはいくつでも追加できます。",
-    addFormula: "数式を追加", formulaExplanationPlaceholder: "説明文（例：速度を求める式です）",
-    notebookBackup: "バックアップ", notebookExport: "書き出す", notebookImportDone: "{count}件の計算ノートを読み込みました。",
-    notebookExportDone: "計算ノートのバックアップを書き出しました。", notebookReplaceImportConfirm: "自分の計算ノートをすべて、このファイルの内容へ置き換えますか？プリセットは残ります。元に戻せません。",
-    notebookMerge: "追加・同名は置換", notebookReplace: "すべての計算ノートを置換",
-  };
+  const copy = COPY[language];
+
+  // エンジンのエラー(UnitError)は現在の言語で表示する。UnitError以外は従来どおり
+  // Error.message をそのまま出す（バックアップ処理など別系統のエラーもここを通るため）。
+  // このファイルのcatch節はどれもフォールバックがcopy.validationで共通なので、まとめて1箇所にする。
+  const engineErrorMessage = (cause: unknown) => (cause instanceof Error ? (unitErrorMessage(cause, language) ?? cause.message) : copy.validation);
 
   const sectionItems: { id: TopSection; label: string }[] = [
     { id: "notebooks", label: copy.notebooksTab },
@@ -175,7 +190,7 @@ export default function ConstantsScreen() {
   const parentCategoryIds = useMemo(() => new Set(PRESET_NOTEBOOK_CATEGORIES.map((category) => category.parentId).filter((id): id is string => Boolean(id))), []);
 
   const categoryOptions = useMemo(() => [
-    ...PRESET_NOTEBOOK_CATEGORIES.filter((category) => !parentCategoryIds.has(category.id)).map((category) => ({ id: category.id, label: language === "en" ? category.labelEn : category.label })),
+    ...PRESET_NOTEBOOK_CATEGORIES.filter((category) => !parentCategoryIds.has(category.id)).map((category) => ({ id: category.id, label: localizedText(category.label, language) })),
     ...notebookCategories.map((category) => ({ id: category.id, label: category.name })),
     { id: UNCATEGORIZED_CATEGORY_ID, label: copy.uncategorized },
   ], [copy.uncategorized, language, notebookCategories, parentCategoryIds]);
@@ -187,7 +202,7 @@ export default function ConstantsScreen() {
     const map = new Map<string, { id: string; label: string }[]>();
     PRESET_NOTEBOOK_CATEGORIES.forEach((category) => {
       if (!category.parentId) return;
-      const label = language === "en" ? category.labelEn : category.label;
+      const label = localizedText(category.label, language);
       map.set(category.parentId, [...(map.get(category.parentId) ?? []), { id: category.id, label }]);
     });
     return map;
@@ -195,7 +210,7 @@ export default function ConstantsScreen() {
 
   // ピッカーの第1段（最上位）。プリセットの大分類・葉カテゴリ、ユーザー作成カテゴリ、未分類の順に並べる。
   const topLevelCategoryOptions = useMemo(() => [
-    ...PRESET_NOTEBOOK_CATEGORIES.filter((category) => !category.parentId).map((category) => ({ id: category.id, label: language === "en" ? category.labelEn : category.label, hasChildren: childCategoriesByParentId.has(category.id) })),
+    ...PRESET_NOTEBOOK_CATEGORIES.filter((category) => !category.parentId).map((category) => ({ id: category.id, label: localizedText(category.label, language), hasChildren: childCategoriesByParentId.has(category.id) })),
     ...notebookCategories.map((category) => ({ id: category.id, label: category.name, hasChildren: false })),
     { id: UNCATEGORIZED_CATEGORY_ID, label: copy.uncategorized, hasChildren: false },
   ], [childCategoriesByParentId, copy.uncategorized, language, notebookCategories]);
@@ -224,28 +239,28 @@ export default function ConstantsScreen() {
       await upsertConstant(symbol, constantExpressionInput.trim());
       setConstantEditorVisible(false);
     } catch (cause) {
-      setConstantError(cause instanceof Error ? cause.message : copy.validation);
+      setConstantError(engineErrorMessage(cause));
     } finally { setIsSaving(false); }
   };
 
   const handleExportConstants = async () => {
     try {
-      await exportConstantsBackup(constants);
+      await exportConstantsBackup(constants, language);
       setBackupNotice(copy.exportDone);
     } catch (cause) {
-      setBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+      setBackupNotice(engineErrorMessage(cause));
     }
   };
 
   const handleImportConstants = async (mode: "merge" | "replace") => {
     try {
-      const entries = await pickConstantsBackup();
+      const entries = await pickConstantsBackup(language);
       if (!entries) return;
       if (mode === "replace") { setPendingReplaceImport(entries); return; }
       const count = await importConstants(entries, "merge");
       setBackupNotice(copy.importDone.replace("{count}", String(count)));
     } catch (cause) {
-      setBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+      setBackupNotice(engineErrorMessage(cause));
     }
   };
 
@@ -257,7 +272,7 @@ export default function ConstantsScreen() {
       const count = await importConstants(entries, "replace");
       setBackupNotice(copy.importDone.replace("{count}", String(count)));
     } catch (cause) {
-      setBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+      setBackupNotice(engineErrorMessage(cause));
     }
   };
 
@@ -266,7 +281,7 @@ export default function ConstantsScreen() {
       await clearConstants();
       setBackupNotice(copy.cleared);
     } catch (cause) {
-      setBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+      setBackupNotice(engineErrorMessage(cause));
     }
   };
 
@@ -274,29 +289,29 @@ export default function ConstantsScreen() {
     try {
       if (await restoreClearedConstants()) setBackupNotice(copy.restored);
     } catch (cause) {
-      setBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+      setBackupNotice(engineErrorMessage(cause));
     }
   };
 
   // 計算ノート全体のバックアップ（プリセットは対象外で、ユーザー作成分だけを書き出し・取り込む）。
   const handleExportNotebooks = async () => {
     try {
-      await exportNotebooksBackup(notebooks, notebookCategories);
+      await exportNotebooksBackup(notebooks, notebookCategories, language);
       setNotebookBackupNotice(copy.notebookExportDone);
     } catch (cause) {
-      setNotebookBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+      setNotebookBackupNotice(engineErrorMessage(cause));
     }
   };
 
   const handleImportNotebooks = async (mode: "merge" | "replace") => {
     try {
-      const entries = await pickNotebooksBackup();
+      const entries = await pickNotebooksBackup(language);
       if (!entries) return;
       if (mode === "replace") { setPendingReplaceNotebookImport(entries); return; }
       const count = await importNotebooks(entries, "merge");
       setNotebookBackupNotice(copy.notebookImportDone.replace("{count}", String(count)));
     } catch (cause) {
-      setNotebookBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+      setNotebookBackupNotice(engineErrorMessage(cause));
     }
   };
 
@@ -308,7 +323,7 @@ export default function ConstantsScreen() {
       const count = await importNotebooks(entries, "replace");
       setNotebookBackupNotice(copy.notebookImportDone.replace("{count}", String(count)));
     } catch (cause) {
-      setNotebookBackupNotice(cause instanceof Error ? cause.message : copy.validation);
+      setNotebookBackupNotice(engineErrorMessage(cause));
     }
   };
 
@@ -398,7 +413,7 @@ export default function ConstantsScreen() {
       await upsertNotebook({ id: editingNotebookId, title, description: notebookDescription.trim(), categoryId: notebookCategoryId, formulas: normalizedFormulas, localConstants: normalizedConstants, steps: normalizedSteps });
       setNotebookEditorVisible(false);
     } catch (cause) {
-      setNotebookError(cause instanceof Error ? cause.message : copy.validation);
+      setNotebookError(engineErrorMessage(cause));
     } finally {
       setIsSaving(false);
     }
@@ -544,9 +559,9 @@ export default function ConstantsScreen() {
         <View style={styles.sheet}><View style={styles.sheetHandle} /><View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>{editingNotebookId ? copy.notebookEdit : copy.notebookNew}</Text></View><Pressable accessibilityLabel={copy.close} onPress={closeNotebookEditor} style={({ pressed }) => [styles.closeButton, pressed && styles.iconPressed]}><IconSymbol name="xmark" size={21} color={colors.muted} /></Pressable></View>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <Text style={styles.fieldLabel}>{copy.notebookTitleLabel}</Text>
-            <TextInput value={notebookTitle} onChangeText={setNotebookTitle} placeholder={language === "en" ? "Bending stress" : "曲げ応力"} placeholderTextColor={colors.placeholder} style={styles.input} />
+            <TextInput value={notebookTitle} onChangeText={setNotebookTitle} placeholder={copy.notebookTitlePlaceholder} placeholderTextColor={colors.placeholder} style={styles.input} />
             <Text style={styles.fieldLabel}>{copy.notebookDescriptionLabel}</Text>
-            <TextInput value={notebookDescription} onChangeText={setNotebookDescription} placeholder={language === "en" ? "Optional note" : "任意のメモ"} placeholderTextColor={colors.placeholder} style={styles.input} />
+            <TextInput value={notebookDescription} onChangeText={setNotebookDescription} placeholder={copy.notebookDescriptionPlaceholder} placeholderTextColor={colors.placeholder} style={styles.input} />
 
             <Text style={styles.fieldLabel}>{copy.category}</Text>
             <View style={styles.categoryPicker}>

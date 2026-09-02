@@ -7,7 +7,8 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { useAds } from "@/lib/ads-provider";
-import { AppLanguage, useGlobalSettings } from "@/lib/global-settings";
+import { useGlobalSettings } from "@/lib/global-settings";
+import { APP_LANGUAGES, LANGUAGE_META } from "@/lib/i18n";
 import { type ThemePreference, useThemeContext } from "@/lib/theme-provider";
 import { MeasuringStandard, UnitSystem } from "@/lib/units";
 
@@ -19,7 +20,9 @@ export default function SettingsScreen() {
   const router = useRouter();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const languages: { id: AppLanguage; label: string }[] = [{ id: "en", label: t("english") }, { id: "ja", label: t("japanese") }];
+  // 言語名はその言語自身の表記(endonym)で出す。翻訳キーを言語数の2乗で増やさずに済むし、
+  // 「英語UIしか読めない状態でも自分の言語を見つけられる」ため。
+  const languages = APP_LANGUAGES.map((id) => ({ id, label: LANGUAGE_META[id].endonym }));
   const systems: { id: UnitSystem; label: string }[] = [{ id: "metric", label: t("systemMetric") }, { id: "us", label: t("systemUS") }, { id: "uk", label: t("systemUK") }];
   const themeOptions: { id: ThemePreference; label: string }[] = [{ id: "system", label: t("themeSystem") }, { id: "light", label: t("themeLight") }, { id: "dark", label: t("themeDark") }];
   const measuringStandards: { id: MeasuringStandard; label: string }[] = [{ id: "us", label: t("standardUS") }, { id: "jis", label: t("standardJIS") }];
@@ -91,7 +94,8 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   content: { gap: 14, paddingBottom: 30, paddingTop: 8 },
   header: { paddingBottom: 6 }, title: { color: colors.foreground, fontSize: 30, fontWeight: "700", letterSpacing: -0.6 }, subtitle: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 4 },
   card: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 18, borderWidth: 1, padding: 16 }, label: { color: colors.foreground, fontSize: 15, fontWeight: "800" }, description: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 7 },
-  options: { flexDirection: "row", gap: 8, marginTop: 14 }, option: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderRadius: 12, flex: 1, paddingVertical: 11 }, optionActive: { backgroundColor: colors.primaryFill }, optionText: { color: colors.muted, fontSize: 14, fontWeight: "700" }, optionTextActive: { color: colors.onPrimary },
+  // 言語が増えるとチップが横に溢れるため折り返す（6言語だと確実に溢れる）。
+  options: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 }, option: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderRadius: 12, flex: 1, paddingVertical: 11 }, optionActive: { backgroundColor: colors.primaryFill }, optionText: { color: colors.muted, fontSize: 14, fontWeight: "700" }, optionTextActive: { color: colors.onPrimary },
   systemList: { gap: 8, marginTop: 15 }, systemRow: { alignItems: "center", borderColor: colors.border, borderRadius: 12, borderWidth: 1, flexDirection: "row", minHeight: 50, paddingHorizontal: 12 }, systemRowActive: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder }, systemText: { color: colors.foreground, fontSize: 14, fontWeight: "700", marginLeft: 10 },
   radio: { alignItems: "center", borderColor: colors.placeholder, borderRadius: 10, borderWidth: 1.5, height: 20, justifyContent: "center", width: 20 }, radioActive: { borderColor: colors.primary }, radioInner: { backgroundColor: colors.primary, borderRadius: 5, height: 10, width: 10 }, a11yTitle: { alignItems: "center", flexDirection: "row", gap: 8 },
   regionCard: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 14, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 15, paddingVertical: 13 }, regionLabel: { color: colors.muted, fontSize: 12, fontWeight: "700" }, regionValue: { color: colors.primary, fontFamily: "monospace", fontSize: 13, fontWeight: "800" }, pressed: { opacity: 0.72, transform: [{ scale: 0.98 }] },

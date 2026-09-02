@@ -24,8 +24,10 @@ import { useCalculatorStore } from "@/lib/calculator-store";
 import { exportCalculationHistory } from "@/lib/calculation-export";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { historyToAutoConstants } from "@/lib/history-auto-constants";
+import { localizedText, type AppLanguage } from "@/lib/i18n";
 import { getCalculatorQuickShortcut } from "@/lib/quick-shortcuts";
 import { usePro } from "@/lib/revenuecat-provider";
+import { unitErrorMessage } from "@/lib/unit-errors";
 import { getUnitExplanation } from "@/lib/unit-explanations";
 import UnitCalculatorWidget from "@/widgets/UnitCalculatorWidget";
 import { SAMPLE_CALCULATIONS, SAMPLE_CATEGORIES, type SampleCalculation } from "@/lib/sample-calculations";
@@ -47,6 +49,76 @@ const KEYS = ["(", ")", "÷", "⌫", "7", "8", "9", "×", "4", "5", "6", "-", "1
 const ADVANCED_KEYS = ["sin(", "cos(", "tan(", "asin(", "acos(", "atan(", "atan2(", "ln(", "log(", "log2(", "sqrt(", "^", "π", "e"];
 const RAIL_LIMIT = 8;
 const RECENT_UNIT_LIMIT = 8;
+
+// 英語のキー集合を正にして、言語を足したときにキー漏れがその言語のブロックで型エラーになるようにする。
+// 引数を取るメッセージ（unresolvedUnit系・unitDoesNotFit等）が混ざるため、EN_COPYのas constは外し、
+// COPYの型はRecord<AppLanguage, typeof EN_COPY>で両言語の値の形（string/関数）を揃える。
+const EN_COPY = {
+  definitionHint: "Define a constant: W = 3cm", calculate: "=", siBase: "SI base", emptyResult: "Enter an expression, then tap =.", pickUnit: "Choose a registered unit", speedTitle: "Distance, time & speed", speedFormula: "Speed = distance ÷ time     Distance = speed × time", findSpeed: "Find speed", findDistance: "Find distance", findTime: "Find time", savedHistory: "Saved calculations", historyHint: "Latest answers are available as a1, a2, and so on.", clear: "Clear", helpTitle: "Examples", helpDone: "Done", unitSearch: "Search units, names, or categories", copied: "Calculation copied", copy: "Copy", unitDetails: "Unit details", siConversion: "SI conversion", commonUse: "Common use", close: "Close", advancedMath: "Advanced math", advancedMathHint: "Angles use rad, deg, or °. Includes inverse trig, logs, and atan2(y, x).", saveTemplate: "Save", samples: "Examples", units: "Units", shortcuts: "Speed", math: "Math", outputUnit: "Display unit", insertUnit: "Insert unit", registered: "Registered", supported: "Supported, not listed", unknown: "Not a usable unit", unknownHint: "Check the symbol or pick a candidate below.", history: "History", use: "Use", noUnit: "SI base", compatible: "Fits this result", allCandidates: "Closest candidates", hintFix: "Fix", hintComplete: "Finish", hintAttach: "Add unit", hintReplace: "Replace unit", hintInsert: "Insert", more: "More", showAs: "Show as", fixTap: "Tap the red unit to fix it.", noCandidates: "No candidate found. Check the symbol.", aliasNote: "same as", noSearchResults: "No unit matches this search.", noSearchResultsHint: "Try a different symbol, name, or category.", noHistory: "No saved calculations yet.", noHistoryHint: "Every result you calculate is saved here automatically.", pinned: "Pinned", browseUnits: "Browse categories",
+  cannotConvertUnit: "Could not convert to this unit.",
+  unresolvedUnitSuggestion: (text: string, canonical: string) => `“${text}” is not a usable unit. Did you mean ${canonical}?`,
+  unresolvedUnitUnknown: (text: string) => `“${text}” is not a registered or supported unit.`,
+  enterExpression: "Enter an expression.",
+  unitDoesNotFit: (unit: string) => `“${unit}” does not fit — showing the SI base value.`,
+  speedExampleReady: "Speed example ready: distance ÷ time.",
+  pressureExampleReady: "Pressure example ready: force ÷ area.",
+  chooseSampleToStart: "Choose a sample calculation to begin.",
+  savedItemLoaded: "Saved item loaded. Tap = to run it.",
+  couldNotCopyCalculation: "Could not copy this calculation.",
+  expressionPlaceholder: "Example: 5cm + 1mm",
+  deleteKey: "Delete",
+  skip: "Skip",
+  getStarted: "Get started",
+  next: "Next",
+  constantSaved: (symbol: string) => `Saved constant ${symbol}.`,
+  historySaveFailed: "Calculated, but could not save the history entry on this device.",
+  expressionCalculationFailed: "Could not calculate this expression.",
+  historyRestored: "Restored the saved calculation.",
+  historyExported: "Exported the calculation history as CSV.",
+  csvExportFailed: "Could not export the CSV file.",
+};
+const COPY: Record<AppLanguage, typeof EN_COPY> = {
+  en: EN_COPY,
+  ja: {
+    definitionHint: "定数定義：W = 3cm", calculate: "=", siBase: "SI標準", emptyResult: "式を入力して「=」を押してください。", pickUnit: "登録済み単位から選択", speedTitle: "距離・時間・速度", speedFormula: "速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間", findSpeed: "速度を求める", findDistance: "距離を求める", findTime: "時間を求める", savedHistory: "保存済みの計算履歴", historyHint: "最新の結果は a1、a2… として次の式で使えます。", clear: "消去", helpTitle: "入力例", helpDone: "閉じる", unitSearch: "単位・読み・カテゴリを検索", copied: "計算結果をコピーしました", copy: "コピー", unitDetails: "単位の説明", siConversion: "SI換算", commonUse: "主な利用分野", close: "閉じる", advancedMath: "上級の数学機能", advancedMathHint: "角度は rad・deg・° で入力します。逆三角・対数・atan2(y, x)にも対応します。", saveTemplate: "保存", samples: "サンプル", units: "単位", shortcuts: "速度", math: "数学", outputUnit: "表示単位", insertUnit: "単位を挿入", registered: "登録済み", supported: "計算対応（候補外）", unknown: "使えない単位", unknownHint: "記号を確認するか、下の候補から選んでください。", history: "履歴", use: "使う", noUnit: "SI標準", compatible: "この結果に合う単位", allCandidates: "近い候補", hintFix: "要修正", hintComplete: "確定", hintAttach: "単位付け", hintReplace: "単位を置換", hintInsert: "単位挿入", more: "他", showAs: "表示単位", fixTap: "赤い単位をタップすると修正できます。", noCandidates: "候補が見つかりません。記号を確認してください。", aliasNote: "＝", noSearchResults: "一致する単位が見つかりません。", noSearchResultsHint: "別の記号・名前・カテゴリでも試してください。", noHistory: "保存された計算はまだありません。", noHistoryHint: "計算するたびに自動で保存されます。", pinned: "ピン留め", browseUnits: "カテゴリで探す",
+    cannotConvertUnit: "この単位へは変換できません。",
+    unresolvedUnitSuggestion: (text: string, canonical: string) => `「${text}」は使えません。${canonical} に修正できます。`,
+    unresolvedUnitUnknown: (text: string) => `「${text}」は未登録・未対応の単位です。`,
+    enterExpression: "式を入力してください。",
+    unitDoesNotFit: (unit: string) => `「${unit}」は合わないため、SI標準で表示しました。`,
+    speedExampleReady: "速度の例を準備しました：距離 ÷ 時間",
+    pressureExampleReady: "圧力の例を準備しました：力 ÷ 面積",
+    chooseSampleToStart: "サンプル計算式を選んで試せます。",
+    savedItemLoaded: "保存した項目を読み込みました。「=」を押して実行できます。",
+    couldNotCopyCalculation: "計算結果をコピーできませんでした。",
+    expressionPlaceholder: "例：5cm + 1mm",
+    deleteKey: "一文字削除",
+    skip: "スキップ",
+    getStarted: "はじめる",
+    next: "次へ",
+    constantSaved: (symbol: string) => `定数 ${symbol} を保存しました。`,
+    historySaveFailed: "計算しましたが、履歴を端末内へ保存できませんでした。",
+    expressionCalculationFailed: "式を計算できませんでした。",
+    historyRestored: "保存済みの計算結果を復元しました。",
+    historyExported: "計算履歴をCSVとして出力しました。",
+    csvExportFailed: "CSVを出力できませんでした。",
+  },
+};
+
+// オンボーディングの3スライド。EN_COPYと同様に英語を正としたRecordで持ち、言語追加時のキー漏れを型エラーで検出する。
+type OnboardingSlide = { title: string; body: string; example: string };
+const ONBOARDING_SLIDES: Record<AppLanguage, OnboardingSlide[]> = {
+  en: [
+    { title: "Calculate with units, directly", body: "Type an expression with units, such as 5cm + 1mm. The app normalizes it to SI before calculating.", example: "5cm + 1mm" },
+    { title: "Tap a red unit to fix it", body: "Unknown or mistyped units turn red in the preview. Tap one to pick the closest match.", example: "5cm + 1mn" },
+    { title: "Switch units in one tap", body: "Choose any compatible display unit right under the result, and pin your favorite calculations to the top of this screen.", example: "cm → m → ft" },
+  ],
+  ja: [
+    { title: "単位のまま計算できます", body: "5cm + 1mm のように単位を含む式を入力するだけです。計算前にSI標準へ正規化されます。", example: "5cm + 1mm" },
+    { title: "赤い単位はタップで修正", body: "未登録・入力ミスの単位はプレビューで赤く表示されます。タップすると近い候補を選べます。", example: "5cm + 1mn" },
+    { title: "結果はワンタップで単位切替", body: "結果のすぐ下で表示単位を選べます。よく使う計算はピン留めして画面上部から呼び出せます。", example: "cm → m → ft" },
+  ],
+};
 
 export default function CalculatorScreen() {
   const router = useRouter();
@@ -84,6 +156,16 @@ export default function CalculatorScreen() {
   const [inlineUnitQuery, setInlineUnitQuery] = useState("");
   const unitSearchRef = useRef<TextInput>(null);
   const inlineUnitSearchRef = useRef<TextInput>(null);
+  // quick / presetExpression / presetUnit はルートパラメータなので画面に残り続ける。
+  // これらを見ているエフェクトは language も参照しているため、言語を切り替えると再実行され、
+  // 入力途中の式・表示単位をもう一度上書きして結果まで消してしまう。適用済みの値を覚えて
+  // おき、同じ値には一度だけ反応するようにする。
+  // 使い終わったパラメータを router.setParams で消す手もあるが、初回レンダーでこのエフェクトが
+  // 走る時点ではルートのナビゲータがまだマウントされておらず、
+  // "Attempted to navigate before mounting the Root Layout component" で画面が真っ白になる
+  // （クイックアクションから起動する経路そのものが壊れる）。実際にブラウザで再現して確認済み。
+  const appliedQuickRef = useRef<string | null>(null);
+  const appliedPresetRef = useRef<string | null>(null);
 
   // 結果が更新された瞬間・単位を切り替えた瞬間に軽く跳ねさせ、次元不整合時は横に揺らして知らせる。
   const resultOpacity = useSharedValue(1);
@@ -198,23 +280,11 @@ export default function CalculatorScreen() {
     return sample.targetUnit;
   };
 
-  const copy = language === "en" ? {
-    definitionHint: "Define a constant: W = 3cm", calculate: "=", siBase: "SI base", emptyResult: "Enter an expression, then tap =.", pickUnit: "Choose a registered unit", speedTitle: "Distance, time & speed", speedFormula: "Speed = distance ÷ time     Distance = speed × time", findSpeed: "Find speed", findDistance: "Find distance", findTime: "Find time", savedHistory: "Saved calculations", historyHint: "Latest answers are available as a1, a2, and so on.", clear: "Clear", helpTitle: "Examples", helpDone: "Done", unitSearch: "Search units, names, or categories", copied: "Calculation copied", copy: "Copy", unitDetails: "Unit details", siConversion: "SI conversion", commonUse: "Common use", close: "Close", advancedMath: "Advanced math", advancedMathHint: "Angles use rad, deg, or °. Includes inverse trig, logs, and atan2(y, x).", saveTemplate: "Save", samples: "Examples", units: "Units", shortcuts: "Speed", math: "Math", outputUnit: "Display unit", insertUnit: "Insert unit", registered: "Registered", supported: "Supported, not listed", unknown: "Not a usable unit", unknownHint: "Check the symbol or pick a candidate below.", history: "History", use: "Use", noUnit: "SI base", compatible: "Fits this result", allCandidates: "Closest candidates", hintFix: "Fix", hintComplete: "Finish", hintAttach: "Add unit", hintReplace: "Replace unit", hintInsert: "Insert", more: "More", showAs: "Show as", fixTap: "Tap the red unit to fix it.", noCandidates: "No candidate found. Check the symbol.", aliasNote: "same as", noSearchResults: "No unit matches this search.", noSearchResultsHint: "Try a different symbol, name, or category.", noHistory: "No saved calculations yet.", noHistoryHint: "Every result you calculate is saved here automatically.", pinned: "Pinned", browseUnits: "Browse categories",
-  } : {
-    definitionHint: "定数定義：W = 3cm", calculate: "=", siBase: "SI標準", emptyResult: "式を入力して「=」を押してください。", pickUnit: "登録済み単位から選択", speedTitle: "距離・時間・速度", speedFormula: "速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間", findSpeed: "速度を求める", findDistance: "距離を求める", findTime: "時間を求める", savedHistory: "保存済みの計算履歴", historyHint: "最新の結果は a1、a2… として次の式で使えます。", clear: "消去", helpTitle: "入力例", helpDone: "閉じる", unitSearch: "単位・読み・カテゴリを検索", copied: "計算結果をコピーしました", copy: "コピー", unitDetails: "単位の説明", siConversion: "SI換算", commonUse: "主な利用分野", close: "閉じる", advancedMath: "上級の数学機能", advancedMathHint: "角度は rad・deg・° で入力します。逆三角・対数・atan2(y, x)にも対応します。", saveTemplate: "保存", samples: "サンプル", units: "単位", shortcuts: "速度", math: "数学", outputUnit: "表示単位", insertUnit: "単位を挿入", registered: "登録済み", supported: "計算対応（候補外）", unknown: "使えない単位", unknownHint: "記号を確認するか、下の候補から選んでください。", history: "履歴", use: "使う", noUnit: "SI標準", compatible: "この結果に合う単位", allCandidates: "近い候補", hintFix: "要修正", hintComplete: "確定", hintAttach: "単位付け", hintReplace: "単位を置換", hintInsert: "単位挿入", more: "他", showAs: "表示単位", fixTap: "赤い単位をタップすると修正できます。", noCandidates: "候補が見つかりません。記号を確認してください。", aliasNote: "＝", noSearchResults: "一致する単位が見つかりません。", noSearchResultsHint: "別の記号・名前・カテゴリでも試してください。", noHistory: "保存された計算はまだありません。", noHistoryHint: "計算するたびに自動で保存されます。", pinned: "ピン留め", browseUnits: "カテゴリで探す",
-  };
+  const copy = COPY[language];
 
   const hintLabel = hint.kind === "fix" ? copy.hintFix : hint.kind === "complete" ? copy.hintComplete : hint.kind === "attach" ? copy.hintAttach : hint.kind === "replace" ? copy.hintReplace : copy.hintInsert;
 
-  const onboardingSlides = language === "en" ? [
-    { title: "Calculate with units, directly", body: "Type an expression with units, such as 5cm + 1mm. The app normalizes it to SI before calculating.", example: "5cm + 1mm" },
-    { title: "Tap a red unit to fix it", body: "Unknown or mistyped units turn red in the preview. Tap one to pick the closest match.", example: "5cm + 1mn" },
-    { title: "Switch units in one tap", body: "Choose any compatible display unit right under the result, and pin your favorite calculations to the top of this screen.", example: "cm → m → ft" },
-  ] : [
-    { title: "単位のまま計算できます", body: "5cm + 1mm のように単位を含む式を入力するだけです。計算前にSI標準へ正規化されます。", example: "5cm + 1mm" },
-    { title: "赤い単位はタップで修正", body: "未登録・入力ミスの単位はプレビューで赤く表示されます。タップすると近い候補を選べます。", example: "5cm + 1mn" },
-    { title: "結果はワンタップで単位切替", body: "結果のすぐ下で表示単位を選べます。よく使う計算はピン留めして画面上部から呼び出せます。", example: "cm → m → ft" },
-  ];
+  const onboardingSlides = ONBOARDING_SLIDES[language];
   const isLastOnboardingSlide = onboardingStep === onboardingSlides.length - 1;
 
   const display = useMemo(() => {
@@ -225,11 +295,13 @@ export default function CalculatorScreen() {
     } catch (cause) {
       // 次元不一致だけでなく、不正な単位文字列（例: プリセットの presetUnit パラメータ）など
       // 実際の失敗理由をそのまま見せる。決め打ちの「次元が違う」で握りつぶさない。
-      const fallback = language === "en" ? "Could not convert to this unit." : "この単位へは変換できません。";
-      return { value: "—", si: formatQuantity(result, undefined, locale), error: cause instanceof Error ? cause.message : fallback };
+      // エンジンのエラー(UnitError)は現在の言語で表示する。UnitError以外は従来どおり
+      // Error.message をそのまま出す（バックアップ処理など別系統のエラーもここを通るため）。
+      const fallback = copy.cannotConvertUnit;
+      return { value: "—", si: formatQuantity(result, undefined, locale), error: cause instanceof Error ? (unitErrorMessage(cause, language) ?? cause.message) : fallback };
     }
     // measuringStandardが変わるとcup/tbsp/tspの換算値が変わるため、依存配列に含めて表示単位を再計算させる（値自体は使わない）。
-  }, [language, locale, measuringStandard, result, targetUnit]);
+  }, [copy, language, locale, measuringStandard, result, targetUnit]);
 
   const rememberUnit = (symbol: string) => {
     const trimmed = symbol.trim();
@@ -240,15 +312,14 @@ export default function CalculatorScreen() {
   const describeUnresolved = (segment: ExpressionSegment) => {
     const suggestion = getUnitSuggestions(segment.text, { system: unitSystem, limit: 1, includeUnit })[0];
     const canonical = segment.canonical ?? suggestion?.unit.symbol;
-    if (language === "en") return canonical ? `“${segment.text}” is not a usable unit. Did you mean ${canonical}?` : `“${segment.text}” is not a registered or supported unit.`;
-    return canonical ? `「${segment.text}」は使えません。${canonical} に修正できます。` : `「${segment.text}」は未登録・未対応の単位です。`;
+    return canonical ? copy.unresolvedUnitSuggestion(segment.text, canonical) : copy.unresolvedUnitUnknown(segment.text);
   };
 
   const calculate = async (expressionOverride?: string, targetUnitOverride?: string) => {
     const input = (expressionOverride ?? expression).trim();
     const selectedTargetUnit = targetUnitOverride ?? targetUnit;
     if (!input) {
-      setError(language === "en" ? "Enter an expression." : "式を入力してください。");
+      setError(copy.enterExpression);
       return;
     }
     // 使えない単位だけを修正候補へ誘導する（未定義の定数・関数参照はここでは扱わず、下の計算エラーに任せる）。
@@ -275,7 +346,7 @@ export default function CalculatorScreen() {
       const quantity = next?.quantity ?? evaluateExpression(input, availableConstants);
       if (next) {
         await upsertConstant(next.symbol, next.expression);
-        setNotice(`定数 ${next.symbol} を保存しました。`);
+        setNotice(copy.constantSaved(next.symbol));
       }
       setResult(quantity);
       playResultReveal();
@@ -289,9 +360,7 @@ export default function CalculatorScreen() {
         } catch {
           usedTargetUnit = "";
           setTargetUnit("");
-          setNotice(language === "en"
-            ? `“${selectedTargetUnit.trim()}” does not fit — showing the SI base value.`
-            : `「${selectedTargetUnit.trim()}」は合わないため、SI標準で表示しました。`);
+          setNotice(copy.unitDoesNotFit(selectedTargetUnit.trim()));
         }
       }
       if (Platform.OS === "ios") {
@@ -316,11 +385,13 @@ export default function CalculatorScreen() {
           createdAt: new Date().toISOString(),
         });
       } catch {
-        setNotice("計算しましたが、履歴を端末内へ保存できませんでした。");
+        setNotice(copy.historySaveFailed);
       }
     } catch (cause) {
       setResult(null);
-      setError(cause instanceof Error ? cause.message : "式を計算できませんでした。");
+      // エンジンのエラー(UnitError)は現在の言語で表示する。UnitError以外は従来どおり
+      // Error.message をそのまま出す（バックアップ処理など別系統のエラーもここを通るため）。
+      setError(cause instanceof Error ? (unitErrorMessage(cause, language) ?? cause.message) : copy.expressionCalculationFailed);
       playErrorShake();
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
@@ -438,7 +509,7 @@ export default function CalculatorScreen() {
     setResult(entry.quantity);
     setFixSelection(null);
     setError("");
-    setNotice("保存済みの計算結果を復元しました。");
+    setNotice(copy.historyRestored);
   };
 
   const toggleInlineUnitSearch = () => {
@@ -462,6 +533,8 @@ export default function CalculatorScreen() {
     const action = Array.isArray(quick) ? quick[0] : quick;
     const shortcut = getCalculatorQuickShortcut(action);
     if (!shortcut) return;
+    if (appliedQuickRef.current === action) return;
+    appliedQuickRef.current = action ?? null;
     if (shortcut.expression && shortcut.targetUnit) {
       setExpression(shortcut.expression);
       placeCaret(shortcut.expression.length);
@@ -469,30 +542,34 @@ export default function CalculatorScreen() {
       setResult(null);
       setFixSelection(null);
       setError("");
-      setNotice(action === "speed" ? (language === "en" ? "Speed example ready: distance ÷ time." : "速度の例を準備しました：距離 ÷ 時間") : (language === "en" ? "Pressure example ready: force ÷ area." : "圧力の例を準備しました：力 ÷ 面積"));
+      setNotice(action === "speed" ? copy.speedExampleReady : copy.pressureExampleReady);
     }
     if (shortcut.sampleCategory) {
       setSampleCategory(shortcut.sampleCategory);
-      setNotice(language === "en" ? "Choose a sample calculation to begin." : "サンプル計算式を選んで試せます。");
+      setNotice(copy.chooseSampleToStart);
     }
     if (shortcut.focusSearch) {
       setShowInlineUnitSearch(true);
       setTimeout(() => inlineUnitSearchRef.current?.focus(), 250);
     }
-  }, [language, quick]);
+  }, [copy, language, quick]);
 
   useEffect(() => {
     const nextExpression = Array.isArray(presetExpression) ? presetExpression[0] : presetExpression;
     const nextUnit = Array.isArray(presetUnit) ? presetUnit[0] : presetUnit;
     if (!nextExpression) return;
+    // 式と表示単位をまとめて1つのトークンにして比較する（式が同じで単位だけ違う遷移も拾う）。
+    const presetToken = `${nextExpression}\u0000${nextUnit ?? ""}`;
+    if (appliedPresetRef.current === presetToken) return;
+    appliedPresetRef.current = presetToken;
     setExpression(nextExpression);
     placeCaret(nextExpression.length);
     setTargetUnit(nextUnit ?? "");
     setResult(null);
     setFixSelection(null);
     setError("");
-    setNotice(language === "en" ? "Saved item loaded. Tap = to run it." : "保存した項目を読み込みました。「=」を押して実行できます。");
-  }, [language, presetExpression, presetUnit]);
+    setNotice(copy.savedItemLoaded);
+  }, [copy, language, presetExpression, presetUnit]);
 
   const applySample = (sample: SampleCalculation) => {
     const sampleTargetUnit = targetUnitForSample(sample);
@@ -517,10 +594,12 @@ export default function CalculatorScreen() {
       return;
     }
     try {
-      await exportCalculationHistory(history);
-      setNotice("計算履歴をCSVとして出力しました。");
+      await exportCalculationHistory(history, language);
+      setNotice(copy.historyExported);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "CSVを出力できませんでした。");
+      // エンジンのエラー(UnitError)は現在の言語で表示する。UnitError以外は従来どおり
+      // Error.message をそのまま出す（バックアップ処理など別系統のエラーもここを通るため）。
+      setError(cause instanceof Error ? (unitErrorMessage(cause, language) ?? cause.message) : copy.csvExportFailed);
     }
   };
 
@@ -530,11 +609,11 @@ export default function CalculatorScreen() {
       await Clipboard.setStringAsync(`${expression} = ${display.value}\n${copy.siBase}: ${display.si}`);
       setNotice(copy.copied);
     } catch {
-      setError(language === "en" ? "Could not copy this calculation." : "計算結果をコピーできませんでした。");
+      setError(copy.couldNotCopyCalculation);
     }
   };
 
-  const suggestionLabel = (suggestion: UnitSuggestion) => (language === "en" ? suggestion.unit.name?.en : suggestion.unit.name?.ja) ?? unitGroupLabel(suggestion.group.id);
+  const suggestionLabel = (suggestion: UnitSuggestion) => (suggestion.unit.name ? localizedText(suggestion.unit.name, language) : undefined) ?? unitGroupLabel(suggestion.group.id);
 
   const renderUnitChip = (suggestion: UnitSuggestion, onPress: () => void, active = false) => (
     <Pressable
@@ -586,7 +665,7 @@ export default function CalculatorScreen() {
               // ユーザー自身のカーソル操作（タップ・ドラッグ選択）と競合しないようにする。
               selection={pendingSelection ?? undefined}
               onSubmitEditing={() => void calculate()}
-              placeholder={language === "en" ? "Example: 5cm + 1mm" : "例：5cm + 1mm"}
+              placeholder={copy.expressionPlaceholder}
               placeholderTextColor={colors.placeholder}
               autoCapitalize="none"
               autoCorrect={false}
@@ -803,7 +882,7 @@ export default function CalculatorScreen() {
             return (
               <View key={`${key}-${index}`} style={styles.keyCell}>
                 <Pressable
-                  accessibilityLabel={key === "⌫" ? (language === "en" ? "Delete" : "一文字削除") : key}
+                  accessibilityLabel={key === "⌫" ? copy.deleteKey : key}
                   onPress={() => pressKey(key)}
                   style={({ pressed }) => [styles.key, isAction && styles.keyAction, isOperator && styles.keyOperator, pressed && styles.keyPressed]}
                 >
@@ -816,7 +895,7 @@ export default function CalculatorScreen() {
       </View>
 
       <Modal visible={showSamples} transparent animationType="slide" onRequestClose={() => setShowSamples(false)}>
-        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><Text style={styles.sheetTitle}>{copy.samples}</Text><Pressable accessibilityLabel={copy.close} onPress={() => setShowSamples(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRail}>{visibleSampleCategories.map((category) => <Pressable key={category.id} onPress={() => setSampleCategory(category.id)} style={({ pressed }) => [styles.categoryChip, sampleCategory === category.id && styles.categoryChipActive, pressed && styles.pressed]}><Text style={[styles.categoryChipText, sampleCategory === category.id && styles.categoryChipTextActive]}>{language === "en" ? category.labelEn : category.label}</Text></Pressable>)}</ScrollView><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleSamples.map((sample) => <Pressable key={sample.id} onPress={() => { applySample(sample); setShowSamples(false); }} style={({ pressed }) => [styles.sampleRow, pressed && styles.cardPressed]}><View style={styles.sampleCopy}><Text style={styles.sampleTitle}>{language === "en" ? sample.titleEn : sample.title}</Text><Text style={styles.sampleDescription}>{language === "en" ? sample.descriptionEn : sample.description}</Text></View><View style={styles.sampleExpressionWrap}><Text numberOfLines={1} style={styles.sampleExpression}>{sample.expression}</Text><Text style={styles.sampleTarget}>→ {targetUnitForSample(sample)}</Text></View></Pressable>)}</ScrollView></View></View>
+        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><Text style={styles.sheetTitle}>{copy.samples}</Text><Pressable accessibilityLabel={copy.close} onPress={() => setShowSamples(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRail}>{visibleSampleCategories.map((category) => <Pressable key={category.id} onPress={() => setSampleCategory(category.id)} style={({ pressed }) => [styles.categoryChip, sampleCategory === category.id && styles.categoryChipActive, pressed && styles.pressed]}><Text style={[styles.categoryChipText, sampleCategory === category.id && styles.categoryChipTextActive]}>{localizedText(category.label, language)}</Text></Pressable>)}</ScrollView><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleSamples.map((sample) => <Pressable key={sample.id} onPress={() => { applySample(sample); setShowSamples(false); }} style={({ pressed }) => [styles.sampleRow, pressed && styles.cardPressed]}><View style={styles.sampleCopy}><Text style={styles.sampleTitle}>{localizedText(sample.title, language)}</Text><Text style={styles.sampleDescription}>{localizedText(sample.description, language)}</Text></View><View style={styles.sampleExpressionWrap}><Text numberOfLines={1} style={styles.sampleExpression}>{sample.expression}</Text><Text style={styles.sampleTarget}>→ {targetUnitForSample(sample)}</Text></View></Pressable>)}</ScrollView></View></View>
       </Modal>
 
       <Modal visible={showUnitPicker} transparent animationType="slide" onRequestClose={() => setShowUnitPicker(false)}>
@@ -973,13 +1052,13 @@ export default function CalculatorScreen() {
             </View>
             <View style={styles.onboardingActions}>
               <Pressable onPress={() => void completeOnboarding()} style={({ pressed }) => [styles.onboardingSkip, pressed && styles.pressed]}>
-                <Text style={styles.onboardingSkipText}>{language === "en" ? "Skip" : "スキップ"}</Text>
+                <Text style={styles.onboardingSkipText}>{copy.skip}</Text>
               </Pressable>
               <Pressable
                 onPress={() => (isLastOnboardingSlide ? void completeOnboarding() : setOnboardingStep((step) => step + 1))}
                 style={({ pressed }) => [styles.onboardingNext, pressed && styles.pressed]}
               >
-                <Text style={styles.onboardingNextText}>{isLastOnboardingSlide ? (language === "en" ? "Get started" : "はじめる") : (language === "en" ? "Next" : "次へ")}</Text>
+                <Text style={styles.onboardingNextText}>{isLastOnboardingSlide ? copy.getStarted : copy.next}</Text>
               </Pressable>
             </View>
           </View>
