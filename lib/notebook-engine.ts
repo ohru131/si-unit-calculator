@@ -3,6 +3,8 @@ import {
   type CustomFunctionDefinition,
   evaluateExpression,
   formatQuantity,
+  IDENTIFIER_BODY_CHAR_CLASS,
+  IDENTIFIER_START_CHAR_CLASS,
   parseConstantDefinition,
   type Quantity,
   type SavedConstant,
@@ -13,7 +15,8 @@ export type ResolvedNotebookConstants = {
   errors: Record<string, string>;
 };
 
-const NAME_VALUE_PATTERN = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/s;
+// lib/units.ts の識別子文字集合と揃える（下付き文字・ギリシャ文字を名前に使えるようにするため）。
+const NAME_VALUE_PATTERN = new RegExp(`^\\s*([${IDENTIFIER_START_CHAR_CLASS}][${IDENTIFIER_BODY_CHAR_CLASS}]*)\\s*=\\s*(.*)$`, "s");
 
 /**
  * 「v0=5m/s」のようなローカル定数・手順の1行入力を名前と式に分割する。
