@@ -35,10 +35,10 @@ import {
 import { FORMULA_CHARACTER_GROUPS } from "@/lib/formula-characters";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { localizedText, type AppLanguage } from "@/lib/i18n";
-import { formatNameValue, parseNameValue } from "@/lib/notebook-engine";
+import { formatNameValue, normalizeStepForSave, parseNameValue } from "@/lib/notebook-engine";
 import { getLocalConstantFieldSuggestions, getStepFieldSuggestions, insertConstantSymbol } from "@/lib/notebook-constant-suggestions";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
-import { nextStepNamePatch, stepDisplayTitle } from "@/lib/notebook-step-title";
+import { nextStepNamePatch } from "@/lib/notebook-step-title";
 import { type ImportedNotebook } from "@/lib/notebooks-backup";
 import { exportNotebooksBackup, pickNotebooksBackup } from "@/lib/notebooks-backup-file";
 import { unitErrorMessage } from "@/lib/unit-errors";
@@ -545,7 +545,19 @@ export default function ConstantsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openNotebookId, notebooks]);
 
-  const closeNotebookEditor = () => setNotebookEditorVisible(false);
+  // 編集モーダルは閉じてもこの画面コンポーネント自体は生きているため、レールの状態
+  // （フォーカス中のフィールド・各フィールドのキャレット位置・強制キャレット）が次に開いたときまで
+  // 残る。既存ノートの手順や定数は保存済みのidをそのまま持つのでキーも一致してしまい、再度開いた
+  // 直後に前回のキャレット位置が復元されて、記号ボタンが意図しない位置に挿し込まれる
+  // （forcedSelectionはTextInputのselection propに直接効くので、開いた瞬間にカーソルが飛ぶ）。
+  // 閉じるときに全部捨てる。
+  const closeNotebookEditor = () => {
+    setNotebookEditorVisible(false);
+    setFocusedRailKey(null);
+    setFieldSelections({});
+    setForcedSelection(null);
+    setActiveCharacterGroupId(FORMULA_CHARACTER_GROUPS[0].id);
+  };
 
   const saveNotebook = async () => {
     setNotebookError("");
@@ -554,7 +566,7 @@ export default function ConstantsScreen() {
     // 空のまま生テキスト（"="を含む）がexpressionに残る。名前なしの通常の式と区別して、はっきり教える。
     if (notebookLocalConstants.some((item) => !item.symbol.trim() && item.expression.trim())) { setNotebookError(copy.invalidConstantName); return; }
     if (notebookSteps.some((step) => !step.resultSymbol?.trim() && step.expression.includes("="))) { setNotebookError(copy.invalidStepName); return; }
-    const normalizedSteps = notebookSteps.filter((step) => step.expression.trim()).map((step) => ({ ...step, title: stepDisplayTitle(step.title, step.expression), expression: step.expression.trim(), targetUnit: step.targetUnit.trim(), resultSymbol: step.resultSymbol?.trim() || undefined, formulaLatex: step.formulaLatex?.trim() || undefined }));
+    const normalizedSteps = notebookSteps.filter((step) => step.expression.trim()).map(normalizeStepForSave);
     const normalizedConstants = notebookLocalConstants.filter((item) => item.symbol.trim() && item.expression.trim()).map((item) => ({ ...item, symbol: item.symbol.trim(), expression: item.expression.trim() }));
     const normalizedFormulas = notebookFormulas.filter((item) => item.latex.trim()).map((item) => ({ ...item, explanation: item.explanation.trim(), latex: item.latex.trim() }));
     if (!title || !normalizedSteps.length) { setNotebookError(copy.validation); return; }

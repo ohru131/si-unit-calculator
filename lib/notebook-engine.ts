@@ -137,6 +137,31 @@ export function trimResultSymbol(step: Pick<CalculationNoteStep, "resultSymbol">
 }
 
 /**
+ * 手順を保存する直前の正規化。編集画面（app/(tabs)/constants.tsx）と詳細画面
+ * （components/notebooks/notebook-detail.tsx）の両方の保存パスがこれを通る。
+ *
+ * 【重要】title は**空文字のまま保存する**。空の title は「未設定」という意味を持つ状態で、
+ * 「自動生成されたタイトル」の目印（title === resultSymbol、空も含む）を担っている。
+ * ここで表示用フォールバック（stepDisplayTitle）を使って式で埋めてしまうと、保存・再読込を
+ * 挟んだ時点で人間が書いたタイトル扱いになり、記号を変えてもタイトルが追従しなくなる
+ * （記号を消して保存 → title="d/t" → 次に "w=" を入れてもタイトルは "d/t" のまま）。
+ * フォールバックは表示とコピーの瞬間だけに使うこと。
+ *
+ * 両画面で別々に正規化を書くと、片方だけ直したときにこの不変条件が崩れて気付けないため、
+ * 関数にまとめてテスト（tests/notebook-step-title.test.ts）で保証している。
+ */
+export function normalizeStepForSave<T extends CalculationNoteStep>(step: T): T {
+  return {
+    ...step,
+    title: step.title.trim(),
+    expression: step.expression.trim(),
+    targetUnit: step.targetUnit.trim(),
+    resultSymbol: trimResultSymbol(step) || undefined,
+    formulaLatex: step.formulaLatex?.trim() || undefined,
+  };
+}
+
+/**
  * ノートの手順を上から順に計算する。各手順の結果は s1、s2… として後続の手順から参照できる
  * （ローカル定数・グローバル定数に加えて利用可能）。「v = v0 + a*t」のように resultSymbol が
  * 設定されていれば、s1 の代わりにその名前で参照できる。
