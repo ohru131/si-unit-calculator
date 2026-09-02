@@ -36,7 +36,7 @@ import { FORMULA_CHARACTER_GROUPS } from "@/lib/formula-characters";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { localizedText, type AppLanguage } from "@/lib/i18n";
 import { formatNameValue, normalizeStepForSave, parseNameValue } from "@/lib/notebook-engine";
-import { getLocalConstantFieldSuggestions, getStepFieldSuggestions, insertConstantSymbol } from "@/lib/notebook-constant-suggestions";
+import { clampSelectionRange, getLocalConstantFieldSuggestions, getStepFieldSuggestions, insertConstantSymbol } from "@/lib/notebook-constant-suggestions";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
 import { nextStepNamePatch } from "@/lib/notebook-step-title";
 import { type ImportedNotebook } from "@/lib/notebooks-backup";
@@ -478,6 +478,20 @@ export default function ConstantsScreen() {
   };
 
   // 計算ノート：編集シートの開閉。
+  // 編集モーダルは閉じてもこの画面コンポーネント自体は生きているため、レールの状態
+  // （フォーカス中のフィールド・各フィールドのキャレット位置・強制キャレット）が次に開いたときまで
+  // 残る。既存ノートの手順や定数は保存済みのidをそのまま持つのでキーも一致してしまい、再度開いた
+  // 直後に前回のキャレット位置が復元されて、記号ボタンが意図しない位置に挿し込まれる
+  // （forcedSelectionはTextInputのselection propに直接効くので、開いた瞬間にカーソルが飛ぶ）。
+  // 閉じるときだけでなく**開くときにも**捨てる: 保存して閉じる経路（saveNotebook）は
+  // closeNotebookEditorを通らずモーダルを閉じるため、閉じる側だけでは漏れる。
+  const resetNotebookFieldInteraction = () => {
+    setFocusedRailKey(null);
+    setFieldSelections({});
+    setForcedSelection(null);
+    setActiveCharacterGroupId(FORMULA_CHARACTER_GROUPS[0].id);
+  };
+
   const resetNotebookEditor = () => {
     setEditingNotebookId(undefined); setNotebookTitle(""); setNotebookDescription("");
     const initialCategoryId = selectedCategoryId ?? UNCATEGORIZED_CATEGORY_ID;
@@ -486,6 +500,7 @@ export default function ConstantsScreen() {
     setCategoryPickerExpandedParentId(categoryParentId(initialCategoryId));
     setNotebookFormulas([]); setNotebookLocalConstants([]); setNotebookSteps([]); setNotebookError("");
     setShowNewCategoryField(false); setNewCategoryName("");
+    resetNotebookFieldInteraction();
   };
 
   const openNewNotebook = (presetExpression?: string, presetTargetUnit?: string) => {
@@ -505,6 +520,7 @@ export default function ConstantsScreen() {
     setNotebookSteps(notebook.steps.map((item) => ({ ...item })));
     setNotebookError("");
     setShowNewCategoryField(false); setNewCategoryName("");
+    resetNotebookFieldInteraction();
     setNotebookEditorVisible(true);
   };
 
@@ -545,18 +561,9 @@ export default function ConstantsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openNotebookId, notebooks]);
 
-  // 編集モーダルは閉じてもこの画面コンポーネント自体は生きているため、レールの状態
-  // （フォーカス中のフィールド・各フィールドのキャレット位置・強制キャレット）が次に開いたときまで
-  // 残る。既存ノートの手順や定数は保存済みのidをそのまま持つのでキーも一致してしまい、再度開いた
-  // 直後に前回のキャレット位置が復元されて、記号ボタンが意図しない位置に挿し込まれる
-  // （forcedSelectionはTextInputのselection propに直接効くので、開いた瞬間にカーソルが飛ぶ）。
-  // 閉じるときに全部捨てる。
   const closeNotebookEditor = () => {
     setNotebookEditorVisible(false);
-    setFocusedRailKey(null);
-    setFieldSelections({});
-    setForcedSelection(null);
-    setActiveCharacterGroupId(FORMULA_CHARACTER_GROUPS[0].id);
+    resetNotebookFieldInteraction();
   };
 
   const saveNotebook = async () => {
@@ -617,6 +624,9 @@ export default function ConstantsScreen() {
   const stepFieldKey = (id: string) => `step:${id}`;
   const combinedCaretEnd = (name: string, expression: string) => formatNameValue(name, expression).length;
 
+  // 丸めの規則は lib/notebook-constant-suggestions.ts の純関数に持たせてテストしている。
+  const clampedSelection = (key: string, length: number) => clampSelectionRange(fieldSelections[key], length);
+
   // onSelectionChangeが発火した時点で強制キャレットの役目は終わり。ユーザー自身の操作と
   // 衝突しないよう、対象キーが一致するときだけここで手放す（notebook-detail.tsxと同じパターン）。
   const handleRailSelectionChange = (key: string, selection: { start: number; end: number }) => {
@@ -637,8 +647,7 @@ export default function ConstantsScreen() {
   // そのまま文字を差し込み、結果をparseNameValueで割って書き戻す（名前部分にも式部分にも挿し込めるようにするため、
   // 挿入先をexpression側に限定するinsertConstantSymbolは使わない）。
   const insertCharacterIntoField = (key: string, combinedText: string, char: string, apply: (name: string, value: string) => void) => {
-    const fallback = combinedText.length;
-    const selection = fieldSelections[key] ?? { start: fallback, end: fallback };
+    const selection = clampedSelection(key, combinedText.length);
     const nextText = `${combinedText.slice(0, selection.start)}${char}${combinedText.slice(selection.end)}`;
     const { name, value } = parseNameValue(nextText);
     apply(name, value);
@@ -652,8 +661,7 @@ export default function ConstantsScreen() {
   // insertConstantSymbolはexpression側にだけ挿し込む（「名前＝式」の名前部分にキャレットがあっても
   // expressionの先頭へ丸める）ので、名前を誤って書き換えることはない。
   const insertVariableIntoField = (key: string, name: string, expression: string, symbol: string, applyExpression: (next: string) => void) => {
-    const fallback = combinedCaretEnd(name, expression);
-    const selection = fieldSelections[key] ?? { start: fallback, end: fallback };
+    const selection = clampedSelection(key, combinedCaretEnd(name, expression));
     const { expression: nextExpression, combinedCaret } = insertConstantSymbol(name, expression, selection.start, selection.end, symbol);
     applyExpression(nextExpression);
     const caretSelection = { start: combinedCaret, end: combinedCaret };
