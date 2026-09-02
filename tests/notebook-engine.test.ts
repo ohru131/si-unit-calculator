@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import { localizedText } from "../lib/i18n";
 import { PRESET_NOTEBOOK_SEEDS } from "../lib/notebook-formulas";
 import { evaluateNotebookSteps, formatNameValue, notebookStepSymbol, parseNameValue, resolveNotebookLocalConstants, trimResultSymbol } from "../lib/notebook-engine";
 import { type NotebookLocalConstant } from "../lib/calculator-store";
+
+// テスト名・比較用の文字列はこのリポジトリの慣習に合わせて日本語（ja）を使う。
+const ja = (text: { en: string; ja?: string }) => localizedText(text, "ja");
 
 function toLocalConstants(entries: { symbol: string; expression: string }[]): NotebookLocalConstant[] {
   return entries.map((entry, index) => ({ id: `local-${index}`, ...entry }));
@@ -151,12 +155,12 @@ describe("材料力学プリセットの数値検証", () => {
   const seeds = PRESET_NOTEBOOK_SEEDS["mechanics-of-materials"];
 
   function computeSeed(title: string) {
-    const seed = seeds.find((item) => item.title === title);
+    const seed = seeds.find((item) => ja(item.title) === title);
     if (!seed) throw new Error(`seed not found: ${title}`);
     const localConstants = toLocalConstants(seed.localConstants);
     const { resolved, errors } = resolveNotebookLocalConstants(localConstants, []);
     expect(errors).toEqual({});
-    const steps = seed.steps.map((step, index) => ({ id: `step-${index}`, title: step.title, expression: step.expression, targetUnit: step.targetUnit }));
+    const steps = seed.steps.map((step, index) => ({ id: `step-${index}`, title: ja(step.title), expression: step.expression, targetUnit: step.targetUnit }));
     return evaluateNotebookSteps(steps, resolved, []);
   }
 

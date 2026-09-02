@@ -3,6 +3,7 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 
 import { ImportedConstant } from "@/lib/constants-backup";
 import { useGlobalSettings } from "@/lib/global-settings";
+import { localizedText } from "@/lib/i18n";
 import { PRESET_NOTEBOOK_CATEGORIES, PRESET_NOTEBOOK_SEEDS } from "@/lib/notebook-formulas";
 import type { ImportedNotebook } from "@/lib/notebooks-backup";
 import { parseConstantDefinition, Quantity, SavedConstant } from "@/lib/units";
@@ -266,12 +267,12 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
             seeds.forEach((seed, seedIndex) => {
               nextNotebooks.push({
                 id: `notebook-preset-${category.id}-${seedIndex}`,
-                title: language === "en" ? seed.titleEn : seed.title,
-                description: language === "en" ? seed.descriptionEn : seed.description,
+                title: localizedText(seed.title, language),
+                description: localizedText(seed.description, language),
                 categoryId: category.id,
                 formulas: (seed.formulas ?? []).map((formula, formulaIndex) => ({
                   id: `preset-${category.id}-${seedIndex}-formula-${formulaIndex}`,
-                  explanation: language === "en" ? formula.explanationEn : formula.explanation,
+                  explanation: localizedText(formula.explanation, language),
                   latex: formula.latex,
                 })),
                 localConstants: seed.localConstants.map((constant, constantIndex) => ({
@@ -281,7 +282,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
                 })),
                 steps: seed.steps.map((step, stepIndex) => ({
                   id: `preset-${category.id}-${seedIndex}-step-${stepIndex}`,
-                  title: language === "en" ? step.titleEn : step.title,
+                  title: localizedText(step.title, language),
                   expression: step.expression,
                   targetUnit: step.targetUnit,
                   formulaLatex: step.formulaLatex,

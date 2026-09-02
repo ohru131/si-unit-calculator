@@ -6,6 +6,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { UNCATEGORIZED_CATEGORY_ID, type CalculationNotebook, type NotebookCategory } from "@/lib/calculator-store";
+import { localizedText } from "@/lib/i18n";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
 
 type Props = {
@@ -53,20 +54,20 @@ export function NotebookCategoryGrid({ language, notebooks, notebookCategories, 
   }, []);
 
   const parentCategory = parentCategoryId ? PRESET_NOTEBOOK_CATEGORIES.find((category) => category.id === parentCategoryId) : undefined;
-  const parentLabel = parentCategory ? (language === "en" ? parentCategory.labelEn : parentCategory.label) : "";
+  const parentLabel = parentCategory ? localizedText(parentCategory.label, language) : "";
 
   const rows = useMemo(() => {
     const countFor = (categoryId: string) => notebooks.filter((item) => item.categoryId === categoryId).length;
     if (parentCategoryId) {
       const childIds = childIdsByParent.get(parentCategoryId) ?? [];
       return PRESET_NOTEBOOK_CATEGORIES.filter((category) => childIds.includes(category.id)).map((category) => ({
-        id: category.id, label: language === "en" ? category.labelEn : category.label, count: countFor(category.id), isPreset: true, hasChildren: false,
+        id: category.id, label: localizedText(category.label, language), count: countFor(category.id), isPreset: true, hasChildren: false,
       }));
     }
     const presetRows = PRESET_NOTEBOOK_CATEGORIES.filter((category) => !category.parentId).map((category) => {
       const childIds = childIdsByParent.get(category.id) ?? [];
       const count = childIds.length ? childIds.reduce((sum, childId) => sum + countFor(childId), 0) : countFor(category.id);
-      return { id: category.id, label: language === "en" ? category.labelEn : category.label, count, isPreset: true, hasChildren: childIds.length > 0 };
+      return { id: category.id, label: localizedText(category.label, language), count, isPreset: true, hasChildren: childIds.length > 0 };
     });
     const userRows = notebookCategories.map((category) => ({ id: category.id, label: category.name, count: countFor(category.id), isPreset: false, hasChildren: false }));
     const uncategorizedCount = countFor(UNCATEGORIZED_CATEGORY_ID);

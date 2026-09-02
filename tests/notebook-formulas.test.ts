@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
 
+import { localizedText } from "../lib/i18n";
 import { evaluateNotebookSteps, resolveNotebookLocalConstants } from "../lib/notebook-engine";
 import { PRESET_NOTEBOOK_CATEGORIES, PRESET_NOTEBOOK_SEEDS } from "../lib/notebook-formulas";
+
+// テスト名・比較用の文字列はこのリポジトリの慣習に合わせて日本語（ja）を使う。
+const ja = (text: { en: string; ja?: string }) => localizedText(text, "ja");
 
 describe("プリセット計算ノートの全ステップがエラーなく計算できる", () => {
   for (const category of PRESET_NOTEBOOK_CATEGORIES) {
     const seeds = PRESET_NOTEBOOK_SEEDS[category.id];
     if (!seeds) continue;
     for (const seed of seeds) {
-      it(`${category.label} / ${seed.title}`, () => {
+      it(`${ja(category.label)} / ${ja(seed.title)}`, () => {
         const localConstants = seed.localConstants.map((constant, index) => ({
           id: `test-${index}`,
           symbol: constant.symbol,
@@ -19,7 +23,7 @@ describe("プリセット計算ノートの全ステップがエラーなく計�
 
         const steps = seed.steps.map((step, index) => ({
           id: `test-step-${index}`,
-          title: step.title,
+          title: ja(step.title),
           expression: step.expression,
           targetUnit: step.targetUnit,
           formulaLatex: step.formulaLatex,
@@ -29,7 +33,7 @@ describe("プリセット計算ノートの全ステップがエラーなく計�
         }));
         const results = evaluateNotebookSteps(steps, resolved);
         for (const result of results) {
-          expect(result.error, `${seed.title} > ${result.step.title}: ${result.error}`).toBeUndefined();
+          expect(result.error, `${ja(seed.title)} > ${result.step.title}: ${result.error}`).toBeUndefined();
           expect(result.formatted).toBeTruthy();
         }
       });
@@ -39,12 +43,12 @@ describe("プリセット計算ノートの全ステップがエラーなく計�
 
 describe("代表的なプリセットノートの数値が物理的に妥当な値になる", () => {
   function computeLast(categoryId: string, seedTitle: string) {
-    const seed = PRESET_NOTEBOOK_SEEDS[categoryId]?.find((candidate) => candidate.title === seedTitle);
+    const seed = PRESET_NOTEBOOK_SEEDS[categoryId]?.find((candidate) => ja(candidate.title) === seedTitle);
     if (!seed) throw new Error(`seed not found: ${categoryId} / ${seedTitle}`);
     const localConstants = seed.localConstants.map((constant, index) => ({ id: `c${index}`, symbol: constant.symbol, expression: constant.expression }));
     const { resolved, errors } = resolveNotebookLocalConstants(localConstants, []);
     expect(errors).toEqual({});
-    const steps = seed.steps.map((step, index) => ({ id: `s${index}`, title: step.title, expression: step.expression, targetUnit: step.targetUnit, formulaLatex: step.formulaLatex, resultSymbol: step.resultSymbol }));
+    const steps = seed.steps.map((step, index) => ({ id: `s${index}`, title: ja(step.title), expression: step.expression, targetUnit: step.targetUnit, formulaLatex: step.formulaLatex, resultSymbol: step.resultSymbol }));
     const results = evaluateNotebookSteps(steps, resolved);
     return results[results.length - 1];
   }

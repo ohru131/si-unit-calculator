@@ -33,6 +33,7 @@ import {
   useCalculatorStore,
 } from "@/lib/calculator-store";
 import { useGlobalSettings } from "@/lib/global-settings";
+import { localizedText } from "@/lib/i18n";
 import { formatNameValue, parseNameValue } from "@/lib/notebook-engine";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
 import { type ImportedNotebook } from "@/lib/notebooks-backup";
@@ -175,7 +176,7 @@ export default function ConstantsScreen() {
   const parentCategoryIds = useMemo(() => new Set(PRESET_NOTEBOOK_CATEGORIES.map((category) => category.parentId).filter((id): id is string => Boolean(id))), []);
 
   const categoryOptions = useMemo(() => [
-    ...PRESET_NOTEBOOK_CATEGORIES.filter((category) => !parentCategoryIds.has(category.id)).map((category) => ({ id: category.id, label: language === "en" ? category.labelEn : category.label })),
+    ...PRESET_NOTEBOOK_CATEGORIES.filter((category) => !parentCategoryIds.has(category.id)).map((category) => ({ id: category.id, label: localizedText(category.label, language) })),
     ...notebookCategories.map((category) => ({ id: category.id, label: category.name })),
     { id: UNCATEGORIZED_CATEGORY_ID, label: copy.uncategorized },
   ], [copy.uncategorized, language, notebookCategories, parentCategoryIds]);
@@ -187,7 +188,7 @@ export default function ConstantsScreen() {
     const map = new Map<string, { id: string; label: string }[]>();
     PRESET_NOTEBOOK_CATEGORIES.forEach((category) => {
       if (!category.parentId) return;
-      const label = language === "en" ? category.labelEn : category.label;
+      const label = localizedText(category.label, language);
       map.set(category.parentId, [...(map.get(category.parentId) ?? []), { id: category.id, label }]);
     });
     return map;
@@ -195,7 +196,7 @@ export default function ConstantsScreen() {
 
   // ピッカーの第1段（最上位）。プリセットの大分類・葉カテゴリ、ユーザー作成カテゴリ、未分類の順に並べる。
   const topLevelCategoryOptions = useMemo(() => [
-    ...PRESET_NOTEBOOK_CATEGORIES.filter((category) => !category.parentId).map((category) => ({ id: category.id, label: language === "en" ? category.labelEn : category.label, hasChildren: childCategoriesByParentId.has(category.id) })),
+    ...PRESET_NOTEBOOK_CATEGORIES.filter((category) => !category.parentId).map((category) => ({ id: category.id, label: localizedText(category.label, language), hasChildren: childCategoriesByParentId.has(category.id) })),
     ...notebookCategories.map((category) => ({ id: category.id, label: category.name, hasChildren: false })),
     { id: UNCATEGORIZED_CATEGORY_ID, label: copy.uncategorized, hasChildren: false },
   ], [childCategoriesByParentId, copy.uncategorized, language, notebookCategories]);
