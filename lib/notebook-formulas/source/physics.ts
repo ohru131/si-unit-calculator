@@ -115,7 +115,7 @@ export const PHYSICS_THERMAL_SEEDS: NotebookSeed[] = [
     steps: [{ title: { en: "Pressure P", ja: "圧力 P", es: "Presión P", "pt-BR": "Pressão P", de: "Druck P", fr: "Pression P" }, expression: "n*R*T/V", targetUnit: "Pa", formulaLatex: "P = \\dfrac{nRT}{V}" }],
   },
   {
-    title: { en: "Heat quantity", ja: "熱量の保存", es: "Conservación del calor", "pt-BR": "Conservação do calor", de: "Wärmeausgleich", fr: "Conservation de la chaleur" },
+    title: { en: "Heat quantity", ja: "熱量", es: "Cantidad de calor", "pt-BR": "Quantidade de calor", de: "Wärmemenge", fr: "Quantité de chaleur" },
     description: { en: "Compute the heat absorbed or released by an object from its mass, specific heat, and temperature change.", ja: "質量・比熱・温度変化から、物体が得る（または失う）熱量を求めます。", es: "Calcula el calor absorbido o liberado por un objeto a partir de su masa, calor específico y variación de temperatura.", "pt-BR": "Calcule o calor absorvido ou liberado por um objeto a partir de sua massa, calor específico e variação de temperatura.", de: "Berechnet die von einem Körper aufgenommene oder abgegebene Wärmemenge aus seiner Masse, spezifischen Wärmekapazität und Temperaturänderung.", fr: "Calculer la chaleur absorbée ou libérée par un objet à partir de sa masse, de sa chaleur massique et de sa variation de température." },
     localConstants: [
       { symbol: "m", expression: "0.2kg" },
