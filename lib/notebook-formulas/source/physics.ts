@@ -17,8 +17,8 @@ export const PHYSICS_MECHANICS_SEEDS: NotebookSeed[] = [
       { symbol: "t", expression: "3s" },
     ],
     steps: [
-      { title: "速度 v", titleEn: "Velocity v", expression: "v0+a*t", targetUnit: "m/s", formulaLatex: "v = v_0 + at" },
-      { title: "変位 x", titleEn: "Displacement x", expression: "v0*t+0.5*a*t^2", targetUnit: "m", formulaLatex: "x = v_0 t + \\dfrac{1}{2}at^2" },
+      { title: "速度 v", titleEn: "Velocity v", expression: "v0+a*t", targetUnit: "m/s", formulaLatex: "v = v_0 + at", resultSymbol: "v" },
+      { title: "変位 x", titleEn: "Displacement x", expression: "v0*t+0.5*a*t^2", targetUnit: "m", formulaLatex: "x = v_0 t + \\dfrac{1}{2}at^2", resultSymbol: "x" },
     ],
   },
   {

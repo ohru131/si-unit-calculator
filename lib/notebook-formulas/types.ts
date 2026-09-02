@@ -19,6 +19,8 @@ export type NotebookSeedStep = {
   targetUnit: string;
   /** 見やすい表示用のLaTeX数式。省略時は式（expression）をそのまま表示する。 */
   formulaLatex?: string;
+  /** 結果の入力式欄に「symbol=expression」の形で表示するための名前（例："v"）。省略時は式のみ表示する。 */
+  resultSymbol?: string;
 };
 /** 「説明文＋数式」のペア。手順（steps）の計算結果とは独立に、複数個並べて解説できる。 */
 export type NotebookSeedFormula = {
