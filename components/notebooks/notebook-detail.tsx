@@ -80,7 +80,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   const isDirty = useMemo(() => {
     const constantsDirty = editableConstants.some((item) => {
       const saved = notebook.localConstants.find((entry) => entry.id === item.id);
-      return !saved || item.expression !== saved.expression || item.symbol !== saved.symbol;
+      return !saved || item.expression !== saved.expression || item.symbol !== saved.symbol || item.displaySymbol !== saved.displaySymbol;
     });
     const stepsDirty = editableSteps.some((step) => {
       const saved = notebook.steps.find((entry) => entry.id === step.id);

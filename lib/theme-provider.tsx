@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { AppState, Appearance } from "react-native";
 import { colorScheme as nativewindColorScheme, vars } from "nativewind";
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from "react-native-reanimated";
@@ -14,6 +14,27 @@ function readSystemScheme(): ColorScheme {
   return Appearance.getColorScheme() === "dark" ? "dark" : "light";
 }
 
+// React NativeのuseColorScheme()はAndroidでコールドスタート直後、実際のOSテーマ（既にダーク）
+// より古い値（ライト）を初期値として返すことがあり、その後OS側で実際のテーマ変更イベントが
+// 発生しない限り更新されない（起動時から既にダークモードだと変更イベント自体が起きないため）。
+// useSyncExternalStoreならマウント直後にgetSnapshotを再評価して初期値のズレを検知・修正して
+// くれるので、手動でuseEffect内からsetStateする（react-hooks/set-state-in-effectに反する）
+// 必要がない。AppStateのフォアグラウンド復帰も購読し、変更イベントが飛ばないケースに備える。
+function subscribeToSystemScheme(onStoreChange: () => void) {
+  const appearanceSubscription = Appearance.addChangeListener(() => onStoreChange());
+  const appStateSubscription = AppState.addEventListener("change", (state) => {
+    if (state === "active") onStoreChange();
+  });
+  return () => {
+    appearanceSubscription.remove();
+    appStateSubscription.remove();
+  };
+}
+
+function getServerSystemScheme(): ColorScheme {
+  return "light";
+}
+
 type ThemeContextValue = {
   colorScheme: ColorScheme;
   themePreference: ThemePreference;
@@ -23,29 +44,9 @@ type ThemeContextValue = {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  // React NativeのuseColorScheme()はAndroidでコールドスタート直後、実際のOSテーマ（既にダーク）
-  // より古い値（ライト）を初期値として返すことがあり、その後OS側で実際のテーマ変更イベントが
-  // 発生しない限り更新されない（起動時から既にダークモードだと変更イベント自体が起きないため）。
-  // これにより「初回起動時は白背景のまま、設定画面で手動でダークに切り替えると正しく黒になる」
-  // という症状が起きるため、Appearanceを直接使い、マウント後の再取得とフォアグラウンド復帰時の
-  // 再同期で補正する。
-  const [systemScheme, setSystemScheme] = useState<ColorScheme>(readSystemScheme);
+  const systemScheme = useSyncExternalStore(subscribeToSystemScheme, readSystemScheme, getServerSystemScheme);
   const [themePreference, setThemePreferenceState] = useState<ThemePreference>("system");
   const colorScheme: ColorScheme = themePreference === "system" ? systemScheme : themePreference;
-
-  useEffect(() => {
-    setSystemScheme(readSystemScheme());
-    const appearanceSubscription = Appearance.addChangeListener(({ colorScheme: nextScheme }) => {
-      setSystemScheme(nextScheme === "dark" ? "dark" : "light");
-    });
-    const appStateSubscription = AppState.addEventListener("change", (state) => {
-      if (state === "active") setSystemScheme(readSystemScheme());
-    });
-    return () => {
-      appearanceSubscription.remove();
-      appStateSubscription.remove();
-    };
-  }, []);
 
   useEffect(() => {
     AsyncStorage.getItem(THEME_PREFERENCE_KEY)
