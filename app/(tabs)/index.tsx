@@ -21,6 +21,7 @@ import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { isSampleCategoryVisible, isUnitGroupVisible, isUnitVisible, visibleUnits } from "@/lib/advanced-display";
 import { useCalculatorStore } from "@/lib/calculator-store";
+import { resolveStartupExpression } from "@/lib/calculator-startup-expression";
 import { exportCalculationHistory } from "@/lib/calculation-export";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { historyToAutoConstants } from "@/lib/history-auto-constants";
@@ -45,7 +46,11 @@ import { evaluateExpression, formatQuantity, getCompatibleUnitGroups, getGroupUn
 
 const CONSTANT_ASSIGNMENT_PATTERN = new RegExp(`^([${IDENTIFIER_START_CHAR_CLASS}][${IDENTIFIER_BODY_CHAR_CLASS}]*)\\s*=`);
 
-const KEYS = ["(", ")", "÷", "⌫", "7", "8", "9", "×", "4", "5", "6", "-", "1", "2", "3", "+", ".", "0", " ", "="];
+// 「全消し」の要望に対応するため、従来は空セルのプレースホルダだった最下段（"0"と"="の間）に
+// ⌫（一文字削除）を動かし、空いた最上段の右端（従来⌫があった場所）にACを置く。
+// AC（全消去・元に戻せない）は"="からできるだけ離し、逆に押し間違えても被害が小さい⌫の方を
+// "="の隣に残すことで、誤爆したときの実害を最小にする配置にしている。
+const KEYS = ["(", ")", "÷", "AC", "7", "8", "9", "×", "4", "5", "6", "-", "1", "2", "3", "+", ".", "0", "⌫", "="];
 const ADVANCED_KEYS = ["sin(", "cos(", "tan(", "asin(", "acos(", "atan(", "atan2(", "ln(", "log(", "log2(", "sqrt(", "^", "π", "e"];
 const RAIL_LIMIT = 8;
 const RECENT_UNIT_LIMIT = 8;
@@ -67,6 +72,7 @@ const EN_COPY = {
   couldNotCopyCalculation: "Could not copy this calculation.",
   expressionPlaceholder: "Example: 5cm + 1mm",
   deleteKey: "Delete",
+  clearAllKey: "Clear all",
   skip: "Skip",
   getStarted: "Get started",
   next: "Next",
@@ -93,6 +99,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     couldNotCopyCalculation: "計算結果をコピーできませんでした。",
     expressionPlaceholder: "例：5cm + 1mm",
     deleteKey: "一文字削除",
+    clearAllKey: "全消去",
     skip: "スキップ",
     getStarted: "はじめる",
     next: "次へ",
@@ -117,6 +124,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     couldNotCopyCalculation: "No se pudo copiar este cálculo.",
     expressionPlaceholder: "Ejemplo: 5cm + 1mm",
     deleteKey: "Eliminar",
+    clearAllKey: "Borrar todo",
     skip: "Omitir",
     getStarted: "Comenzar",
     next: "Siguiente",
@@ -141,6 +149,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     couldNotCopyCalculation: "Não foi possível copiar este cálculo.",
     expressionPlaceholder: "Exemplo: 5cm + 1mm",
     deleteKey: "Excluir",
+    clearAllKey: "Limpar tudo",
     skip: "Pular",
     getStarted: "Começar",
     next: "Próximo",
@@ -165,6 +174,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     couldNotCopyCalculation: "Diese Berechnung konnte nicht kopiert werden.",
     expressionPlaceholder: "Beispiel: 5cm + 1mm",
     deleteKey: "Rücktaste",
+    clearAllKey: "Alles löschen",
     skip: "Überspringen",
     getStarted: "Loslegen",
     next: "Weiter",
@@ -189,6 +199,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     couldNotCopyCalculation: "Impossible de copier ce calcul.",
     expressionPlaceholder: "Exemple : 5cm + 1mm",
     deleteKey: "Supprimer",
+    clearAllKey: "Tout effacer",
     skip: "Passer",
     getStarted: "Commencer",
     next: "Suivant",
@@ -241,11 +252,14 @@ export default function CalculatorScreen() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { quick, presetExpression, presetUnit } = useLocalSearchParams<{ quick?: string | string[]; presetExpression?: string | string[]; presetUnit?: string | string[] }>();
-  const { constants, history, favoriteUnits, notebooks, upsertConstant, addHistoryEntry, clearHistory } = useCalculatorStore();
+  const { constants, history, favoriteUnits, notebooks, upsertConstant, addHistoryEntry, clearHistory, isLoading: isHistoryLoading } = useCalculatorStore();
   const { isPro } = usePro();
   const { completeOnboarding, hasSeenOnboarding, isReady, language, locale, measuringStandard, t, unitGroupLabel, unitSystem } = useGlobalSettings();
   const [onboardingStep, setOnboardingStep] = useState(0);
-  const [expression, setExpression] = useState("5cm + 1mm");
+  // 起動時の初期式は「固定のサンプル」ではなく「最後に計算した式」にしてほしいという要望に対応する
+  // ため、ここでは空欄で始め、履歴の読み込みが終わった時点で下のuseEffectがhistory[0]を反映する
+  // （履歴が無ければ空欄のまま。入力例はexpressionPlaceholderで見せているので初見でも迷わない）。
+  const [expression, setExpression] = useState("");
   // キャレット（テキスト選択範囲）を追跡し、単位チップ・キーパッドの入力先を「末尾」ではなく
   // 「今カーソルがある位置」にするために使う。pendingSelection はプログラムから挿入した直後だけ
   // TextInput の selection props を強制するための一時的な値で、適用後すぐ null に戻して
@@ -282,6 +296,13 @@ export default function CalculatorScreen() {
   // （クイックアクションから起動する経路そのものが壊れる）。実際にブラウザで再現して確認済み。
   const appliedQuickRef = useRef<string | null>(null);
   const appliedPresetRef = useRef<string | null>(null);
+  // 起動時の履歴復元用。initialExpressionRef はマウント時の expression の値（常に""）を
+  // 一度だけ捕まえておく（useRefの初期値は最初のレンダーでしか使われないため、以後 expression が
+  // 変わっても書き換わらない）。履歴の読み込み完了後、このrefの値と現在の expression を比較して
+  // 「その間に何も変わっていない＝ユーザーはまだ何も打っていない」ときだけ履歴を反映する
+  // （判定ロジック自体は resolveStartupExpression に切り出し、tests/ でユニットテスト済み）。
+  const initialExpressionRef = useRef(expression);
+  const appliedStartupHistoryRef = useRef(false);
 
   // 結果が更新された瞬間・単位を切り替えた瞬間に軽く跳ねさせ、次元不整合時は横に揺らして知らせる。
   const resultOpacity = useSharedValue(1);
@@ -528,6 +549,20 @@ export default function CalculatorScreen() {
       void calculate();
       return;
     }
+    if (key === "AC") {
+      // 全消し：式・キャレット位置・表示単位の指定・計算結果・エラー表示・案内文をまとめて
+      // 初期状態に戻す。式に紐づかない履歴（history）はここでは消さない（履歴シート側に
+      // 別の「消去」ボタンがある）。
+      setExpression("");
+      placeCaret(0);
+      setTargetUnit("cm");
+      setResult(null);
+      setFixSelection(null);
+      setError("");
+      setNotice("");
+      void Haptics.selectionAsync();
+      return;
+    }
     const start = Math.min(selection.start, expression.length);
     const end = Math.min(selection.end, expression.length);
     if (key === "⌫") {
@@ -543,7 +578,6 @@ export default function CalculatorScreen() {
       setFixSelection(null);
       return;
     }
-    if (key === " ") return;
     const inserted = key === "×" ? "×" : key === "÷" ? "÷" : key;
     // 選択範囲があれば置き換え、無ければキャレット位置へそのまま挿入する（末尾への追記ではない）。
     setExpression(replaceExpressionRange(expression, start, end, inserted));
@@ -646,6 +680,29 @@ export default function CalculatorScreen() {
     const timer = setTimeout(() => setPendingSelection(null), 0);
     return () => clearTimeout(timer);
   }, [pendingSelection]);
+
+  // 履歴はAsyncStorageから非同期に読み込まれるため、マウント直後は必ず空配列。isHistoryLoading
+  // が false になった最初のタイミングで一度だけ、最後に計算した式(history[0])を反映する。
+  // その間にユーザーが何か入力していたら（クイックアクション・プリセット復元含む）、
+  // expression が initialExpressionRef.current（マウント時の""）から変わっているはずなので
+  // resolveStartupExpression が null を返し、割り込んで上書きすることはない。
+  useEffect(() => {
+    if (isHistoryLoading) return;
+    if (appliedStartupHistoryRef.current) return;
+    appliedStartupHistoryRef.current = true;
+    const restored = resolveStartupExpression({
+      currentExpression: expression,
+      initialExpression: initialExpressionRef.current,
+      latestHistoryEntry: history[0],
+    });
+    if (!restored) return;
+    setExpression(restored.expression);
+    placeCaret(restored.expression.length);
+    setTargetUnit(restored.targetUnit);
+    setResult(restored.quantity);
+    setFixSelection(null);
+    setError("");
+  }, [isHistoryLoading, history, expression]);
 
   useEffect(() => {
     const action = Array.isArray(quick) ? quick[0] : quick;
@@ -996,11 +1053,10 @@ export default function CalculatorScreen() {
           {KEYS.map((key, index) => {
             const isAction = key === "=";
             const isOperator = ["×", "÷", "+", "-"].includes(key);
-            if (key === " ") return <View key={`blank-${index}`} style={styles.keyCell} />;
             return (
               <View key={`${key}-${index}`} style={styles.keyCell}>
                 <Pressable
-                  accessibilityLabel={key === "⌫" ? copy.deleteKey : key}
+                  accessibilityLabel={key === "⌫" ? copy.deleteKey : key === "AC" ? copy.clearAllKey : key}
                   onPress={() => pressKey(key)}
                   style={({ pressed }) => [styles.key, isAction && styles.keyAction, isOperator && styles.keyOperator, pressed && styles.keyPressed]}
                 >
