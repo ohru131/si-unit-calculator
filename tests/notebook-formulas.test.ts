@@ -23,6 +23,9 @@ describe("プリセット計算ノートの全ステップがエラーなく計�
           expression: step.expression,
           targetUnit: step.targetUnit,
           formulaLatex: step.formulaLatex,
+          // resultSymbolを渡さないと後続手順がs1,s2…で参照できてしまい、アプリ実機での
+          // 「resultSymbolがs1を上書きする」挙動と食い違ってしまうため必ず渡す。
+          resultSymbol: step.resultSymbol,
         }));
         const results = evaluateNotebookSteps(steps, resolved);
         for (const result of results) {
@@ -41,7 +44,7 @@ describe("代表的なプリセットノートの数値が物理的に妥当な�
     const localConstants = seed.localConstants.map((constant, index) => ({ id: `c${index}`, symbol: constant.symbol, expression: constant.expression }));
     const { resolved, errors } = resolveNotebookLocalConstants(localConstants, []);
     expect(errors).toEqual({});
-    const steps = seed.steps.map((step, index) => ({ id: `s${index}`, title: step.title, expression: step.expression, targetUnit: step.targetUnit, formulaLatex: step.formulaLatex }));
+    const steps = seed.steps.map((step, index) => ({ id: `s${index}`, title: step.title, expression: step.expression, targetUnit: step.targetUnit, formulaLatex: step.formulaLatex, resultSymbol: step.resultSymbol }));
     const results = evaluateNotebookSteps(steps, resolved);
     return results[results.length - 1];
   }

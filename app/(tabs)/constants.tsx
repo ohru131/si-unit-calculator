@@ -406,6 +406,7 @@ export default function ConstantsScreen() {
           unitSystem={unitSystem}
           measuringStandard={measuringStandard}
           notebook={selectedNotebook}
+          categoryLabel={categoryLabel(selectedNotebook.categoryId)}
           globalConstants={constants}
           onBack={() => setSelectedNotebookId(null)}
           onEdit={() => openEditNotebook(selectedNotebook)}

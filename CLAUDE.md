@@ -23,16 +23,21 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - `Ohm`（大文字！）が正式なBASE_UNITSキー。`ohm`小文字はエイリアス未登録なので式中では使えない。
   - 新規追加した単位: `cal`/`kcal`, `bpm`/`rpm`（周波数扱い）, `cup`/`tbsp`/`tsp`（体積）, `au`/`ly`/`yr`, `eV`, `mol`/`mmol`。
   - 識別子（定数名）はASCIIの英数字・`_`に加え、下付き文字（`₀-₉`・`ₐ-ₜ`・`ᵢ-ᵪ`・`ⱼ`）とギリシャ文字（`Α-Ψ`・`α-ω`）も使える（`UNICODE_IDENTIFIER_EXTRA_CHARS`・`IDENTIFIER_START_CHAR_CLASS`・`IDENTIFIER_BODY_CHAR_CLASS`としてexport）。数式表示（LaTeX）の変数とそのまま同じ記号を定数名にできるようにするための拡張。`Ω`（オーム、U+03A9）と`µ`（マイクロ記号、U+00B5）は単位専用なので明示的に除外している。ギリシャ小文字の`μ`（mu、U+03BC）はマイクロ記号とは別コードポイントなので定数名として安全（数値直後は単位解決が先に評価されるため、`2μm`は引き続き単位として解釈される）。同じ文字集合を`lib/notebook-engine.ts`の`NAME_VALUE_PATTERN`と`lib/unit-input.ts`の`WORD_START_PATTERN`/`WORD_BODY_PATTERN`/`DEFINITION_PATTERN`でも使っており、ルールがずれないようにしている。
-- `lib/notebook-engine.ts` — `evaluateNotebookSteps` が手順を上から順に計算し、各結果を `s1, s2...` として後続手順から参照可能にする。`resolveNotebookLocalConstants` はローカル定数を順に解決（グローバル定数をローカルでシャドー可）。
+- `lib/notebook-engine.ts` — `evaluateNotebookSteps` が手順を上から順に計算し、各結果を `s1, s2...` として後続手順から参照可能にする。
+  - **重要な落とし穴**: 手順に`resultSymbol`（例 `"v"`）を付けると、その手順は`s1`ではなく`v`で登録される（`s1`は**使えなくなる**）。しかも`s1`は未定義エラーにならず**単位の`s`（1秒）として黙って解釈される**ため、次元が合ってしまう式では気付かないまま間違った答えが出る（実際に`s1*t₂`が`10800 s²`になるバグを踏んだ）。`resultSymbol`を付けた手順を後続から参照するときは必ずその記号名で書く。
+`resolveNotebookLocalConstants` はローカル定数を順に解決（グローバル定数をローカルでシャドー可）。
 - `lib/notebook-formulas/` — プリセット計算ノートの中身。ビルド生成物は無く、`source/`配下のTypeScriptが唯一の情報源（旧`default-notebooks.json` + `scripts/generate-default-notebooks.ts`による生成ステップは廃止済み）。
   - `types.ts` — `PresetNotebookCategory`（`parentId?`で親子2階層に対応）、`NotebookSeed`/`NotebookSeedStep`（`formulaLatex?`でLaTeX表示に対応）。`NotebookSeedConstant`の`symbol`はその式の`formulaLatex`内の変数と同じ記号にする（下付き文字・ギリシャ文字も識別子として使えるため、表示専用の別名フィールドは無い）。
-  - `source/materials.ts`（材料力学・既存7件）, `source/physics.ts`（高校物理: 力学/熱/波動/電気/原子の5サブカテゴリ）, `source/practical.ts`（電気の基礎計算/天体・宇宙/フィットネス/化学/車・自転車/料理）。
+  - `source/materials.ts`（材料力学・既存7件）, `source/physics.ts`（高校物理: 力学/熱/波動/電気/原子の5サブカテゴリ）, `source/practical.ts`（電気の基礎計算/天体・宇宙/フィットネス/化学/車・自転車/料理）, `source/science.ts`（小中理科: 速さ・運動/密度・濃度/圧力・浮力/力・仕事・てこ/熱・温度/電気・回路/光・音/地学・天気/化学変化の9サブカテゴリ・46件）。
   - `source/categories.ts` — `PRESET_NOTEBOOK_CATEGORIES`（カテゴリ一覧）に加え、カテゴリID→ノート配列（上記の各ドメインファイルからexportした配列）の対応表`PRESET_NOTEBOOK_SEEDS`もここに集約している。新しいカテゴリを追加するときは、この対応表とカテゴリ一覧の両方をここで1ファイルだけ触ればよい。
+  - **カテゴリグリッドの表示順は`PRESET_NOTEBOOK_CATEGORIES`の配列順そのまま**。親カテゴリとその子（`parentId`付き）は隣接させて並べる。現在の順は 理科（小・中）→ 高校物理 → 電気の基礎計算 → 天体・宇宙 → フィットネス → 化学 → 車・自転車 → 料理 → 材料力学（最後）。
   - `index.ts` は `source/categories.ts` の `PRESET_NOTEBOOK_CATEGORIES` と `PRESET_NOTEBOOK_SEEDS`（`Record<categoryId, NotebookSeed[]>`）をそのまま再exportするだけ。**この2つのexport名・shapeは`lib/calculator-store.tsx`が依存しているので変えない**。
-  - 新しいプリセットを足すときは `tests/notebook-formulas.test.ts` が全プリセットの全手順を実際にノートエンジンで計算してエラーがないか自動チェックする（次元不整合・パースエラーを機械的に検出できる）ので、まずそのテストを通すこと。
+  - 新しいプリセットを足すときは `tests/notebook-formulas.test.ts` が全プリセットの全手順を実際にノートエンジンで計算してエラーがないか自動チェックする（次元不整合・パースエラーを機械的に検出できる）ので、まずそのテストを通すこと。このテストは`resultSymbol`もアプリ本体と同じように渡している（渡さないと上記の`s1`落とし穴を検出できない）。
+  - ただしテストで検出できるのはエラーだけで、**数値が物理的に正しいかは検出できない**（`s1`が1秒と解釈されるようなケースは次元が通ってしまう）。プリセットを足したら実際にアプリを開いて表示される値を確認すること。
 - `lib/calculator-store.tsx` — アプリの状態管理本体。`CalculationNotebook`（`categoryId`, `localConstants`, `steps`, `pinned`, `isPreset`）。プリセットは`isPreset: true`で削除不可（UI・store両方でガード）。プリセットの投入はカテゴリID単位で冪等（新カテゴリを追加しても既存データは壊れない）。
 - `components/notebooks/notebook-category-grid.tsx` + `app/(tabs)/constants.tsx` — カテゴリグリッドは2階層ナビゲーション対応（大分類→サブカテゴリ→ノート一覧）。`parentCategoryId` propで表示階層を切替。ユーザー作成カテゴリ（`NotebookCategory`）は今のところ親子階層に非対応（あくまでプリセットの高校物理のみ階層化。スコープを広げすぎないための判断）。
 - `components/ui/latex-view.tsx` / `.web.tsx` — KaTeXによる本物のLaTeX描画。ネイティブはWebView（`react-native-webview`）+ `postMessage`で高さ自動調整、Webは`katex.renderToString`を直接DOMに挿入。フォント込みのKaTeXアセットは `scripts/generate-katex-assets.mjs` で `lib/katex-assets.generated.ts` に事前生成・コミット済み（`pnpm katex:generate`で再生成可能。中身は自動生成なので手編集しない）。
+- `components/notebooks/notebook-detail.tsx` — ルートは`View(flex:1)`で、**戻る/ピン留め/編集＋ノート名を固定ヘッダー**、値を編集したときの保存バーを**固定フッター**にしている（下までスクロールしても戻れる・保存できるようにするため）。狭い端末幅ではタイトルが潰れるので固定ヘッダーは上段（戻る＋ボタン）／下段（ノート名）の2段構成。`NotebookCategoryGrid`・`NotebookList`も戻る行をスクロール外に出し、中身だけをスクロールさせる（グリッドは以前`ScrollView`が無く、カテゴリが増えると画面外にはみ出して押せなかった）。
 - ユーザー作成ノートの手順には`formulaLatex`は付かない（プリセットのみ）。`notebook-detail.tsx`は`formulaLatex`があればLatexView、なければプレーンテキストにフォールバックする設計。
 
 ## 既知の注意点・誤検知
@@ -49,6 +54,9 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 1. RevenueCat連携・UI改善（アニメーション/ハプティクス/オンボーディング/空状態）
 2. テンプレート/自作関数タブを廃止し、「計算ノート」（notebooks）に統合。カテゴリ・ピン留め・プリセット削除保護を実装
 3. **[完了・PR #5でmainにマージ済み]** 計算ノートに高校物理（5サブカテゴリ）・電気の基礎計算・天体宇宙・フィットネス・化学・車/自転車・料理の約60件のプリセットを追加。KaTeXによる本物のLaTeX数式表示を導入。カテゴリの親子2階層ナビゲーションを実装。
+4. **[完了・PR #17でマージ済み]** 初回起動時（OSがダークモード）に背景が白いままになるバグを修正（`useSyncExternalStore`で`Appearance`/`AppState`を購読）。
+5. **[完了・PR #18でマージ済み]** プリセットの定数名をLaTeX数式の記号そのもの（Unicodeの下付き・ギリシャ文字）に変更し、エンジンの識別子解析を拡張。ノート定義を`source/`配下に一元化。単位の置換・挿入をカーソル位置基準に。式欄の下に定数の挿入ボタン列を追加。
+6. **[完了]** 計算ノートに「理科（小・中）」カテゴリ（9サブカテゴリ・46件）を追加し、カテゴリ順を 理科 先頭・材料力学 最後に変更。ノート詳細画面の戻る/保存を固定ヘッダー・フッター化し、カテゴリグリッドをスクロール可能に修正。
 
 ## 次にやりそうなこと（ユーザーから明示的な指示待ち）
 

@@ -59,9 +59,10 @@ export function NotebookList({ language, locale, categoryLabel, notebooks, globa
         <Text numberOfLines={1} style={styles.backLabel}>{categoryLabel}</Text>
       </Pressable>
       <FlatList
+        style={styles.list}
         data={notebooks}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={notebooks.length ? styles.list : styles.emptyList}
+        contentContainerStyle={notebooks.length ? styles.listContent : styles.emptyList}
         ListEmptyComponent={<View style={styles.emptyCard}><IconSymbol name="book.fill" size={28} color={colors.primary} /><Text style={styles.emptyTitle}>{copy.empty}</Text><Text style={styles.emptyText}>{copy.emptyHint}</Text></View>}
         renderItem={({ item }) => {
           const preview = previews.get(item.id) ?? "";
@@ -111,7 +112,8 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   container: { flex: 1 },
   backRow: { alignItems: "center", flexDirection: "row", gap: 4, paddingBottom: 12 },
   backLabel: { color: colors.primary, flexShrink: 1, fontSize: 14, fontWeight: "800" },
-  list: { gap: 10, paddingBottom: 30 },
+  list: { flex: 1 },
+  listContent: { gap: 10, paddingBottom: 30 },
   emptyList: { flexGrow: 1, justifyContent: "center", paddingBottom: 60 },
   emptyCard: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 20, borderWidth: 1, paddingHorizontal: 28, paddingVertical: 30 },
   emptyTitle: { color: colors.foreground, fontSize: 16, fontWeight: "700", marginTop: 10 },

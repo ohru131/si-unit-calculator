@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -86,40 +86,42 @@ export function NotebookCategoryGrid({ language, notebooks, notebookCategories, 
   };
 
   return (
-    <View>
+    <View style={styles.root}>
       {parentCategoryId ? (
         <Pressable onPress={onBack} style={({ pressed }) => [styles.backRow, pressed && styles.pressed]}>
           <IconSymbol name="chevron.left" size={16} color={colors.primary} />
           <Text numberOfLines={1} style={styles.backLabel}>{parentLabel}</Text>
         </Pressable>
       ) : null}
-      <View style={styles.grid}>
-      {rows.map((row) => (
-        <View key={row.id} style={styles.card}>
-          <Pressable onPress={() => (row.hasChildren ? onSelectParentCategory(row.id) : onSelectCategory(row.id))} style={({ pressed }) => [styles.cardMain, pressed && styles.pressed]}>
-            <IconSymbol name="folder.fill" size={22} color={colors.primary} />
-            <Text numberOfLines={1} style={styles.cardLabel}>{row.label}</Text>
-            <Text style={styles.cardCount}>{copy.notebookCount(row.count)}</Text>
-          </Pressable>
-          {!row.isPreset ? (
-            <View style={styles.cardActions}>
-              <Pressable accessibilityLabel={copy.rename} onPress={() => openRename(row.id, row.label)} style={({ pressed }) => [styles.cardActionButton, pressed && styles.pressed]}>
-                <IconSymbol name="pencil" size={14} color={colors.muted} />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.grid}>
+          {rows.map((row) => (
+            <View key={row.id} style={styles.card}>
+              <Pressable onPress={() => (row.hasChildren ? onSelectParentCategory(row.id) : onSelectCategory(row.id))} style={({ pressed }) => [styles.cardMain, pressed && styles.pressed]}>
+                <IconSymbol name="folder.fill" size={22} color={colors.primary} />
+                <Text numberOfLines={1} style={styles.cardLabel}>{row.label}</Text>
+                <Text style={styles.cardCount}>{copy.notebookCount(row.count)}</Text>
               </Pressable>
-              <Pressable accessibilityLabel={copy.delete} onPress={() => setPendingDeleteId(row.id)} style={({ pressed }) => [styles.cardActionButton, pressed && styles.pressed]}>
-                <IconSymbol name="trash" size={14} color={colors.error} />
-              </Pressable>
+              {!row.isPreset ? (
+                <View style={styles.cardActions}>
+                  <Pressable accessibilityLabel={copy.rename} onPress={() => openRename(row.id, row.label)} style={({ pressed }) => [styles.cardActionButton, pressed && styles.pressed]}>
+                    <IconSymbol name="pencil" size={14} color={colors.muted} />
+                  </Pressable>
+                  <Pressable accessibilityLabel={copy.delete} onPress={() => setPendingDeleteId(row.id)} style={({ pressed }) => [styles.cardActionButton, pressed && styles.pressed]}>
+                    <IconSymbol name="trash" size={14} color={colors.error} />
+                  </Pressable>
+                </View>
+              ) : null}
             </View>
+          ))}
+          {!parentCategoryId ? (
+            <Pressable onPress={openCreate} style={({ pressed }) => [styles.card, styles.addCard, pressed && styles.pressed]}>
+              <IconSymbol name="folder.badge.plus" size={22} color={colors.primary} />
+              <Text style={styles.addCardLabel}>{copy.newCategory}</Text>
+            </Pressable>
           ) : null}
         </View>
-      ))}
-      {!parentCategoryId ? (
-        <Pressable onPress={openCreate} style={({ pressed }) => [styles.card, styles.addCard, pressed && styles.pressed]}>
-          <IconSymbol name="folder.badge.plus" size={22} color={colors.primary} />
-          <Text style={styles.addCardLabel}>{copy.newCategory}</Text>
-        </Pressable>
-      ) : null}
-      </View>
+      </ScrollView>
 
       <Modal visible={promptVisible} transparent animationType="fade" onRequestClose={() => setPromptVisible(false)}>
         <View style={styles.promptBackdrop}>
@@ -156,8 +158,10 @@ export function NotebookCategoryGrid({ language, notebooks, notebookCategories, 
 }
 
 const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
+  root: { flex: 1 },
   backRow: { alignItems: "center", flexDirection: "row", gap: 4, paddingBottom: 12 },
   backLabel: { color: colors.primary, flexShrink: 1, fontSize: 14, fontWeight: "800" },
+  scrollContent: { paddingBottom: 24 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   card: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, minWidth: "47%", overflow: "hidden" },
   cardMain: { gap: 6, padding: 14 },
