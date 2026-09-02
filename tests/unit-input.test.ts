@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   analyzeExpression,
   getCommonUnitSuggestions,
+  getSameDimensionUnitSuggestions,
   getUnitInputHint,
+  getUnitInsertionRange,
   getUnitSuggestions,
   insertUnitAtEnd,
   replaceExpressionRange,
@@ -160,5 +162,94 @@ describe("insertUnitAtEnd", () => {
   it("既知の識別子（他の定数の参照）は単位記号と同じ綴りでも上書きせず、末尾へ追加する", () => {
     // min という名前のローカル定数を参照しているとき、min が単位記号でもあるからといって差し替えてはならない。
     expect(insertUnitAtEnd("2 * min", "s", ["min"])).toBe("2 * mins");
+  });
+
+  it("キャレットを指定すれば末尾ではなくその位置の単位を差し替える", () => {
+    // "5cm + 1mm" の cm（インデックス1〜3）の上にキャレットがあるとき、末尾の mm ではなく cm を差し替える。
+    expect(insertUnitAtEnd("5cm + 1mm", "km", [], 2)).toBe("5km + 1mm");
+  });
+
+  it("キャレットが数値の途中にあれば、数値の直後へ単位付けする", () => {
+    // "12" の途中（インデックス1）にキャレットがあっても、数値をまたいで単位が入り込まないよう数値の直後へ付ける。
+    expect(insertUnitAtEnd("12 + 3cm", "km", [], 1)).toBe("12km + 3cm");
+  });
+
+  it("キャレットが単位でも数値でもない位置なら、そのままキャレット位置へ挿入する", () => {
+    expect(insertUnitAtEnd("+3cm", "km", [], 0)).toBe("km+3cm");
+  });
+});
+
+describe("getUnitInsertionRange", () => {
+  it("単位の上なら単位の範囲を返す", () => {
+    expect(getUnitInsertionRange("5cm + 1mm", 2)).toEqual({ start: 1, end: 3 });
+  });
+
+  it("数値の途中なら数値の直後（挿入のみ）を返す", () => {
+    expect(getUnitInsertionRange("120", 1)).toEqual({ start: 3, end: 3 });
+  });
+});
+
+describe("キャレット位置に応じた入力補助", () => {
+  it("式の途中にある単位の上にキャレットがあれば、末尾ではなくその単位を差し替え対象にする", () => {
+    // "5cm + 1mm" の cm（インデックス1〜3）の直後（インデックス3）にキャレットを置く。
+    const hint = getUnitInputHint("5cm + 1mm", { system: "metric", caret: 3 });
+    expect(hint.kind).toBe("replace");
+    expect(hint.fragment).toBe("cm");
+    expect(hint.start).toBe(1);
+    expect(hint.end).toBe(3);
+    expect(replaceExpressionRange("5cm + 1mm", hint.start, hint.end, "km")).toBe("5km + 1mm");
+  });
+
+  it("キャレットが単位の途中にあっても同じ単位を対象にする", () => {
+    const hint = getUnitInputHint("5cm + 1mm", { system: "metric", caret: 2 });
+    expect(hint.kind).toBe("replace");
+    expect(hint.fragment).toBe("cm");
+  });
+
+  it("差し替え候補は同じ次元（長さ）の単位だけに絞られる", () => {
+    const hint = getUnitInputHint("5cm + 1mm", { system: "metric", caret: 2 });
+    const symbols = hint.candidates.map((suggestion) => suggestion.unit.symbol);
+    expect(symbols).toContain("mm");
+    expect(symbols).toContain("m");
+    expect(symbols).not.toContain("kg");
+    expect(symbols).not.toContain("s");
+  });
+
+  it("キャレットが数値の途中にあれば、その数値への単位付けを案内する", () => {
+    const hint = getUnitInputHint("120 + 3cm", { system: "metric", caret: 1 });
+    expect(hint.kind).toBe("attach");
+    expect(hint.start).toBe(3);
+  });
+
+  it("複数の不正な単位があっても、キャレットが乗っている方を優先して修正候補を出す", () => {
+    // kmz と kmh の両方が不正だが、キャレットは前半の kmz（インデックス1〜4）の上にある。
+    const hint = getUnitInputHint("5kmz + 1kmh", { system: "metric", caret: 3 });
+    expect(hint.kind).toBe("fix");
+    expect(hint.fragment).toBe("kmz");
+  });
+
+  it("キャレットが末尾のときは従来どおり最後に見つかった不正な単位を案内する", () => {
+    // 末尾ではない位置の書き間違いなので、caret省略時（末尾扱い）は complete ではなく fix になる。
+    const hint = getUnitInputHint("5kmz + 1kmh + 2cm", { system: "metric" });
+    expect(hint.kind).toBe("fix");
+    expect(hint.fragment).toBe("kmh");
+  });
+});
+
+describe("getSameDimensionUnitSuggestions", () => {
+  it("同じ次元の単位だけを返す", () => {
+    const symbols = getSameDimensionUnitSuggestions("cm", { system: "metric" }).map((suggestion) => suggestion.unit.symbol);
+    expect(symbols).toContain("mm");
+    expect(symbols).toContain("km");
+    expect(symbols).not.toContain("kg");
+  });
+
+  it("解決できない単位テキストには空配列を返す（呼び出し側でのフォールバックを促す）", () => {
+    expect(getSameDimensionUnitSuggestions("notaunit", { system: "metric" })).toEqual([]);
+  });
+
+  it("表示から外している単位は候補にも出さない", () => {
+    const symbols = getSameDimensionUnitSuggestions("m", { system: "metric", includeUnit: (_, unitOption) => unitOption.symbol !== "au" }).map((suggestion) => suggestion.unit.symbol);
+    expect(symbols).not.toContain("au");
   });
 });

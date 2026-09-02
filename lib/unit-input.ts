@@ -1,5 +1,7 @@
 import {
   findRegisteredUnit,
+  getCompatibleUnitGroups,
+  getGroupUnitsForSystem,
   getRegionalUnits,
   IDENTIFIER_BODY_CHAR_CLASS,
   IDENTIFIER_START_CHAR_CLASS,
@@ -231,17 +233,71 @@ export function getCommonUnitSuggestions(system: UnitSystem, recentUnits: string
 }
 
 /**
- * 今の式に合わせた入力補助を決める。
- * 1. 解釈できない単位があれば修正、2. 書きかけの単位があれば補完、
- * 3. 数値で終わっていれば単位付け、4. それ以外は挿入候補、の順に案内する。
+ * キャレットが指す「意味のある区間」を求める。
+ * 式の末尾（末尾の空白も含む）にキャレットがあるときは、末尾の空白を無視して直前の
+ * 意味のある区間を対象にする（末尾に空白を打っても差し替え対象がぶれないようにするため）。
+ * それ以外は、区間の先頭より後ろ〜末尾までにキャレットがある区間（前の区間との境界は
+ * 前側に属する）を対象にする。
+ */
+function segmentAtCaret(segments: ExpressionSegment[], caret: number): ExpressionSegment | undefined {
+  const meaningful = segments.filter((segment) => segment.kind !== "space");
+  if (!meaningful.length) return undefined;
+  const wholeEnd = segments[segments.length - 1]?.end ?? 0;
+  if (caret >= wholeEnd) return meaningful[meaningful.length - 1];
+  return meaningful.find((segment) => segment.start < caret && caret <= segment.end);
+}
+
+/** 単位を挿入・差し替えする範囲を決める。単位の上なら丸ごと差し替え、数値の直後なら単位付けとして末尾へ、それ以外はキャレット位置へ挿入する。 */
+function unitInsertionRange(target: ExpressionSegment | undefined, caret: number): { start: number; end: number } {
+  if (target?.kind === "unit") return { start: target.start, end: target.end };
+  if (target?.kind === "number") return { start: target.end, end: target.end };
+  return { start: caret, end: caret };
+}
+
+/** ある単位と同じ次元の単位だけを、地域優先・直近使用優先で並べる。次元が解決できなければ空を返す（呼び出し側でよく使う単位へフォールバックする）。 */
+export function getSameDimensionUnitSuggestions(unitText: string, options: { system: UnitSystem; recentUnits?: string[]; limit?: number; includeUnit?: UnitFilter }): UnitSuggestion[] {
+  const { system, recentUnits = [], limit = 8, includeUnit } = options;
+  let dimension;
+  try {
+    dimension = parseUnit(unitText).dimension;
+  } catch {
+    return [];
+  }
+  const groups = getCompatibleUnitGroups(dimension);
+  if (!groups.length) return [];
+
+  const suggestions: UnitSuggestion[] = [];
+  const seen = new Set<string>();
+  const push = (group: UnitGroup, unitOption: UnitOption) => {
+    if (seen.has(unitOption.symbol)) return;
+    if (includeUnit && !includeUnit(group, unitOption)) return;
+    seen.add(unitOption.symbol);
+    suggestions.push({ group, unit: unitOption });
+  };
+
+  // 直近に使った同じ次元の単位を先に見せる。
+  recentUnits.forEach((symbol) => {
+    const found = findRegisteredUnit(symbol);
+    if (found && groups.some((group) => group.id === found.group.id)) push(found.group, found.unit);
+  });
+  groups.forEach((group) => getGroupUnitsForSystem(group, system).forEach((unitOption) => push(group, unitOption)));
+  return suggestions.slice(0, limit);
+}
+
+/**
+ * 今の式・キャレット位置に合わせた入力補助を決める。
+ * 1. キャレット上（直後含む）に解釈できない単位があれば修正・補完、
+ * 2. キャレット上の区間が単位なら（同じ次元の候補で）差し替え、
+ * 3. キャレット上の区間が数値ならその直後へ単位付け、4. それ以外は挿入候補、の順に案内する。
+ * caret を省略した場合は式の末尾（＝これまでの挙動）として扱う。
  */
 export function getUnitInputHint(
   expression: string,
-  options: { system: UnitSystem; recentUnits?: string[]; identifiers?: string[]; includeUnit?: UnitFilter; limit?: number; analysis?: ExpressionAnalysis },
+  options: { system: UnitSystem; recentUnits?: string[]; identifiers?: string[]; includeUnit?: UnitFilter; limit?: number; analysis?: ExpressionAnalysis; caret?: number },
 ): UnitInputHint {
   const { system, recentUnits = [], identifiers = [], includeUnit, limit = 8 } = options;
   const analysis = options.analysis ?? analyzeExpression(expression, identifiers);
-  const caret = expression.length;
+  const caret = options.caret ?? expression.length;
   const insertHint = (start: number, kind: UnitInputHintKind): UnitInputHint => ({
     kind,
     fragment: "",
@@ -250,28 +306,31 @@ export function getUnitInputHint(
     candidates: getCommonUnitSuggestions(system, recentUnits, { limit, includeUnit }),
   });
 
+  const target = segmentAtCaret(analysis.segments, caret);
+
   // 未定義の定数・関数参照（例: 履歴がまだ無い状態の a1）は「間違った単位」ではないため、
-  // 単位の修正候補には含めない。
+  // 単位の修正候補には含めない。キャレットが解釈できない単位の上にあればそれを優先し、
+  // なければ式全体で最後に見つかった間違いを案内する（計算がまだできない状態を隠さないため）。
   const unresolvedUnits = analysis.unresolved.filter((segment) => segment.kind === "unknown-unit");
-  const unresolved = unresolvedUnits[unresolvedUnits.length - 1];
+  const unresolved = (target?.kind === "unknown-unit" ? target : undefined) ?? unresolvedUnits[unresolvedUnits.length - 1];
   if (unresolved) {
     const candidates = getUnitSuggestions(unresolved.text, { system, limit, includeUnit });
-    // 末尾の書きかけは「間違い」ではなく補完として案内する。
+    // まさに入力中（キャレットがその区間の直後）は「間違い」ではなく補完として案内する。
     const kind: UnitInputHintKind = unresolved.end === caret && candidates.length ? "complete" : "fix";
     return { kind, fragment: unresolved.text, start: unresolved.start, end: unresolved.end, candidates };
   }
 
-  const lastMeaningful = [...analysis.segments].reverse().find((segment) => segment.kind !== "space");
-  if (lastMeaningful?.kind === "number") return insertHint(lastMeaningful.end, "attach");
-  // 末尾が既に単位のときは後ろへ足すと無意味な複合単位になるため、その単位ごと差し替える
-  // （末尾に空白があっても、直前の意味のある区間を対象にする）。
-  if (lastMeaningful?.kind === "unit") {
+  if (target?.kind === "number") return insertHint(target.end, "attach");
+  // キャレットが単位の上（直後含む）のときは後ろへ足すと無意味な複合単位になるため、その単位ごと差し替える。
+  // 差し替え候補は同じ次元の単位に絞り、地域優先の単位系に沿わせる（解決できなければよく使う単位へフォールバック）。
+  if (target?.kind === "unit") {
+    const dimensionCandidates = getSameDimensionUnitSuggestions(target.canonical ?? target.text, { system, recentUnits, limit, includeUnit });
     return {
       kind: "replace",
-      fragment: lastMeaningful.text,
-      start: lastMeaningful.start,
-      end: lastMeaningful.end,
-      candidates: getCommonUnitSuggestions(system, recentUnits, { limit, includeUnit }),
+      fragment: target.text,
+      start: target.start,
+      end: target.end,
+      candidates: dimensionCandidates.length ? dimensionCandidates : getCommonUnitSuggestions(system, recentUnits, { limit, includeUnit }),
     };
   }
   return insertHint(caret, "insert");
@@ -282,14 +341,18 @@ export function replaceExpressionRange(expression: string, start: number, end: n
   return `${expression.slice(0, start)}${replacement}${expression.slice(end)}`;
 }
 
+/** 単位ボタンを反映する位置（差し替え・単位付け・そのまま挿入のいずれか）を、キャレット位置から求める。 */
+export function getUnitInsertionRange(expression: string, caret: number, identifiers: string[] = []): { start: number; end: number } {
+  const target = segmentAtCaret(analyzeExpression(expression, identifiers).segments, caret);
+  return unitInsertionRange(target, caret);
+}
+
 /**
- * 単位ボタンから式の末尾へ単位を反映する。末尾が既に単位ならそれを差し替え、
- * 数値のみ・その他で終わっていればそのまま末尾へ挿入する。
+ * 単位ボタンから式へ単位を反映する。キャレットが単位の上ならそれを差し替え、数値の直後なら
+ * そこへ単位付け、それ以外はキャレット位置へそのまま挿入する。caret を省略した場合は式の末尾
+ * （＝これまでの挙動）として扱う。
  */
-export function insertUnitAtEnd(expression: string, symbol: string, identifiers: string[] = []): string {
-  const lastMeaningful = [...analyzeExpression(expression, identifiers).segments].reverse().find((segment) => segment.kind !== "space");
-  if (lastMeaningful?.kind === "unit") {
-    return replaceExpressionRange(expression, lastMeaningful.start, lastMeaningful.end, symbol);
-  }
-  return `${expression}${symbol}`;
+export function insertUnitAtEnd(expression: string, symbol: string, identifiers: string[] = [], caret: number = expression.length): string {
+  const { start, end } = getUnitInsertionRange(expression, caret, identifiers);
+  return replaceExpressionRange(expression, start, end, symbol);
 }
