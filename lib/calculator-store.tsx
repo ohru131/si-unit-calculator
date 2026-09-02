@@ -3,7 +3,7 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 
 import { ImportedConstant } from "@/lib/constants-backup";
 import { useGlobalSettings } from "@/lib/global-settings";
-import { APP_LANGUAGES, AppLanguage, localizedText, LocalizedText } from "@/lib/i18n";
+import { APP_LANGUAGES, AppLanguage, isAppLanguage, localizedText, LocalizedText } from "@/lib/i18n";
 import { PRESET_NOTEBOOK_CATEGORIES, PRESET_NOTEBOOK_SEEDS } from "@/lib/notebook-formulas";
 import type { ImportedNotebook } from "@/lib/notebooks-backup";
 import { parseConstantDefinition, Quantity, SavedConstant } from "@/lib/units";
@@ -17,6 +17,10 @@ const NOTEBOOKS_STORAGE_KEY = "si-unit-calculator.notebooks.v1";
 const NOTEBOOK_CATEGORIES_STORAGE_KEY = "si-unit-calculator.notebook-categories.v1";
 const NOTEBOOKS_MIGRATED_STORAGE_KEY = "si-unit-calculator.notebooks-migrated.v1";
 const NOTEBOOKS_SEEDED_PRESETS_STORAGE_KEY = "si-unit-calculator.notebooks-seeded-presets.v1";
+// プリセットの表示文言を最後に解決した言語。resolveLocalizedField の「未編集判定」を
+// 対応言語全部との比較ではなく、この言語のシード文言とだけの比較に絞るために使う
+// （詳しくは resolveLocalizedField のコメントを参照）。
+const PRESETS_LANGUAGE_STORAGE_KEY = "si-unit-calculator.presets-language.v1";
 
 export const UNCATEGORIZED_CATEGORY_ID = "uncategorized";
 
@@ -214,12 +218,16 @@ function extractTrailingIndex(id: string, prefix: string): number | undefined {
   return Number(suffix);
 }
 
-// 現在保存されている文言が、対応するシードの「いずれかの対応言語での文言」と完全一致する場合に
-// 限って「ユーザーが未編集」とみなし、新しい言語の文言に差し替える。どの言語の文言とも一致しない
-// 場合は、ユーザーが独自にリネーム／編集したものとみなしてそのまま残す
-// （プリセットも upsertNotebook 経由で自由に編集できるため、無条件の上書きはユーザーの編集を破壊する）。
-function resolveLocalizedField(current: string, seedText: LocalizedText, language: AppLanguage): string {
-  const isUnedited = APP_LANGUAGES.some((candidateLanguage) => localizedText(seedText, candidateLanguage) === current);
+// 現在保存されている文言が「最後にプリセットの文言を解決した言語（previousLanguage）」の
+// シード文言と完全一致する場合に限って「ユーザーが未編集」とみなし、新しい言語の文言に差し替える。
+// 対応言語すべてと比較すると、ユーザーが意図的に別言語のシード文言を入力した場合に
+// それを未編集と誤判定して上書きしてしまう（例: en表示中にタイトルをseed.jaの文字列に
+// 書き換えたのに、次にen言語のまま再解決されただけでseed.enに上書きされてしまう）。
+// previousLanguageがnull（後述の移行フォールバック）のときだけ、従来どおり対応言語全部と比較する。
+function resolveLocalizedField(current: string, seedText: LocalizedText, language: AppLanguage, previousLanguage: AppLanguage | null): string {
+  const isUnedited = previousLanguage === null
+    ? APP_LANGUAGES.some((candidateLanguage) => localizedText(seedText, candidateLanguage) === current)
+    : localizedText(seedText, previousLanguage) === current;
   return isUnedited ? localizedText(seedText, language) : current;
 }
 
@@ -228,7 +236,13 @@ function resolveLocalizedField(current: string, seedText: LocalizedText, languag
 // localConstants・pinned・id・createdAt など、文言以外のフィールドは一切変更しない
 // （特に localConstants はユーザーが値を編集する前提のフィールドなので触ってはいけない）。
 // 変更が1件も無ければ notebooks の参照をそのまま返す（呼び出し側で「差分なし」を安価に判定できる）。
-export function localizePresetNotebooks(notebooks: CalculationNotebook[], language: AppLanguage): { notebooks: CalculationNotebook[]; changed: boolean } {
+//
+// previousLanguage には「直前にプリセットの文言を解決した言語」を渡す。AsyncStorageへの読み書きは
+// 呼び出し側（CalculatorProvider）の責務で、この関数自体は純関数のまま保つ（テストしやすさのため）。
+// null は「まだ保存言語が無い（この仕組みを導入する前からのインストール）」ことを表す移行フォールバックで、
+// そのときだけ従来どおり対応言語全部と比較する。一度でもこの関数を通せば、呼び出し側が解決後の言語を
+// 保存言語として永続化するので、以降は厳密な（previousLanguageとだけ比較する）判定に切り替わる。
+export function localizePresetNotebooks(notebooks: CalculationNotebook[], language: AppLanguage, previousLanguage: AppLanguage | null): { notebooks: CalculationNotebook[]; changed: boolean } {
   let changed = false;
 
   const nextNotebooks = notebooks.map((notebook) => {
@@ -245,10 +259,10 @@ export function localizePresetNotebooks(notebooks: CalculationNotebook[], langua
 
     let notebookChanged = false;
 
-    const nextTitle = resolveLocalizedField(notebook.title, seed.title, language);
+    const nextTitle = resolveLocalizedField(notebook.title, seed.title, language, previousLanguage);
     if (nextTitle !== notebook.title) notebookChanged = true;
 
-    const nextDescription = resolveLocalizedField(notebook.description, seed.description, language);
+    const nextDescription = resolveLocalizedField(notebook.description, seed.description, language, previousLanguage);
     if (nextDescription !== notebook.description) notebookChanged = true;
 
     const stepIdPrefix = presetIdPrefix(presetStepId(notebook.categoryId, seedIndex, 0));
@@ -256,7 +270,7 @@ export function localizePresetNotebooks(notebooks: CalculationNotebook[], langua
       const stepIndex = extractTrailingIndex(step.id, stepIdPrefix);
       const seedStep = stepIndex === undefined ? undefined : seed.steps[stepIndex];
       if (!seedStep) return step;
-      const nextStepTitle = resolveLocalizedField(step.title, seedStep.title, language);
+      const nextStepTitle = resolveLocalizedField(step.title, seedStep.title, language, previousLanguage);
       if (nextStepTitle === step.title) return step;
       notebookChanged = true;
       return { ...step, title: nextStepTitle };
@@ -267,7 +281,7 @@ export function localizePresetNotebooks(notebooks: CalculationNotebook[], langua
       const formulaIndex = extractTrailingIndex(formula.id, formulaIdPrefix);
       const seedFormula = formulaIndex === undefined ? undefined : seed.formulas?.[formulaIndex];
       if (!seedFormula) return formula;
-      const nextExplanation = resolveLocalizedField(formula.explanation, seedFormula.explanation, language);
+      const nextExplanation = resolveLocalizedField(formula.explanation, seedFormula.explanation, language, previousLanguage);
       if (nextExplanation === formula.explanation) return formula;
       notebookChanged = true;
       return { ...formula, explanation: nextExplanation };
@@ -322,6 +336,15 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.setItem(NOTEBOOK_CATEGORIES_STORAGE_KEY, JSON.stringify(next));
   }, []);
 
+  // 「プリセットの文言を最後に解決した言語」。nullは「まだ保存言語が無い（移行フォールバック）」を表す。
+  // resolveLocalizedFieldの比較対象として使うため、AsyncStorageへの読み書きは全てこのProviderの
+  // 責務にする（localizePresetNotebooks自体は純関数のまま保つ）。
+  const presetsLanguageRef = useRef<AppLanguage | null>(null);
+  const persistPresetsLanguage = useCallback(async (next: AppLanguage) => {
+    presetsLanguageRef.current = next;
+    await AsyncStorage.setItem(PRESETS_LANGUAGE_STORAGE_KEY, next);
+  }, []);
+
   useEffect(() => {
     // GlobalSettingsProviderの永続化された言語設定を読み込み終えるまで待つ。ここで待たずに
     // 実行すると、端末言語とアプリ内で選んだ言語が異なる場合にプリセットの文言が誤った言語で
@@ -339,6 +362,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           clearedConstantsRaw,
           migratedRaw,
           seededPresetsRaw,
+          presetsLanguageRaw,
         ] = await Promise.all([
           AsyncStorage.getItem(CONSTANTS_STORAGE_KEY),
           AsyncStorage.getItem(HISTORY_STORAGE_KEY),
@@ -348,12 +372,18 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           AsyncStorage.getItem(CLEARED_CONSTANTS_STORAGE_KEY),
           AsyncStorage.getItem(NOTEBOOKS_MIGRATED_STORAGE_KEY),
           AsyncStorage.getItem(NOTEBOOKS_SEEDED_PRESETS_STORAGE_KEY),
+          AsyncStorage.getItem(PRESETS_LANGUAGE_STORAGE_KEY),
         ]);
 
         let nextNotebooks = parseStoredArray(notebooksRaw).filter(isCalculationNotebook).map((item) => ({ ...item, formulas: item.formulas ?? [], pinned: item.pinned === true, isPreset: item.isPreset === true }));
         let seededPresetIds = parseStoredArray(seededPresetsRaw).filter((id): id is string => typeof id === "string");
         let notebooksDirty = false;
         let markMigrated = false;
+        // 保存言語のキーがまだ無い端末（この仕組みを導入する前からのインストール）ではnullのまま
+        // にする。localizePresetNotebooksはnullを「移行フォールバック」として扱い、その1回だけ
+        // 従来どおり対応言語全部と比較する。
+        let presetsLanguage: AppLanguage | null = isAppLanguage(presetsLanguageRaw) ? presetsLanguageRaw : null;
+        let presetsLanguageDirty = false;
 
         // 旧・計算ノート（フラット一覧）を新しい notebooks へ一度だけ変換する。
         // 旧データ自体は端末に残したまま（ロールバック用）、変換済みフラグだけを立てる。
@@ -420,6 +450,11 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           });
           seededPresetIds = [...seededPresetIds, ...missingPresetCategories.map((category) => category.id)];
           notebooksDirty = true;
+          // 新しく投入したプリセットの文言はこの時点のlanguageで焼き込んだので、保存言語もそれに
+          // 合わせておく。ここを更新し忘れると、投入直後の最初の言語切替でpreviousLanguageが
+          // 古いまま（または移行フォールバックのnullのまま）になり、投入と再解決の言語が食い違う。
+          presetsLanguage = language;
+          presetsLanguageDirty = true;
         }
 
         if (notebooksDirty) {
@@ -427,6 +462,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           if (markMigrated) await AsyncStorage.setItem(NOTEBOOKS_MIGRATED_STORAGE_KEY, "1");
           if (missingPresetCategories.length) await AsyncStorage.setItem(NOTEBOOKS_SEEDED_PRESETS_STORAGE_KEY, JSON.stringify(seededPresetIds));
         }
+        if (presetsLanguageDirty) await AsyncStorage.setItem(PRESETS_LANGUAGE_STORAGE_KEY, presetsLanguage as AppLanguage);
 
         if (!active) return;
         setConstants(parseStoredArray(constantsRaw).filter(isSavedConstant));
@@ -440,6 +476,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           setNotebookCategories(loadedCategories);
         }
         setClearedConstants(parseStoredArray(clearedConstantsRaw).filter(isSavedConstant));
+        presetsLanguageRef.current = presetsLanguage;
       } catch {
         if (!active) return;
         setConstants([]);
@@ -450,6 +487,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         notebookCategoriesRef.current = [];
         setNotebookCategories([]);
         setClearedConstants([]);
+        presetsLanguageRef.current = null;
       } finally {
         if (active) setIsLoading(false);
       }
@@ -471,9 +509,13 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
   // ガードは必須ではないが、無駄な再解決を避けるために付けている。
   useEffect(() => {
     if (!isGlobalSettingsReady || isLoading) return;
-    const { notebooks: nextNotebooks, changed } = localizePresetNotebooks(notebooksRef.current, language);
-    if (!changed) return;
-    void persistNotebooks(nextNotebooks);
+    const previousLanguage = presetsLanguageRef.current;
+    const { notebooks: nextNotebooks, changed } = localizePresetNotebooks(notebooksRef.current, language, previousLanguage);
+    if (changed) void persistNotebooks(nextNotebooks);
+    // この言語で解決（または「解決したが変更なし」を確認）し終えたので、次回の比較対象として
+    // 保存言語を更新する。changedの有無に関わらず更新してよい理由: changed=falseは「既にこの
+    // 言語の文言と一致していた」ことを意味するので、いずれにせよ保存言語は現在のlanguageで正しい。
+    if (previousLanguage !== language) void persistPresetsLanguage(language);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language, isGlobalSettingsReady, isLoading]);
 

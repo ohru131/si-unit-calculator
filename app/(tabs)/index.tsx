@@ -156,6 +156,16 @@ export default function CalculatorScreen() {
   const [inlineUnitQuery, setInlineUnitQuery] = useState("");
   const unitSearchRef = useRef<TextInput>(null);
   const inlineUnitSearchRef = useRef<TextInput>(null);
+  // quick / presetExpression / presetUnit はルートパラメータなので画面に残り続ける。
+  // これらを見ているエフェクトは language も参照しているため、言語を切り替えると再実行され、
+  // 入力途中の式・表示単位をもう一度上書きして結果まで消してしまう。適用済みの値を覚えて
+  // おき、同じ値には一度だけ反応するようにする。
+  // 使い終わったパラメータを router.setParams で消す手もあるが、初回レンダーでこのエフェクトが
+  // 走る時点ではルートのナビゲータがまだマウントされておらず、
+  // "Attempted to navigate before mounting the Root Layout component" で画面が真っ白になる
+  // （クイックアクションから起動する経路そのものが壊れる）。実際にブラウザで再現して確認済み。
+  const appliedQuickRef = useRef<string | null>(null);
+  const appliedPresetRef = useRef<string | null>(null);
 
   // 結果が更新された瞬間・単位を切り替えた瞬間に軽く跳ねさせ、次元不整合時は横に揺らして知らせる。
   const resultOpacity = useSharedValue(1);
@@ -523,6 +533,8 @@ export default function CalculatorScreen() {
     const action = Array.isArray(quick) ? quick[0] : quick;
     const shortcut = getCalculatorQuickShortcut(action);
     if (!shortcut) return;
+    if (appliedQuickRef.current === action) return;
+    appliedQuickRef.current = action ?? null;
     if (shortcut.expression && shortcut.targetUnit) {
       setExpression(shortcut.expression);
       placeCaret(shortcut.expression.length);
@@ -540,17 +552,16 @@ export default function CalculatorScreen() {
       setShowInlineUnitSearch(true);
       setTimeout(() => inlineUnitSearchRef.current?.focus(), 250);
     }
-    // 使い終わったルートパラメータは消す。消さないと画面に残り続け、
-    // 言語切替などでこのエフェクトが再実行されたときに入力途中の式を上書きしてしまう。
-    // 適用済みフラグで抑える手もあるが、それだと同じクイックアクションを2回タップしても
-    // 2回目が無視されてしまう。
-    router.setParams({ quick: undefined });
-  }, [copy, language, quick, router]);
+  }, [copy, language, quick]);
 
   useEffect(() => {
     const nextExpression = Array.isArray(presetExpression) ? presetExpression[0] : presetExpression;
     const nextUnit = Array.isArray(presetUnit) ? presetUnit[0] : presetUnit;
     if (!nextExpression) return;
+    // 式と表示単位をまとめて1つのトークンにして比較する（式が同じで単位だけ違う遷移も拾う）。
+    const presetToken = `${nextExpression}\u0000${nextUnit ?? ""}`;
+    if (appliedPresetRef.current === presetToken) return;
+    appliedPresetRef.current = presetToken;
     setExpression(nextExpression);
     placeCaret(nextExpression.length);
     setTargetUnit(nextUnit ?? "");
@@ -558,9 +569,7 @@ export default function CalculatorScreen() {
     setFixSelection(null);
     setError("");
     setNotice(copy.savedItemLoaded);
-    // quick と同じ理由でルートパラメータを消す。
-    router.setParams({ presetExpression: undefined, presetUnit: undefined });
-  }, [copy, language, presetExpression, presetUnit, router]);
+  }, [copy, language, presetExpression, presetUnit]);
 
   const applySample = (sample: SampleCalculation) => {
     const sampleTargetUnit = targetUnitForSample(sample);
