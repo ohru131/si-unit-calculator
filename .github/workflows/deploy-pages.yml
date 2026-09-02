@@ -30,6 +30,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # react-native-css-interopは初回ビルド時にnode_modules内へCSSキャッシュファイルを
+      # 生成しながら同じバンドル処理内でそれを参照するため、真新しいチェックアウトでは
+      # Metroのファイルクロールがこのファイルの生成に間に合わず
+      # "Failed to get the SHA-1" で失敗することがある。空ファイルを先に用意しておくことで
+      # クロール時点で存在させ、この競合を回避する。
+      - name: Pre-create nativewind CSS cache file
+        run: mkdir -p node_modules/react-native-css-interop/.cache && touch node_modules/react-native-css-interop/.cache/web.css
+
       - name: Export static web build
         env:
           GITHUB_PAGES_BASE_PATH: /${{ github.event.repository.name }}
