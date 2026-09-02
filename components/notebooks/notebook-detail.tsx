@@ -7,6 +7,7 @@ import { LatexView } from "@/components/ui/latex-view";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { type CalculationNotebook, type CalculationNoteStep, type NotebookLocalConstant } from "@/lib/calculator-store";
+import { getLocalConstantFieldSuggestions, getStepFieldSuggestions, insertConstantSymbol } from "@/lib/notebook-constant-suggestions";
 import { evaluateNotebookSteps, formatNameValue, parseNameValue, resolveNotebookLocalConstants, trimResultSymbol } from "@/lib/notebook-engine";
 import { insertUnitAtEnd } from "@/lib/unit-input";
 import { formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, type MeasuringStandard, type Quantity, type SavedConstant, type UnitSystem } from "@/lib/units";
@@ -34,6 +35,17 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   const [unitOverrides, setUnitOverrides] = useState<Record<string, string>>({});
   const [saveError, setSaveError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+
+  // mₒ・nₜ のようなUnicode下付き文字は端末キーボードで直接入力できないため、フォーカス中の式
+  // フィールドの直下に「タップで挿入」ボタンの列を出す。フィールドごとに一意なキー
+  // （`constant:${id}` / `step:${id}`）で、どのフィールドで表示中かを管理する。
+  const [focusedRailKey, setFocusedRailKey] = useState<string | null>(null);
+  // 各フィールドの現在のキャレット/選択範囲（onSelectionChangeで更新）。ボタンをタップしたとき
+  // 末尾ではなく、この位置に記号を挿し込むために使う。
+  const [fieldSelections, setFieldSelections] = useState<Record<string, { start: number; end: number }>>({});
+  // 記号を挿し込んだ直後だけ、TextInputのselection propでキャレットを挿入位置の直後へ強制する。
+  // ユーザー自身の入力と衝突しないよう、反映されたら（onSelectionChange/onChangeTextで）すぐ手放す。
+  const [forcedSelection, setForcedSelection] = useState<{ key: string; selection: { start: number; end: number } } | null>(null);
 
   // notebook.localConstants / notebook.steps は編集シートで構成が変わることがあるため、
   // このコンポーネントが再マウントされずに新しいノートを受け取っても追従させる。
@@ -63,6 +75,8 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     invalidStepName: "Enter each step as name=expression (e.g. v=v0+a*t), or remove the \"=\" to leave it unnamed.",
     saveFailed: "Could not save. Please try again.",
     noStepsError: "This notebook needs at least one step.",
+    constantsRailLabel: "Constants",
+    insertConstant: "Insert",
   } : {
     edit: "編集", save: "値を保存", copy: "コピー", copied: "コピーしました",
     formulas: "数式", inputs: "定数（入力値）", results: "結果", noInputs: "このノートにはローカル定数がありません。", noSteps: "このノートにはまだ手順がありません。",
@@ -72,6 +86,8 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     invalidStepName: "手順は「名前＝式」の形式（例：v=v0+a*t）で入力するか、「＝」を外して名前なしにしてください。",
     saveFailed: "保存できませんでした。もう一度お試しください。",
     noStepsError: "手順が最低1つ必要です。",
+    constantsRailLabel: "定数",
+    insertConstant: "挿入",
   };
 
   const isDirty = useMemo(() => {
@@ -147,8 +163,60 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     return options.slice(0, 14);
   };
 
+  const constantFieldKey = (id: string) => `constant:${id}`;
+  const stepFieldKey = (id: string) => `step:${id}`;
+  const combinedCaretEnd = (name: string, expression: string) => formatNameValue(name, expression).length;
+
+  // 記号ボタンをタップしたときに実際にキャレット/選択範囲があった位置へ挿入する。
+  // まだ一度もonSelectionChangeが来ていないフィールド（フォーカス直後など）は末尾へ挿す。
+  const insertSymbolIntoField = (key: string, name: string, expression: string, symbol: string, applyExpression: (next: string) => void) => {
+    const fallback = combinedCaretEnd(name, expression);
+    const selection = fieldSelections[key] ?? { start: fallback, end: fallback };
+    const { expression: nextExpression, combinedCaret } = insertConstantSymbol(name, expression, selection.start, selection.end, symbol);
+    applyExpression(nextExpression);
+    const caretSelection = { start: combinedCaret, end: combinedCaret };
+    setFieldSelections((current) => ({ ...current, [key]: caretSelection }));
+    setForcedSelection({ key, selection: caretSelection });
+  };
+
+  // onSelectionChangeが発火した時点で強制キャレットの役目は終わり。ユーザー自身の操作と
+  // 衝突しないよう、対象キーが一致するときだけここで手放す。
+  const handleSelectionChange = (key: string, selection: { start: number; end: number }) => {
+    setFieldSelections((current) => ({ ...current, [key]: selection }));
+    setForcedSelection((current) => (current?.key === key ? null : current));
+  };
+
+  // Pressableのタップより先にonBlurでレール表示を消してしまうと押下が成立しないことがあるため、
+  // 少し遅らせてから消す（同じフィールドにまだフォーカスが戻っていなければ消す）。
+  const scheduleRailBlur = (key: string) => {
+    setTimeout(() => {
+      setFocusedRailKey((current) => (current === key ? null : current));
+    }, 150);
+  };
+
+  const renderConstantsRail = (key: string, symbols: string[], onInsert: (symbol: string) => void) => {
+    if (focusedRailKey !== key || !symbols.length) return null;
+    return (
+      <View>
+        <Text style={styles.constantsRailLabel}>{copy.constantsRailLabel}</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.unitRail}>
+          {symbols.map((symbol) => (
+            <Pressable
+              key={symbol}
+              accessibilityLabel={`${copy.insertConstant} ${symbol}`}
+              onPress={() => onInsert(symbol)}
+              style={({ pressed }) => [styles.unitChip, pressed && styles.pressed]}
+            >
+              <Text style={styles.unitChipText}>{symbol}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  };
+
   return (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.container}>
+    <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.container}>
       <Pressable onPress={onBack} style={({ pressed }) => [styles.backRow, pressed && styles.pressed]}>
         <IconSymbol name="chevron.left" size={16} color={colors.primary} />
         <Text style={styles.backLabel}>{language === "en" ? "Back" : "戻る"}</Text>
@@ -208,8 +276,10 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
       <Text style={styles.sectionLabel}>{copy.inputs}</Text>
       {notebook.localConstants.length ? (
         <View style={styles.inputCard}>
-          {editableConstants.map((item) => {
+          {editableConstants.map((item, constantIndex) => {
             const inputUnits = compatibleUnitsFor(resolvedBySymbol.get(item.symbol.trim())?.quantity);
+            const railKey = constantFieldKey(item.id);
+            const isRailForced = forcedSelection?.key === railKey;
             return (
               <View key={item.id} style={styles.inputRow}>
                 <TextInput
@@ -217,12 +287,20 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                   onChangeText={(text) => {
                     const { name, value } = parseNameValue(text);
                     updateConstant(item.id, { symbol: name, expression: value });
+                    setForcedSelection((current) => (current?.key === railKey ? null : current));
                   }}
+                  onFocus={() => setFocusedRailKey(railKey)}
+                  onBlur={() => scheduleRailBlur(railKey)}
+                  onSelectionChange={(event) => handleSelectionChange(railKey, event.nativeEvent.selection)}
+                  selection={isRailForced ? forcedSelection.selection : undefined}
                   editable={!isSaving}
                   autoCapitalize="none"
                   autoCorrect={false}
                   style={[styles.inputField, errors[item.id] && styles.inputFieldError]}
                 />
+                {renderConstantsRail(railKey, getLocalConstantFieldSuggestions(editableConstants, globalConstants, constantIndex), (symbol) =>
+                  insertSymbolIntoField(railKey, item.symbol, item.expression, symbol, (nextExpression) => updateConstant(item.id, { expression: nextExpression })),
+                )}
                 {inputUnits.length ? (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.unitRail}>
                     {inputUnits.map((unitOption) => (
@@ -276,6 +354,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                 displayValue = `${displayValue.slice(0, -effectiveUnit.length)}${label}`;
               }
             }
+            const stepRailKey = stepFieldKey(result.step.id);
             return (
               <View key={result.step.id} style={[styles.resultCard, isFinalStep && result.quantity ? styles.resultCardFinal : null]}>
                 <TextInput
@@ -284,12 +363,22 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                     const { name, value } = parseNameValue(text);
                     // 名前が無いとき（＝を付けていない通常の式）はtitleへ触れない。既存の表示用タイトルを空欄で上書きしないため。
                     updateStepField(result.step.id, name ? { resultSymbol: name, title: name, expression: value } : { resultSymbol: undefined, expression: value });
+                    setForcedSelection((current) => (current?.key === stepRailKey ? null : current));
                   }}
+                  onFocus={() => setFocusedRailKey(stepRailKey)}
+                  onBlur={() => scheduleRailBlur(stepRailKey)}
+                  onSelectionChange={(event) => handleSelectionChange(stepRailKey, event.nativeEvent.selection)}
+                  selection={forcedSelection?.key === stepRailKey ? forcedSelection.selection : undefined}
                   editable={!isSaving}
                   autoCapitalize="none"
                   autoCorrect={false}
                   style={styles.resultExpressionInput}
                 />
+                {renderConstantsRail(stepRailKey, getStepFieldSuggestions(editableConstants, globalConstants, editableSteps, index), (symbol) =>
+                  insertSymbolIntoField(stepRailKey, result.step.resultSymbol ?? "", result.step.expression, symbol, (nextExpression) =>
+                    updateStepField(result.step.id, { expression: nextExpression }),
+                  ),
+                )}
                 <View style={styles.resultHeader}>
                   <View style={styles.resultHeaderMain}>
                     {isFinalStep && result.quantity ? <Text style={styles.finalBadge}>{copy.finalResult}</Text> : null}
@@ -369,6 +458,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   resultError: { color: colors.error, fontSize: 12, lineHeight: 17, marginTop: 4 },
   resultWarning: { color: colors.warning, fontSize: 11, lineHeight: 15, marginTop: 4 },
   resultReferenceHint: { color: colors.muted, fontSize: 10, marginTop: 5 },
+  constantsRailLabel: { color: colors.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.3, marginTop: 6, textTransform: "uppercase" },
   unitRail: { gap: 6, paddingTop: 9 },
   unitChip: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, paddingHorizontal: 9, paddingVertical: 5 },
   unitChipActive: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
