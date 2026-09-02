@@ -36,7 +36,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   es: { title: "Calculadora de unidades", siLabel: "Base SI", latestLabel: "ÚLTIMO CÁLCULO", emptyExpression: "Escribe una expresión" },
   "pt-BR": { title: "Calculadora de unidades", siLabel: "Base SI", latestLabel: "ÚLTIMO CÁLCULO", emptyExpression: "Digite uma expressão" },
   de: { title: "Einheitenrechner", siLabel: "SI-Basis", latestLabel: "LETZTE BERECHNUNG", emptyExpression: "Ausdruck eingeben" },
-  fr: { title: "Calculatrice d\u2019unités", siLabel: "Base SI", latestLabel: "DERNIER CALCUL", emptyExpression: "Saisir une expression" },
+  fr: { title: "Calculatrice d'unités", siLabel: "Base SI", latestLabel: "DERNIER CALCUL", emptyExpression: "Saisir une expression" },
 };
 
 function UnitCalculatorWidget(
