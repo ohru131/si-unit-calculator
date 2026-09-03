@@ -1,4 +1,4 @@
-import { type CalculationNotebook } from "@/lib/calculator-store";
+import { type CalculationNotebook, type CalculationNoteStep, type NotebookLocalConstant } from "@/lib/calculator-store";
 import { type AppLanguage } from "@/lib/i18n";
 import { evaluateNotebookSteps, formatNameValue, type NotebookStepResult, resolveNotebookLocalConstants } from "@/lib/notebook-engine";
 import { notebookFormulaRows } from "@/lib/notebook-formula-rows";
@@ -87,6 +87,22 @@ export type BuildNotebookExportModelOptions = {
   // 手順ID→表示単位の上書き。画面が保持するunitOverridesとそのまま同じ形。
   unitOverrides: Record<string, string>;
 };
+
+// 画面（components/notebooks/notebook-detail.tsx）は編集途中の値
+// （editableConstants / editableSteps）から結果を導出して表示している。保存前に共有すると
+// 保存済みのnotebookを渡してしまい、PDFと画面で数値が食い違う（このモジュールを作った目的
+// そのものが崩れる）。そこで共有時は画面が持っている編集中の値でノートを差し替える。
+//
+// 空行を除外したり正規化したりはしない。定数・手順は resolveNotebookLocalConstants と
+// evaluateNotebookSteps にそのまま渡され、手順を1つ間引くと後続の s1・s2… の参照先が
+// ずれて別の数値になるため、画面と完全に同じ配列を渡すことが正しさの条件になる。
+export function notebookWithDraftValues(
+  notebook: CalculationNotebook,
+  draftLocalConstants: NotebookLocalConstant[],
+  draftSteps: CalculationNoteStep[],
+): CalculationNotebook {
+  return { ...notebook, localConstants: draftLocalConstants, steps: draftSteps };
+}
 
 // 計算ノート1件を、PDFエクスポート（lib/notebook-export-html.ts）が必要とする形へ組み立てる。
 // 画面（notebook-detail.tsx）が使うのと同じ導出関数（evaluateNotebookSteps・

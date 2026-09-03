@@ -143,7 +143,9 @@ type Props = {
    * 呼び出し元の役目にする（Proゲート・実際のファイル生成はlib/notebook-export.tsを叩く画面側の
    * 責務のままにし、このコンポーネントにプラットフォーム固有の共有処理を持ち込まないため）。
    * 渡された場合だけボタンを描画する。 */
-  onShare?: (unitOverrides: Record<string, string>) => void;
+  // 編集途中の値も渡す。保存前に共有すると保存済みの値でPDFが出て、画面と数値が食い違うため
+  // （lib/notebook-export-model.ts の notebookWithDraftValues 参照）。
+  onShare?: (unitOverrides: Record<string, string>, draftLocalConstants: NotebookLocalConstant[], draftSteps: CalculationNoteStep[]) => void;
   /** ピン留めの切り替え。ノートタブではピン留めボタン自体を出さない
    * （ピン留めはライブラリのノート一覧の役割にする方針のため）。渡された場合だけボタンを描画する。 */
   onTogglePinned?: () => void;
@@ -375,7 +377,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
               </Pressable>
             ) : null}
             {onShare ? (
-              <Pressable accessibilityLabel={copy.share} onPress={() => onShare(unitOverrides)} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
+              <Pressable accessibilityLabel={copy.share} onPress={() => onShare(unitOverrides, editableConstants, editableSteps)} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
                 <IconSymbol name="square.and.arrow.up" size={16} color={colors.primary} />
               </Pressable>
             ) : null}

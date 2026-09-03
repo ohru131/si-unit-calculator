@@ -4,7 +4,7 @@ import { type CalculationNotebook, type CalculationNoteStep, type NotebookLocalC
 import { localizedText } from "../lib/i18n";
 import { evaluateNotebookSteps } from "../lib/notebook-engine";
 import { PRESET_NOTEBOOK_SEEDS } from "../lib/notebook-formulas";
-import { buildNotebookExportModel, resolveNotebookStepDisplay } from "../lib/notebook-export-model";
+import { buildNotebookExportModel, resolveNotebookStepDisplay, notebookWithDraftValues } from "../lib/notebook-export-model";
 
 const NOW = "2026-01-01T00:00:00.000Z";
 
@@ -222,5 +222,49 @@ describe("resolveNotebookStepDisplay", () => {
     const results = evaluateNotebookSteps([{ id: "s1", title: "", expression: "5m", targetUnit: "cm" }], [], "en", [], undefined);
     const display = resolveNotebookStepDisplay(results[0], "", "metric", undefined);
     expect(display).toEqual({ value: "5 m", error: undefined, isError: false });
+  });
+});
+
+describe("notebookWithDraftValues", () => {
+  // 画面は編集途中の値から結果を導出して表示しているので、保存前に共有したときに
+  // 保存済みの値でPDFを出すと数値が食い違う（このモジュールを作った目的そのものが崩れる）。
+  it("編集途中の定数・手順で差し替え、それがエクスポート結果に反映される", () => {
+    const saved = notebook({
+      localConstants: [{ id: "c1", symbol: "d", expression: "100m" }],
+      steps: [{ id: "s1", title: "", expression: "d", targetUnit: "" }],
+    });
+    const draft = notebookWithDraftValues(
+      saved,
+      [{ id: "c1", symbol: "d", expression: "250m" }],
+      [{ id: "s1", title: "", expression: "d", targetUnit: "" }],
+    );
+
+    const options = { globalConstants: [], language: "en" as const, unitSystem: "metric" as const, measuringStandard: "jis" as const, unitOverrides: {} };
+    const savedModel = buildNotebookExportModel({ notebook: saved, ...options });
+    const draftModel = buildNotebookExportModel({ notebook: draft, ...options });
+
+    expect(savedModel.steps[0].resultText).toContain("100");
+    expect(draftModel.steps[0].resultText).toContain("250");
+    expect(draftModel.constants[0].text).toBe("d=250m");
+  });
+
+  // 空行を間引くと後続の s1・s2… の参照先がずれて別の数値になるため、配列は素通しにする。
+  it("空行を間引かず、渡された配列をそのまま使う", () => {
+    const draft = notebookWithDraftValues(
+      notebook({}),
+      [{ id: "c1", symbol: "", expression: "" }],
+      [{ id: "s1", title: "", expression: "", targetUnit: "" }],
+    );
+    expect(draft.localConstants).toHaveLength(1);
+    expect(draft.steps).toHaveLength(1);
+  });
+
+  it("差し替え以外のフィールドは保存済みのノートのものを保つ", () => {
+    const saved = notebook({ id: "keep", title: "残る名前", description: "残る説明", isPreset: true });
+    const draft = notebookWithDraftValues(saved, [], []);
+    expect(draft.id).toBe("keep");
+    expect(draft.title).toBe("残る名前");
+    expect(draft.description).toBe("残る説明");
+    expect(draft.isPreset).toBe(true);
   });
 });

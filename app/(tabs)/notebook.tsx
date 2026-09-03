@@ -13,6 +13,7 @@ import { type CalculationNotebook, useCalculatorStore } from "@/lib/calculator-s
 import { useGlobalSettings } from "@/lib/global-settings";
 import { type AppLanguage } from "@/lib/i18n";
 import { exportNotebookAsPdf } from "@/lib/notebook-export";
+import { notebookWithDraftValues } from "@/lib/notebook-export-model";
 import { resolveActiveNotebook, resolveNotebookHistory } from "@/lib/notebook-history";
 import { usePro } from "@/lib/revenuecat-provider";
 
@@ -181,12 +182,13 @@ export default function NotebookScreen() {
           notebook={activeNotebook}
           globalConstants={constants}
           onEdit={() => openEditNotebook(activeNotebook)}
-          onShare={(unitOverrides) => {
+          onShare={(unitOverrides, draftLocalConstants, draftSteps) => {
             if (!isPro) {
               router.push("/pro");
               return;
             }
-            void shareNotebook(activeNotebook, unitOverrides);
+            // 保存前でも画面に出ている値でPDFを出す（保存済みのノートを渡すと数値が食い違う）。
+            void shareNotebook(notebookWithDraftValues(activeNotebook, draftLocalConstants, draftSteps), unitOverrides);
           }}
           // ノート名自体をボタンにして、ノート切替シート（ピン留め・最近使ったノート）を開く。
           // これがこのタブでノートを切り替える唯一の入口になる。

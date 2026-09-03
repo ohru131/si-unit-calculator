@@ -95,6 +95,8 @@ export async function exportNotebookAsPdf(options: ExportNotebookAsPdfOptions): 
   const html = buildNotebookExportHtml(model, {
     katexCss: KATEX_CSS,
     katexJs: KATEX_JS,
+    // AppLanguage（en/ja/es/pt-BR/de/fr）はそのままBCP 47として使える。
+    lang: language,
     headings: { formulas: messages.formulasHeading, inputs: messages.inputsHeading, steps: messages.stepsHeading },
     footer: messages.footer,
   });

@@ -12,6 +12,9 @@ import {
 export type NotebookExportHtmlOptions = {
   katexCss: string;
   katexJs: string;
+  // html要素のlang。内容は日本語・ドイツ語などにもなるので固定してはいけない
+  // （スクリーンリーダーの読み上げ言語、ハイフネーション、フォント選択が変わる）。
+  lang: string;
   headings: { formulas: string; inputs: string; steps: string };
   footer: string;
 };
@@ -105,10 +108,10 @@ ${cards}
 // 一切依存せず同じ見た目になることが要件（KaTeXのフォントまで含めてbase64で埋め込み済みの
 // katexCss/katexJsを渡してもらう前提）。
 export function buildNotebookExportHtml(model: NotebookExportModel, options: NotebookExportHtmlOptions): string {
-  const { katexCss, katexJs, headings, footer } = options;
+  const { katexCss, katexJs, lang, headings, footer } = options;
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${escapeHtml(lang)}">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
