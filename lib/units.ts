@@ -530,6 +530,18 @@ const DYNAMIC_VOLUME_ALIASES: Record<string, "cup" | "tbsp" | "tsp"> = {
   teaspoons: "tsp",
 };
 
+export type CustomUnitRegistration = { symbol: string; scale: number; offset?: number; dimension: Dimension };
+
+// ユーザー定義単位。組み込みと同じ UnitDefinition の形で持ち、resolveUnitSymbol の**最後**に引く。
+// 最後に引くことが最重要の不変条件で、これにより「今日すでに解決できている記号」の解決結果は
+// ユーザーが何を登録しても一切変わらない（完全一致 → SI接頭辞分解 の順序を保ったまま、
+// どちらでも解決できなかった場合の受け皿としてだけ働く）。
+//
+// 宣言をこの位置（別表記の自動登録ループより前）に置くのは意図的。あのループは中で
+// resolveUnitSymbol を呼ぶので、宣言が後ろにあると初期化前アクセス（TDZ）になり
+// ReferenceError がループの catch に飲まれて、別表記が黙って登録されなくなる。
+let customUnits: Record<string, UnitDefinition> = {};
+
 // UNIT_META の英字の別表記（sec, hour, millisecond など）を、計算にも使える表記として自動登録する。
 // ms のように接頭辞から導かれる単位も resolveUnitSymbol で解決してから登録する。
 // 日本語の読みなど計算式に入力できない別表記はここでは対象外にする。
@@ -547,14 +559,6 @@ Object.entries(UNIT_META).forEach(([symbol, meta]) => {
     BASE_UNITS[alias] = base;
   });
 });
-
-export type CustomUnitRegistration = { symbol: string; scale: number; offset?: number; dimension: Dimension };
-
-// ユーザー定義単位。組み込みと同じ UnitDefinition の形で持ち、resolveUnitSymbol の**最後**に引く。
-// 最後に引くことが最重要の不変条件で、これにより「今日すでに解決できている記号」の解決結果は
-// ユーザーが何を登録しても一切変わらない（完全一致 → SI接頭辞分解 の順序を保ったまま、
-// どちらでも解決できなかった場合の受け皿としてだけ働く）。
-let customUnits: Record<string, UnitDefinition> = {};
 
 export function setCustomUnits(definitions: CustomUnitRegistration[]) {
   const next: Record<string, UnitDefinition> = {};
