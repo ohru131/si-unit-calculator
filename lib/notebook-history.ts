@@ -55,3 +55,29 @@ export function resolveNotebookHistory(history: NotebookHistoryEntry[], notebook
 export function removeNotebookHistoryEntry(history: NotebookHistoryEntry[], id: string): NotebookHistoryEntry[] {
   return history.filter((entry) => entry.id !== id);
 }
+
+/** ノートタブに出すノートを決める。activeNotebookId が現存すればそれ、無ければ最近使ったもの、それも無ければピン留め、どれも無ければ null。 */
+export function resolveActiveNotebook(
+  activeNotebookId: string | null,
+  history: NotebookHistoryEntry[],
+  notebooks: CalculationNotebook[],
+): CalculationNotebook | null {
+  if (activeNotebookId !== null) {
+    const active = notebooks.find((notebook) => notebook.id === activeNotebookId);
+    if (active) return active;
+  }
+
+  // historyは新しい順（先頭が最新）に並んでいる前提（pushNotebookHistoryEntryの積み方）。
+  // 削除済みノートを指すエントリが混ざっていてもスキップし、最初に現存するものを採用する。
+  for (const entry of history) {
+    const notebook = notebooks.find((item) => item.id === entry.notebookId);
+    if (notebook) return notebook;
+  }
+
+  // 履歴が空（一度も使っていない）か全滅（全部削除済み）なら、ピン留めにフォールバックする。
+  // 複数ピン留めがあるときの順序はnotebooksの並び順（upsertNotebook等でupdatedAt降順に
+  // ソートされている）に従う。「どれが一番最近更新されたピン留めか」という基準は
+  // 追加の判断基準を持ち込まずに済む自然な選び方なので、ここで独自の並び替えはしない。
+  const pinned = notebooks.find((notebook) => notebook.pinned);
+  return pinned ?? null;
+}

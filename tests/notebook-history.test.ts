@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { CalculationNotebook } from "../lib/calculator-store";
-import { NOTEBOOK_HISTORY_LIMIT, NotebookHistoryEntry, pushNotebookHistoryEntry, removeNotebookHistoryEntry, resolveNotebookHistory } from "../lib/notebook-history";
+import { NOTEBOOK_HISTORY_LIMIT, NotebookHistoryEntry, pushNotebookHistoryEntry, removeNotebookHistoryEntry, resolveActiveNotebook, resolveNotebookHistory } from "../lib/notebook-history";
 
 // 型だけを使うので実際に calculator-store.tsx をロードしない（notebook-preset-localization.test.ts と
 // 同じ理由: calculator-store.tsx は useGlobalSettings 経由で expo-localization まで芋づる式に
@@ -132,5 +132,51 @@ describe("removeNotebookHistoryEntry", () => {
   it("存在しないidなら何も変わらない", () => {
     const history = [makeEntry({ id: "h1", notebookId: "notebook-1" })];
     expect(removeNotebookHistoryEntry(history, "missing").map((entry) => entry.id)).toEqual(["h1"]);
+  });
+});
+
+describe("resolveActiveNotebook", () => {
+  it("activeNotebookIdが現存すれば、履歴やピン留めより優先してそれを返す", () => {
+    const notebooks = [
+      makeNotebook({ id: "notebook-1", pinned: true }),
+      makeNotebook({ id: "notebook-2" }),
+    ];
+    const history = [makeEntry({ id: "h1", notebookId: "notebook-1" })];
+    const resolved = resolveActiveNotebook("notebook-2", history, notebooks);
+    expect(resolved?.id).toBe("notebook-2");
+  });
+
+  it("activeNotebookIdが削除済みなら、履歴の最新の現存ノートにフォールバックする", () => {
+    const notebooks = [makeNotebook({ id: "notebook-1" }), makeNotebook({ id: "notebook-2" })];
+    const history = [
+      makeEntry({ id: "h1", notebookId: "notebook-2", openedAt: "2026-01-02T00:00:00.000Z" }),
+      makeEntry({ id: "h2", notebookId: "notebook-1", openedAt: "2026-01-01T00:00:00.000Z" }),
+    ];
+    const resolved = resolveActiveNotebook("notebook-deleted", history, notebooks);
+    expect(resolved?.id).toBe("notebook-2");
+  });
+
+  it("履歴のエントリが全部削除済みなら、ピン留めにフォールバックする", () => {
+    const notebooks = [makeNotebook({ id: "notebook-1" }), makeNotebook({ id: "notebook-2", pinned: true })];
+    const history = [makeEntry({ id: "h1", notebookId: "notebook-deleted" })];
+    const resolved = resolveActiveNotebook(null, history, notebooks);
+    expect(resolved?.id).toBe("notebook-2");
+  });
+
+  it("何も無ければnullを返す", () => {
+    const notebooks = [makeNotebook({ id: "notebook-1", pinned: false })];
+    const resolved = resolveActiveNotebook(null, [], notebooks);
+    expect(resolved).toBeNull();
+  });
+
+  it("履歴に削除済みが混ざっていても、飛ばして次の現存ノートを返す", () => {
+    const notebooks = [makeNotebook({ id: "notebook-1" })];
+    const history = [
+      makeEntry({ id: "h1", notebookId: "notebook-deleted-1", openedAt: "2026-01-03T00:00:00.000Z" }),
+      makeEntry({ id: "h2", notebookId: "notebook-deleted-2", openedAt: "2026-01-02T00:00:00.000Z" }),
+      makeEntry({ id: "h3", notebookId: "notebook-1", openedAt: "2026-01-01T00:00:00.000Z" }),
+    ];
+    const resolved = resolveActiveNotebook(null, history, notebooks);
+    expect(resolved?.id).toBe("notebook-1");
   });
 });
