@@ -217,32 +217,32 @@ const ONBOARDING_SLIDES: Record<AppLanguage, OnboardingSlide[]> = {
   en: [
     { title: "Calculate with units, directly", body: "Type an expression with units, such as 5cm + 1mm. The app normalizes it to SI before calculating.", example: "5cm + 1mm" },
     { title: "Tap a red unit to fix it", body: "Unknown or mistyped units turn red in the preview. Tap one to pick the closest match.", example: "5cm + 1mn" },
-    { title: "Switch units in one tap", body: "Choose any compatible display unit right under the result, and pin your favorite calculations to the top of this screen.", example: "cm → m → ft" },
+    { title: "Switch units in one tap", body: "Choose any compatible display unit right under the result. Multi-step calculations live in the Notebooks tab.", example: "cm → m → ft" },
   ],
   ja: [
     { title: "単位のまま計算できます", body: "5cm + 1mm のように単位を含む式を入力するだけです。計算前にSI標準へ正規化されます。", example: "5cm + 1mm" },
     { title: "赤い単位はタップで修正", body: "未登録・入力ミスの単位はプレビューで赤く表示されます。タップすると近い候補を選べます。", example: "5cm + 1mn" },
-    { title: "結果はワンタップで単位切替", body: "結果のすぐ下で表示単位を選べます。よく使う計算はピン留めして画面上部から呼び出せます。", example: "cm → m → ft" },
+    { title: "結果はワンタップで単位切替", body: "結果のすぐ下で表示単位を選べます。手順のある計算は「ノート」タブで使えます。", example: "cm → m → ft" },
   ],
   es: [
     { title: "Calcula directamente con unidades", body: "Escribe una expresión con unidades, como 5cm + 1mm. La app la normaliza a SI antes de calcular.", example: "5cm + 1mm" },
     { title: "Toca una unidad en rojo para corregirla", body: "Las unidades desconocidas o mal escritas aparecen en rojo en la vista previa. Tócala para elegir la coincidencia más cercana.", example: "5cm + 1mn" },
-    { title: "Cambia de unidad con un toque", body: "Elige cualquier unidad compatible justo debajo del resultado, y fija tus cálculos favoritos en la parte superior de esta pantalla.", example: "cm → m → ft" },
+    { title: "Cambia de unidad con un toque", body: "Elige cualquier unidad compatible justo debajo del resultado. Los cálculos con varios pasos están en la pestaña Cuadernos.", example: "cm → m → ft" },
   ],
   "pt-BR": [
     { title: "Calcule diretamente com unidades", body: "Digite uma expressão com unidades, como 5cm + 1mm. O app a normaliza para SI antes de calcular.", example: "5cm + 1mm" },
     { title: "Toque em uma unidade em vermelho para corrigi-la", body: "Unidades desconhecidas ou digitadas incorretamente ficam vermelhas na pré-visualização. Toque em uma para escolher a correspondência mais próxima.", example: "5cm + 1mn" },
-    { title: "Troque de unidade com um toque", body: "Escolha qualquer unidade de exibição compatível logo abaixo do resultado e fixe seus cálculos favoritos no topo desta tela.", example: "cm → m → ft" },
+    { title: "Troque de unidade com um toque", body: "Escolha qualquer unidade de exibição compatível logo abaixo do resultado. Os cálculos com várias etapas ficam na aba Cadernos.", example: "cm → m → ft" },
   ],
   de: [
     { title: "Direkt mit Einheiten rechnen", body: "Gib einen Ausdruck mit Einheiten ein, zum Beispiel 5cm + 1mm. Die App normalisiert ihn vor der Berechnung auf SI.", example: "5cm + 1mm" },
     { title: "Tippe auf eine rote Einheit, um sie zu korrigieren", body: "Unbekannte oder falsch geschriebene Einheiten werden in der Vorschau rot angezeigt. Tippe darauf, um die beste Übereinstimmung zu wählen.", example: "5cm + 1mn" },
-    { title: "Einheit mit einem Tipp wechseln", body: "Wähle direkt unter dem Ergebnis jede passende Anzeigeeinheit und hefte deine bevorzugten Berechnungen oben auf diesem Bildschirm an.", example: "cm → m → ft" },
+    { title: "Einheit mit einem Tipp wechseln", body: "Wähle direkt unter dem Ergebnis jede passende Anzeigeeinheit. Mehrschrittige Berechnungen findest du im Tab Rechenhefte.", example: "cm → m → ft" },
   ],
   fr: [
     { title: "Calculez directement avec des unités", body: "Saisissez une expression avec des unités, comme 5cm + 1mm. L'application la normalise en SI avant de calculer.", example: "5cm + 1mm" },
     { title: "Touchez une unité en rouge pour la corriger", body: "Les unités inconnues ou mal saisies s'affichent en rouge dans l'aperçu. Touchez-en une pour choisir la correspondance la plus proche.", example: "5cm + 1mn" },
-    { title: "Changez d'unité en un seul geste", body: "Choisissez n'importe quelle unité d'affichage compatible juste sous le résultat, et épinglez vos calculs favoris en haut de cet écran.", example: "cm → m → ft" },
+    { title: "Changez d'unité en un seul geste", body: "Choisissez n'importe quelle unité d'affichage compatible juste sous le résultat. Les calculs à plusieurs étapes sont dans l'onglet Carnets.", example: "cm → m → ft" },
   ],
 };
 

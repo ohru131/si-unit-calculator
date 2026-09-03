@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import * as Clipboard from "expo-clipboard";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { LatexView } from "@/components/ui/latex-view";
 import { type ThemeColorPalette } from "@/constants/theme";
@@ -30,6 +31,10 @@ const EN_COPY = {
   constantsRailLabel: "Constants",
   insertConstant: "Insert",
   back: "Back",
+  switchTitle: "Unsaved changes",
+  switchMessage: "This notebook has values you haven't saved. Switching notebooks discards them.",
+  switchDiscard: "Discard and switch",
+  cancel: "Cancel",
 } as const;
 const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   en: EN_COPY,
@@ -45,6 +50,10 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     constantsRailLabel: "定数",
     insertConstant: "挿入",
     back: "戻る",
+    switchTitle: "保存していない変更があります",
+    switchMessage: "このノートには保存していない値があります。ノートを切り替えると破棄されます。",
+    switchDiscard: "破棄して切り替え",
+    cancel: "キャンセル",
   },
   es: {
     edit: "Editar", save: "Guardar valores", copy: "Copiar", copied: "Copiado",
@@ -58,6 +67,10 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     constantsRailLabel: "Constantes",
     insertConstant: "Insertar",
     back: "Atrás",
+    switchTitle: "Cambios sin guardar",
+    switchMessage: "Este cuaderno tiene valores que no has guardado. Al cambiar de cuaderno se descartan.",
+    switchDiscard: "Descartar y cambiar",
+    cancel: "Cancelar",
   },
   "pt-BR": {
     edit: "Editar", save: "Salvar valores", copy: "Copiar", copied: "Copiado",
@@ -71,6 +84,10 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     constantsRailLabel: "Constantes",
     insertConstant: "Inserir",
     back: "Voltar",
+    switchTitle: "Alterações não salvas",
+    switchMessage: "Este caderno tem valores que você não salvou. Trocar de caderno descarta essas alterações.",
+    switchDiscard: "Descartar e trocar",
+    cancel: "Cancelar",
   },
   de: {
     edit: "Bearbeiten", save: "Werte speichern", copy: "Kopieren", copied: "Kopiert",
@@ -84,6 +101,10 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     constantsRailLabel: "Konstanten",
     insertConstant: "Einfügen",
     back: "Zurück",
+    switchTitle: "Nicht gespeicherte Änderungen",
+    switchMessage: "Dieses Rechenheft hat Werte, die du nicht gespeichert hast. Beim Wechseln gehen sie verloren.",
+    switchDiscard: "Verwerfen und wechseln",
+    cancel: "Abbrechen",
   },
   fr: {
     edit: "Modifier", save: "Enregistrer les valeurs", copy: "Copier", copied: "Copié",
@@ -97,6 +118,10 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     constantsRailLabel: "Constantes",
     insertConstant: "Insérer",
     back: "Retour",
+    switchTitle: "Modifications non enregistrées",
+    switchMessage: "Ce carnet contient des valeurs non enregistrées. Changer de carnet les abandonne.",
+    switchDiscard: "Abandonner et changer",
+    cancel: "Annuler",
   },
 };
 
@@ -152,6 +177,11 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   // 記号を挿し込んだ直後だけ、TextInputのselection propでキャレットを挿入位置の直後へ強制する。
   // ユーザー自身の入力と衝突しないよう、反映されたら（onSelectionChange/onChangeTextで）すぐ手放す。
   const [forcedSelection, setForcedSelection] = useState<{ key: string; selection: { start: number; end: number } } | null>(null);
+  // ノート名からノートを切り替えようとしたとき、未保存の値があれば確認を挟む。
+  // 切り替えでnotebook propが変わると下のレンダー中の同期がeditableConstants/editableStepsを
+  // 作り直すので、確認なしだと編集途中の値が黙って消える（保存バーは出ているが、ノート名は
+  // すぐ上にあるので取り違えやすい）。
+  const [pendingTitlePress, setPendingTitlePress] = useState(false);
 
   // notebook.localConstants / notebook.steps は編集シートで構成が変わることがあるため、
   // このコンポーネントが再マウントされずに新しいノートを受け取っても追従させる。
@@ -344,7 +374,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
           </View>
         </View>
         {onTitlePress ? (
-          <Pressable accessibilityLabel={notebook.title} onPress={onTitlePress} style={({ pressed }) => [styles.stickyTitleButton, pressed && styles.pressed]}>
+          <Pressable accessibilityLabel={notebook.title} onPress={() => (isDirty ? setPendingTitlePress(true) : onTitlePress())} style={({ pressed }) => [styles.stickyTitleButton, pressed && styles.pressed]}>
             <Text numberOfLines={1} style={styles.stickyTitle}>{notebook.title}</Text>
             <IconSymbol name="chevron.right" size={13} color={colors.muted} />
           </Pressable>
@@ -551,6 +581,20 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
           {saveError ? <Text style={styles.saveErrorText}>{saveError}</Text> : null}
         </View>
       ) : null}
+
+      <ConfirmDialog
+        visible={pendingTitlePress}
+        title={copy.switchTitle}
+        message={copy.switchMessage}
+        cancelLabel={copy.cancel}
+        confirmLabel={copy.switchDiscard}
+        destructive
+        onCancel={() => setPendingTitlePress(false)}
+        onConfirm={() => {
+          setPendingTitlePress(false);
+          onTitlePress?.();
+        }}
+      />
     </View>
   );
 }
