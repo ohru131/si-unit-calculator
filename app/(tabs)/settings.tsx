@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-
 import { useRouter } from "expo-router";
 
 import { ScreenContainer } from "@/components/screen-container";
+import { BackupCard } from "@/components/settings/backup-card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
@@ -99,6 +100,7 @@ export default function SettingsScreen() {
         <View style={styles.a11yTitle}><IconSymbol name="accessibility" size={22} color={colors.primary} /><Text style={styles.label}>{t("accessibility")}</Text></View>
         <Text style={styles.description}>{t("accessibilityHint")}</Text>
       </View>
+      <BackupCard />
       <View style={styles.card}>
         <Text style={styles.label}>{t("resetPresetsTitle")}</Text>
         <Text style={styles.description}>{t("resetPresetsHint")}</Text>

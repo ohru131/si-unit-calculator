@@ -22,8 +22,6 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { LatexView } from "@/components/ui/latex-view";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
-import { type ImportedConstant } from "@/lib/constants-backup";
-import { exportConstantsBackup, pickConstantsBackup } from "@/lib/constants-backup-file";
 import {
   type CalculationNotebook,
   type CalculationNoteStep,
@@ -40,8 +38,7 @@ import { clampSelectionRange, getLocalConstantFieldSuggestions, getStepFieldSugg
 import { notebookFormulaRows } from "@/lib/notebook-formula-rows";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
 import { nextStepNamePatch } from "@/lib/notebook-step-title";
-import { type ImportedNotebook, type PresetNotebookOverride } from "@/lib/notebooks-backup";
-import { exportNotebooksBackup, pickNotebooksBackup } from "@/lib/notebooks-backup-file";
+import { exportNotebooksBackup } from "@/lib/notebooks-backup-file";
 import { getUnitInsertionRange, replaceExpressionRange } from "@/lib/unit-input";
 import { compatibleUnitOptions } from "@/lib/unit-options";
 import { unitErrorMessage } from "@/lib/unit-errors";
@@ -67,12 +64,6 @@ const EN_COPY = {
   titleLabel: "Name", descriptionLabel: "Description", expressionLabel: "Expression", symbolLabel: "Symbol",
   constantEditor: "Constant", constantNew: "New constant",
   deleteConfirm: "Delete this item? This cannot be undone.", validation: "Please fill in the required fields.",
-  backup: "Backup", export: "Export", clearAll: "Clear all", restore: "Restore",
-  exportDone: "Constants backup exported.",
-  merge: "Merge and replace matches", replace: "Replace all constants", importDone: "{count} constants imported.",
-  clearConfirm: "Clear all saved constants? You can restore the latest cleared set.",
-  cleared: "Constants cleared. You can restore them from this device.", restored: "Cleared constants restored.",
-  replaceImportConfirm: "Replace all saved constants with the ones in this file? This cannot be undone.",
   notebookNew: "New notebook", notebookEdit: "Edit notebook", notebookTitleLabel: "Title", notebookDescriptionLabel: "Description",
   category: "Category", newCategory: "New category", categoryName: "Category name", uncategorized: "Uncategorized",
   localConstants: "Local constants (inputs)", localConstantsHint: "Enter as name=value, e.g. v0=5m/s. Later rows can reference earlier ones.",
@@ -83,11 +74,9 @@ const EN_COPY = {
   formulaLatexPlaceholder: "Display formula, optional LaTeX (e.g. v = v_0 + at)",
   formulasLabel: "Formula explanations", formulasHint: "The formulas shown at the top of the notebook. The explanation is optional — a formula on its own is fine. Add as many as you like.",
   addFormula: "Add formula", formulaExplanationPlaceholder: "Explanation (e.g. This gives the velocity)",
-  notebookBackup: "Backup", notebookExport: "Export", notebookImportDone: "{count} notebooks imported.",
-  notebookExportDone: "Notebooks backup exported.", notebookReplaceImportConfirm: "Replace all your notebooks with the ones in this file? Preset notebooks are kept. This cannot be undone.",
-  notebookMerge: "Merge and replace matches", notebookReplace: "Replace all notebooks",
-  notebookPresetOverrideTitle: "Preset notebook edits", notebookPresetOverrideWarning: "This backup includes edits to {count} preset notebooks. Importing will overwrite what's currently on this device.",
-  notebookImportContinue: "Import", notebookPresetOverridesApplied: "{count} preset notebook edits applied.",
+  // カテゴリカードからの書き出し（handleExportCategoryNotebooks）専用の通知文。
+  // 統合バックアップは設定画面（lib/global-settings.tsxのbackupNotebooksExportDone）へ移設した。
+  categoryExportDone: "Notebooks backup exported.",
   notebookTitlePlaceholder: "Bending stress", notebookDescriptionPlaceholder: "Optional note",
   insert: "Insert", formulaCharactersLabel: "Symbols", definedVariablesLabel: "Defined variables", unitsLabel: "Units",
   symbolGroupSubscriptDigits: "Subscript digits", symbolGroupSubscriptLetters: "Subscript letters", symbolGroupGreekLower: "Greek (lowercase)", symbolGroupGreekUpper: "Greek (uppercase)",
@@ -104,12 +93,6 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     titleLabel: "名前", descriptionLabel: "説明", expressionLabel: "式", symbolLabel: "記号",
     constantEditor: "定数", constantNew: "新しい定数",
     deleteConfirm: "この項目を削除しますか？元に戻せません。", validation: "必須項目を入力してください。",
-    backup: "バックアップ", export: "書き出す", clearAll: "すべて消去", restore: "復活",
-    exportDone: "定数バックアップを書き出しました。",
-    merge: "追加・同名は置換", replace: "すべての定数を置換", importDone: "{count}件の定数を読み込みました。",
-    clearConfirm: "保存済みの定数をすべて消去しますか？直前に消去した一覧は復活できます。",
-    cleared: "定数を消去しました。この端末上で復活できます。", restored: "消去した定数を復活しました。",
-    replaceImportConfirm: "保存済みの定数をすべて、このファイルの内容へ置き換えますか？元に戻せません。",
     notebookNew: "新しい計算ノート", notebookEdit: "計算ノートを編集", notebookTitleLabel: "タイトル", notebookDescriptionLabel: "説明",
     category: "カテゴリ", newCategory: "新しいカテゴリ", categoryName: "カテゴリ名", uncategorized: "未分類",
     localConstants: "ローカル定数（入力値）", localConstantsHint: "「名前＝値」の形で入力します。例：v0=5m/s。後の行で前の行を参照できます。",
@@ -120,11 +103,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     formulaLatexPlaceholder: "表示用の数式（任意、LaTeX。例：v = v_0 + at）",
     formulasLabel: "数式の解説", formulasHint: "ノートの先頭に出す数式です。説明文は任意で、数式だけでも構いません。いくつでも追加できます。",
     addFormula: "数式を追加", formulaExplanationPlaceholder: "説明文（例：速度を求める式です）",
-    notebookBackup: "バックアップ", notebookExport: "書き出す", notebookImportDone: "{count}件の計算ノートを読み込みました。",
-    notebookExportDone: "計算ノートのバックアップを書き出しました。", notebookReplaceImportConfirm: "自分の計算ノートをすべて、このファイルの内容へ置き換えますか？プリセットは残ります。元に戻せません。",
-    notebookMerge: "追加・同名は置換", notebookReplace: "すべての計算ノートを置換",
-    notebookPresetOverrideTitle: "プリセットの計算ノートの編集", notebookPresetOverrideWarning: "このバックアップにはプリセット計算ノート{count}件の編集が含まれます。取り込むと、いま端末にあるその内容が上書きされます。",
-    notebookImportContinue: "取り込む", notebookPresetOverridesApplied: "プリセット計算ノートの編集を{count}件反映しました。",
+    categoryExportDone: "計算ノートのバックアップを書き出しました。",
     notebookTitlePlaceholder: "曲げ応力", notebookDescriptionPlaceholder: "任意のメモ",
     insert: "挿入", formulaCharactersLabel: "特殊記号", definedVariablesLabel: "定義済みの変数", unitsLabel: "単位",
     symbolGroupSubscriptDigits: "下付き数字", symbolGroupSubscriptLetters: "下付き文字", symbolGroupGreekLower: "ギリシャ文字（小文字）", symbolGroupGreekUpper: "ギリシャ文字（大文字）",
@@ -139,12 +118,6 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     titleLabel: "Nombre", descriptionLabel: "Descripción", expressionLabel: "Expresión", symbolLabel: "Símbolo",
     constantEditor: "Constante", constantNew: "Nueva constante",
     deleteConfirm: "¿Eliminar este elemento? Esta acción no se puede deshacer.", validation: "Completa los campos obligatorios.",
-    backup: "Copia de seguridad", export: "Exportar", clearAll: "Borrar todo", restore: "Restaurar",
-    exportDone: "Se exportó la copia de seguridad de las constantes.",
-    merge: "Combinar y reemplazar coincidencias", replace: "Reemplazar todas las constantes", importDone: "Se importaron {count} constantes.",
-    clearConfirm: "¿Borrar todas las constantes guardadas? Podrás restaurar el último conjunto borrado.",
-    cleared: "Constantes borradas. Puedes restaurarlas desde este dispositivo.", restored: "Se restauraron las constantes borradas.",
-    replaceImportConfirm: "¿Reemplazar todas las constantes guardadas por las de este archivo? Esta acción no se puede deshacer.",
     notebookNew: "Nuevo cuaderno", notebookEdit: "Editar cuaderno", notebookTitleLabel: "Título", notebookDescriptionLabel: "Descripción",
     category: "Categoría", newCategory: "Nueva categoría", categoryName: "Nombre de la categoría", uncategorized: "Sin categoría",
     localConstants: "Constantes locales (entradas)", localConstantsHint: "Escribe cada una como nombre=valor, por ejemplo v0=5m/s. Las filas siguientes pueden usar las anteriores.",
@@ -155,11 +128,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     formulaLatexPlaceholder: "Fórmula visible, LaTeX opcional (por ejemplo, v = v_0 + at)",
     formulasLabel: "Explicaciones de fórmulas", formulasHint: "Las fórmulas que se muestran al principio del cuaderno. La explicación es opcional: una fórmula sola también vale. Añade tantas como quieras.",
     addFormula: "Añadir fórmula", formulaExplanationPlaceholder: "Explicación (por ejemplo, esto calcula la velocidad)",
-    notebookBackup: "Copia de seguridad", notebookExport: "Exportar", notebookImportDone: "Se importaron {count} cuadernos.",
-    notebookExportDone: "Se exportó la copia de seguridad de los cuadernos.", notebookReplaceImportConfirm: "¿Reemplazar todos tus cuadernos por los de este archivo? Los cuadernos preestablecidos se conservan. Esta acción no se puede deshacer.",
-    notebookMerge: "Combinar y reemplazar coincidencias", notebookReplace: "Reemplazar todos los cuadernos",
-    notebookPresetOverrideTitle: "Ediciones de cuadernos preestablecidos", notebookPresetOverrideWarning: "Esta copia de seguridad incluye ediciones de {count} cuadernos preestablecidos. Al importar, se sobrescribirá el contenido que hay ahora en este dispositivo.",
-    notebookImportContinue: "Importar", notebookPresetOverridesApplied: "Se aplicaron {count} ediciones de cuadernos preestablecidos.",
+    categoryExportDone: "Se exportó la copia de seguridad de los cuadernos.",
     notebookTitlePlaceholder: "Esfuerzo de flexión", notebookDescriptionPlaceholder: "Nota opcional",
     insert: "Insertar", formulaCharactersLabel: "Símbolos", definedVariablesLabel: "Variables definidas", unitsLabel: "Unidades",
     symbolGroupSubscriptDigits: "Dígitos en subíndice", symbolGroupSubscriptLetters: "Letras en subíndice", symbolGroupGreekLower: "Griego (minúsculas)", symbolGroupGreekUpper: "Griego (mayúsculas)",
@@ -174,12 +143,6 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     titleLabel: "Nome", descriptionLabel: "Descrição", expressionLabel: "Expressão", symbolLabel: "Símbolo",
     constantEditor: "Constante", constantNew: "Nova constante",
     deleteConfirm: "Excluir este item? Isso não pode ser desfeito.", validation: "Preencha os campos obrigatórios.",
-    backup: "Backup", export: "Exportar", clearAll: "Limpar tudo", restore: "Restaurar",
-    exportDone: "Backup das constantes exportado.",
-    merge: "Mesclar e substituir coincidências", replace: "Substituir todas as constantes", importDone: "{count} constantes importadas.",
-    clearConfirm: "Limpar todas as constantes salvas? Você pode restaurar o último conjunto limpo.",
-    cleared: "Constantes limpas. Você pode restaurá-las neste dispositivo.", restored: "Constantes limpas restauradas.",
-    replaceImportConfirm: "Substituir todas as constantes salvas pelas deste arquivo? Isso não pode ser desfeito.",
     notebookNew: "Novo caderno", notebookEdit: "Editar caderno", notebookTitleLabel: "Título", notebookDescriptionLabel: "Descrição",
     category: "Categoria", newCategory: "Nova categoria", categoryName: "Nome da categoria", uncategorized: "Sem categoria",
     localConstants: "Constantes locais (entradas)", localConstantsHint: "Digite cada uma como nome=valor, por exemplo v0=5m/s. As linhas seguintes podem usar as anteriores.",
@@ -190,11 +153,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     formulaLatexPlaceholder: "Fórmula exibida, LaTeX opcional (por exemplo, v = v_0 + at)",
     formulasLabel: "Explicações das fórmulas", formulasHint: "As fórmulas exibidas no início do caderno. A explicação é opcional — uma fórmula sozinha também serve. Adicione quantas quiser.",
     addFormula: "Adicionar fórmula", formulaExplanationPlaceholder: "Explicação (por exemplo, isso calcula a velocidade)",
-    notebookBackup: "Backup", notebookExport: "Exportar", notebookImportDone: "{count} cadernos importados.",
-    notebookExportDone: "Backup dos cadernos exportado.", notebookReplaceImportConfirm: "Substituir todos os seus cadernos pelos deste arquivo? Os cadernos predefinidos são mantidos. Isso não pode ser desfeito.",
-    notebookMerge: "Mesclar e substituir coincidências", notebookReplace: "Substituir todos os cadernos",
-    notebookPresetOverrideTitle: "Edições de cadernos predefinidos", notebookPresetOverrideWarning: "Este backup inclui edições em {count} cadernos predefinidos. A importação substituirá o conteúdo atual deste aparelho.",
-    notebookImportContinue: "Importar", notebookPresetOverridesApplied: "{count} edições de cadernos predefinidos aplicadas.",
+    categoryExportDone: "Backup dos cadernos exportado.",
     notebookTitlePlaceholder: "Tensão de flexão", notebookDescriptionPlaceholder: "Nota opcional",
     insert: "Inserir", formulaCharactersLabel: "Símbolos", definedVariablesLabel: "Variáveis definidas", unitsLabel: "Unidades",
     symbolGroupSubscriptDigits: "Dígitos subscritos", symbolGroupSubscriptLetters: "Letras subscritas", symbolGroupGreekLower: "Grego (minúsculas)", symbolGroupGreekUpper: "Grego (maiúsculas)",
@@ -209,12 +168,6 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     titleLabel: "Name", descriptionLabel: "Beschreibung", expressionLabel: "Ausdruck", symbolLabel: "Symbol",
     constantEditor: "Konstante", constantNew: "Neue Konstante",
     deleteConfirm: "Diesen Eintrag löschen? Das kann nicht rückgängig gemacht werden.", validation: "Bitte fülle die Pflichtfelder aus.",
-    backup: "Sicherung", export: "Exportieren", clearAll: "Alle löschen", restore: "Wiederherstellen",
-    exportDone: "Sicherung der Konstanten exportiert.",
-    merge: "Zusammenführen, Übereinstimmungen ersetzen", replace: "Alle Konstanten ersetzen", importDone: "{count} Konstanten importiert.",
-    clearConfirm: "Alle gespeicherten Konstanten löschen? Der zuletzt gelöschte Satz kann wiederhergestellt werden.",
-    cleared: "Konstanten gelöscht. Du kannst sie auf diesem Gerät wiederherstellen.", restored: "Gelöschte Konstanten wiederhergestellt.",
-    replaceImportConfirm: "Alle gespeicherten Konstanten durch die aus dieser Datei ersetzen? Das kann nicht rückgängig gemacht werden.",
     notebookNew: "Neues Rechenheft", notebookEdit: "Rechenheft bearbeiten", notebookTitleLabel: "Titel", notebookDescriptionLabel: "Beschreibung",
     category: "Kategorie", newCategory: "Neue Kategorie", categoryName: "Kategoriename", uncategorized: "Ohne Kategorie",
     localConstants: "Lokale Konstanten (Eingaben)", localConstantsHint: "Gib jede als Name=Wert ein, zum Beispiel v0=5m/s. Spätere Zeilen können frühere referenzieren.",
@@ -225,11 +178,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     formulaLatexPlaceholder: "Anzeigeformel, optional LaTeX (z. B. v = v_0 + at)",
     formulasLabel: "Formelerklärungen", formulasHint: "Die Formeln, die oben im Rechenheft stehen. Die Erklärung ist optional — eine Formel allein genügt. Beliebig viele möglich.",
     addFormula: "Formel hinzufügen", formulaExplanationPlaceholder: "Erklärung (z. B. Damit wird die Geschwindigkeit berechnet)",
-    notebookBackup: "Sicherung", notebookExport: "Exportieren", notebookImportDone: "{count} Rechenhefte importiert.",
-    notebookExportDone: "Sicherung der Rechenhefte exportiert.", notebookReplaceImportConfirm: "Alle deine Rechenhefte durch die aus dieser Datei ersetzen? Vordefinierte Rechenhefte bleiben erhalten. Das kann nicht rückgängig gemacht werden.",
-    notebookMerge: "Zusammenführen, Übereinstimmungen ersetzen", notebookReplace: "Alle Rechenhefte ersetzen",
-    notebookPresetOverrideTitle: "Bearbeitungen an vordefinierten Rechenheften", notebookPresetOverrideWarning: "Dieses Backup enthält Bearbeitungen an {count} vordefinierten Rechenheften. Beim Importieren wird der aktuelle Inhalt auf diesem Gerät überschrieben.",
-    notebookImportContinue: "Importieren", notebookPresetOverridesApplied: "{count} Bearbeitungen an vordefinierten Rechenheften übernommen.",
+    categoryExportDone: "Sicherung der Rechenhefte exportiert.",
     notebookTitlePlaceholder: "Biegespannung", notebookDescriptionPlaceholder: "Optionale Notiz",
     insert: "Einfügen", formulaCharactersLabel: "Symbole", definedVariablesLabel: "Definierte Variablen", unitsLabel: "Einheiten",
     symbolGroupSubscriptDigits: "Tiefgestellte Ziffern", symbolGroupSubscriptLetters: "Tiefgestellte Buchstaben", symbolGroupGreekLower: "Griechisch (klein)", symbolGroupGreekUpper: "Griechisch (groß)",
@@ -244,12 +193,6 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     titleLabel: "Nom", descriptionLabel: "Description", expressionLabel: "Expression", symbolLabel: "Symbole",
     constantEditor: "Constante", constantNew: "Nouvelle constante",
     deleteConfirm: "Supprimer cet élément ? Cette action est irréversible.", validation: "Veuillez remplir les champs obligatoires.",
-    backup: "Sauvegarde", export: "Exporter", clearAll: "Tout effacer", restore: "Restaurer",
-    exportDone: "Sauvegarde des constantes exportée.",
-    merge: "Fusionner et remplacer les correspondances", replace: "Remplacer toutes les constantes", importDone: "{count} constantes importées.",
-    clearConfirm: "Effacer toutes les constantes enregistrées ? Vous pourrez restaurer le dernier ensemble effacé.",
-    cleared: "Constantes effacées. Vous pouvez les restaurer depuis cet appareil.", restored: "Constantes effacées restaurées.",
-    replaceImportConfirm: "Remplacer toutes les constantes enregistrées par celles de ce fichier ? Cette action est irréversible.",
     notebookNew: "Nouveau carnet", notebookEdit: "Modifier le carnet", notebookTitleLabel: "Titre", notebookDescriptionLabel: "Description",
     category: "Catégorie", newCategory: "Nouvelle catégorie", categoryName: "Nom de la catégorie", uncategorized: "Sans catégorie",
     localConstants: "Constantes locales (entrées)", localConstantsHint: "Saisissez chacune sous la forme nom=valeur, par exemple v0=5m/s. Les lignes suivantes peuvent référencer les précédentes.",
@@ -260,11 +203,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     formulaLatexPlaceholder: "Formule affichée, LaTeX facultatif (par exemple v = v_0 + at)",
     formulasLabel: "Explications des formules", formulasHint: "Les formules affichées en haut du carnet. L'explication est facultative : une formule seule suffit. Ajoutez-en autant que vous voulez.",
     addFormula: "Ajouter une formule", formulaExplanationPlaceholder: "Explication (par exemple, ceci calcule la vitesse)",
-    notebookBackup: "Sauvegarde", notebookExport: "Exporter", notebookImportDone: "{count} carnets importés.",
-    notebookExportDone: "Sauvegarde des carnets exportée.", notebookReplaceImportConfirm: "Remplacer tous vos carnets par ceux de ce fichier ? Les carnets prédéfinis sont conservés. Cette action est irréversible.",
-    notebookMerge: "Fusionner et remplacer les correspondances", notebookReplace: "Remplacer tous les carnets",
-    notebookPresetOverrideTitle: "Modifications de carnets prédéfinis", notebookPresetOverrideWarning: "Cette sauvegarde contient des modifications de {count} carnets prédéfinis. L'importation écrasera leur contenu actuel sur cet appareil.",
-    notebookImportContinue: "Importer", notebookPresetOverridesApplied: "{count} modifications de carnets prédéfinis appliquées.",
+    categoryExportDone: "Sauvegarde des carnets exportée.",
     notebookTitlePlaceholder: "Contrainte de flexion", notebookDescriptionPlaceholder: "Note facultative",
     insert: "Insérer", formulaCharactersLabel: "Symboles", definedVariablesLabel: "Variables définies", unitsLabel: "Unités",
     symbolGroupSubscriptDigits: "Chiffres en indice", symbolGroupSubscriptLetters: "Lettres en indice", symbolGroupGreekLower: "Grec (minuscules)", symbolGroupGreekUpper: "Grec (majuscules)",
@@ -281,10 +220,6 @@ export default function ConstantsScreen() {
   const { language, locale, measuringStandard, unitSystem } = useGlobalSettings();
   const {
     constants,
-    clearConstants,
-    hasRestorableConstants,
-    importConstants,
-    importNotebooks,
     isLoading,
     notebooks,
     notebookCategories,
@@ -292,7 +227,6 @@ export default function ConstantsScreen() {
     removeNotebook,
     removeNotebookCategory,
     recordNotebookUse,
-    restoreClearedConstants,
     toggleNotebookPinned,
     upsertConstant,
     upsertNotebook,
@@ -311,10 +245,7 @@ export default function ConstantsScreen() {
   const [constantExpressionInput, setConstantExpressionInput] = useState("");
   const [constantError, setConstantError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const [backupNotice, setBackupNotice] = useState("");
   const [pendingDeleteConstant, setPendingDeleteConstant] = useState<string | null>(null);
-  const [pendingClearConstants, setPendingClearConstants] = useState(false);
-  const [pendingReplaceImport, setPendingReplaceImport] = useState<ImportedConstant[] | null>(null);
 
   // 計算ノートの編集シート。
   const [notebookEditorVisible, setNotebookEditorVisible] = useState(false);
@@ -359,11 +290,10 @@ export default function ConstantsScreen() {
   const [categoryPickerExpandedParentId, setCategoryPickerExpandedParentId] = useState<string | null>(null);
   const [showNewCategoryField, setShowNewCategoryField] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
-  const [notebookBackupNotice, setNotebookBackupNotice] = useState("");
-  // 「置き換えインポート」と「プリセットへの編集(override)を含むインポート」は、どちらも
-  // 取り込み前に確認ダイアログを1回だけ出す必要がある（両方に該当する場合でも2回続けて
-  // 出さない）ため、pendingとして持つ情報を1つの状態にまとめる。
-  const [pendingNotebookImport, setPendingNotebookImport] = useState<{ mode: "merge" | "replace"; entries: ImportedNotebook[]; presetOverrides: PresetNotebookOverride[] } | null>(null);
+  // カテゴリカードからの書き出し（handleExportCategoryNotebooks）専用の通知。統合バックアップの
+  // インポート・エクスポートは設定画面（components/settings/backup-card.tsx）へ移設したので、
+  // ここに残るのはカテゴリ単位のエクスポート結果だけになった。
+  const [categoryExportNotice, setCategoryExportNotice] = useState("");
 
   const copy = COPY[language];
 
@@ -452,66 +382,6 @@ export default function ConstantsScreen() {
     } finally { setIsSaving(false); }
   };
 
-  const handleExportConstants = async () => {
-    try {
-      await exportConstantsBackup(constants, language);
-      setBackupNotice(copy.exportDone);
-    } catch (cause) {
-      setBackupNotice(engineErrorMessage(cause));
-    }
-  };
-
-  const handleImportConstants = async (mode: "merge" | "replace") => {
-    try {
-      const entries = await pickConstantsBackup(language);
-      if (!entries) return;
-      if (mode === "replace") { setPendingReplaceImport(entries); return; }
-      const count = await importConstants(entries, "merge");
-      setBackupNotice(copy.importDone.replace("{count}", String(count)));
-    } catch (cause) {
-      setBackupNotice(engineErrorMessage(cause));
-    }
-  };
-
-  const confirmReplaceImport = async () => {
-    const entries = pendingReplaceImport;
-    setPendingReplaceImport(null);
-    if (!entries) return;
-    try {
-      const count = await importConstants(entries, "replace");
-      setBackupNotice(copy.importDone.replace("{count}", String(count)));
-    } catch (cause) {
-      setBackupNotice(engineErrorMessage(cause));
-    }
-  };
-
-  const handleClearConstants = async () => {
-    try {
-      await clearConstants();
-      setBackupNotice(copy.cleared);
-    } catch (cause) {
-      setBackupNotice(engineErrorMessage(cause));
-    }
-  };
-
-  const handleRestoreConstants = async () => {
-    try {
-      if (await restoreClearedConstants()) setBackupNotice(copy.restored);
-    } catch (cause) {
-      setBackupNotice(engineErrorMessage(cause));
-    }
-  };
-
-  // 計算ノート全体のバックアップ（プリセットは対象外で、ユーザー作成分だけを書き出し・取り込む）。
-  const handleExportNotebooks = async () => {
-    try {
-      await exportNotebooksBackup(notebooks, notebookCategories, language);
-      setNotebookBackupNotice(copy.notebookExportDone);
-    } catch (cause) {
-      setNotebookBackupNotice(engineErrorMessage(cause));
-    }
-  };
-
   // カテゴリカードのエクスポートボタン用にカテゴリIDからラベルを引く。categoryLabel（上のcategoryOptions）は
   // 「高校物理」のような親カテゴリをノートの所属先として選べないため除外してあり、親カテゴリIDでは
   // 引けない。ファイル名に使うだけなのでプリセット（親も含む）・ユーザー作成・未分類の全部を見る。
@@ -524,53 +394,15 @@ export default function ConstantsScreen() {
 
   // カテゴリカードから「このカテゴリ（親なら配下の子カテゴリぶんも含む）」のユーザー作成ノートだけを書き出す。
   // 対象IDの集合はNotebookCategoryGrid側（lib/notebook-category-export.ts）で組み立て済みのものを受け取る。
+  // 統合バックアップのエクスポート・インポート（プリセット編集を含む）は設定画面
+  // （components/settings/backup-card.tsx）へ移設済みで、ここに残るのはこのカテゴリ単位の書き出しだけ。
   const handleExportCategoryNotebooks = async (categoryIds: string[]) => {
     try {
       const fileLabel = exportCategoryFileLabel(categoryIds[0]);
       await exportNotebooksBackup(notebooks.filter((notebook) => categoryIds.includes(notebook.categoryId)), notebookCategories, language, fileLabel);
-      setNotebookBackupNotice(copy.notebookExportDone);
+      setCategoryExportNotice(copy.categoryExportDone);
     } catch (cause) {
-      setNotebookBackupNotice(engineErrorMessage(cause));
-    }
-  };
-
-  // 取り込み後の通知文を組み立てる。プリセットへの編集(override)を1件以上反映した場合は、
-  // ノート件数の通知に続けて件数を追記する（notebookImportDoneとnotebookPresetOverridesAppliedを
-  // 別キーに分けているのは、6言語ぶん組み合わせを別々に訳すより自然なため）。
-  const buildNotebookImportNotice = (result: { notebookCount: number; presetOverrideCount: number }) => {
-    const base = copy.notebookImportDone.replace("{count}", String(result.notebookCount));
-    if (result.presetOverrideCount <= 0) return base;
-    return `${base} ${copy.notebookPresetOverridesApplied.replace("{count}", String(result.presetOverrideCount))}`;
-  };
-
-  const handleImportNotebooks = async (mode: "merge" | "replace") => {
-    try {
-      const picked = await pickNotebooksBackup(language);
-      if (!picked) return;
-      const { notebooks: entries, presetOverrides } = picked;
-      // 置き換えは既存どおり必ず確認する。マージでも、プリセットへの編集が含まれるなら
-      // 「取り込むと上書きされる」ことを確認してもらう（置き換え確認とプリセット編集の警告を
-      // 両方出すべき経路では、後のConfirmDialogが1つの文面にまとめて両方を伝える）。
-      if (mode === "replace" || presetOverrides.length > 0) {
-        setPendingNotebookImport({ mode, entries, presetOverrides });
-        return;
-      }
-      const result = await importNotebooks(entries, "merge", presetOverrides);
-      setNotebookBackupNotice(buildNotebookImportNotice(result));
-    } catch (cause) {
-      setNotebookBackupNotice(engineErrorMessage(cause));
-    }
-  };
-
-  const confirmPendingNotebookImport = async () => {
-    const pending = pendingNotebookImport;
-    setPendingNotebookImport(null);
-    if (!pending) return;
-    try {
-      const result = await importNotebooks(pending.entries, pending.mode, pending.presetOverrides);
-      setNotebookBackupNotice(buildNotebookImportNotice(result));
-    } catch (cause) {
-      setNotebookBackupNotice(engineErrorMessage(cause));
+      setCategoryExportNotice(engineErrorMessage(cause));
     }
   };
 
@@ -901,19 +733,25 @@ export default function ConstantsScreen() {
       );
     }
     return (
-      <NotebookCategoryGrid
-        language={language}
-        notebooks={notebooks}
-        notebookCategories={notebookCategories}
-        parentCategoryId={browsingParentCategoryId}
-        onSelectCategory={setSelectedCategoryId}
-        onSelectParentCategory={setBrowsingParentCategoryId}
-        onBack={() => setBrowsingParentCategoryId(null)}
-        onCreateCategory={(name) => void upsertNotebookCategory({ name })}
-        onRenameCategory={(id, name) => void upsertNotebookCategory({ id, name })}
-        onDeleteCategory={(id) => void removeNotebookCategory(id)}
-        onExportCategory={(categoryIds) => void handleExportCategoryNotebooks(categoryIds)}
-      />
+      <>
+        {/* カテゴリカードのエクスポート結果（handleExportCategoryNotebooks）の通知。
+            以前はバックアップカード内に出していたが、そのカードを設定画面へ移設したため、
+            通知の行き先としてグリッドの直前に1行だけ残す。 */}
+        {categoryExportNotice ? <Text style={styles.categoryExportNotice}>{categoryExportNotice}</Text> : null}
+        <NotebookCategoryGrid
+          language={language}
+          notebooks={notebooks}
+          notebookCategories={notebookCategories}
+          parentCategoryId={browsingParentCategoryId}
+          onSelectCategory={setSelectedCategoryId}
+          onSelectParentCategory={setBrowsingParentCategoryId}
+          onBack={() => setBrowsingParentCategoryId(null)}
+          onCreateCategory={(name) => void upsertNotebookCategory({ name })}
+          onRenameCategory={(id, name) => void upsertNotebookCategory({ id, name })}
+          onDeleteCategory={(id) => void removeNotebookCategory(id)}
+          onExportCategory={(categoryIds) => void handleExportCategoryNotebooks(categoryIds)}
+        />
+      </>
     );
   };
 
@@ -960,9 +798,6 @@ export default function ConstantsScreen() {
         </Pressable>
       ))}
     </View>
-    {topSection === "constants" ? <View style={styles.backupCard}><Text style={styles.backupTitle}>{copy.backup}</Text><View style={styles.backupActions}><Pressable onPress={() => void handleExportConstants()} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.export}</Text></Pressable><Pressable onPress={() => void handleImportConstants("merge")} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.merge}</Text></Pressable><Pressable onPress={() => void handleImportConstants("replace")} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.replace}</Text></Pressable><Pressable onPress={() => setPendingClearConstants(true)} style={({ pressed }) => [styles.clearButton, pressed && styles.buttonPressed]}><Text style={styles.clearButtonText}>{copy.clearAll}</Text></Pressable>{hasRestorableConstants ? <Pressable onPress={() => void handleRestoreConstants()} style={({ pressed }) => [styles.restoreButton, pressed && styles.buttonPressed]}><Text style={styles.restoreButtonText}>{copy.restore}</Text></Pressable> : null}</View>{backupNotice ? <Text style={styles.backupNotice}>{backupNotice}</Text> : null}</View> : null}
-    {topSection === "notebooks" && !selectedNotebook ? <View style={styles.backupCard}><Text style={styles.backupTitle}>{copy.notebookBackup}</Text><View style={styles.backupActions}><Pressable onPress={() => void handleExportNotebooks()} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.notebookExport}</Text></Pressable><Pressable onPress={() => void handleImportNotebooks("merge")} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.notebookMerge}</Text></Pressable><Pressable onPress={() => void handleImportNotebooks("replace")} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.notebookReplace}</Text></Pressable></View>{notebookBackupNotice ? <Text style={styles.backupNotice}>{notebookBackupNotice}</Text> : null}</View> : null}
-
     {showAddRow ? (
       <Pressable
         onPress={() => (topSection === "constants" ? openConstantEditor() : openNewNotebook())}
@@ -1194,53 +1029,6 @@ export default function ConstantsScreen() {
         setPendingDeleteConstant(null);
       }}
     />
-
-    <ConfirmDialog
-      visible={pendingClearConstants}
-      title={copy.clearAll}
-      message={copy.clearConfirm}
-      cancelLabel={copy.cancel}
-      confirmLabel={copy.clearAll}
-      destructive
-      onCancel={() => setPendingClearConstants(false)}
-      onConfirm={() => {
-        setPendingClearConstants(false);
-        void handleClearConstants();
-      }}
-    />
-
-    <ConfirmDialog
-      visible={Boolean(pendingReplaceImport)}
-      title={copy.replace}
-      message={copy.replaceImportConfirm}
-      cancelLabel={copy.cancel}
-      confirmLabel={copy.replace}
-      destructive
-      onCancel={() => setPendingReplaceImport(null)}
-      onConfirm={() => void confirmReplaceImport()}
-    />
-
-    <ConfirmDialog
-      visible={Boolean(pendingNotebookImport)}
-      title={pendingNotebookImport?.mode === "replace" ? copy.notebookReplace : copy.notebookPresetOverrideTitle}
-      message={
-        pendingNotebookImport
-          ? [
-              // 置き換えなら既存の確認文をそのまま使い、プリセット編集の警告を後ろに続ける
-              // （両方に該当する経路でダイアログを2回出さないよう、1つの文面にまとめる）。
-              pendingNotebookImport.mode === "replace" ? copy.notebookReplaceImportConfirm : null,
-              pendingNotebookImport.presetOverrides.length > 0
-                ? copy.notebookPresetOverrideWarning.replace("{count}", String(pendingNotebookImport.presetOverrides.length))
-                : null,
-            ].filter(Boolean).join("\n\n")
-          : ""
-      }
-      cancelLabel={copy.cancel}
-      confirmLabel={pendingNotebookImport?.mode === "replace" ? copy.notebookReplace : copy.notebookImportContinue}
-      destructive={pendingNotebookImport?.mode === "replace"}
-      onCancel={() => setPendingNotebookImport(null)}
-      onConfirm={() => void confirmPendingNotebookImport()}
-    />
   </ScreenContainer>;
 }
 
@@ -1253,7 +1041,9 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   // 一覧（カテゴリグリッド／カテゴリ内ノート一覧）の直前に置く追加ボタン。sectionChipの見た目を流用しつつ、
   // 縦積みのViewの中では既定でstretchして横幅いっぱいに広がってしまうため、自身の内容幅に収める。
   addRow: { alignSelf: "flex-start", marginBottom: 12 },
-  backupCard: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 14, borderWidth: 1, marginBottom: 12, padding: 12 }, backupTitle: { color: colors.foreground, fontSize: 13, fontWeight: "800" }, backupActions: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 9 }, backupButton: { backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 9, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 8 }, backupButtonText: { color: colors.primary, fontSize: 12, fontWeight: "800" }, clearButton: { backgroundColor: colors.errorSurface, borderColor: colors.errorBorder, borderRadius: 9, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 8 }, clearButtonText: { color: colors.error, fontSize: 12, fontWeight: "800" }, restoreButton: { backgroundColor: colors.successSurface, borderColor: colors.successBorder, borderRadius: 9, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 8 }, restoreButtonText: { color: colors.success, fontSize: 12, fontWeight: "800" }, backupNotice: { color: colors.muted, fontSize: 11, lineHeight: 17, marginTop: 8 },
+  // カテゴリカードからのエクスポート結果の通知（旧バックアップカードのbackupNoticeの後継。
+  // カードごと設定画面へ移設したため、グリッドの直前に1行だけ出す軽量な見た目にした）。
+  categoryExportNotice: { color: colors.muted, fontSize: 11, lineHeight: 17, marginBottom: 10 },
   loading: { alignItems: "center", flex: 1, justifyContent: "center" }, list: { gap: 10, paddingBottom: 30 }, emptyList: { flexGrow: 1, justifyContent: "center", paddingBottom: 96 }, emptyCard: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 20, borderWidth: 1, paddingHorizontal: 30, paddingVertical: 32 }, emptyTitle: { color: colors.foreground, fontSize: 17, fontWeight: "700", marginTop: 12 }, emptyText: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 7, textAlign: "center" },
   libraryCard: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, flexDirection: "row", minHeight: 82, paddingHorizontal: 13, paddingVertical: 12 }, libraryMain: { flex: 1 }, libraryTitle: { color: colors.foreground, fontSize: 15, fontWeight: "800" }, libraryExpression: { color: colors.primary, fontFamily: mono, fontSize: 12, fontWeight: "700", marginTop: 5 }, deleteButton: { alignItems: "center", height: 38, justifyContent: "center", width: 38 },
   buttonPressed: { opacity: 0.72, transform: [{ scale: 0.97 }] }, cardPressed: { opacity: 0.74 }, iconPressed: { opacity: 0.55 },
