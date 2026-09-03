@@ -4,6 +4,7 @@ import Purchases, { CustomerInfo, LOG_LEVEL, type PurchasesPackage } from "react
 
 import { useGlobalSettings } from "@/lib/global-settings";
 import { type AppLanguage } from "@/lib/i18n";
+import { resolvePurchaseMessageKey } from "@/lib/purchase-message";
 import { selectOneTimePackageFromOfferings } from "@/lib/purchase-offering";
 
 export const PRO_ENTITLEMENT_IDENTIFIER = "pro";
@@ -15,6 +16,7 @@ const EN_COPY = {
   customerInfoFetchFailed: "Could not fetch purchase information. Please try again in the store version.",
   proUpgradeStoreOnly: "Upgrading to Pro is available in the published iOS or Android app.",
   purchaseSucceeded: "Thanks for your purchase! Pro is unlocked for good — a one-time purchase, no recurring charges.",
+  purchaseNotApplied: "Your payment went through, but Pro could not be activated yet. Tap Restore purchase; if it still does not activate, contact support — you will not be charged twice.",
   purchaseFailed: "Could not complete your purchase. Please try again.",
   productLoadFailed: "Could not load the Pro product from the store. Please check your network connection and try again.",
   restoreStoreOnly: "Restoring purchases is available in the published iOS or Android app.",
@@ -30,6 +32,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     customerInfoFetchFailed: "購入情報を取得できませんでした。ストア版で再度お試しください。",
     proUpgradeStoreOnly: "Proへのアップグレードは、公開後のiOSまたはAndroidアプリで利用できます。",
     purchaseSucceeded: "Proのご購入ありがとうございます。買い切りで、これからずっとご利用いただけます。",
+    purchaseNotApplied: "お支払いは完了しましたが、Proをまだ有効にできていません。「購入を復元」をお試しください。それでも有効にならない場合はサポートへご連絡ください（二重に請求されることはありません）。",
     purchaseFailed: "購入を完了できませんでした。もう一度お試しください。",
     productLoadFailed: "ストアからPro商品を読み込めませんでした。ネットワーク接続を確認し、もう一度お試しください。",
     restoreStoreOnly: "購入の復元は、公開後のiOSまたはAndroidアプリで利用できます。",
@@ -43,6 +46,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     customerInfoFetchFailed: "No se pudo obtener la información de compra. Inténtalo de nuevo en la versión de la tienda.",
     proUpgradeStoreOnly: "La actualización a Pro está disponible en la app publicada de iOS o Android.",
     purchaseSucceeded: "¡Gracias por tu compra! Pro queda desbloqueado para siempre: es una compra única, sin cargos recurrentes.",
+    purchaseNotApplied: "Tu pago se ha realizado, pero aún no hemos podido activar Pro. Toca «Restaurar compra»; si sigue sin activarse, contacta con soporte: no se te cobrará dos veces.",
     purchaseFailed: "No se pudo completar tu compra. Inténtalo de nuevo.",
     productLoadFailed: "No se pudo cargar el producto Pro desde la tienda. Revisa tu conexión a internet e inténtalo de nuevo.",
     restoreStoreOnly: "La restauración de compras está disponible en la app publicada de iOS o Android.",
@@ -56,6 +60,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     customerInfoFetchFailed: "Não foi possível obter as informações de compra. Tente novamente na versão de loja.",
     proUpgradeStoreOnly: "O upgrade para Pro está disponível no app publicado para iOS ou Android.",
     purchaseSucceeded: "Obrigado pela compra! O Pro fica desbloqueado para sempre — uma compra única, sem cobrança recorrente.",
+    purchaseNotApplied: "Seu pagamento foi concluído, mas ainda não conseguimos ativar o Pro. Toque em «Restaurar compra»; se continuar sem ativar, fale com o suporte — você não será cobrado duas vezes.",
     purchaseFailed: "Não foi possível concluir sua compra. Tente novamente.",
     productLoadFailed: "Não foi possível carregar o produto Pro na loja. Verifique sua conexão com a internet e tente novamente.",
     restoreStoreOnly: "A restauração de compras está disponível no app publicado para iOS ou Android.",
@@ -69,6 +74,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     customerInfoFetchFailed: "Kaufinformationen konnten nicht abgerufen werden. Bitte versuche es in der Store-Version erneut.",
     proUpgradeStoreOnly: "Das Upgrade auf Pro ist in der veröffentlichten iOS- oder Android-App verfügbar.",
     purchaseSucceeded: "Danke für deinen Kauf! Pro ist dauerhaft freigeschaltet — als Einmalkauf, ohne wiederkehrende Kosten.",
+    purchaseNotApplied: "Deine Zahlung war erfolgreich, aber Pro konnte noch nicht aktiviert werden. Tippe auf „Kauf wiederherstellen“; falls es weiterhin nicht aktiv wird, wende dich an den Support — dir wird nichts doppelt berechnet.",
     purchaseFailed: "Dein Kauf konnte nicht abgeschlossen werden. Bitte versuche es erneut.",
     productLoadFailed: "Das Pro-Produkt konnte nicht aus dem Store geladen werden. Bitte überprüfe deine Netzwerkverbindung und versuche es erneut.",
     restoreStoreOnly: "Die Wiederherstellung von Käufen ist in der veröffentlichten iOS- oder Android-App verfügbar.",
@@ -82,6 +88,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     customerInfoFetchFailed: "Impossible de récupérer les informations d'achat. Veuillez réessayer dans la version boutique.",
     proUpgradeStoreOnly: "La mise à niveau vers Pro est disponible dans l'application iOS ou Android publiée.",
     purchaseSucceeded: "Merci pour votre achat ! Pro est débloqué pour toujours — un achat unique, sans frais récurrents.",
+    purchaseNotApplied: "Votre paiement a bien été effectué, mais Pro n'a pas encore pu être activé. Touchez « Restaurer l'achat » ; si Pro reste inactif, contactez le support — vous ne serez pas facturé deux fois.",
     purchaseFailed: "Impossible de finaliser votre achat. Veuillez réessayer.",
     productLoadFailed: "Impossible de charger le produit Pro depuis la boutique. Vérifiez votre connexion réseau et réessayez.",
     restoreStoreOnly: "La restauration des achats est disponible dans l'application iOS ou Android publiée.",
@@ -163,7 +170,10 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
   // 初期化する余地が無い環境では待つものが無いので、最初から準備完了として扱う。
   const isReady = blockedReasonKey !== null ? true : isNativeReady;
   // 購入操作などで設定されたメッセージを優先し、無ければ上記の「使えない理由」を出す。
-  const purchaseMessage = purchaseMessageKey ? copy[purchaseMessageKey] : blockedReasonKey ? copy[blockedReasonKey] : null;
+  // Proが有効になった後に残ると矛盾するメッセージの除外も含めてlib/purchase-message.tsに
+  // 切り出してある（判定をテストで固定するため）。
+  const messageKey = resolvePurchaseMessageKey(purchaseMessageKey, blockedReasonKey, isPro);
+  const purchaseMessage = messageKey ? copy[messageKey] : null;
   // ストアが返す表示用の価格文字列をそのまま出す（買い切りパッケージが未取得ならnull）。
   const priceLabel = oneTimePackage ? oneTimePackage.product.priceString : null;
 
@@ -255,8 +265,14 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
       if (pkg) {
         try {
           const { customerInfo } = await Purchases.purchasePackage(pkg);
-          setIsPro(hasProEntitlement(customerInfo));
-          setPurchaseMessageKey("purchaseSucceeded");
+          // 決済が通っても pro entitlement が付いてこないことがある（dashboardで商品を
+          // entitlementに紐付け忘れている等。サブスクから買い切りへ移行している最中は
+          // まさにその状態になりうる）。そこで「ありがとうございます、ずっと使えます」と
+          // 出すと、支払ったのにProが有効にならないユーザーに嘘をつくことになるので、
+          // entitlementを確認できたときだけ成功として扱い、それ以外は復元とサポートへ導く。
+          const unlocked = hasProEntitlement(customerInfo);
+          setIsPro(unlocked);
+          setPurchaseMessageKey(unlocked ? "purchaseSucceeded" : "purchaseNotApplied");
         } catch (error) {
           // キャンセルは失敗ではない。「購入に失敗しました」を出すのはバグになる。
           if (!isUserCancelledError(error)) setPurchaseMessageKey("purchaseFailed");
