@@ -20,7 +20,7 @@ Enter expressions such as `5cm + 1mm`, `1km ÷ 1min`, or `100N ÷ 0.01m²`. The 
 
 ### Unit Calculator Pro
 
-Pro is designed for repeated technical work. It adds a larger calculation history, CSV export for documentation, and a personal unit set for faster entry of frequently used units.
+Pro is designed for repeated technical work. A single one-time purchase removes the ads and adds CSV export for documentation plus a personal unit set for faster entry of frequently used units. The full calculation history is available to everyone, free of charge.
 
 ## Privacy policy draft
 
@@ -59,7 +59,7 @@ Please include your device model, operating system version, app version, entered
 - [ ] RevenueCat SDK is configured with platform SDK keys.
 - [ ] `pro` entitlement, offering, products, and Paywall have been published.
 - [ ] App Store and/or Google Play listing is live and accessible in the United States.
-- [ ] Trial or promo code permits judges to test Pro.
+- [ ] Promo/offer code permits judges to test Pro (no trial exists for a one-time purchase).
 - [ ] Demo, English submission copy, 1024px icon, and screenshot are ready.
 - [ ] Privacy policy and real support email are publicly available.
 - [ ] Purchase, restore, Pro gating, and CSV sharing were tested in EAS development and store builds.
