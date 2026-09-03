@@ -249,6 +249,38 @@ describe("notebookWithDraftValues", () => {
   });
 
   // 空行を間引くと後続の s1・s2… の参照先がずれて別の数値になるため、配列は素通しにする。
+  // 件数だけでなく「位置が保たれること」まで見る。空行を挟んだ状態で後続の手順が s3 を
+  // 参照しており、空行が落ちると s3 の指す先が変わって別の数値（またはエラー）になる。
+  it("空行が手順の間にあっても位置が保たれ、s3参照の結果が変わらない", () => {
+    const draft = notebookWithDraftValues(
+      notebook({}),
+      [],
+      [
+        { id: "a", title: "", expression: "100m", targetUnit: "" },
+        { id: "b", title: "", expression: "", targetUnit: "" },
+        { id: "c", title: "", expression: "200m", targetUnit: "" },
+        { id: "d", title: "", expression: "s3*2", targetUnit: "" },
+      ],
+    );
+    const model = buildNotebookExportModel({
+      notebook: draft,
+      globalConstants: [],
+      language: "en",
+      unitSystem: "metric",
+      measuringStandard: "jis",
+      unitOverrides: {},
+    });
+
+    // s3は3番目の手順（200m）。空行が落ちて位置がずれると、s3の指す先が変わって400にならない。
+    // 件数の検証より先に置いてあるのは、壊れたときに「位置がずれた結果どうなるか」を
+    // 失敗メッセージが直接指すようにするため。
+    const references3 = model.steps.find((step) => step.expression === "s3*2");
+    expect(references3?.resultText).toContain("400");
+    expect(references3?.isError).toBe(false);
+    expect(model.steps).toHaveLength(4);
+    expect(model.steps[1].expression).toBe("");
+  });
+
   it("空行を間引かず、渡された配列をそのまま使う", () => {
     const draft = notebookWithDraftValues(
       notebook({}),
