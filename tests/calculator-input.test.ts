@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { evaluateCalculatorInput, previewCalculatorInput } from "@/lib/calculator-input";
 import { formatQuantity, type SavedConstant } from "@/lib/units";
 
-const constants: SavedConstant[] = [{ symbol: "W", expression: "3cm", quantity: { siValue: 0.03, dimension: [1, 0, 0, 0, 0, 0, 0] } }];
+const constants: SavedConstant[] = [{ symbol: "W", expression: "3cm", quantity: { siValue: 0.03, dimension: [1, 0, 0, 0, 0, 0, 0] }, createdAt: new Date(0).toISOString() }];
 
 describe("evaluateCalculatorInput", () => {
   it("ふつうの式は定義なしで評価する", () => {

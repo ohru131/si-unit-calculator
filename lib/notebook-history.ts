@@ -4,11 +4,12 @@ import type { CalculationNotebook } from "@/lib/calculator-store";
 // useGlobalSettings経由でexpo-localizationまで芋づる式にimportするため、この純関数モジュールが
 // テストで単体ロードできなくなる）。型だけを使うので import type で読み込み、コンパイル時に消す。
 
-/** 電卓画面の「ノート」履歴に積む1件。ノートを開くたびに1件記録する。 */
+/** 電卓画面の「ノート」履歴に積む1件。ノートを**実際に使った**ときに1件記録する
+ * （開いて眺めただけのものは積まない。詳細は components/notebooks/notebook-detail.tsx の onUse）。 */
 export type NotebookHistoryEntry = {
   id: string;
   notebookId: string;
-  /** 開いた時点のノート名のスナップショット。ノートが削除されても「何を開いたか」が残るようにする。
+  /** 使った時点のノート名のスナップショット。ノートが削除されても「何を使ったか」が残るようにする。
    * ただし現存するノートについては、表示側は resolveNotebookHistory が突き合わせた
    * notebook.title（＝現在のタイトル）を優先して使うこと（改名を追随させるため）。 */
   title: string;
@@ -26,10 +27,15 @@ export const NOTEBOOK_HISTORY_LIMIT = 50;
 
 /**
  * ノート使用履歴に新しいエントリを積み直す。addHistoryEntryがexpressionで重複除去しているのと
- * 同じ考え方で、こちらはnotebookIdで重複除去する（同じノートを何度開いても履歴上は1件にまとめ、
- * 最後に開いた時刻の位置＝先頭へ積み直す）。上限を超えた古いエントリは末尾から落とす。
+ * 同じ考え方で、こちらはnotebookIdで重複除去する（同じノートを何度使っても履歴上は1件にまとめ、
+ * 最後に使った時刻の位置＝先頭へ積み直す）。上限を超えた古いエントリは末尾から落とす。
+ *
+ * 既に先頭にいるノートは積み直さず、履歴をそのまま返す。この関数は「値を編集した」「単位を
+ * 切り替えた」といった操作のたびに呼ばれるので、ここで弾かないと1文字打つたびに
+ * AsyncStorageへの書き込みが走る。既に先頭にいる以上、並び順も変わらない。
  */
 export function pushNotebookHistoryEntry(history: NotebookHistoryEntry[], entry: NotebookHistoryEntry, limit: number = NOTEBOOK_HISTORY_LIMIT): NotebookHistoryEntry[] {
+  if (history[0]?.notebookId === entry.notebookId) return history;
   return [entry, ...history.filter((item) => item.notebookId !== entry.notebookId)].slice(0, limit);
 }
 
@@ -43,4 +49,9 @@ export function pushNotebookHistoryEntry(history: NotebookHistoryEntry[], entry:
  */
 export function resolveNotebookHistory(history: NotebookHistoryEntry[], notebooks: CalculationNotebook[]): ResolvedNotebookHistoryEntry[] {
   return history.map((entry) => ({ ...entry, notebook: notebooks.find((notebook) => notebook.id === entry.notebookId) }));
+}
+
+/** 履歴から1件だけ取り除く。「全消去」だけだと、消したいのは1件なのに他まで巻き添えになるため。 */
+export function removeNotebookHistoryEntry(history: NotebookHistoryEntry[], id: string): NotebookHistoryEntry[] {
+  return history.filter((entry) => entry.id !== id);
 }

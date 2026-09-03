@@ -6,7 +6,7 @@ import { useGlobalSettings } from "@/lib/global-settings";
 import { APP_LANGUAGES, AppLanguage, isAppLanguage, localizedText, LocalizedText } from "@/lib/i18n";
 import { PRESET_NOTEBOOK_CATEGORIES, PRESET_NOTEBOOK_SEEDS } from "@/lib/notebook-formulas";
 import type { NotebookSeedConstant } from "@/lib/notebook-formulas/types";
-import { pushNotebookHistoryEntry, type NotebookHistoryEntry } from "@/lib/notebook-history";
+import { pushNotebookHistoryEntry, removeNotebookHistoryEntry, type NotebookHistoryEntry } from "@/lib/notebook-history";
 import { PresetPriceProfile, resolvePresetPriceProfile } from "@/lib/preset-price-defaults";
 import type { ImportedNotebook } from "@/lib/notebooks-backup";
 import { parseConstantDefinition, Quantity, SavedConstant } from "@/lib/units";
@@ -163,6 +163,7 @@ type CalculatorStore = {
   upsertNotebookCategory: (input: { id?: string; name: string }) => Promise<NotebookCategory>;
   removeNotebookCategory: (id: string) => Promise<void>;
   recordNotebookUse: (notebook: CalculationNotebook) => Promise<void>;
+  removeNotebookHistoryEntry: (id: string) => Promise<void>;
   clearNotebookHistory: () => Promise<void>;
 };
 
@@ -752,8 +753,11 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     await persistNotebooks(nextNotebooks);
   }, [persistNotebookCategories, persistNotebooks]);
 
-  // ノートを開くたびに「最近使ったノート」履歴へ1件積む。titleはこの時点のスナップショットとして
-  // 保存する（後でノートが改名・削除されても「何を開いたか」自体は残るようにするため）。
+  // ノートを**実際に使った**とき（値を編集した・単位を切り替えた・結果をコピーした・保存した）に
+  // 「最近使ったノート」履歴へ1件積む。開いて眺めただけで積むと、カテゴリを辿る途中に覗いた
+  // ノートまで並んでしまい、目的の「使ったノートへ戻る」導線として役に立たなくなる。
+  // titleはこの時点のスナップショットとして保存する（後でノートが改名・削除されても
+  // 「何を使ったか」自体は残るようにするため）。
   // 積み直しロジック（同じノートの重複除去・先頭追加・上限）はlib/notebook-history.tsの
   // 純関数に切り出してあり、ここではその関数を呼ぶだけにする（テストで検証できるようにするため）。
   const recordNotebookUse = useCallback(async (notebook: CalculationNotebook) => {
@@ -767,6 +771,10 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     await persistNotebookHistory(pushNotebookHistoryEntry(notebookHistoryRef.current, entry));
   }, [persistNotebookHistory]);
 
+  const removeNotebookHistoryEntryById = useCallback(async (id: string) => {
+    await persistNotebookHistory(removeNotebookHistoryEntry(notebookHistoryRef.current, id));
+  }, [persistNotebookHistory]);
+
   const clearNotebookHistory = useCallback(async () => {
     await persistNotebookHistory([]);
   }, [persistNotebookHistory]);
@@ -778,7 +786,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
       upsertConstant, removeConstant, importConstants, clearConstants, restoreClearedConstants,
       addHistoryEntry, clearHistory, toggleFavoriteUnit,
       upsertNotebook, importNotebooks, removeNotebook, toggleNotebookPinned, upsertNotebookCategory, removeNotebookCategory,
-      recordNotebookUse, clearNotebookHistory,
+      recordNotebookUse, removeNotebookHistoryEntry: removeNotebookHistoryEntryById, clearNotebookHistory,
     }),
     [
       constants, history, favoriteUnits, notebooks, notebookCategories, notebookHistory,
@@ -786,7 +794,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
       upsertConstant, removeConstant, importConstants, clearConstants, restoreClearedConstants,
       addHistoryEntry, clearHistory, toggleFavoriteUnit,
       upsertNotebook, importNotebooks, removeNotebook, toggleNotebookPinned, upsertNotebookCategory, removeNotebookCategory,
-      recordNotebookUse, clearNotebookHistory,
+      recordNotebookUse, removeNotebookHistoryEntryById, clearNotebookHistory,
     ],
   );
 

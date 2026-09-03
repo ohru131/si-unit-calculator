@@ -253,7 +253,7 @@ export default function CalculatorScreen() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { quick, presetExpression, presetUnit } = useLocalSearchParams<{ quick?: string | string[]; presetExpression?: string | string[]; presetUnit?: string | string[] }>();
-  const { constants, history, favoriteUnits, notebooks, notebookCategories, notebookHistory, upsertConstant, addHistoryEntry, clearHistory, clearNotebookHistory, isLoading: isHistoryLoading } = useCalculatorStore();
+  const { constants, history, favoriteUnits, notebooks, notebookCategories, notebookHistory, upsertConstant, addHistoryEntry, clearHistory, removeNotebookHistoryEntry, clearNotebookHistory, isLoading: isHistoryLoading } = useCalculatorStore();
   const { isPro } = usePro();
   const { completeOnboarding, hasSeenOnboarding, isReady, language, locale, measuringStandard, t, unitGroupLabel, unitSystem } = useGlobalSettings();
   const [onboardingStep, setOnboardingStep] = useState(0);
@@ -1197,6 +1197,7 @@ export default function CalculatorScreen() {
         entries={resolvedNotebookHistory}
         notebookCategories={notebookCategories}
         onSelect={openNotebookFromHistory}
+        onRemove={(entryId) => void removeNotebookHistoryEntry(entryId)}
         onClear={() => void clearNotebookHistory()}
         onClose={() => setShowNotebookHistory(false)}
       />

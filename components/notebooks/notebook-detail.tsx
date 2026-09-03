@@ -111,10 +111,15 @@ type Props = {
   onBack: () => void;
   onEdit: () => void;
   onTogglePinned: () => void;
+  /** このノートを「使った」ときに呼ぶ（値の編集・表示単位の切り替え・結果のコピー・保存）。
+   * 開いただけでは呼ばない。カテゴリを辿る途中に覗いたノートまで最近使ったノートに並ぶと、
+   * 「作業していたノートへ戻る」導線として役に立たなくなるため。
+   * 連打・1文字ごとの入力でも呼ばれるので、間引きは受け手側（pushNotebookHistoryEntry）に任せる。 */
+  onUse: () => void;
   onSaveValues: (localConstants: NotebookLocalConstant[], steps: CalculationNoteStep[]) => Promise<void>;
 };
 
-export function NotebookDetail({ language, locale, unitSystem, measuringStandard, notebook, categoryLabel, globalConstants, onBack, onEdit, onTogglePinned, onSaveValues }: Props) {
+export function NotebookDetail({ language, locale, unitSystem, measuringStandard, notebook, categoryLabel, globalConstants, onBack, onEdit, onTogglePinned, onUse, onSaveValues }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [editableConstants, setEditableConstants] = useState<NotebookLocalConstant[]>(() => notebook.localConstants.map((item) => ({ ...item })));
@@ -202,11 +207,19 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   }, [locale, editableSteps, pool, measuringStandard, language]);
 
   const updateConstant = (id: string, patch: Partial<NotebookLocalConstant>) => {
+    onUse();
     setEditableConstants((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
   };
 
   const updateStepField = (id: string, patch: Partial<CalculationNoteStep>) => {
+    onUse();
     setEditableSteps((current) => current.map((step) => (step.id === id ? { ...step, ...patch } : step)));
+  };
+
+  // 表示単位の切り替えも「使った」に数える（値を変えなくても、単位を変えて読むのは作業だから）。
+  const applyUnitOverride = (stepId: string, unit: string) => {
+    onUse();
+    setUnitOverrides((current) => ({ ...current, [stepId]: unit }));
   };
 
   // 「名前＝式」の名前部分を解析できなかった行（例：数字始まりの名前）は、symbolやresultSymbolが
@@ -232,6 +245,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   };
 
   const copyResult = async (title: string, formatted: string) => {
+    onUse();
     await Clipboard.setStringAsync(`${title} = ${formatted}`);
   };
 
@@ -490,11 +504,11 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                   )}
                   {compatibleUnits.length ? (
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.unitRail}>
-                      <Pressable onPress={() => setUnitOverrides((current) => ({ ...current, [result.step.id]: "" }))} style={({ pressed }) => [styles.unitChip, !effectiveUnit && styles.unitChipActive, pressed && styles.pressed]}>
+                      <Pressable onPress={() => applyUnitOverride(result.step.id, "")} style={({ pressed }) => [styles.unitChip, !effectiveUnit && styles.unitChipActive, pressed && styles.pressed]}>
                         <Text style={[styles.unitChipText, !effectiveUnit && styles.unitChipTextActive]}>{copy.si}</Text>
                       </Pressable>
                       {compatibleUnits.map((unitOption) => (
-                        <Pressable key={unitOption.symbol} onPress={() => setUnitOverrides((current) => ({ ...current, [result.step.id]: unitOption.symbol }))} style={({ pressed }) => [styles.unitChip, effectiveUnit === unitOption.symbol && styles.unitChipActive, pressed && styles.pressed]}>
+                        <Pressable key={unitOption.symbol} onPress={() => applyUnitOverride(result.step.id, unitOption.symbol)} style={({ pressed }) => [styles.unitChip, effectiveUnit === unitOption.symbol && styles.unitChipActive, pressed && styles.pressed]}>
                           <Text style={[styles.unitChipText, effectiveUnit === unitOption.symbol && styles.unitChipTextActive]}>{unitOption.label}</Text>
                         </Pressable>
                       ))}

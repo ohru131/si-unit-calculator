@@ -614,21 +614,6 @@ export default function ConstantsScreen() {
   // ノート詳細を開いたタイミングで使用履歴を記録する。ピン留めチップ・カテゴリ一覧・電卓画面からの
   // openNotebookIdのどの導線でも、最終的にselectedNotebookIdが立った瞬間を通るのでここ1箇所でよい。
   // 同じノートを開いている間に再レンダーのたびAsyncStorageへ書き込まないよう、記録済みのidをrefで覚える。
-  // selectedNotebookIdがnullに戻ったら（詳細画面を閉じたら）refも捨て、次に同じノートを開き直したときは
-  // 改めて1件記録する（＝「開き直し」も使用実績として数える）。
-  const recordedNotebookUseIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!selectedNotebookId) {
-      recordedNotebookUseIdRef.current = null;
-      return;
-    }
-    if (recordedNotebookUseIdRef.current === selectedNotebookId) return;
-    const notebook = notebooks.find((item) => item.id === selectedNotebookId);
-    if (!notebook) return;
-    recordedNotebookUseIdRef.current = selectedNotebookId;
-    void recordNotebookUse(notebook);
-  }, [selectedNotebookId, notebooks, recordNotebookUse]);
-
   const closeNotebookEditor = () => {
     setNotebookEditorVisible(false);
     resetNotebookFieldInteraction();
@@ -650,7 +635,10 @@ export default function ConstantsScreen() {
     if (!title || !normalizedSteps.length) { setNotebookError(copy.validation); return; }
     setIsSaving(true);
     try {
-      await upsertNotebook({ id: editingNotebookId, title, description: notebookDescription.trim(), categoryId: notebookCategoryId, formulas: normalizedFormulas, localConstants: normalizedConstants, steps: normalizedSteps });
+      const saved = await upsertNotebook({ id: editingNotebookId, title, description: notebookDescription.trim(), categoryId: notebookCategoryId, formulas: normalizedFormulas, localConstants: normalizedConstants, steps: normalizedSteps });
+      // ノートを編集して保存するのは「使った」の中でも一番はっきりした操作なので、
+      // 詳細画面のonUseと同じく最近使ったノートへ積む（新規作成もここを通る）。
+      void recordNotebookUse(saved);
       setNotebookEditorVisible(false);
     } catch (cause) {
       setNotebookError(engineErrorMessage(cause));
@@ -841,6 +829,7 @@ export default function ConstantsScreen() {
           onBack={() => setSelectedNotebookId(null)}
           onEdit={() => openEditNotebook(selectedNotebook)}
           onTogglePinned={() => void toggleNotebookPinned(selectedNotebook.id)}
+          onUse={() => void recordNotebookUse(selectedNotebook)}
           onSaveValues={async (nextLocalConstants, nextSteps) => { await upsertNotebook({ id: selectedNotebook.id, title: selectedNotebook.title, description: selectedNotebook.description, categoryId: selectedNotebook.categoryId, formulas: selectedNotebook.formulas, localConstants: nextLocalConstants, steps: nextSteps }); }}
         />
       );
