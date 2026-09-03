@@ -46,8 +46,10 @@ export function compatibleUnitOptions(quantity: Quantity | undefined, unitSystem
       getGroupUnitsForSystem(registered.group, unitSystem).forEach((unitOption) => push(unitOption.symbol, unitOption.label));
       continue;
     }
-    // 登録済みグループの無い複合単位（例: "N*m^2/C^2"、"kcal/kg/h"）は、接頭辞の付け替えに
+    // 登録済みグループの無い複合単位（例: "N*m^2/C^2"、"kg*m/s"）は、接頭辞の付け替えに
     // 意味が無いため、今使われている表記そのものを1件だけ候補にする。
+    // 先頭の因子（N、kg）のグループまで足すと、次元の違う単位がチップに並ぶことになり、
+    // 押しても変換できずエラーになる。レールが空にならないことが目的なので1件で足りる。
     try {
       parseUnit(text);
       push(text, text);

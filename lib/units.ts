@@ -682,6 +682,26 @@ function isUnitStart(character: string | undefined) {
   return Boolean(character && /[A-Za-zΩµμ%°]/.test(character));
 }
 
+// 上付き数字は normalize() が ^n へ書き換えるためトークナイザ側では現れないが、この関数は
+// 生の入力文字列（lib/unit-input.ts の解析）からも呼ぶので、その表記もここで受け付ける。
+const UNIT_SUFFIX_BODY_PATTERN = /[A-Za-zΩµμ%°0-9^*/⁰¹²³⁴⁵⁶⁷⁸⁹⁻]/;
+
+/**
+ * 数値の直後に続く単位サフィックス（例: "3m/s^2" の "m/s^2"）の終端を返す。
+ * `*` `/` は次が単位の始まりのときだけ取り込むので、"2m*3" は "m" までで止まる。
+ * 数値直後は識別子より単位解決が先に評価されるという規則の唯一の情報源。表示側が
+ * 独自に語を切ると、定数名と同じ綴りの単位（例: 定数 m がある式の "3m/s^2"）で
+ * 解釈がずれる。
+ */
+export function unitSuffixEnd(source: string, start: number): number {
+  let index = start;
+  while (UNIT_SUFFIX_BODY_PATTERN.test(source[index] ?? "")) {
+    if ((source[index] === "/" || source[index] === "*") && !isUnitStart(source[index + 1])) break;
+    index += 1;
+  }
+  return index;
+}
+
 function tokenize(input: string): Token[] {
   const tokens: Token[] = [];
   const source = normalize(input);
@@ -724,15 +744,7 @@ function tokenize(input: string): Token[] {
       while (/\s/.test(source[index] ?? "")) index += 1;
       if (isUnitStart(source[index])) {
         const unitStart = index;
-        while (/[A-Za-zΩµμ%°0-9^*/]/.test(source[index] ?? "")) {
-          if (
-            (source[index] === "/" || source[index] === "*") &&
-            !isUnitStart(source[index + 1])
-          ) {
-            break;
-          }
-          index += 1;
-        }
+        index = unitSuffixEnd(source, index);
         const unitText = source.slice(unitStart, index);
         const parsed = parseUnit(unitText);
         tokens.push({ type: "quantity", value: quantity(numericValue * parsed.scale + (parsed.offset ?? 0), parsed.dimension) });
