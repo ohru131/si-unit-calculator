@@ -548,7 +548,33 @@ Object.entries(UNIT_META).forEach(([symbol, meta]) => {
   });
 });
 
-function resolveUnitSymbol(symbol: string): UnitDefinition {
+export type CustomUnitRegistration = { symbol: string; scale: number; offset?: number; dimension: Dimension };
+
+// ユーザー定義単位。組み込みと同じ UnitDefinition の形で持ち、resolveUnitSymbol の**最後**に引く。
+// 最後に引くことが最重要の不変条件で、これにより「今日すでに解決できている記号」の解決結果は
+// ユーザーが何を登録しても一切変わらない（完全一致 → SI接頭辞分解 の順序を保ったまま、
+// どちらでも解決できなかった場合の受け皿としてだけ働く）。
+let customUnits: Record<string, UnitDefinition> = {};
+
+export function setCustomUnits(definitions: CustomUnitRegistration[]) {
+  const next: Record<string, UnitDefinition> = {};
+  definitions.forEach((definition) => {
+    // offsetが0のときはundefinedにする。parseUnitはoffsetを持つ単位を「摂氏・華氏のように
+    // 単独でしか使えない単位」として扱うため、0を入れると倍率だけの単位まで複合単位に
+    // 使えなくなる（例: 自作の長さ単位を "shaku/s" と書けなくなる）。
+    next[definition.symbol] = unit(definition.scale, definition.dimension, definition.offset || undefined);
+  });
+  customUnits = next;
+}
+
+export function getCustomUnitSymbols(): string[] {
+  return Object.keys(customUnits);
+}
+
+// 組み込みの解決順（動的な計量カップ → BASE_UNITSの完全一致 → SI接頭辞分解）だけで引く。
+// ユーザー定義単位は見ない。登録時の衝突判定（isBuiltInUnitSymbol）と実際の解決で
+// 同じ関数を通すことで、「登録できたのに解決されない」記号が生まれないようにしている。
+function resolveBuiltInUnitSymbol(symbol: string): UnitDefinition | undefined {
   const dynamicKey = DYNAMIC_VOLUME_ALIASES[symbol];
   if (dynamicKey) return unit(MEASURING_STANDARD_VALUES[measuringStandard][dynamicKey], [3, 0, 0, 0, 0, 0, 0]);
 
@@ -561,6 +587,23 @@ function resolveUnitSymbol(symbol: string): UnitDefinition {
       if (base && baseSymbol !== "kg" && base.offset === undefined) return unit(base.scale * scale, base.dimension);
     }
   }
+
+  return undefined;
+}
+
+// その記号が組み込みだけで解決できるか。ユーザー定義単位の登録時に「その記号は既に使われている」と
+// 弾くために使う。弾かずに上書きを許すと、例えば "dm"（デシメートル）を自作単位にした瞬間に
+// 既存の式の意味が変わる。
+export function isBuiltInUnitSymbol(symbol: string): boolean {
+  return resolveBuiltInUnitSymbol(symbol) !== undefined;
+}
+
+function resolveUnitSymbol(symbol: string): UnitDefinition {
+  const builtIn = resolveBuiltInUnitSymbol(symbol);
+  if (builtIn) return builtIn;
+
+  const custom = customUnits[symbol];
+  if (custom) return custom;
 
   throw new UnitError("unsupportedUnit", { symbol });
 }
