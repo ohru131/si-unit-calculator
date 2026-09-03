@@ -1,10 +1,11 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Platform } from "react-native";
-import Purchases, { CustomerInfo, LOG_LEVEL } from "react-native-purchases";
+import Purchases, { CustomerInfo, LOG_LEVEL, type PurchasesPackage } from "react-native-purchases";
 import RevenueCatUI from "react-native-purchases-ui";
 
 import { useGlobalSettings } from "@/lib/global-settings";
 import { type AppLanguage } from "@/lib/i18n";
+import { selectOneTimePackageFromOfferings } from "@/lib/purchase-offering";
 
 export const PRO_ENTITLEMENT_IDENTIFIER = "pro";
 
@@ -14,7 +15,9 @@ const EN_COPY = {
   revenueCatKeyMissing: "The RevenueCat public SDK key is not configured.",
   customerInfoFetchFailed: "Could not fetch purchase information. Please try again in the store version.",
   proUpgradeStoreOnly: "Upgrading to Pro is available in the published iOS or Android app.",
-  paywallOpenFailed: "Could not open the purchase screen. Please check your store settings and network connection.",
+  purchaseSucceeded: "Thanks for your purchase! Pro is unlocked for good — a one-time purchase, no recurring charges.",
+  purchaseFailed: "Could not complete your purchase. Please try again.",
+  productLoadFailed: "Could not load the Pro product from the store. Please check your network connection and try again.",
   restoreStoreOnly: "Restoring purchases is available in the published iOS or Android app.",
   proRestored: "Your Pro purchase has been restored.",
   noRestorablePurchase: "No restorable Pro purchase was found.",
@@ -27,7 +30,9 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     revenueCatKeyMissing: "RevenueCatの公開SDKキーが未設定です。",
     customerInfoFetchFailed: "購入情報を取得できませんでした。ストア版で再度お試しください。",
     proUpgradeStoreOnly: "Proへのアップグレードは、公開後のiOSまたはAndroidアプリで利用できます。",
-    paywallOpenFailed: "購入画面を開けませんでした。ストア設定とネットワーク接続を確認してください。",
+    purchaseSucceeded: "Proのご購入ありがとうございます。買い切りで、これからずっとご利用いただけます。",
+    purchaseFailed: "購入を完了できませんでした。もう一度お試しください。",
+    productLoadFailed: "ストアからPro商品を読み込めませんでした。ネットワーク接続を確認し、もう一度お試しください。",
     restoreStoreOnly: "購入の復元は、公開後のiOSまたはAndroidアプリで利用できます。",
     proRestored: "Proの購入を復元しました。",
     noRestorablePurchase: "復元できるPro購入は見つかりませんでした。",
@@ -38,7 +43,9 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     revenueCatKeyMissing: "La clave pública del SDK de RevenueCat no está configurada.",
     customerInfoFetchFailed: "No se pudo obtener la información de compra. Inténtalo de nuevo en la versión de la tienda.",
     proUpgradeStoreOnly: "La actualización a Pro está disponible en la app publicada de iOS o Android.",
-    paywallOpenFailed: "No se pudo abrir la pantalla de compra. Revisa la configuración de la tienda y tu conexión a internet.",
+    purchaseSucceeded: "¡Gracias por tu compra! Pro queda desbloqueado para siempre: es una compra única, sin cargos recurrentes.",
+    purchaseFailed: "No se pudo completar tu compra. Inténtalo de nuevo.",
+    productLoadFailed: "No se pudo cargar el producto Pro desde la tienda. Revisa tu conexión a internet e inténtalo de nuevo.",
     restoreStoreOnly: "La restauración de compras está disponible en la app publicada de iOS o Android.",
     proRestored: "Tu compra de Pro se ha restaurado.",
     noRestorablePurchase: "No se encontró ninguna compra de Pro que se pueda restaurar.",
@@ -49,7 +56,9 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     revenueCatKeyMissing: "A chave pública do SDK do RevenueCat não está configurada.",
     customerInfoFetchFailed: "Não foi possível obter as informações de compra. Tente novamente na versão de loja.",
     proUpgradeStoreOnly: "O upgrade para Pro está disponível no app publicado para iOS ou Android.",
-    paywallOpenFailed: "Não foi possível abrir a tela de compra. Verifique as configurações da loja e sua conexão de rede.",
+    purchaseSucceeded: "Obrigado pela compra! O Pro fica desbloqueado para sempre — uma compra única, sem cobrança recorrente.",
+    purchaseFailed: "Não foi possível concluir sua compra. Tente novamente.",
+    productLoadFailed: "Não foi possível carregar o produto Pro na loja. Verifique sua conexão com a internet e tente novamente.",
     restoreStoreOnly: "A restauração de compras está disponível no app publicado para iOS ou Android.",
     proRestored: "Sua compra Pro foi restaurada.",
     noRestorablePurchase: "Nenhuma compra Pro restaurável foi encontrada.",
@@ -60,7 +69,9 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     revenueCatKeyMissing: "Der öffentliche RevenueCat-SDK-Schlüssel ist nicht konfiguriert.",
     customerInfoFetchFailed: "Kaufinformationen konnten nicht abgerufen werden. Bitte versuche es in der Store-Version erneut.",
     proUpgradeStoreOnly: "Das Upgrade auf Pro ist in der veröffentlichten iOS- oder Android-App verfügbar.",
-    paywallOpenFailed: "Der Kaufbildschirm konnte nicht geöffnet werden. Bitte überprüfe deine Store-Einstellungen und Netzwerkverbindung.",
+    purchaseSucceeded: "Danke für deinen Kauf! Pro ist dauerhaft freigeschaltet — als Einmalkauf, ohne wiederkehrende Kosten.",
+    purchaseFailed: "Dein Kauf konnte nicht abgeschlossen werden. Bitte versuche es erneut.",
+    productLoadFailed: "Das Pro-Produkt konnte nicht aus dem Store geladen werden. Bitte überprüfe deine Netzwerkverbindung und versuche es erneut.",
     restoreStoreOnly: "Die Wiederherstellung von Käufen ist in der veröffentlichten iOS- oder Android-App verfügbar.",
     proRestored: "Dein Pro-Kauf wurde wiederhergestellt.",
     noRestorablePurchase: "Es wurde kein wiederherstellbarer Pro-Kauf gefunden.",
@@ -71,7 +82,9 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     revenueCatKeyMissing: "La clé publique du SDK RevenueCat n'est pas configurée.",
     customerInfoFetchFailed: "Impossible de récupérer les informations d'achat. Veuillez réessayer dans la version boutique.",
     proUpgradeStoreOnly: "La mise à niveau vers Pro est disponible dans l'application iOS ou Android publiée.",
-    paywallOpenFailed: "Impossible d'ouvrir l'écran d'achat. Vérifiez les paramètres de la boutique et votre connexion réseau.",
+    purchaseSucceeded: "Merci pour votre achat ! Pro est débloqué pour toujours — un achat unique, sans frais récurrents.",
+    purchaseFailed: "Impossible de finaliser votre achat. Veuillez réessayer.",
+    productLoadFailed: "Impossible de charger le produit Pro depuis la boutique. Vérifiez votre connexion réseau et réessayez.",
     restoreStoreOnly: "La restauration des achats est disponible dans l'application iOS ou Android publiée.",
     proRestored: "Votre achat Pro a été restauré.",
     noRestorablePurchase: "Aucun achat Pro restaurable n'a été trouvé.",
@@ -84,7 +97,9 @@ type ProContextValue = {
   isReady: boolean;
   isNativePurchaseAvailable: boolean;
   purchaseMessage: string | null;
-  presentPaywall: () => Promise<void>;
+  priceLabel: string | null;
+  isPurchasing: boolean;
+  purchasePro: () => Promise<void>;
   restorePurchases: () => Promise<void>;
 };
 
@@ -111,12 +126,24 @@ function hasProEntitlement(customerInfo: CustomerInfo) {
   return Boolean(customerInfo.entitlements.active[PRO_ENTITLEMENT_IDENTIFIER]);
 }
 
+// Purchases.purchasePackage() の拒否値はcatch節ではunknown型になる。userCancelledはSDKの
+// PurchasesError型が持つフィールドだが、anyにキャストせず存在確認してから読む。
+function isUserCancelledError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  if (!("userCancelled" in error)) return false;
+  return (error as { userCancelled: unknown }).userCancelled === true;
+}
+
 export function RevenueCatProvider({ children }: { children: ReactNode }) {
   const { language } = useGlobalSettings();
   const copy = COPY[language];
   const [isPro, setIsPro] = useState(false);
   const [isNativeReady, setIsNativeReady] = useState(false);
   const [purchaseMessageKey, setPurchaseMessageKey] = useState<PurchaseMessageKey | null>(null);
+  // 買い切りパッケージそのものをstateに持つ。priceLabelはこれのproduct.priceStringから
+  // レンダー時に導出する（別途stateを持つと両者がずれる余地が生まれるため）。
+  const [oneTimePackage, setOneTimePackage] = useState<PurchasesPackage | null>(null);
+  const [isPurchasing, setIsPurchasing] = useState(false);
   const isNativePurchaseAvailable = Platform.OS === "ios" || Platform.OS === "android";
   const platformKey = getPlatformKey();
 
@@ -133,6 +160,8 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
   const isReady = blockedReasonKey !== null ? true : isNativeReady;
   // 購入操作などで設定されたメッセージを優先し、無ければ上記の「使えない理由」を出す。
   const purchaseMessage = purchaseMessageKey ? copy[purchaseMessageKey] : blockedReasonKey ? copy[blockedReasonKey] : null;
+  // ストアが返す表示用の価格文字列をそのまま出す（買い切りパッケージが未取得ならnull）。
+  const priceLabel = oneTimePackage ? oneTimePackage.product.priceString : null;
 
   const refreshCustomerInfo = useCallback(async () => {
     const customerInfo = await Purchases.getCustomerInfo();
@@ -168,6 +197,16 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
         if (!active) return;
         setIsPro(hasProEntitlement(customerInfo));
         Purchases.addCustomerInfoUpdateListener(handleCustomerInfoUpdate);
+        // オファリング取得はここでは失敗させても外側のcatchに落とさない。
+        // 既にPro権利を持つユーザーが、ストア側の一時的な取得失敗のせいで
+        // isReady・isProの結果を巻き添えにしてPro表示を失ってはいけない。
+        try {
+          const offerings = await Purchases.getOfferings();
+          if (active) setOneTimePackage(selectOneTimePackageFromOfferings(offerings));
+        } catch {
+          // 無視する。priceLabelはnullのままになるが、購入自体はpurchasePro側の
+          // フォールバック（ホスト型ペイウォール）で導線を確保する。
+        }
       } catch {
         if (active) setPurchaseMessageKey("customerInfoFetchFailed");
       } finally {
@@ -181,25 +220,62 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
     };
   }, [blockedReasonKey, platformKey]);
 
-  const presentPaywall = useCallback(async () => {
+  const purchasePro = useCallback(async () => {
     if (!isNativePurchaseAvailable) {
       setPurchaseMessageKey("proUpgradeStoreOnly");
       return;
     }
+    // 購入・復元のいずれかが進行中なら二重タップを無視する（多重購入の起動を防ぐ）。
+    if (isPurchasing) return;
+    setIsPurchasing(true);
+    setPurchaseMessageKey(null);
     try {
-      setPurchaseMessageKey(null);
-      await RevenueCatUI.presentPaywallIfNeeded({ requiredEntitlementIdentifier: PRO_ENTITLEMENT_IDENTIFIER });
-      await refreshCustomerInfo();
-    } catch {
-      setPurchaseMessageKey("paywallOpenFailed");
+      let pkg = oneTimePackage;
+      if (!pkg) {
+        // 起動時の取得に失敗していた場合の救済として、購入直前にもう一度だけ試す。
+        try {
+          const offerings = await Purchases.getOfferings();
+          pkg = selectOneTimePackageFromOfferings(offerings);
+          if (pkg) setOneTimePackage(pkg);
+        } catch {
+          // 再取得も失敗。pkgはnullのまま下のフォールバックへ進む。
+        }
+      }
+
+      if (pkg) {
+        try {
+          const { customerInfo } = await Purchases.purchasePackage(pkg);
+          setIsPro(hasProEntitlement(customerInfo));
+          setPurchaseMessageKey("purchaseSucceeded");
+        } catch (error) {
+          // キャンセルは失敗ではない。「購入に失敗しました」を出すのはバグになる。
+          if (!isUserCancelledError(error)) setPurchaseMessageKey("purchaseFailed");
+        }
+        return;
+      }
+
+      // 買い切りパッケージを直接取得できなかった場合でも、購入導線を断ち切って
+      // 課金意思のある顧客を取りこぼすより、RevenueCatのホスト型ペイウォールに
+      // フォールバックしたほうがまし（ストア側の一時的な取得失敗は起こりうるため）。
+      try {
+        await RevenueCatUI.presentPaywallIfNeeded({ requiredEntitlementIdentifier: PRO_ENTITLEMENT_IDENTIFIER });
+        await refreshCustomerInfo();
+      } catch (error) {
+        if (!isUserCancelledError(error)) setPurchaseMessageKey("productLoadFailed");
+      }
+    } finally {
+      setIsPurchasing(false);
     }
-  }, [isNativePurchaseAvailable, refreshCustomerInfo]);
+  }, [isNativePurchaseAvailable, isPurchasing, oneTimePackage, refreshCustomerInfo]);
 
   const restorePurchases = useCallback(async () => {
     if (!isNativePurchaseAvailable) {
       setPurchaseMessageKey("restoreStoreOnly");
       return;
     }
+    // 購入・復元のいずれかが進行中なら二重タップを無視する。
+    if (isPurchasing) return;
+    setIsPurchasing(true);
     try {
       setPurchaseMessageKey(null);
       const customerInfo = await Purchases.restorePurchases();
@@ -207,12 +283,14 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
       setPurchaseMessageKey(hasProEntitlement(customerInfo) ? "proRestored" : "noRestorablePurchase");
     } catch {
       setPurchaseMessageKey("restoreFailed");
+    } finally {
+      setIsPurchasing(false);
     }
-  }, [isNativePurchaseAvailable]);
+  }, [isNativePurchaseAvailable, isPurchasing]);
 
   const value = useMemo(
-    () => ({ isPro, isReady, isNativePurchaseAvailable, purchaseMessage, presentPaywall, restorePurchases }),
-    [isPro, isReady, isNativePurchaseAvailable, purchaseMessage, presentPaywall, restorePurchases],
+    () => ({ isPro, isReady, isNativePurchaseAvailable, purchaseMessage, priceLabel, isPurchasing, purchasePro, restorePurchases }),
+    [isPro, isReady, isNativePurchaseAvailable, purchaseMessage, priceLabel, isPurchasing, purchasePro, restorePurchases],
   );
 
   return <ProContext.Provider value={value}>{children}</ProContext.Provider>;

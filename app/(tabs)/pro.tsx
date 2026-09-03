@@ -13,18 +13,22 @@ import { UNIT_GROUPS } from "@/lib/units";
 
 // featuresが[title, detail]の配列を持つため、値はstringに揃えられない。
 // キーの集合と各値のシグネチャを揃えるためtypeof EN_COPYで言語ごとの形を要求する。
+// featuresから「無制限の履歴」を外したのは、履歴の表示制限自体を撤廃して無料でも全件見えるように
+// したから（app/(tabs)/index.tsx の visibleHistory）。全員が使えるものをProの特典として並べると
+// 誇大表示になるので、履歴に関する行を書き戻さないこと。
 const EN_COPY = {
   heroEyebrowActive: "PRO ACTIVE", heroEyebrowUpgrade: "UNIT CALCULATOR PRO",
   heroTitleActive: "You're on Pro", heroTitleUpgrade: "Calculate with more freedom.",
-  heroTextActive: "All Pro features are enabled.", heroTextUpgrade: "History, custom unit sets, and exports — everything for serious work, in one place.",
+  heroTextActive: "All Pro features are enabled.", heroTextUpgrade: "One purchase unlocks everything below — yours forever, no subscription.",
   features: [
     ["Ad-free", "Hide the banner ads shown in the free version"],
-    ["Unlimited history", "Save up to 500 past calculations on this device"],
     ["CSV export", "Export your calculation history as CSV for sharing or record-keeping"],
     ["My unit sets", "Save your frequently used units for faster input"],
   ],
-  actionTitle: "Upgrade to Pro", actionText: "Monthly and yearly plans can be purchased and restored securely through the public store release.",
-  seePlans: "See Pro plans", restorePurchase: "Restore purchase",
+  actionTitle: "Upgrade to Pro", actionText: "Buy once and Pro unlocks permanently on this store account — no recurring charge. If you reinstall the app or switch devices, restore it below.",
+  // priceLabelがまだ取得できていない間はbuyWithPriceを使えないので、価格なしの文言をunlockProとして別に持つ。
+  buyWithPrice: (price: string) => `Unlock for ${price}`, unlockPro: "Unlock Pro",
+  oneTimeNote: "One-time purchase — no recurring charge.", restorePurchase: "Restore purchase", restoreHint: "Reinstalled the app or switched devices? Restore your purchase here.",
   previewNote: "This is a web preview. Actual purchases are available in the iOS/Android store release.",
   activeTitle: "Pro features are available", activeText: "Enjoy an ad-free experience, with CSV export and your saved unit sets available from the calculator tab.",
   unitsTitle: "My unit sets", unitsText: "Units you select here appear in the unit input on the calculator tab.",
@@ -34,15 +38,15 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
   ja: {
     heroEyebrowActive: "PRO 利用中", heroEyebrowUpgrade: "単位付き電卓 PRO",
     heroTitleActive: "Proをご利用中です", heroTitleUpgrade: "計算を、もっと自在に。",
-    heroTextActive: "Pro機能がすべて有効です。", heroTextUpgrade: "専門作業に必要な履歴・単位セット・エクスポートをひとつに。",
+    heroTextActive: "Pro機能がすべて有効です。", heroTextUpgrade: "一度の購入で、下記すべてがずっと使えます。月額課金なし。",
     features: [
       ["広告非表示", "フリー版に表示されるバナー広告を非表示に"],
-      ["無制限の履歴", "過去の計算を最大500件まで端末に保存"],
       ["CSVエクスポート", "計算履歴を共有・記録用のCSVとして出力"],
       ["マイ単位セット", "よく使う単位を保存し、入力を素早く"],
     ],
-    actionTitle: "Proにアップグレード", actionText: "月額・年額プランは、公開ストア版で安全に購入・復元できます。",
-    seePlans: "Proプランを見る", restorePurchase: "購入を復元",
+    actionTitle: "Proにアップグレード", actionText: "一度購入すると、このストアアカウントでProが永続的に使えるようになります（月額課金なし）。機種変更・再インストール後は下記から復元できます。",
+    buyWithPrice: (price: string) => `${price} で買い切り購入`, unlockPro: "Proを購入",
+    oneTimeNote: "買い切り・月額課金はありません。", restorePurchase: "購入を復元", restoreHint: "機種変更や再インストール後はこちらから復元できます。",
     previewNote: "現在はWebプレビューです。実購入はiOS／Androidのストア版でご利用いただけます。",
     activeTitle: "Pro機能を利用できます", activeText: "広告なしで、計算タブからCSVエクスポートと保存済みのマイ単位を利用できます。",
     unitsTitle: "マイ単位セット", unitsText: "よく使う単位を選択すると、計算タブの単位入力に表示されます。",
@@ -50,15 +54,15 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
   es: {
     heroEyebrowActive: "PRO ACTIVO", heroEyebrowUpgrade: "CALCULADORA DE UNIDADES PRO",
     heroTitleActive: "Tienes Pro", heroTitleUpgrade: "Calcula con más libertad.",
-    heroTextActive: "Todas las funciones Pro están activadas.", heroTextUpgrade: "Historial, conjuntos de unidades personalizados y exportación, todo en un solo lugar para el trabajo serio.",
+    heroTextActive: "Todas las funciones Pro están activadas.", heroTextUpgrade: "Una sola compra desbloquea todo esto, para siempre. Sin suscripción.",
     features: [
       ["Sin anuncios", "Oculta los anuncios en banner de la versión gratuita"],
-      ["Historial ilimitado", "Guarda hasta 500 cálculos anteriores en este dispositivo"],
       ["Exportación CSV", "Exporta tu historial de cálculos como CSV para compartir o archivar"],
       ["Mis conjuntos de unidades", "Guarda las unidades que usas con frecuencia para escribir más rápido"],
     ],
-    actionTitle: "Actualizar a Pro", actionText: "Los planes mensual y anual se pueden comprar y restaurar de forma segura a través de la versión de la tienda pública.",
-    seePlans: "Ver planes Pro", restorePurchase: "Restaurar compra",
+    actionTitle: "Actualizar a Pro", actionText: "Compra una vez y Pro se desbloquea de forma permanente en esta cuenta de la tienda, sin cargos recurrentes. Si reinstalas la app o cambias de dispositivo, restáurala más abajo.",
+    buyWithPrice: (price: string) => `Desbloquear por ${price}`, unlockPro: "Desbloquear Pro",
+    oneTimeNote: "Compra única, sin cargos recurrentes.", restorePurchase: "Restaurar compra", restoreHint: "¿Reinstalaste la app o cambiaste de dispositivo? Restaura tu compra aquí.",
     previewNote: "Esto es una vista previa web. Las compras reales están disponibles en la versión de la tienda de iOS/Android.",
     activeTitle: "Las funciones Pro están disponibles", activeText: "Disfruta de una experiencia sin anuncios, con exportación CSV y tus conjuntos de unidades guardados disponibles desde la pestaña de la calculadora.",
     unitsTitle: "Mis conjuntos de unidades", unitsText: "Las unidades que selecciones aquí aparecerán en la entrada de unidades de la pestaña de la calculadora.",
@@ -66,15 +70,15 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
   "pt-BR": {
     heroEyebrowActive: "PRO ATIVO", heroEyebrowUpgrade: "CALCULADORA DE UNIDADES PRO",
     heroTitleActive: "Você tem o Pro", heroTitleUpgrade: "Calcule com mais liberdade.",
-    heroTextActive: "Todos os recursos Pro estão ativados.", heroTextUpgrade: "Histórico, conjuntos de unidades personalizados e exportação, tudo em um só lugar para o trabalho sério.",
+    heroTextActive: "Todos os recursos Pro estão ativados.", heroTextUpgrade: "Uma única compra desbloqueia tudo abaixo, para sempre. Sem assinatura.",
     features: [
       ["Sem anúncios", "Oculta os anúncios em banner exibidos na versão gratuita"],
-      ["Histórico ilimitado", "Salve até 500 cálculos anteriores neste dispositivo"],
       ["Exportação CSV", "Exporte seu histórico de cálculos como CSV para compartilhar ou arquivar"],
       ["Meus conjuntos de unidades", "Salve as unidades que você usa com frequência para digitar mais rápido"],
     ],
-    actionTitle: "Fazer upgrade para Pro", actionText: "Os planos mensal e anual podem ser comprados e restaurados com segurança pela versão da loja pública.",
-    seePlans: "Ver planos Pro", restorePurchase: "Restaurar compra",
+    actionTitle: "Fazer upgrade para Pro", actionText: "Compre uma vez e o Pro é desbloqueado permanentemente nesta conta da loja, sem cobrança recorrente. Se reinstalar o app ou trocar de aparelho, restaure abaixo.",
+    buyWithPrice: (price: string) => `Desbloquear por ${price}`, unlockPro: "Desbloquear o Pro",
+    oneTimeNote: "Compra única, sem cobrança recorrente.", restorePurchase: "Restaurar compra", restoreHint: "Reinstalou o app ou trocou de aparelho? Restaure sua compra aqui.",
     previewNote: "Esta é uma prévia web. As compras reais estão disponíveis na versão da loja iOS/Android.",
     activeTitle: "Os recursos Pro estão disponíveis", activeText: "Aproveite uma experiência sem anúncios, com exportação CSV e seus conjuntos de unidades salvos disponíveis na aba da calculadora.",
     unitsTitle: "Meus conjuntos de unidades", unitsText: "As unidades selecionadas aqui aparecem na entrada de unidades da aba da calculadora.",
@@ -82,15 +86,15 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
   de: {
     heroEyebrowActive: "PRO AKTIV", heroEyebrowUpgrade: "EINHEITENRECHNER PRO",
     heroTitleActive: "Du hast Pro", heroTitleUpgrade: "Rechne mit mehr Freiheit.",
-    heroTextActive: "Alle Pro-Funktionen sind aktiviert.", heroTextUpgrade: "Verlauf, eigene Einheitensets und Export — alles für ernsthaftes Arbeiten an einem Ort.",
+    heroTextActive: "Alle Pro-Funktionen sind aktiviert.", heroTextUpgrade: "Ein einziger Kauf schaltet alles hier unten frei — für immer, ohne Abo.",
     features: [
       ["Werbefrei", "Blendet die Banner-Werbung der kostenlosen Version aus"],
-      ["Unbegrenzter Verlauf", "Speichert bis zu 500 frühere Berechnungen auf diesem Gerät"],
       ["CSV-Export", "Exportiert den Berechnungsverlauf als CSV zum Teilen oder Archivieren"],
       ["Meine Einheitensets", "Speichert häufig genutzte Einheiten für schnellere Eingabe"],
     ],
-    actionTitle: "Auf Pro upgraden", actionText: "Monats- und Jahrespläne können sicher über die öffentliche Store-Version gekauft und wiederhergestellt werden.",
-    seePlans: "Pro-Pläne ansehen", restorePurchase: "Kauf wiederherstellen",
+    actionTitle: "Auf Pro upgraden", actionText: "Einmal kaufen, und Pro ist dauerhaft für dieses Store-Konto freigeschaltet — keine wiederkehrenden Kosten. Wenn du die App neu installierst oder das Gerät wechselst, kannst du weiter unten wiederherstellen.",
+    buyWithPrice: (price: string) => `Für ${price} freischalten`, unlockPro: "Pro freischalten",
+    oneTimeNote: "Einmalkauf — keine wiederkehrenden Kosten.", restorePurchase: "Kauf wiederherstellen", restoreHint: "App neu installiert oder Gerät gewechselt? Hier kannst du deinen Kauf wiederherstellen.",
     previewNote: "Dies ist eine Web-Vorschau. Echte Käufe sind in der iOS/Android-Store-Version verfügbar.",
     activeTitle: "Pro-Funktionen sind verfügbar", activeText: "Genieße eine werbefreie Nutzung mit CSV-Export und deinen gespeicherten Einheitensets im Rechner-Tab.",
     unitsTitle: "Meine Einheitensets", unitsText: "Hier ausgewählte Einheiten erscheinen bei der Einheiteneingabe im Rechner-Tab.",
@@ -98,15 +102,15 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
   fr: {
     heroEyebrowActive: "PRO ACTIF", heroEyebrowUpgrade: "CALCULATRICE D'UNITÉS PRO",
     heroTitleActive: "Vous avez Pro", heroTitleUpgrade: "Calculez avec plus de liberté.",
-    heroTextActive: "Toutes les fonctionnalités Pro sont activées.", heroTextUpgrade: "Historique, ensembles d'unités personnalisés et export — tout ce qu'il faut pour un usage sérieux, au même endroit.",
+    heroTextActive: "Toutes les fonctionnalités Pro sont activées.", heroTextUpgrade: "Un seul achat débloque tout ci-dessous, pour toujours. Sans abonnement.",
     features: [
       ["Sans publicité", "Masque les bannières publicitaires affichées dans la version gratuite"],
-      ["Historique illimité", "Enregistre jusqu'à 500 calculs précédents sur cet appareil"],
       ["Export CSV", "Exporte l'historique des calculs en CSV pour le partager ou l'archiver"],
       ["Mes ensembles d'unités", "Enregistre les unités fréquemment utilisées pour une saisie plus rapide"],
     ],
-    actionTitle: "Passer à Pro", actionText: "Les forfaits mensuel et annuel peuvent être achetés et restaurés en toute sécurité via la version publique du store.",
-    seePlans: "Voir les forfaits Pro", restorePurchase: "Restaurer l'achat",
+    actionTitle: "Passer à Pro", actionText: "Achetez une fois et Pro est débloqué de façon permanente sur ce compte de la boutique, sans frais récurrents. Si vous réinstallez l'application ou changez d'appareil, restaurez-le ci-dessous.",
+    buyWithPrice: (price: string) => `Débloquer pour ${price}`, unlockPro: "Débloquer Pro",
+    oneTimeNote: "Achat unique, sans frais récurrents.", restorePurchase: "Restaurer l'achat", restoreHint: "Application réinstallée ou nouvel appareil ? Restaurez votre achat ici.",
     previewNote: "Ceci est un aperçu web. Les achats réels sont disponibles dans la version du store iOS/Android.",
     activeTitle: "Les fonctionnalités Pro sont disponibles", activeText: "Profitez d'une expérience sans publicité, avec l'export CSV et vos ensembles d'unités enregistrés depuis l'onglet calculatrice.",
     unitsTitle: "Mes ensembles d'unités", unitsText: "Les unités sélectionnées ici apparaissent dans la saisie d'unités de l'onglet calculatrice.",
@@ -115,7 +119,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
 
 export default function ProScreen() {
   const { favoriteUnits, toggleFavoriteUnit } = useCalculatorStore();
-  const { isPro, isReady, isNativePurchaseAvailable, purchaseMessage, presentPaywall, restorePurchases } = usePro();
+  const { isPro, isReady, isNativePurchaseAvailable, purchaseMessage, priceLabel, isPurchasing, purchasePro, restorePurchases } = usePro();
   const { language } = useGlobalSettings();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -146,8 +150,13 @@ export default function ProScreen() {
           <View style={styles.actionCard}>
             <Text style={styles.actionTitle}>{copy.actionTitle}</Text>
             <Text style={styles.actionText}>{copy.actionText}</Text>
-            <Pressable onPress={() => void presentPaywall()} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}><Text style={styles.primaryButtonText}>{copy.seePlans}</Text></Pressable>
-            <Pressable onPress={() => void restorePurchases()} style={({ pressed }) => [styles.restoreButton, pressed && styles.pressed]}><Text style={styles.restoreText}>{copy.restorePurchase}</Text></Pressable>
+            {/* isPurchasing中は二重タップで二重購入が走らないよう両ボタンを無効化する */}
+            <Pressable onPress={() => void purchasePro()} disabled={isPurchasing} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed, isPurchasing && styles.disabledButton]}>
+              {isPurchasing ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.primaryButtonText}>{priceLabel ? copy.buyWithPrice(priceLabel) : copy.unlockPro}</Text>}
+            </Pressable>
+            <Text style={styles.oneTimeNote}>{copy.oneTimeNote}</Text>
+            <Pressable onPress={() => void restorePurchases()} disabled={isPurchasing} style={({ pressed }) => [styles.restoreButton, pressed && styles.pressed]}><Text style={styles.restoreText}>{copy.restorePurchase}</Text></Pressable>
+            <Text style={styles.restoreHint}>{copy.restoreHint}</Text>
             {!isNativePurchaseAvailable ? <Text style={styles.previewNote}>{copy.previewNote}</Text> : null}
           </View>
         ) : (
@@ -192,8 +201,11 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   actionText: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 6 },
   primaryButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 12, marginTop: 16, paddingVertical: 13 },
   primaryButtonText: { color: colors.onPrimary, fontSize: 15, fontWeight: "800" },
+  disabledButton: { opacity: 0.6 },
+  oneTimeNote: { color: colors.success, fontSize: 12, fontWeight: "700", marginTop: 8, textAlign: "center" },
   restoreButton: { alignItems: "center", marginTop: 12, paddingVertical: 8 },
   restoreText: { color: colors.primary, fontSize: 13, fontWeight: "700" },
+  restoreHint: { color: colors.muted, fontSize: 11, lineHeight: 15, marginTop: 4, textAlign: "center" },
   previewNote: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 8, textAlign: "center" },
   activeCard: { backgroundColor: colors.successSurface, borderColor: colors.successBorder, borderRadius: 18, borderWidth: 1, padding: 17 },
   activeTitle: { color: colors.success, fontSize: 17, fontWeight: "800" },

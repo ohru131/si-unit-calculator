@@ -17,7 +17,7 @@
 
 Unit Calculator makes everyday technical calculations easier to verify. Enter expressions such as `5cm + 1mm`, `100N ÷ 0.01m²`, or `1mi ÷ 1h`. The app normalizes values to SI units before calculating, so mixed-unit expressions stay dimensionally correct.
 
-Choose Metric, US customary, or Imperial / UK preferences to prioritize familiar units. Convert compatible results to metres, feet, miles per hour, pascals, psi, joules, BTU, watts, horsepower, Celsius, Fahrenheit, and more. Save reusable constants, start from guided examples, and keep a local calculation history. Unit Calculator Pro adds unlimited history, CSV export, and a personal unit set.
+Choose Metric, US customary, or Imperial / UK preferences to prioritize familiar units. Convert compatible results to metres, feet, miles per hour, pascals, psi, joules, BTU, watts, horsepower, Celsius, Fahrenheit, and more. Save reusable constants, start from guided examples, and keep a full local calculation history. A single one-time purchase unlocks Unit Calculator Pro: an ad-free experience, CSV export, and a personal unit set.
 
 ## Internationalization checklist
 
@@ -28,7 +28,7 @@ Choose Metric, US customary, or Imperial / UK preferences to prioritize familiar
 | Store metadata | Add localized English/Japanese descriptions, screenshots, and in-app product text. | Supply final localized screenshots captured from release builds. |
 | Support | Publish a monitored support contact and response-time policy. | Choose the business email/domain before store submission. |
 | Privacy | Host the final privacy policy at a public URL; disclose local storage and RevenueCat purchase processing. | Confirm legal entity, contact address, and deletion-request channel. |
-| Pricing | Use RevenueCat's localized purchase sheet and configure territory pricing in each store. | Choose launch price, trial terms, and eligible territories. |
+| Pricing | Use RevenueCat's localized purchase sheet and configure territory pricing in each store. | Choose the price tier per territory (and whether to use regional pricing) and eligible territories. |
 
 ## Privacy and support disclosure draft
 

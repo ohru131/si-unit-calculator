@@ -59,7 +59,7 @@ Please include your device model, operating system version, app version, entered
 - [ ] RevenueCat SDK is configured with platform SDK keys.
 - [ ] `pro` entitlement, offering, products, and Paywall have been published.
 - [ ] App Store and/or Google Play listing is live and accessible in the United States.
-- [ ] Trial or promo code permits judges to test Pro.
+- [ ] Promo/offer code permits judges to test Pro (no trial exists for a one-time purchase).
 - [ ] Demo, English submission copy, 1024px icon, and screenshot are ready.
 - [ ] Privacy policy and real support email are publicly available.
 - [ ] Purchase, restore, Pro gating, and CSV sharing were tested in EAS development and store builds.

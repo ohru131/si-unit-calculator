@@ -365,7 +365,12 @@ export default function CalculatorScreen() {
   const inlineUnitRegistration = useMemo(() => getUnitRegistration(inlineUnitQuery), [inlineUnitQuery]);
   const visibleSampleCategories = useMemo(() => SAMPLE_CATEGORIES.filter((category) => isSampleCategoryVisible(category.id, isAdvancedMode)), [isAdvancedMode]);
   const visibleSamples = useMemo(() => SAMPLE_CALCULATIONS.filter((sample) => sample.category === sampleCategory && isSampleCategoryVisible(sample.category, isAdvancedMode)), [isAdvancedMode, sampleCategory]);
-  const visibleHistory = isPro ? history : history.slice(0, 5);
+  // 履歴の表示件数はProでも無料でも同じにしている（以前は無料5件で打ち切っていた）。
+  // 打ち切りは a1・a2… の自動定数と食い違うのが致命的で、autoConstantsは常に全履歴から作るため、
+  // 無料ユーザーは見えない a12 を式から参照できてしまっていた。加えて「計算のたびに履歴が消える」は
+  // 電卓アプリの低評価の定番パターン（docs/market-research-2026-09.md 第4節）で、
+  // 無料の価値を削ってProを売る設計はこのジャンルで最も反発が強い。
+  const visibleHistory = history;
   const autoConstants = useMemo(() => historyToAutoConstants(history), [history]);
   const availableConstants = useMemo(() => [...constants, ...autoConstants], [autoConstants, constants]);
   // = を押す前でも計算できる入力ならその場で結果を出す。計算できない途中の入力（"5cm +" など）は
