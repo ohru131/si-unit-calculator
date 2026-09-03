@@ -1,5 +1,4 @@
 import * as FileSystem from "expo-file-system/legacy";
-import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import { Platform } from "react-native";
 
@@ -18,11 +17,11 @@ function resolveNotebookExportFileName(title: string, extension: string): string
   return `${sanitized ? `${FILE_NAME_BASE}-${sanitized}` : FILE_NAME_BASE}.${extension}`;
 }
 
-// このモジュールは入り口（exportNotebookAsPdf）が1個だけの浅いモジュールなので、
+// このモジュールは入り口（exportNotebookDocument）が1個だけの浅いモジュールなので、
 // lib/units.tsのようにエラーコード化して表示側で翻訳する方式ではなく、
 // 呼び出し元から言語を直接受け取ってこの場でメッセージを組み立てる。
 const EN_EXPORT_MESSAGES = {
-  dialogTitle: "Share notebook as PDF",
+  dialogTitle: "Share notebook (printable, save as PDF)",
   sharingUnavailable: "Sharing is not available on this device.",
   exportFailed: "Could not export the notebook. Please try again.",
   formulasHeading: "Formula",
@@ -33,7 +32,7 @@ const EN_EXPORT_MESSAGES = {
 const EXPORT_MESSAGES: Record<AppLanguage, typeof EN_EXPORT_MESSAGES> = {
   en: EN_EXPORT_MESSAGES,
   ja: {
-    dialogTitle: "計算ノートをPDFで共有",
+    dialogTitle: "計算ノートを共有（印刷・PDF保存用）",
     sharingUnavailable: "この端末では共有機能を利用できません。",
     exportFailed: "ノートをエクスポートできませんでした。もう一度お試しください。",
     formulasHeading: "数式",
@@ -42,7 +41,7 @@ const EXPORT_MESSAGES: Record<AppLanguage, typeof EN_EXPORT_MESSAGES> = {
     footer: "単位付き電卓で作成",
   },
   es: {
-    dialogTitle: "Compartir cuaderno como PDF",
+    dialogTitle: "Compartir cuaderno (imprimible, guardar como PDF)",
     sharingUnavailable: "La función de compartir no está disponible en este dispositivo.",
     exportFailed: "No se pudo exportar el cuaderno. Inténtalo de nuevo.",
     formulasHeading: "Fórmula",
@@ -51,7 +50,7 @@ const EXPORT_MESSAGES: Record<AppLanguage, typeof EN_EXPORT_MESSAGES> = {
     footer: "Creado con Unit Calculator",
   },
   "pt-BR": {
-    dialogTitle: "Compartilhar caderno como PDF",
+    dialogTitle: "Compartilhar caderno (imprimível, salvar como PDF)",
     sharingUnavailable: "O compartilhamento não está disponível neste dispositivo.",
     exportFailed: "Não foi possível exportar o caderno. Tente novamente.",
     formulasHeading: "Fórmula",
@@ -60,7 +59,7 @@ const EXPORT_MESSAGES: Record<AppLanguage, typeof EN_EXPORT_MESSAGES> = {
     footer: "Criado com o Unit Calculator",
   },
   de: {
-    dialogTitle: "Rechenheft als PDF teilen",
+    dialogTitle: "Rechenheft teilen (druckbar, als PDF speicherbar)",
     sharingUnavailable: "Teilen ist auf diesem Gerät nicht verfügbar.",
     exportFailed: "Das Rechenheft konnte nicht exportiert werden. Bitte versuche es erneut.",
     formulasHeading: "Formel",
@@ -69,7 +68,7 @@ const EXPORT_MESSAGES: Record<AppLanguage, typeof EN_EXPORT_MESSAGES> = {
     footer: "Erstellt mit Unit Calculator",
   },
   fr: {
-    dialogTitle: "Partager le carnet en PDF",
+    dialogTitle: "Partager le carnet (imprimable, à enregistrer en PDF)",
     sharingUnavailable: "Le partage n'est pas disponible sur cet appareil.",
     exportFailed: "Impossible d'exporter le carnet. Veuillez réessayer.",
     formulasHeading: "Formule",
@@ -79,16 +78,18 @@ const EXPORT_MESSAGES: Record<AppLanguage, typeof EN_EXPORT_MESSAGES> = {
   },
 };
 
-export type ExportNotebookAsPdfOptions = BuildNotebookExportModelOptions;
+export type ExportNotebookOptions = BuildNotebookExportModelOptions;
 
-// Web版の制約: expo-printのWeb実装（node_modules/expo-print/src/ExponentPrint.web.ts）は
-// printAsync・printToFileAsyncのどちらもオプションを一切見ずwindow.print()を呼ぶだけで、
-// 印刷対象は「今表示中のアプリ画面のDOM」になってしまう（buildNotebookExportHtmlで生成した
-// ノート専用HTMLではない）。そのままでは意図と違う内容を黙って印刷するので、Web版では使わず、
-// このリポジトリの既存パターン（lib/calculation-export.ts・lib/notebooks-backup-file.tsと同じ
-// Blob + <a download>）でHTMLファイルとしてダウンロードさせる。ブラウザで開いたHTMLは
-// 印刷メニューからPDF保存できるため、最終的にPDFを得る手段はネイティブ・Webのどちらにもある。
-export async function exportNotebookAsPdf(options: ExportNotebookAsPdfOptions): Promise<void> {
+// ネイティブモジュールを新しく増やさない方針のため、PDF生成（expo-print）は使わず、
+// 自己完結したHTMLを1ファイル書き出して共有する。KaTeXのフォントまでbase64で埋め込んで
+// あるので、共有先でオフラインのまま画面と同じ数式が出る。受け取った側はブラウザや
+// OSの印刷メニューからPDFとして保存できる。
+//
+// expo-printを使わない理由はもう1つあって、Web実装
+// （node_modules/expo-print/src/ExponentPrint.web.ts）は printAsync・printToFileAsync の
+// どちらもオプションを一切見ずwindow.print()を呼ぶだけで、生成したHTMLではなく
+// 「今表示中のアプリ画面」を印刷してしまう。つまりWeb側は最初からこの方式が必要だった。
+export async function exportNotebookDocument(options: ExportNotebookOptions): Promise<void> {
   const { notebook, language } = options;
   const messages = EXPORT_MESSAGES[language];
   const model = buildNotebookExportModel(options);
@@ -100,13 +101,14 @@ export async function exportNotebookAsPdf(options: ExportNotebookAsPdfOptions): 
     headings: { formulas: messages.formulasHeading, inputs: messages.inputsHeading, steps: messages.stepsHeading },
     footer: messages.footer,
   });
+  const fileName = resolveNotebookExportFileName(notebook.title, "html");
 
   if (Platform.OS === "web") {
     const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = resolveNotebookExportFileName(notebook.title, "html");
+    anchor.download = fileName;
     anchor.style.display = "none";
     document.body.appendChild(anchor);
     anchor.click();
@@ -116,18 +118,13 @@ export async function exportNotebookAsPdf(options: ExportNotebookAsPdfOptions): 
   }
 
   try {
-    // Print.printToFileAsyncは自前でキャッシュ内に自動採番のファイル名を割り当てるため、
-    // ノート名を反映したファイル名で共有できるよう、生成後にこちらの命名規則の場所へ移す。
-    // 同じノートを2回続けて共有すると移動先に前回のファイルが残っているため、moveAsyncが
-    // 「既に存在する」で失敗しないよう先に消しておく（idempotent: trueで未存在でもエラーにしない）。
-    const { uri } = await Print.printToFileAsync({ html });
-    const destinationUri = `${FileSystem.cacheDirectory}${resolveNotebookExportFileName(notebook.title, "pdf")}`;
-    await FileSystem.deleteAsync(destinationUri, { idempotent: true });
-    await FileSystem.moveAsync({ from: uri, to: destinationUri });
+    // 既存のCSVエクスポート・バックアップと同じ「キャッシュへ書いてから共有」の手順に揃える。
+    const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+    await FileSystem.writeAsStringAsync(fileUri, html, { encoding: "utf8" });
     if (!(await Sharing.isAvailableAsync())) throw new Error(messages.sharingUnavailable);
-    await Sharing.shareAsync(destinationUri, { dialogTitle: messages.dialogTitle, mimeType: "application/pdf", UTI: "com.adobe.pdf" });
+    await Sharing.shareAsync(fileUri, { dialogTitle: messages.dialogTitle, mimeType: "text/html", UTI: "public.html" });
   } catch (cause) {
-    // 共有不可の理由は上でそのまま投げているので、それ以外（PDF生成失敗等）だけ汎用文言に丸める。
+    // 共有不可の理由は上でそのまま投げているので、それ以外（書き出し失敗等）だけ汎用文言に丸める。
     if (cause instanceof Error && cause.message === messages.sharingUnavailable) throw cause;
     throw new Error(messages.exportFailed);
   }

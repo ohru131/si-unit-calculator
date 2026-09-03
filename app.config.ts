@@ -90,7 +90,6 @@ const config: ExpoConfig = {
     "expo-image",
     "expo-secure-store",
     "expo-sharing",
-    "expo-print",
     "expo-web-browser",
     "expo-status-bar",
     [

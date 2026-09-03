@@ -104,7 +104,7 @@ ${cards}
 }
 
 // 計算ノート1件をPDF化するための自己完結HTMLドキュメントを組み立てる。
-// expo-print（ネイティブ）とブラウザのprint（Web）のどちらに渡しても、外部ネットワークに
+// 共有先のブラウザやOSの印刷メニューでそのまま開けることが要件なので、外部ネットワークに
 // 一切依存せず同じ見た目になることが要件（KaTeXのフォントまで含めてbase64で埋め込み済みの
 // katexCss/katexJsを渡してもらう前提）。
 export function buildNotebookExportHtml(model: NotebookExportModel, options: NotebookExportHtmlOptions): string {

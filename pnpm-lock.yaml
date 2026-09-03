@@ -98,9 +98,6 @@ importers:
       expo-notifications:
         specifier: ~57.0.13
         version: 57.0.13(expo@57.0.15)(react-native@0.86.2(@babel/core@7.28.5)(@react-native/metro-config@0.85.3(@babel/core@7.28.5))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)(typescript@6.0.3)
-      expo-print:
-        specifier: ~57.0.1
-        version: 57.0.1(expo@57.0.15)(react-native@0.86.2(@babel/core@7.28.5)(@react-native/metro-config@0.85.3(@babel/core@7.28.5))(@types/react@19.2.18)(react@19.2.3))
       expo-quick-actions:
         specifier: '5'
         version: 5.0.0(expo@57.0.15)
@@ -3670,12 +3667,6 @@ packages:
     peerDependencies:
       expo: '*'
       react: '*'
-      react-native: '*'
-
-  expo-print@57.0.1:
-    resolution: {integrity: sha512-cEfxM+sV5suZyqbXsOmDGRHD+UmfAh2GWabbakdkl1s70L4MFiObPtC73ATXNjeUe+mlzxLhudoTxsuyJxk8Mg==}
-    peerDependencies:
-      expo: '*'
       react-native: '*'
 
   expo-quick-actions@5.0.0:
@@ -9863,11 +9854,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
       - typescript
-
-  expo-print@57.0.1(expo@57.0.15)(react-native@0.86.2(@babel/core@7.28.5)(@react-native/metro-config@0.85.3(@babel/core@7.28.5))(@types/react@19.2.18)(react@19.2.3)):
-    dependencies:
-      expo: 57.0.15(@babel/core@7.28.5)(@expo/dom-webview@55.0.6)(@expo/metro-runtime@57.0.12)(expo-router@57.0.15)(expo-widgets@57.0.11)(react-dom@19.2.3(react@19.2.3))(react-native-web@0.21.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-native-webview@14.0.1(react-native@0.86.2(@babel/core@7.28.5)(@react-native/metro-config@0.85.3(@babel/core@7.28.5))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3))(react-native-worklets@0.10.1(@babel/core@7.28.5)(@react-native/metro-config@0.85.3(@babel/core@7.28.5))(react-native@0.86.2(@babel/core@7.28.5)(@react-native/metro-config@0.85.3(@babel/core@7.28.5))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3))(react-native@0.86.2(@babel/core@7.28.5)(@react-native/metro-config@0.85.3(@babel/core@7.28.5))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)(typescript@6.0.3)
-      react-native: 0.86.2(@babel/core@7.28.5)(@react-native/metro-config@0.85.3(@babel/core@7.28.5))(@types/react@19.2.18)(react@19.2.3)
 
   expo-quick-actions@5.0.0(expo@57.0.15):
     dependencies:

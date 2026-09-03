@@ -12,7 +12,7 @@ import { useColors } from "@/hooks/use-colors";
 import { type CalculationNotebook, useCalculatorStore } from "@/lib/calculator-store";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { type AppLanguage } from "@/lib/i18n";
-import { exportNotebookAsPdf } from "@/lib/notebook-export";
+import { exportNotebookDocument } from "@/lib/notebook-export";
 import { notebookWithDraftValues } from "@/lib/notebook-export-model";
 import { resolveActiveNotebook, resolveNotebookHistory } from "@/lib/notebook-history";
 import { usePro } from "@/lib/revenuecat-provider";
@@ -124,7 +124,8 @@ export default function NotebookScreen() {
     return saved;
   };
 
-  // PDF共有。表示単位の上書き（unitOverrides）はNotebookDetailが保持しているため、
+  // ノートの書き出し（印刷・PDF保存用のHTML）。表示単位の上書き（unitOverrides）は
+  // NotebookDetailが保持しているため、
   // onShareの引数として受け取り、そのままlib/notebook-export.tsへ渡す（画面が改めて計算し直さない）。
   // Proゲートはapp/(tabs)/index.tsxのexportHistoryと同じく呼び出し側（この画面）で行い、
   // libの中には入れない。
@@ -132,7 +133,7 @@ export default function NotebookScreen() {
     setError("");
     setNotice("");
     try {
-      await exportNotebookAsPdf({
+      await exportNotebookDocument({
         notebook: targetNotebook,
         globalConstants: constants,
         language,
