@@ -45,7 +45,7 @@ import {
   type UnitInputHint,
   type UnitSuggestion,
 } from "@/lib/unit-input";
-import { formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, getRegionalUnits, getUnitRegistration, Quantity, UNIT_GROUPS, type UnitGroup, type UnitOption } from "@/lib/units";
+import { formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, getRegionalUnits, getUnitRegistration, UNIT_GROUPS, type UnitGroup, type UnitOption } from "@/lib/units";
 
 // 「全消し」の要望に対応するため、従来は空セルのプレースホルダだった最下段（"0"と"="の間）に
 // ⌫（一文字削除）を動かし、空いた最上段の右端（従来⌫があった場所）にACを置く。
@@ -1195,6 +1195,7 @@ export default function CalculatorScreen() {
         visible={showNotebookHistory}
         language={language}
         entries={resolvedNotebookHistory}
+        pinnedNotebooks={pinnedNotebooks}
         notebookCategories={notebookCategories}
         onSelect={openNotebookFromHistory}
         onRemove={(entryId) => void removeNotebookHistoryEntry(entryId)}

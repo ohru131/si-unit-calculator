@@ -4,7 +4,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
-import { UNCATEGORIZED_CATEGORY_ID, type NotebookCategory } from "@/lib/calculator-store";
+import { UNCATEGORIZED_CATEGORY_ID, type CalculationNotebook, type NotebookCategory } from "@/lib/calculator-store";
 import { localizedText, LANGUAGE_META, type AppLanguage } from "@/lib/i18n";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
 import type { ResolvedNotebookHistoryEntry } from "@/lib/notebook-history";
@@ -13,6 +13,8 @@ type Props = {
   visible: boolean;
   language: AppLanguage;
   entries: ResolvedNotebookHistoryEntry[];
+  /** ピン留めされたノート一覧。電卓画面上部のピン留めチップ列とは別の入口として、このシートにも並べて出す。 */
+  pinnedNotebooks: CalculationNotebook[];
   /** 現存するユーザー作成カテゴリ名の解決に使う。プリセットカテゴリはPRESET_NOTEBOOK_CATEGORIESから
    * 直接引けるが、ユーザー作成分はこのpropが無いと名前を出せない（storeを直接読まない設計のため）。 */
   notebookCategories: NotebookCategory[];
@@ -28,8 +30,10 @@ type Props = {
 // （このコンポーネント自体はボタンを描画しない。画面への組み込みは別担当のため、ラベルの翻訳だけここに用意する）。
 const EN_COPY = {
   notebooksButton: "Notebooks",
-  title: "Recent notebooks",
-  hint: "Notebooks you've actually used. Tap one to reopen it.",
+  title: "Notebooks",
+  hint: "Your pinned notebooks and recently used ones. Tap one to open it.",
+  pinnedSectionTitle: "Pinned",
+  recentSectionTitle: "Recently used",
   clear: "Clear",
   close: "Close",
   empty: "No notebooks used yet.",
@@ -42,8 +46,10 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
   en: EN_COPY,
   ja: {
     notebooksButton: "ノート",
-    title: "最近使ったノート",
-    hint: "実際に使った計算ノートです。タップすると開き直せます。",
+    title: "ノート",
+    hint: "ピン留めしたノートと、最近使ったノートです。タップすると開けます。",
+    pinnedSectionTitle: "ピン留め",
+    recentSectionTitle: "最近使ったノート",
     clear: "消去",
     close: "閉じる",
     empty: "まだ使ったノートがありません。",
@@ -54,8 +60,10 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
   },
   es: {
     notebooksButton: "Cuadernos",
-    title: "Cuadernos recientes",
-    hint: "Cuadernos que has usado realmente. Toca uno para volver a abrirlo.",
+    title: "Cuadernos",
+    hint: "Tus cuadernos fijados y los usados recientemente. Toca uno para abrirlo.",
+    pinnedSectionTitle: "Fijados",
+    recentSectionTitle: "Usados recientemente",
     clear: "Borrar",
     close: "Cerrar",
     empty: "Aún no has usado ningún cuaderno.",
@@ -66,8 +74,10 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
   },
   "pt-BR": {
     notebooksButton: "Cadernos",
-    title: "Cadernos recentes",
-    hint: "Cadernos que você realmente usou. Toque em um para abri-lo novamente.",
+    title: "Cadernos",
+    hint: "Seus cadernos fixados e os usados recentemente. Toque em um para abri-lo.",
+    pinnedSectionTitle: "Fixados",
+    recentSectionTitle: "Usados recentemente",
     clear: "Limpar",
     close: "Fechar",
     empty: "Você ainda não usou nenhum caderno.",
@@ -78,8 +88,10 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
   },
   de: {
     notebooksButton: "Rechenhefte",
-    title: "Zuletzt verwendete Rechenhefte",
-    hint: "Rechenhefte, die du tatsächlich verwendet hast. Tippe eines an, um es erneut zu öffnen.",
+    title: "Rechenhefte",
+    hint: "Deine angehefteten und zuletzt verwendeten Rechenhefte. Tippe eines an, um es zu öffnen.",
+    pinnedSectionTitle: "Angeheftet",
+    recentSectionTitle: "Zuletzt verwendet",
     clear: "Löschen",
     close: "Schließen",
     empty: "Du hast noch kein Rechenheft verwendet.",
@@ -90,8 +102,10 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
   },
   fr: {
     notebooksButton: "Carnets",
-    title: "Carnets récents",
-    hint: "Carnets que vous avez réellement utilisés. Appuyez sur l'un d'eux pour le rouvrir.",
+    title: "Carnets",
+    hint: "Vos carnets épinglés et récemment utilisés. Appuyez sur l'un d'eux pour l'ouvrir.",
+    pinnedSectionTitle: "Épinglés",
+    recentSectionTitle: "Récemment utilisés",
     clear: "Effacer",
     close: "Fermer",
     empty: "Aucun carnet utilisé pour le moment.",
@@ -113,7 +127,7 @@ function categoryLabel(categoryId: string, notebookCategories: NotebookCategory[
   return userCategory?.name ?? copy.uncategorized;
 }
 
-export function NotebookHistorySheet({ visible, language, entries, notebookCategories, onSelect, onRemove, onClear, onClose }: Props) {
+export function NotebookHistorySheet({ visible, language, entries, pinnedNotebooks, notebookCategories, onSelect, onRemove, onClear, onClose }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const copy = COPY[language];
@@ -121,6 +135,9 @@ export function NotebookHistorySheet({ visible, language, entries, notebookCateg
   // 日時は端末ロケールではなく、アプリ内で選んだ言語のロケール（LANGUAGE_META）に揃える。
   // formatQuantityなどlib/units.ts側の既存コードもlocaleを個別に受け取る作りなのでそれに倣う。
   const dateFormatter = useMemo(() => new Intl.DateTimeFormat(LANGUAGE_META[language].locale, { dateStyle: "medium", timeStyle: "short" }), [language]);
+
+  const hasPinned = pinnedNotebooks.length > 0;
+  const hasHistory = entries.length > 0;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -136,61 +153,88 @@ export function NotebookHistorySheet({ visible, language, entries, notebookCateg
             </Pressable>
           </View>
 
-          {entries.length ? (
-            <>
-              <View style={styles.historyActions}>
-                <Pressable onPress={onClear} style={({ pressed }) => [styles.clearButton, pressed && styles.pressed]}>
-                  <Text style={styles.clearButtonText}>{copy.clear}</Text>
-                </Pressable>
-              </View>
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>
-                {entries.map((entry) => {
-                  // 削除済みノートは開けないため、行自体は残しつつ(「何を開いたか」の記録として有用)、
-                  // タップ不能な見た目にする。一覧から丸ごと消すと「なぜ件数が減ったか」が
-                  // 分からなくなるため、あえて残す判断にした。
-                  const isAvailable = Boolean(entry.notebook);
-                  // 改名はnotebook側（現存ノート）の最新タイトルを優先し、削除済みならスナップショットにフォールバックする。
-                  const title = entry.notebook?.title ?? entry.title;
-                  const categoryId = entry.notebook?.categoryId ?? entry.categoryId;
-                  const row = (
-                    <View style={styles.historyRowInner}>
+          {hasPinned || hasHistory ? (
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+              {hasPinned ? (
+                <View>
+                  <Text style={[styles.sectionLabel, styles.sectionLabelSpacing]}>{copy.pinnedSectionTitle}</Text>
+                  {pinnedNotebooks.map((notebook) => (
+                    // ピン留めの解除はここでは行わない（既存のノート詳細画面の導線に一本化するため）。
+                    // そのため削除ボタンは付けず、行全体がタップで開くだけのシンプルな構成にする。
+                    <Pressable
+                      accessibilityLabel={notebook.title}
+                      key={notebook.id}
+                      onPress={() => onSelect(notebook.id)}
+                      style={({ pressed }) => [styles.historyRow, styles.pinnedRowSpacing, pressed && styles.cardPressed]}
+                    >
                       <View style={styles.historyRowMain}>
-                        <IconSymbol name="book.fill" size={14} color={isAvailable ? colors.primary : colors.muted} />
+                        <IconSymbol name="pin.fill" size={13} color={colors.primary} />
                         <View style={styles.historyRowTexts}>
-                          <Text numberOfLines={1} style={[styles.historyTitle, !isAvailable && styles.historyTitleDisabled]}>{title}</Text>
-                          <Text numberOfLines={1} style={styles.historyCategory}>
-                            {categoryLabel(categoryId, notebookCategories, language, copy)}
-                            {isAvailable ? "" : ` · ${copy.deleted}`}
-                          </Text>
+                          <Text numberOfLines={1} style={styles.historyTitle}>{notebook.title}</Text>
+                          <Text numberOfLines={1} style={styles.historyCategory}>{categoryLabel(notebook.categoryId, notebookCategories, language, copy)}</Text>
                         </View>
                       </View>
-                      <Text style={styles.historyDate}>{dateFormatter.format(new Date(entry.openedAt))}</Text>
-                    </View>
-                  );
-                  // 削除ボタンは行の外側に置く。行そのものをPressableにしているため、
-                  // 中に入れ子にすると「開く」と「消す」のどちらが反応したのか分かりにくくなる。
-                  const remove = (
-                    <Pressable accessibilityLabel={`${copy.remove}: ${title}`} onPress={() => onRemove(entry.id)} hitSlop={8} style={({ pressed }) => [styles.removeButton, pressed && styles.pressed]}>
-                      <IconSymbol name="xmark" size={12} color={colors.muted} />
                     </Pressable>
-                  );
-                  return (
-                    <View key={entry.id} style={styles.historyRowWrap}>
-                      {isAvailable ? (
-                        <Pressable accessibilityLabel={title} onPress={() => onSelect(entry.notebookId)} style={({ pressed }) => [styles.historyRow, styles.historyRowGrow, pressed && styles.cardPressed]}>
-                          {row}
-                        </Pressable>
-                      ) : (
-                        <View style={[styles.historyRow, styles.historyRowGrow, styles.historyRowDisabled]}>
-                          {row}
+                  ))}
+                </View>
+              ) : null}
+
+              {hasHistory ? (
+                <View>
+                  <View style={styles.sectionHeaderRow}>
+                    <Text style={styles.sectionLabel}>{copy.recentSectionTitle}</Text>
+                    <Pressable onPress={onClear} style={({ pressed }) => [styles.clearButton, pressed && styles.pressed]}>
+                      <Text style={styles.clearButtonText}>{copy.clear}</Text>
+                    </Pressable>
+                  </View>
+                  {entries.map((entry) => {
+                    // 削除済みノートは開けないため、行自体は残しつつ(「何を開いたか」の記録として有用)、
+                    // タップ不能な見た目にする。一覧から丸ごと消すと「なぜ件数が減ったか」が
+                    // 分からなくなるため、あえて残す判断にした。
+                    const isAvailable = Boolean(entry.notebook);
+                    // 改名はnotebook側（現存ノート）の最新タイトルを優先し、削除済みならスナップショットにフォールバックする。
+                    const title = entry.notebook?.title ?? entry.title;
+                    const categoryId = entry.notebook?.categoryId ?? entry.categoryId;
+                    const row = (
+                      <View style={styles.historyRowInner}>
+                        <View style={styles.historyRowMain}>
+                          <IconSymbol name="book.fill" size={14} color={isAvailable ? colors.primary : colors.muted} />
+                          <View style={styles.historyRowTexts}>
+                            <Text numberOfLines={1} style={[styles.historyTitle, !isAvailable && styles.historyTitleDisabled]}>{title}</Text>
+                            <Text numberOfLines={1} style={styles.historyCategory}>
+                              {categoryLabel(categoryId, notebookCategories, language, copy)}
+                              {isAvailable ? "" : ` · ${copy.deleted}`}
+                            </Text>
+                          </View>
                         </View>
-                      )}
-                      {remove}
-                    </View>
-                  );
-                })}
-              </ScrollView>
-            </>
+                        <Text style={styles.historyDate}>{dateFormatter.format(new Date(entry.openedAt))}</Text>
+                      </View>
+                    );
+                    // 削除ボタンは行の外側に置く。行そのものをPressableにしているため、
+                    // 中に入れ子にすると「開く」と「消す」のどちらが反応したのか分かりにくくなる。
+                    const remove = (
+                      <Pressable accessibilityLabel={`${copy.remove}: ${title}`} onPress={() => onRemove(entry.id)} hitSlop={8} style={({ pressed }) => [styles.removeButton, pressed && styles.pressed]}>
+                        <IconSymbol name="xmark" size={12} color={colors.muted} />
+                      </Pressable>
+                    );
+                    return (
+                      <View key={entry.id} style={styles.historyRowWrap}>
+                        {isAvailable ? (
+                          <Pressable accessibilityLabel={title} onPress={() => onSelect(entry.notebookId)} style={({ pressed }) => [styles.historyRow, styles.historyRowGrow, pressed && styles.cardPressed]}>
+                            {row}
+                          </Pressable>
+                        ) : (
+                          <View style={[styles.historyRow, styles.historyRowGrow, styles.historyRowDisabled]}>
+                            {row}
+                          </View>
+                        )}
+                        {remove}
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : null}
+            </ScrollView>
           ) : (
             <View style={styles.emptyState}>
               <IconSymbol name="clock.arrow.circlepath" size={22} color={colors.muted} />
@@ -212,10 +256,15 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   sheetTitle: { color: colors.foreground, fontSize: 20, fontWeight: "800" },
   sheetSubtitle: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 3 },
   closeHelp: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderRadius: 16, height: 32, justifyContent: "center", width: 32 },
-  historyActions: { flexDirection: "row", justifyContent: "flex-end", marginBottom: 4 },
   clearButton: { padding: 4 },
   clearButtonText: { color: colors.error, fontSize: 11, fontWeight: "700" },
-  modalList: { gap: 8, paddingBottom: 18, paddingTop: 10 },
+  scrollContent: { gap: 18, paddingBottom: 18, paddingTop: 10 },
+  // 見出しの下余白は見出し自身ではなく行側に持たせる。見出しに marginBottom を付けたまま
+  // 「消去」ボタンと同じ行（alignItems:center）に入れると、その余白ぶん見出しだけが上へずれる。
+  sectionLabel: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.4, textTransform: "uppercase" },
+  sectionLabelSpacing: { marginBottom: 8 },
+  sectionHeaderRow: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
+  pinnedRowSpacing: { marginBottom: 6 },
   historyRowWrap: { alignItems: "center", flexDirection: "row", gap: 6, marginBottom: 6 },
   historyRow: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 11, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
   historyRowGrow: { flex: 1 },
