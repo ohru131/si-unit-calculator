@@ -399,7 +399,15 @@ export default function ConstantsScreen() {
   const handleExportCategoryNotebooks = async (categoryIds: string[]) => {
     try {
       const fileLabel = exportCategoryFileLabel(categoryIds[0]);
-      await exportNotebooksBackup(notebooks.filter((notebook) => categoryIds.includes(notebook.categoryId)), notebookCategories, language, fileLabel);
+      // カテゴリ一覧もノートと同じ範囲へ絞って渡す。今の createNotebooksBackup は
+      // 「そのノート自身のcategoryIdを引く表」としてしか使っていないので絞っても出力は変わらないが、
+      // 呼び出し側で範囲を閉じておけば、将来この引数の使われ方が変わっても書き出す範囲が広がらない。
+      await exportNotebooksBackup(
+        notebooks.filter((notebook) => categoryIds.includes(notebook.categoryId)),
+        notebookCategories.filter((category) => categoryIds.includes(category.id)),
+        language,
+        fileLabel,
+      );
       setCategoryExportNotice(copy.categoryExportDone);
     } catch (cause) {
       setCategoryExportNotice(engineErrorMessage(cause));
