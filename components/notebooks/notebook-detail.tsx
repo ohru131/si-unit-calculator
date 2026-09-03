@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import * as Clipboard from "expo-clipboard";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
@@ -12,7 +12,8 @@ import { getLocalConstantFieldSuggestions, getStepFieldSuggestions, insertConsta
 import { evaluateNotebookSteps, formatNameValue, normalizeStepForSave, parseNameValue, resolveNotebookLocalConstants, trimResultSymbol } from "@/lib/notebook-engine";
 import { nextStepNamePatch, stepDisplayTitle } from "@/lib/notebook-step-title";
 import { getUnitInsertionRange, replaceExpressionRange } from "@/lib/unit-input";
-import { formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, type MeasuringStandard, type Quantity, type SavedConstant, type UnitSystem } from "@/lib/units";
+import { compatibleUnitOptions, compatibleUnitOptionsFromHints } from "@/lib/unit-options";
+import { formatQuantity, type MeasuringStandard, type SavedConstant, type UnitSystem } from "@/lib/units";
 
 const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" });
 
@@ -122,10 +123,16 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   const [saveError, setSaveError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
-  // mₒ・nₜ のようなUnicode下付き文字は端末キーボードで直接入力できないため、フォーカス中の式
-  // フィールドの直下に「タップで挿入」ボタンの列を出す。フィールドごとに一意なキー
-  // （`constant:${id}` / `step:${id}`）で、どのフィールドで表示中かを管理する。
-  const [focusedRailKey, setFocusedRailKey] = useState<string | null>(null);
+  // mₒ・nₜ のようなUnicode下付き文字は端末キーボードで直接入力できないため、式フィールドの
+  // 直下に「タップで挿入」ボタンの列を出す。フィールドごとに一意なキー（`constant:${id}` /
+  // `step:${id}`）で、どのフィールドのレールを表示中かを管理する。
+  // 【なぜフォーカスと連動させないか】以前は「フォーカス中のフィールド」に厳密に連動させ、onBlurで
+  // 150ms後に消していた。しかしチップ（単位・定数）はTextInputの外にあるPressableなので、それを
+  // 押した瞬間にonBlurが先に発火してレールごと消え、目的のボタンを押せなくなってしまう
+  // （app/(tabs)/constants.tsxの記号レールで実際に踏んだ不具合と同じ構造）。そこで「最後にフォーカス
+  // したフィールド」のレールを、別のフィールドにフォーカスが移るまで表示し続ける方式に変える。
+  // TextInputのonBlurではもう何もしない（scheduleRailBlurは廃止）。
+  const [activeRailKey, setActiveRailKey] = useState<string | null>(null);
   // 各フィールドの現在のキャレット/選択範囲（onSelectionChangeで更新）。ボタンをタップしたとき
   // 末尾ではなく、この位置に記号を挿し込むために使う。
   const [fieldSelections, setFieldSelections] = useState<Record<string, { start: number; end: number }>>({});
@@ -147,10 +154,22 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     setSaveError("");
   }
 
-  // 別のノートを開いたときは、前のノートで選んだ表示単位を引き継がない。
-  useEffect(() => {
+  // 別のノートを開いたときは、前のノートで選んだ表示単位・レール状態を引き継がない。
+  // このコンポーネントはノートを切り替えても（例: 別のピン留めチップを続けて開く）unmountされずに
+  // props（notebook）だけが変わることがあるため、activeRailKey等が前のノートのフィールドキー
+  // （idベース）を指したまま残ると、新しいノートの同じ位置のフィールドに古いキャレット位置が
+  // 誤って復元されてしまう。
+  // 上のlocalConstants/stepsの同期と同じく、useEffectではなくレンダー中に前回値と比較して直接
+  // 調整する（effectの中で同期的にsetStateすると余計な再レンダーが1往復増えるうえ、このファイルは
+  // 既にこの方式で揃えてある）。
+  const [syncedNotebookId, setSyncedNotebookId] = useState(notebook.id);
+  if (notebook.id !== syncedNotebookId) {
+    setSyncedNotebookId(notebook.id);
     setUnitOverrides({});
-  }, [notebook.id]);
+    setActiveRailKey(null);
+    setFieldSelections({});
+    setForcedSelection(null);
+  }
 
   const copy = COPY[language];
 
@@ -216,17 +235,6 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     await Clipboard.setStringAsync(`${title} = ${formatted}`);
   };
 
-  const compatibleUnitsFor = (quantity: Quantity | undefined) => {
-    if (!quantity) return [] as { symbol: string; label: string }[];
-    const options: { symbol: string; label: string }[] = [];
-    getCompatibleUnitGroups(quantity.dimension).forEach((group) => {
-      getGroupUnitsForSystem(group, unitSystem).forEach((unitOption) => {
-        if (!options.some((option) => option.symbol === unitOption.symbol)) options.push({ symbol: unitOption.symbol, label: unitOption.label });
-      });
-    });
-    return options.slice(0, 14);
-  };
-
   const constantFieldKey = (id: string) => `constant:${id}`;
   const stepFieldKey = (id: string) => `step:${id}`;
   const combinedCaretEnd = (name: string, expression: string) => formatNameValue(name, expression).length;
@@ -267,16 +275,8 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     setForcedSelection((current) => (current?.key === key ? null : current));
   };
 
-  // Pressableのタップより先にonBlurでレール表示を消してしまうと押下が成立しないことがあるため、
-  // 少し遅らせてから消す（同じフィールドにまだフォーカスが戻っていなければ消す）。
-  const scheduleRailBlur = (key: string) => {
-    setTimeout(() => {
-      setFocusedRailKey((current) => (current === key ? null : current));
-    }, 150);
-  };
-
   const renderConstantsRail = (key: string, symbols: string[], onInsert: (symbol: string) => void) => {
-    if (focusedRailKey !== key || !symbols.length) return null;
+    if (activeRailKey !== key || !symbols.length) return null;
     return (
       <View>
         <Text style={styles.constantsRailLabel}>{copy.constantsRailLabel}</Text>
@@ -354,7 +354,10 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
         {notebook.localConstants.length ? (
           <View style={styles.inputCard}>
             {editableConstants.map((item, constantIndex) => {
-              const inputUnits = compatibleUnitsFor(resolvedBySymbol.get(item.symbol.trim())?.quantity);
+              // フォールバックの手掛かりはこの定数自身の式（例: "8.99e9N*m^2/C^2"）を渡す。
+              // クーロンの法則のkのように次元に対応するグループが無くても、式中の単位から
+              // SI接頭辞違いの候補を組み立てられる。
+              const inputUnits = compatibleUnitOptions(resolvedBySymbol.get(item.symbol.trim())?.quantity, unitSystem, { expression: item.expression });
               const railKey = constantFieldKey(item.id);
               const isRailForced = forcedSelection?.key === railKey;
               return (
@@ -366,8 +369,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                       updateConstant(item.id, { symbol: name, expression: value });
                       setForcedSelection((current) => (current?.key === railKey ? null : current));
                     }}
-                    onFocus={() => setFocusedRailKey(railKey)}
-                    onBlur={() => scheduleRailBlur(railKey)}
+                    onFocus={() => setActiveRailKey(railKey)}
                     onSelectionChange={(event) => handleSelectionChange(railKey, event.nativeEvent.selection)}
                     selection={isRailForced ? forcedSelection.selection : undefined}
                     editable={!isSaving}
@@ -379,7 +381,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                     insertSymbolIntoField(railKey, item.symbol, item.expression, symbol, (nextExpression) => updateConstant(item.id, { expression: nextExpression })),
                   )}
                   {inputUnits.length ? (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.unitRail}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.unitRail}>
                       {inputUnits.map((unitOption) => (
                         <Pressable
                           key={unitOption.symbol}
@@ -407,7 +409,12 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
             {stepResults.map((result, index) => {
               const isFinalStep = index === stepResults.length - 1;
               const overrideUnit = unitOverrides[result.step.id];
-              const compatibleUnits = compatibleUnitsFor(result.quantity);
+              const effectiveUnit = overrideUnit ?? result.step.targetUnit.trim();
+              // フォールバックの手掛かりは「今表示に使っている単位 → この手順の式 → 実際に表示している
+              // SI表記」の順に試す。式は symbol 参照ばかりで単位を含まないことが多く（例: v0*a）、
+              // 表示単位も未指定だと、結果は 10 m²/s³ と出せているのに候補が0件になってしまう。
+              // 候補が0件だと下の単位レールが丸ごと消え、SIへ戻すチップまで押せなくなる。
+              const compatibleUnits = compatibleUnitOptionsFromHints(result.quantity, unitSystem, [effectiveUnit, result.step.expression, result.siFallback]);
               let displayValue = result.formatted;
               let displayError = result.error;
               if (result.quantity && overrideUnit !== undefined) {
@@ -424,7 +431,6 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                   }
                 }
               }
-              const effectiveUnit = overrideUnit ?? result.step.targetUnit.trim();
               if (displayValue && effectiveUnit) {
                 const label = compatibleUnits.find((unitOption) => unitOption.symbol === effectiveUnit)?.label;
                 if (label && label !== effectiveUnit && displayValue.endsWith(effectiveUnit)) {
@@ -451,8 +457,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                       updateStepField(result.step.id, nextStepNamePatch(result.step, name, value));
                       setForcedSelection((current) => (current?.key === stepRailKey ? null : current));
                     }}
-                    onFocus={() => setFocusedRailKey(stepRailKey)}
-                    onBlur={() => scheduleRailBlur(stepRailKey)}
+                    onFocus={() => setActiveRailKey(stepRailKey)}
                     onSelectionChange={(event) => handleSelectionChange(stepRailKey, event.nativeEvent.selection)}
                     selection={forcedSelection?.key === stepRailKey ? forcedSelection.selection : undefined}
                     editable={!isSaving}
@@ -484,7 +489,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                     </>
                   )}
                   {compatibleUnits.length ? (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.unitRail}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.unitRail}>
                       <Pressable onPress={() => setUnitOverrides((current) => ({ ...current, [result.step.id]: "" }))} style={({ pressed }) => [styles.unitChip, !effectiveUnit && styles.unitChipActive, pressed && styles.pressed]}>
                         <Text style={[styles.unitChipText, !effectiveUnit && styles.unitChipTextActive]}>{copy.si}</Text>
                       </Pressable>

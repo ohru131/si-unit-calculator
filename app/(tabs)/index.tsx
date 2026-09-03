@@ -15,16 +15,19 @@ import {
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from "react-native-reanimated";
 
 import { CalculatorBannerAd } from "@/components/ads/calculator-banner-ad";
+import { NOTEBOOK_HISTORY_SHEET_COPY, NotebookHistorySheet } from "@/components/notebooks/notebook-history-sheet";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { isSampleCategoryVisible, isUnitGroupVisible, isUnitVisible, visibleUnits } from "@/lib/advanced-display";
 import { useCalculatorStore } from "@/lib/calculator-store";
+import { resolveStartupExpression } from "@/lib/calculator-startup-expression";
 import { exportCalculationHistory } from "@/lib/calculation-export";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { historyToAutoConstants } from "@/lib/history-auto-constants";
 import { localizedText, type AppLanguage } from "@/lib/i18n";
+import { resolveNotebookHistory } from "@/lib/notebook-history";
 import { getCalculatorQuickShortcut } from "@/lib/quick-shortcuts";
 import { usePro } from "@/lib/revenuecat-provider";
 import { unitErrorMessage } from "@/lib/unit-errors";
@@ -45,7 +48,11 @@ import { evaluateExpression, formatQuantity, getCompatibleUnitGroups, getGroupUn
 
 const CONSTANT_ASSIGNMENT_PATTERN = new RegExp(`^([${IDENTIFIER_START_CHAR_CLASS}][${IDENTIFIER_BODY_CHAR_CLASS}]*)\\s*=`);
 
-const KEYS = ["(", ")", "÷", "⌫", "7", "8", "9", "×", "4", "5", "6", "-", "1", "2", "3", "+", ".", "0", " ", "="];
+// 「全消し」の要望に対応するため、従来は空セルのプレースホルダだった最下段（"0"と"="の間）に
+// ⌫（一文字削除）を動かし、空いた最上段の右端（従来⌫があった場所）にACを置く。
+// AC（全消去・元に戻せない）は"="からできるだけ離し、逆に押し間違えても被害が小さい⌫の方を
+// "="の隣に残すことで、誤爆したときの実害を最小にする配置にしている。
+const KEYS = ["(", ")", "÷", "AC", "7", "8", "9", "×", "4", "5", "6", "-", "1", "2", "3", "+", ".", "0", "⌫", "="];
 const ADVANCED_KEYS = ["sin(", "cos(", "tan(", "asin(", "acos(", "atan(", "atan2(", "ln(", "log(", "log2(", "sqrt(", "^", "π", "e"];
 const RAIL_LIMIT = 8;
 const RECENT_UNIT_LIMIT = 8;
@@ -67,6 +74,7 @@ const EN_COPY = {
   couldNotCopyCalculation: "Could not copy this calculation.",
   expressionPlaceholder: "Example: 5cm + 1mm",
   deleteKey: "Delete",
+  clearAllKey: "Clear all",
   skip: "Skip",
   getStarted: "Get started",
   next: "Next",
@@ -93,6 +101,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     couldNotCopyCalculation: "計算結果をコピーできませんでした。",
     expressionPlaceholder: "例：5cm + 1mm",
     deleteKey: "一文字削除",
+    clearAllKey: "全消去",
     skip: "スキップ",
     getStarted: "はじめる",
     next: "次へ",
@@ -117,6 +126,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     couldNotCopyCalculation: "No se pudo copiar este cálculo.",
     expressionPlaceholder: "Ejemplo: 5cm + 1mm",
     deleteKey: "Eliminar",
+    clearAllKey: "Borrar todo",
     skip: "Omitir",
     getStarted: "Comenzar",
     next: "Siguiente",
@@ -141,6 +151,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     couldNotCopyCalculation: "Não foi possível copiar este cálculo.",
     expressionPlaceholder: "Exemplo: 5cm + 1mm",
     deleteKey: "Excluir",
+    clearAllKey: "Limpar tudo",
     skip: "Pular",
     getStarted: "Começar",
     next: "Próximo",
@@ -165,6 +176,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     couldNotCopyCalculation: "Diese Berechnung konnte nicht kopiert werden.",
     expressionPlaceholder: "Beispiel: 5cm + 1mm",
     deleteKey: "Rücktaste",
+    clearAllKey: "Alles löschen",
     skip: "Überspringen",
     getStarted: "Loslegen",
     next: "Weiter",
@@ -189,6 +201,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     couldNotCopyCalculation: "Impossible de copier ce calcul.",
     expressionPlaceholder: "Exemple : 5cm + 1mm",
     deleteKey: "Supprimer",
+    clearAllKey: "Tout effacer",
     skip: "Passer",
     getStarted: "Commencer",
     next: "Suivant",
@@ -241,11 +254,14 @@ export default function CalculatorScreen() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { quick, presetExpression, presetUnit } = useLocalSearchParams<{ quick?: string | string[]; presetExpression?: string | string[]; presetUnit?: string | string[] }>();
-  const { constants, history, favoriteUnits, notebooks, upsertConstant, addHistoryEntry, clearHistory } = useCalculatorStore();
+  const { constants, history, favoriteUnits, notebooks, notebookCategories, notebookHistory, upsertConstant, addHistoryEntry, clearHistory, clearNotebookHistory, isLoading: isHistoryLoading } = useCalculatorStore();
   const { isPro } = usePro();
   const { completeOnboarding, hasSeenOnboarding, isReady, language, locale, measuringStandard, t, unitGroupLabel, unitSystem } = useGlobalSettings();
   const [onboardingStep, setOnboardingStep] = useState(0);
-  const [expression, setExpression] = useState("5cm + 1mm");
+  // 起動時の初期式は「固定のサンプル」ではなく「最後に計算した式」にしてほしいという要望に対応する
+  // ため、ここでは空欄で始め、履歴の読み込みが終わった時点で下のuseEffectがhistory[0]を反映する
+  // （履歴が無ければ空欄のまま。入力例はexpressionPlaceholderで見せているので初見でも迷わない）。
+  const [expression, setExpression] = useState("");
   // キャレット（テキスト選択範囲）を追跡し、単位チップ・キーパッドの入力先を「末尾」ではなく
   // 「今カーソルがある位置」にするために使う。pendingSelection はプログラムから挿入した直後だけ
   // TextInput の selection props を強制するための一時的な値で、適用後すぐ null に戻して
@@ -262,6 +278,7 @@ export default function CalculatorScreen() {
   const [showSamples, setShowSamples] = useState(false);
   const [showUnitPicker, setShowUnitPicker] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showNotebookHistory, setShowNotebookHistory] = useState(false);
   const [showAdvancedKeys, setShowAdvancedKeys] = useState(false);
   const [unitPickerMode, setUnitPickerMode] = useState<"insert" | "target">("insert");
   const [unitInfoSymbol, setUnitInfoSymbol] = useState<string | null>(null);
@@ -282,6 +299,13 @@ export default function CalculatorScreen() {
   // （クイックアクションから起動する経路そのものが壊れる）。実際にブラウザで再現して確認済み。
   const appliedQuickRef = useRef<string | null>(null);
   const appliedPresetRef = useRef<string | null>(null);
+  // 起動時の履歴復元用。initialExpressionRef はマウント時の expression の値（常に""）を
+  // 一度だけ捕まえておく（useRefの初期値は最初のレンダーでしか使われないため、以後 expression が
+  // 変わっても書き換わらない）。履歴の読み込み完了後、このrefの値と現在の expression を比較して
+  // 「その間に何も変わっていない＝ユーザーはまだ何も打っていない」ときだけ履歴を反映する
+  // （判定ロジック自体は resolveStartupExpression に切り出し、tests/ でユニットテスト済み）。
+  const initialExpressionRef = useRef(expression);
+  const appliedStartupHistoryRef = useRef(false);
 
   // 結果が更新された瞬間・単位を切り替えた瞬間に軽く跳ねさせ、次元不整合時は横に揺らして知らせる。
   const resultOpacity = useSharedValue(1);
@@ -346,6 +370,8 @@ export default function CalculatorScreen() {
   const visibleSamples = useMemo(() => SAMPLE_CALCULATIONS.filter((sample) => sample.category === sampleCategory && isSampleCategoryVisible(sample.category, isAdvancedMode)), [isAdvancedMode, sampleCategory]);
   const visibleHistory = isPro ? history : history.slice(0, 5);
   const pinnedNotebooks = useMemo(() => notebooks.filter((notebook) => notebook.pinned), [notebooks]);
+  // 履歴シートに渡す突き合わせ結果は毎レンダー作り直すと(他の派生値と同様に)無駄な再計算になるためuseMemoでくるむ。
+  const resolvedNotebookHistory = useMemo(() => resolveNotebookHistory(notebookHistory, notebooks), [notebookHistory, notebooks]);
   const autoConstants = useMemo(() => historyToAutoConstants(history), [history]);
   const unitInfo = useMemo(() => getUnitExplanation(unitInfoSymbol ?? ""), [unitInfoSymbol]);
   const targetUnitRegistration = useMemo(() => getUnitRegistration(targetUnit), [targetUnit]);
@@ -523,9 +549,36 @@ export default function CalculatorScreen() {
     setPendingSelection(next);
   };
 
+  // 履歴の非同期復元が、ユーザー自身の操作を後から上書きしないようにするための記録。
+  // 式の中身の比較だけでは、全消し(AC)や「打ってから消した」で式が初期値（空）に戻ったときに
+  // 「まだ何もしていない」と誤判定してしまうため、操作そのものをここで覚えておく。
+  const hasUserInteractedRef = useRef(false);
+  // 注意: この関数を applyTargetUnit / chooseUnit のような「render中に呼ばれる関数（renderUnitChip）から
+  // 辿れる」関数の中に置くと、react-hooks/refs が「render中のref参照」として誤検知する
+  // （実際にはonPressの中でしか実行されないが、ルールは遅延コールバックと区別できない）。
+  // そのため表示単位の変更は、関数の中ではなくJSXのonPressハンドラ側で記録している。
+  const markUserInteraction = () => {
+    hasUserInteractedRef.current = true;
+  };
+
   const pressKey = (key: string) => {
+    markUserInteraction();
     if (key === "=") {
       void calculate();
+      return;
+    }
+    if (key === "AC") {
+      // 全消し：式・キャレット位置・表示単位の指定・計算結果・エラー表示・案内文をまとめて
+      // 初期状態に戻す。式に紐づかない履歴（history）はここでは消さない（履歴シート側に
+      // 別の「消去」ボタンがある）。
+      setExpression("");
+      placeCaret(0);
+      setTargetUnit("cm");
+      setResult(null);
+      setFixSelection(null);
+      setError("");
+      setNotice("");
+      void Haptics.selectionAsync();
       return;
     }
     const start = Math.min(selection.start, expression.length);
@@ -543,7 +596,6 @@ export default function CalculatorScreen() {
       setFixSelection(null);
       return;
     }
-    if (key === " ") return;
     const inserted = key === "×" ? "×" : key === "÷" ? "÷" : key;
     // 選択範囲があれば置き換え、無ければキャレット位置へそのまま挿入する（末尾への追記ではない）。
     setExpression(replaceExpressionRange(expression, start, end, inserted));
@@ -621,6 +673,7 @@ export default function CalculatorScreen() {
   };
 
   const restoreHistory = (entry: (typeof history)[number]) => {
+    markUserInteraction();
     setExpression(entry.expression);
     placeCaret(entry.expression.length);
     setTargetUnit(entry.targetUnit);
@@ -646,6 +699,30 @@ export default function CalculatorScreen() {
     const timer = setTimeout(() => setPendingSelection(null), 0);
     return () => clearTimeout(timer);
   }, [pendingSelection]);
+
+  // 履歴はAsyncStorageから非同期に読み込まれるため、マウント直後は必ず空配列。isHistoryLoading
+  // が false になった最初のタイミングで一度だけ、最後に計算した式(history[0])を反映する。
+  // その間にユーザーが何か入力していたら（クイックアクション・プリセット復元含む）、
+  // expression が initialExpressionRef.current（マウント時の""）から変わっているはずなので
+  // resolveStartupExpression が null を返し、割り込んで上書きすることはない。
+  useEffect(() => {
+    if (isHistoryLoading) return;
+    if (appliedStartupHistoryRef.current) return;
+    appliedStartupHistoryRef.current = true;
+    const restored = resolveStartupExpression({
+      currentExpression: expression,
+      initialExpression: initialExpressionRef.current,
+      hasUserInteracted: hasUserInteractedRef.current,
+      latestHistoryEntry: history[0],
+    });
+    if (!restored) return;
+    setExpression(restored.expression);
+    placeCaret(restored.expression.length);
+    setTargetUnit(restored.targetUnit);
+    setResult(restored.quantity);
+    setFixSelection(null);
+    setError("");
+  }, [isHistoryLoading, history, expression]);
 
   useEffect(() => {
     const action = Array.isArray(quick) ? quick[0] : quick;
@@ -690,6 +767,7 @@ export default function CalculatorScreen() {
   }, [copy, language, presetExpression, presetUnit]);
 
   const applySample = (sample: SampleCalculation) => {
+    markUserInteraction();
     const sampleTargetUnit = targetUnitForSample(sample);
     setExpression(sample.expression);
     placeCaret(sample.expression.length);
@@ -704,6 +782,14 @@ export default function CalculatorScreen() {
   const openPinnedNotebook = (notebook: (typeof pinnedNotebooks)[number]) => {
     void Haptics.selectionAsync();
     router.push({ pathname: "/constants", params: { openNotebookId: notebook.id } });
+  };
+
+  // 履歴シートからの選択もopenPinnedNotebookと同じ遷移方法(openNotebookIdパラメータ)に揃える。
+  // シートは選択直後に自分で閉じないため、ここで明示的に閉じてから遷移する。
+  const openNotebookFromHistory = (notebookId: string) => {
+    setShowNotebookHistory(false);
+    void Haptics.selectionAsync();
+    router.push({ pathname: "/constants", params: { openNotebookId: notebookId } });
   };
 
   const exportHistory = async () => {
@@ -773,6 +859,7 @@ export default function CalculatorScreen() {
             <TextInput
               value={expression}
               onChangeText={(text) => {
+                markUserInteraction();
                 setExpression(text);
                 setFixSelection(null);
                 setError("");
@@ -929,11 +1016,11 @@ export default function CalculatorScreen() {
                   <Animated.Text numberOfLines={2} adjustsFontSizeToFit style={[styles.resultValue, resultAnimatedStyle]}>{display.value}</Animated.Text>
                   <View style={styles.conversionRow}>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.conversionRail} keyboardShouldPersistTaps="handled">
-                      <Pressable accessibilityLabel={copy.noUnit} onPress={() => applyTargetUnit("")} style={({ pressed }) => [styles.convertChip, !targetUnit.trim() && styles.convertChipActive, pressed && styles.pressed]}>
+                      <Pressable accessibilityLabel={copy.noUnit} onPress={() => { markUserInteraction(); applyTargetUnit(""); }} style={({ pressed }) => [styles.convertChip, !targetUnit.trim() && styles.convertChipActive, pressed && styles.pressed]}>
                         <Text style={[styles.convertChipText, !targetUnit.trim() && styles.convertChipTextActive]}>SI</Text>
                       </Pressable>
                       {conversionUnits.map((symbol) => (
-                        <Pressable accessibilityLabel={symbol} key={symbol} onPress={() => applyTargetUnit(symbol)} style={({ pressed }) => [styles.convertChip, targetUnit.trim() === symbol && styles.convertChipActive, pressed && styles.pressed]}>
+                        <Pressable accessibilityLabel={symbol} key={symbol} onPress={() => { markUserInteraction(); applyTargetUnit(symbol); }} style={({ pressed }) => [styles.convertChip, targetUnit.trim() === symbol && styles.convertChipActive, pressed && styles.pressed]}>
                           <Text style={[styles.convertChipText, targetUnit.trim() === symbol && styles.convertChipTextActive]}>{symbol}</Text>
                         </Pressable>
                       ))}
@@ -987,6 +1074,11 @@ export default function CalculatorScreen() {
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.toolRail} keyboardShouldPersistTaps="handled">
           <Pressable onPress={() => setShowSamples(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.samples}</Text></Pressable>
+          {/* ピン留めチップ列(常時ピン留めしたノートだけ)・履歴バー(計算結果の履歴)とは役割が別なので、
+              「最近開いたノート」を辿る入口はサンプル・数学と同じツールレールに置く。
+              件数が0でもボタン自体は隠さない(押すたびに出たり消えたりする方がかえって分かりにくいため)。
+              空のときはシート側の空状態表示に任せる。 */}
+          <Pressable onPress={() => setShowNotebookHistory(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{NOTEBOOK_HISTORY_SHEET_COPY[language].notebooksButton}</Text></Pressable>
           {isAdvancedMode ? <Pressable onPress={() => setShowAdvancedKeys(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.math}</Text></Pressable> : null}
         </ScrollView>
 
@@ -996,11 +1088,10 @@ export default function CalculatorScreen() {
           {KEYS.map((key, index) => {
             const isAction = key === "=";
             const isOperator = ["×", "÷", "+", "-"].includes(key);
-            if (key === " ") return <View key={`blank-${index}`} style={styles.keyCell} />;
             return (
               <View key={`${key}-${index}`} style={styles.keyCell}>
                 <Pressable
-                  accessibilityLabel={key === "⌫" ? copy.deleteKey : key}
+                  accessibilityLabel={key === "⌫" ? copy.deleteKey : key === "AC" ? copy.clearAllKey : key}
                   onPress={() => pressKey(key)}
                   style={({ pressed }) => [styles.key, isAction && styles.keyAction, isOperator && styles.keyOperator, pressed && styles.keyPressed]}
                 >
@@ -1104,6 +1195,16 @@ export default function CalculatorScreen() {
       <Modal visible={showHistory} transparent animationType="slide" onRequestClose={() => setShowHistory(false)}>
         <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><View style={styles.sheetHeaderMain}><Text style={styles.sheetTitle}>{copy.savedHistory}</Text><Text style={styles.sheetSubtitle}>{copy.historyHint}</Text></View><Pressable accessibilityLabel={copy.close} onPress={() => setShowHistory(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.historyActions}><Pressable onPress={() => void exportHistory()} style={({ pressed }) => [styles.exportHistoryButton, pressed && styles.pressed]}><IconSymbol name="square.and.arrow.up" size={15} color={colors.primary} /><Text style={styles.exportHistoryText}>CSV</Text></Pressable><Pressable onPress={() => void clearHistory()} style={({ pressed }) => [styles.clearHistoryButton, pressed && styles.pressed]}><Text style={styles.clearHistoryText}>{copy.clear}</Text></Pressable></View>{visibleHistory.length ? <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleHistory.map((entry, index) => <Pressable key={entry.id} onPress={() => { restoreHistory(entry); setShowHistory(false); }} style={({ pressed }) => [styles.historyRow, pressed && styles.cardPressed]}><View style={styles.historyExpressionWrap}><Text style={styles.historyAutoSymbol}>a{index + 1}</Text><Text numberOfLines={1} style={styles.historyExpression}>{entry.expression}</Text></View><Text numberOfLines={1} style={styles.historyResult}>{entry.resultText}</Text></Pressable>)}</ScrollView> : <View style={styles.emptyState}><IconSymbol name="clock" size={22} color={colors.muted} /><Text style={styles.emptyStateTitle}>{copy.noHistory}</Text><Text style={styles.emptyStateText}>{copy.noHistoryHint}</Text></View>}</View></View>
       </Modal>
+
+      <NotebookHistorySheet
+        visible={showNotebookHistory}
+        language={language}
+        entries={resolvedNotebookHistory}
+        notebookCategories={notebookCategories}
+        onSelect={openNotebookFromHistory}
+        onClear={() => void clearNotebookHistory()}
+        onClose={() => setShowNotebookHistory(false)}
+      />
 
       <Modal visible={showHelp} transparent animationType="fade" onRequestClose={() => setShowHelp(false)}>
         <View style={styles.helpBackdrop}>

@@ -35,12 +35,14 @@ import {
 import { FORMULA_CHARACTER_GROUPS } from "@/lib/formula-characters";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { localizedText, type AppLanguage } from "@/lib/i18n";
-import { formatNameValue, normalizeStepForSave, parseNameValue } from "@/lib/notebook-engine";
-import { clampSelectionRange, getLocalConstantFieldSuggestions, getStepFieldSuggestions, insertConstantSymbol } from "@/lib/notebook-constant-suggestions";
+import { evaluateNotebookSteps, formatNameValue, normalizeStepForSave, parseNameValue, resolveNotebookLocalConstants } from "@/lib/notebook-engine";
+import { clampSelectionRange, getLocalConstantFieldSuggestions, getStepFieldSuggestions, insertConstantSymbol, mapCombinedSelectionToExpressionRange } from "@/lib/notebook-constant-suggestions";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
 import { nextStepNamePatch } from "@/lib/notebook-step-title";
 import { type ImportedNotebook } from "@/lib/notebooks-backup";
 import { exportNotebooksBackup, pickNotebooksBackup } from "@/lib/notebooks-backup-file";
+import { getUnitInsertionRange, replaceExpressionRange } from "@/lib/unit-input";
+import { compatibleUnitOptions } from "@/lib/unit-options";
 import { unitErrorMessage } from "@/lib/unit-errors";
 import { formatQuantity, SavedConstant } from "@/lib/units";
 
@@ -84,9 +86,11 @@ const EN_COPY = {
   notebookExportDone: "Notebooks backup exported.", notebookReplaceImportConfirm: "Replace all your notebooks with the ones in this file? Preset notebooks are kept. This cannot be undone.",
   notebookMerge: "Merge and replace matches", notebookReplace: "Replace all notebooks",
   notebookTitlePlaceholder: "Bending stress", notebookDescriptionPlaceholder: "Optional note",
-  insert: "Insert", formulaCharactersLabel: "Symbols", definedVariablesLabel: "Defined variables",
+  insert: "Insert", formulaCharactersLabel: "Symbols", definedVariablesLabel: "Defined variables", unitsLabel: "Units",
   symbolGroupSubscriptDigits: "Subscript digits", symbolGroupSubscriptLetters: "Subscript letters", symbolGroupGreekLower: "Greek (lowercase)", symbolGroupGreekUpper: "Greek (uppercase)",
   resultTitleLabel: "Display title", resultTitlePlaceholder: "e.g. Velocity v",
+  stepFormulaLatexLabel: "Formula (optional LaTeX)",
+  formulaLatexRequired: "Each formula explanation needs its own formula (LaTeX). Remove the explanation or add the formula, otherwise it will be discarded on save.",
 } as const;
 const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   en: EN_COPY,
@@ -118,9 +122,11 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     notebookExportDone: "計算ノートのバックアップを書き出しました。", notebookReplaceImportConfirm: "自分の計算ノートをすべて、このファイルの内容へ置き換えますか？プリセットは残ります。元に戻せません。",
     notebookMerge: "追加・同名は置換", notebookReplace: "すべての計算ノートを置換",
     notebookTitlePlaceholder: "曲げ応力", notebookDescriptionPlaceholder: "任意のメモ",
-    insert: "挿入", formulaCharactersLabel: "特殊記号", definedVariablesLabel: "定義済みの変数",
+    insert: "挿入", formulaCharactersLabel: "特殊記号", definedVariablesLabel: "定義済みの変数", unitsLabel: "単位",
     symbolGroupSubscriptDigits: "下付き数字", symbolGroupSubscriptLetters: "下付き文字", symbolGroupGreekLower: "ギリシャ文字（小文字）", symbolGroupGreekUpper: "ギリシャ文字（大文字）",
     resultTitleLabel: "表示タイトル", resultTitlePlaceholder: "例：速度 v",
+    stepFormulaLatexLabel: "数式（任意、LaTeX）",
+    formulaLatexRequired: "数式の解説には数式（LaTeX）も入力してください。数式が不要なら説明文ごと削除してください（空のままだと保存時に消えます）。",
   },
   es: {
     title: "Biblioteca", subtitle: "Guarda cuadernos de cálculo reutilizables y constantes globales en este dispositivo.",
@@ -150,9 +156,11 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     notebookExportDone: "Se exportó la copia de seguridad de los cuadernos.", notebookReplaceImportConfirm: "¿Reemplazar todos tus cuadernos por los de este archivo? Los cuadernos preestablecidos se conservan. Esta acción no se puede deshacer.",
     notebookMerge: "Combinar y reemplazar coincidencias", notebookReplace: "Reemplazar todos los cuadernos",
     notebookTitlePlaceholder: "Esfuerzo de flexión", notebookDescriptionPlaceholder: "Nota opcional",
-    insert: "Insertar", formulaCharactersLabel: "Símbolos", definedVariablesLabel: "Variables definidas",
+    insert: "Insertar", formulaCharactersLabel: "Símbolos", definedVariablesLabel: "Variables definidas", unitsLabel: "Unidades",
     symbolGroupSubscriptDigits: "Dígitos en subíndice", symbolGroupSubscriptLetters: "Letras en subíndice", symbolGroupGreekLower: "Griego (minúsculas)", symbolGroupGreekUpper: "Griego (mayúsculas)",
     resultTitleLabel: "Título mostrado", resultTitlePlaceholder: "p. ej., Velocidad v",
+    stepFormulaLatexLabel: "Fórmula (LaTeX opcional)",
+    formulaLatexRequired: "Cada explicación de fórmula necesita su propia fórmula (LaTeX). Elimina la explicación o añade la fórmula; de lo contrario se descartará al guardar.",
   },
   "pt-BR": {
     title: "Biblioteca", subtitle: "Salve cadernos de cálculo reutilizáveis e constantes globais neste dispositivo.",
@@ -182,9 +190,11 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     notebookExportDone: "Backup dos cadernos exportado.", notebookReplaceImportConfirm: "Substituir todos os seus cadernos pelos deste arquivo? Os cadernos predefinidos são mantidos. Isso não pode ser desfeito.",
     notebookMerge: "Mesclar e substituir coincidências", notebookReplace: "Substituir todos os cadernos",
     notebookTitlePlaceholder: "Tensão de flexão", notebookDescriptionPlaceholder: "Nota opcional",
-    insert: "Inserir", formulaCharactersLabel: "Símbolos", definedVariablesLabel: "Variáveis definidas",
+    insert: "Inserir", formulaCharactersLabel: "Símbolos", definedVariablesLabel: "Variáveis definidas", unitsLabel: "Unidades",
     symbolGroupSubscriptDigits: "Dígitos subscritos", symbolGroupSubscriptLetters: "Letras subscritas", symbolGroupGreekLower: "Grego (minúsculas)", symbolGroupGreekUpper: "Grego (maiúsculas)",
     resultTitleLabel: "Título exibido", resultTitlePlaceholder: "ex.: Velocidade v",
+    stepFormulaLatexLabel: "Fórmula (LaTeX opcional)",
+    formulaLatexRequired: "Cada explicação de fórmula precisa de sua própria fórmula (LaTeX). Remova a explicação ou adicione a fórmula; caso contrário, ela será descartada ao salvar.",
   },
   de: {
     title: "Bibliothek", subtitle: "Speichere wiederverwendbare Rechenhefte und globale Konstanten auf diesem Gerät.",
@@ -214,9 +224,11 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     notebookExportDone: "Sicherung der Rechenhefte exportiert.", notebookReplaceImportConfirm: "Alle deine Rechenhefte durch die aus dieser Datei ersetzen? Vordefinierte Rechenhefte bleiben erhalten. Das kann nicht rückgängig gemacht werden.",
     notebookMerge: "Zusammenführen, Übereinstimmungen ersetzen", notebookReplace: "Alle Rechenhefte ersetzen",
     notebookTitlePlaceholder: "Biegespannung", notebookDescriptionPlaceholder: "Optionale Notiz",
-    insert: "Einfügen", formulaCharactersLabel: "Symbole", definedVariablesLabel: "Definierte Variablen",
+    insert: "Einfügen", formulaCharactersLabel: "Symbole", definedVariablesLabel: "Definierte Variablen", unitsLabel: "Einheiten",
     symbolGroupSubscriptDigits: "Tiefgestellte Ziffern", symbolGroupSubscriptLetters: "Tiefgestellte Buchstaben", symbolGroupGreekLower: "Griechisch (klein)", symbolGroupGreekUpper: "Griechisch (groß)",
     resultTitleLabel: "Anzeigetitel", resultTitlePlaceholder: "z. B. Geschwindigkeit v",
+    stepFormulaLatexLabel: "Formel (optional LaTeX)",
+    formulaLatexRequired: "Jede Formelerklärung braucht eine eigene Formel (LaTeX). Entferne die Erklärung oder ergänze die Formel, sonst wird sie beim Speichern verworfen.",
   },
   fr: {
     title: "Bibliothèque", subtitle: "Enregistrez des carnets de calcul réutilisables et des constantes globales sur cet appareil.",
@@ -246,9 +258,11 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     notebookExportDone: "Sauvegarde des carnets exportée.", notebookReplaceImportConfirm: "Remplacer tous vos carnets par ceux de ce fichier ? Les carnets prédéfinis sont conservés. Cette action est irréversible.",
     notebookMerge: "Fusionner et remplacer les correspondances", notebookReplace: "Remplacer tous les carnets",
     notebookTitlePlaceholder: "Contrainte de flexion", notebookDescriptionPlaceholder: "Note facultative",
-    insert: "Insérer", formulaCharactersLabel: "Symboles", definedVariablesLabel: "Variables définies",
+    insert: "Insérer", formulaCharactersLabel: "Symboles", definedVariablesLabel: "Variables définies", unitsLabel: "Unités",
     symbolGroupSubscriptDigits: "Chiffres en indice", symbolGroupSubscriptLetters: "Lettres en indice", symbolGroupGreekLower: "Grec (minuscules)", symbolGroupGreekUpper: "Grec (majuscules)",
     resultTitleLabel: "Titre affiché", resultTitlePlaceholder: "p. ex. Vitesse v",
+    stepFormulaLatexLabel: "Formule (LaTeX facultatif)",
+    formulaLatexRequired: "Chaque explication de formule a besoin de sa propre formule (LaTeX). Supprimez l'explication ou ajoutez la formule, sinon elle sera perdue à l'enregistrement.",
   },
 };
 
@@ -270,6 +284,7 @@ export default function ConstantsScreen() {
     removeConstant,
     removeNotebook,
     removeNotebookCategory,
+    recordNotebookUse,
     restoreClearedConstants,
     toggleNotebookPinned,
     upsertConstant,
@@ -304,19 +319,35 @@ export default function ConstantsScreen() {
   const [notebookLocalConstants, setNotebookLocalConstants] = useState<NotebookLocalConstant[]>([]);
   const [notebookSteps, setNotebookSteps] = useState<CalculationNoteStep[]>([]);
   const [notebookError, setNotebookError] = useState("");
-  // mₒ・nₜ のようなUnicode下付き文字・ギリシャ文字は端末キーボードで直接入力できないため、フォーカス中の
+  // mₒ・nₜ のようなUnicode下付き文字・ギリシャ文字は端末キーボードで直接入力できないため、
   // 「名前＝式」欄の直下に「タップで挿入」ボタンの列を出す。フィールドごとに一意なキー
-  // （`local:${id}` / `step:${id}`）で、どのフィールドで表示中かを管理する（components/notebooks/notebook-detail.tsx と同じパターン）。
-  const [focusedRailKey, setFocusedRailKey] = useState<string | null>(null);
+  // （`local:${id}` / `step:${id}`）で、どのフィールドのレールを表示中かを管理する
+  // （components/notebooks/notebook-detail.tsx と同じパターン）。
+  // 【なぜフォーカスと連動させないか】以前は「フォーカス中のフィールド」に厳密に連動させ、onBlurで
+  // 150ms後に消していた。しかしグループタブ（下の記号グループ切替）や単位・変数チップはどれも
+  // TextInputの外にあるPressableなので、それを押した瞬間にonBlurが先に発火してレールごと消え、
+  // 目的のボタンを押せなくなってしまう（実際に踏んだ不具合）。そこで「最後にフォーカスしたフィールド」の
+  // レールを、別のフィールドにフォーカスが移るかモーダルを閉じるまで表示し続ける方式に変える。
+  // TextInputのonBlurではもう何もしない（scheduleRailBlurは廃止）。
+  const [activeRailKey, setActiveRailKey] = useState<string | null>(null);
   // 各フィールドの現在のキャレット/選択範囲（onSelectionChangeで更新）。ボタンをタップしたとき
-  // 末尾ではなく、この位置に文字を挿し込むために使う。
+  // 末尾ではなく、この位置に文字を挿し込むために使う。レールがフォーカスと連動しなくなった分、
+  // フォーカスが外れた状態でボタンを押しても直前のキャレット位置へ正しく挿入できる必要がある
+  // （このstateはフォーカスの有無に関係なく常に最新の位置を保持している）。
   const [fieldSelections, setFieldSelections] = useState<Record<string, { start: number; end: number }>>({});
   // 記号を挿し込んだ直後だけ、TextInputのselection propでキャレットを挿入位置の直後へ強制する。
   // ユーザー自身の入力と衝突しないよう、反映されたら（onSelectionChange/onChangeTextで）すぐ手放す。
+  // フィールドがフォーカスされていない間はselection propを設定してもカーソルは目に見えないが、
+  // fieldSelectionsには反映済みなので、次に続けてボタンを押したときの挿入位置は正しく積み上がる
+  // （再びこのフィールドをタップしてフォーカスが戻ったときにキャレットが正しい位置に来る）。
   const [forcedSelection, setForcedSelection] = useState<{ key: string; selection: { start: number; end: number } } | null>(null);
   // フォーカス中フィールドで今どの文字グループ（下付き数字／下付き英字／ギリシャ小文字／ギリシャ大文字）を
   // 表示しているか。全グループを縦に並べるとモーダルが伸びすぎるため、タブで1グループだけを横スクロール表示する。
   const [activeCharacterGroupId, setActiveCharacterGroupId] = useState(FORMULA_CHARACTER_GROUPS[0].id);
+  // 変数・単位レールは同じ2行構成（タブ＋チップ）を共有し、タブで「定義済みの変数」⇔「単位」を切り替える。
+  // レールを3本（記号・変数・単位）縦に並べるとモーダルが伸びすぎるため、変数と単位を別々の行にせず
+  // 記号レールと同じタブ切替パターンに揃えることで、単位チップを追加してもレールの縦幅を増やさない。
+  const [activeAuxRailTab, setActiveAuxRailTab] = useState<"variables" | "units">("variables");
   // カテゴリピッカーの第2段（サブカテゴリ行）を、どの大分類について開いているか。閉じているときはnull。
   const [categoryPickerExpandedParentId, setCategoryPickerExpandedParentId] = useState<string | null>(null);
   const [showNewCategoryField, setShowNewCategoryField] = useState(false);
@@ -335,6 +366,24 @@ export default function ConstantsScreen() {
     { id: "notebooks", label: copy.notebooksTab },
     { id: "constants", label: copy.constantsTab },
   ];
+
+  // 編集画面の単位チップ用。まだ保存前で値が確定していないローカル定数も、ここで先行評価しておく
+  // （detail画面のresolveNotebookLocalConstantsと同じ使い方）。1行の失敗（式が未入力・不正）は
+  // 他の行の評価やUIを止めない。
+  const { resolved: notebookResolvedConstants } = useMemo(
+    () => resolveNotebookLocalConstants(notebookLocalConstants, constants, language),
+    [notebookLocalConstants, constants, language],
+  );
+  const notebookResolvedBySymbol = useMemo(() => new Map(notebookResolvedConstants.map((item) => [item.symbol, item])), [notebookResolvedConstants]);
+  const notebookConstantPool = useMemo(() => [...constants, ...notebookResolvedConstants], [constants, notebookResolvedConstants]);
+  // 手順欄の単位チップ用に、現在の入力内容で手順を先行評価しておく（保存前のプレビューと同じ考え方）。
+  const notebookStepResults = useMemo(() => evaluateNotebookSteps(notebookSteps, notebookConstantPool, language), [notebookSteps, notebookConstantPool, language]);
+  // ローカル定数の式が他の定数記号を参照しているとき、その記号が単位記号と同じ綴りでも単位挿入で
+  // 誤って上書きしないよう、既知の識別子として明示的に渡す（notebook-detail.tsxのconstantIdentifiersと同じ考え方）。
+  const notebookConstantIdentifiers = useMemo(
+    () => [...constants.map((item) => item.symbol), ...notebookLocalConstants.map((item) => item.symbol.trim()).filter(Boolean)],
+    [constants, notebookLocalConstants],
+  );
 
   // 「高校物理」のような大分類（サブカテゴリを束ねるだけの親）は、ノート自体の所属先には選べないようにする。
   const parentCategoryIds = useMemo(() => new Set(PRESET_NOTEBOOK_CATEGORIES.map((category) => category.parentId).filter((id): id is string => Boolean(id))), []);
@@ -486,10 +535,11 @@ export default function ConstantsScreen() {
   // 閉じるときだけでなく**開くときにも**捨てる: 保存して閉じる経路（saveNotebook）は
   // closeNotebookEditorを通らずモーダルを閉じるため、閉じる側だけでは漏れる。
   const resetNotebookFieldInteraction = () => {
-    setFocusedRailKey(null);
+    setActiveRailKey(null);
     setFieldSelections({});
     setForcedSelection(null);
     setActiveCharacterGroupId(FORMULA_CHARACTER_GROUPS[0].id);
+    setActiveAuxRailTab("variables");
   };
 
   const resetNotebookEditor = () => {
@@ -561,6 +611,24 @@ export default function ConstantsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openNotebookId, notebooks]);
 
+  // ノート詳細を開いたタイミングで使用履歴を記録する。ピン留めチップ・カテゴリ一覧・電卓画面からの
+  // openNotebookIdのどの導線でも、最終的にselectedNotebookIdが立った瞬間を通るのでここ1箇所でよい。
+  // 同じノートを開いている間に再レンダーのたびAsyncStorageへ書き込まないよう、記録済みのidをrefで覚える。
+  // selectedNotebookIdがnullに戻ったら（詳細画面を閉じたら）refも捨て、次に同じノートを開き直したときは
+  // 改めて1件記録する（＝「開き直し」も使用実績として数える）。
+  const recordedNotebookUseIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedNotebookId) {
+      recordedNotebookUseIdRef.current = null;
+      return;
+    }
+    if (recordedNotebookUseIdRef.current === selectedNotebookId) return;
+    const notebook = notebooks.find((item) => item.id === selectedNotebookId);
+    if (!notebook) return;
+    recordedNotebookUseIdRef.current = selectedNotebookId;
+    void recordNotebookUse(notebook);
+  }, [selectedNotebookId, notebooks, recordNotebookUse]);
+
   const closeNotebookEditor = () => {
     setNotebookEditorVisible(false);
     resetNotebookFieldInteraction();
@@ -573,6 +641,9 @@ export default function ConstantsScreen() {
     // 空のまま生テキスト（"="を含む）がexpressionに残る。名前なしの通常の式と区別して、はっきり教える。
     if (notebookLocalConstants.some((item) => !item.symbol.trim() && item.expression.trim())) { setNotebookError(copy.invalidConstantName); return; }
     if (notebookSteps.some((step) => !step.resultSymbol?.trim() && step.expression.includes("="))) { setNotebookError(copy.invalidStepName); return; }
+    // 説明文だけ書いてLaTeXを空にした行は、下のfilterで黙って消える。無言で捨てず、
+    // 保存前にはっきり教える（削除するか数式を足すかをユーザーに選んでもらう）。
+    if (notebookFormulas.some((item) => item.explanation.trim() && !item.latex.trim())) { setNotebookError(copy.formulaLatexRequired); return; }
     const normalizedSteps = notebookSteps.filter((step) => step.expression.trim()).map(normalizeStepForSave);
     const normalizedConstants = notebookLocalConstants.filter((item) => item.symbol.trim() && item.expression.trim()).map((item) => ({ ...item, symbol: item.symbol.trim(), expression: item.expression.trim() }));
     const normalizedFormulas = notebookFormulas.filter((item) => item.latex.trim()).map((item) => ({ ...item, explanation: item.explanation.trim(), latex: item.latex.trim() }));
@@ -634,14 +705,6 @@ export default function ConstantsScreen() {
     setForcedSelection((current) => (current?.key === key ? null : current));
   };
 
-  // Pressableのタップより先にonBlurでレール表示を消してしまうと押下が成立しないことがあるため、
-  // 少し遅らせてから消す（同じフィールドにまだフォーカスが戻っていなければ消す）。
-  const scheduleRailBlur = (key: string) => {
-    setTimeout(() => {
-      setFocusedRailKey((current) => (current === key ? null : current));
-    }, 150);
-  };
-
   // ギリシャ文字・下付き文字のボタン。既存の定義済み変数を挿すgetLocalConstantFieldSuggestions等とは違い、
   // これから作る新しい変数名を入力するためのもの。「名前＝式」の結合文字列に対してキャレット位置へ
   // そのまま文字を差し込み、結果をparseNameValueで割って書き戻す（名前部分にも式部分にも挿し込めるようにするため、
@@ -669,6 +732,24 @@ export default function ConstantsScreen() {
     setForcedSelection({ key, selection: caretSelection });
   };
 
+  /**
+   * 単位チップの挿入。定数・変数チップ（insertVariableIntoField）と違い、単位はキャレット上に
+   * 既存の単位があればそれを差し替え、数値の直後ならそこへ単位付けする（末尾決め打ちにすると、
+   * 式の途中にカーソルを置いても最後の単位が書き換わってしまうため）。詳細画面
+   * （components/notebooks/notebook-detail.tsx）のinsertUnitIntoFieldと同じロジックを、
+   * こちらの「名前＝式」結合フィールド向けに揃えたもの。
+   */
+  const insertUnitIntoField = (key: string, name: string, expression: string, symbol: string, identifiers: string[], applyExpression: (next: string) => void) => {
+    const selection = clampedSelection(key, combinedCaretEnd(name, expression));
+    const selected = mapCombinedSelectionToExpressionRange(name, expression, selection.start, selection.end);
+    const range = selected.start === selected.end ? getUnitInsertionRange(expression, selected.start, identifiers) : selected;
+    applyExpression(replaceExpressionRange(expression, range.start, range.end, symbol));
+    const combinedCaret = (name ? name.length + 1 : 0) + range.start + symbol.length;
+    const caretSelection = { start: combinedCaret, end: combinedCaret };
+    setFieldSelections((current) => ({ ...current, [key]: caretSelection }));
+    setForcedSelection({ key, selection: caretSelection });
+  };
+
   const symbolGroupLabel = (id: (typeof FORMULA_CHARACTER_GROUPS)[number]["id"]) => {
     if (id === "subscriptDigits") return copy.symbolGroupSubscriptDigits;
     if (id === "subscriptLetters") return copy.symbolGroupSubscriptLetters;
@@ -680,7 +761,7 @@ export default function ConstantsScreen() {
   // 全グループを縦に並べるとモーダルが伸びすぎるため、タブ（横スクロール）でグループを切り替え、
   // 選んだグループの文字だけを横スクロールの1行で出す（縦方向は常に2行分だけで収まる）。
   const renderCharacterRail = (key: string, onInsert: (char: string) => void) => {
-    if (focusedRailKey !== key) return null;
+    if (activeRailKey !== key) return null;
     const activeGroup = FORMULA_CHARACTER_GROUPS.find((group) => group.id === activeCharacterGroupId) ?? FORMULA_CHARACTER_GROUPS[0];
     return (
       <View>
@@ -703,16 +784,39 @@ export default function ConstantsScreen() {
     );
   };
 
-  // フォーカス中フィールドの直下に出す、既に定義済みの変数（記号）のボタン列。候補が無ければ何も出さない。
-  const renderVariablesRail = (key: string, symbols: string[], onInsert: (symbol: string) => void) => {
-    if (focusedRailKey !== key || !symbols.length) return null;
+  // アクティブフィールドの直下に出す、「定義済みの変数」と「単位」のボタン列。
+  // どちらも候補が無ければ何も出さない。両方に候補があるときだけ記号レールと同じ
+  // タブ切替（横スクロール1行）を足し、片方しか無いときはタブを省いてラベルだけにする
+  // （レールを縦に3本並べるとモーダルが伸びすぎるため、変数と単位を別の行にせず、
+  // 記号レールと同じ「タブ＋チップの2行」構成を共有してレール1本分の高さに収める）。
+  const renderAuxRail = (key: string, symbols: string[], unitOptions: { symbol: string; label: string }[], onInsertVariable: (symbol: string) => void, onInsertUnit: (symbol: string) => void) => {
+    if (activeRailKey !== key) return null;
+    const hasVariables = symbols.length > 0;
+    const hasUnits = unitOptions.length > 0;
+    if (!hasVariables && !hasUnits) return null;
+    const showTabs = hasVariables && hasUnits;
+    const activeTab = showTabs ? activeAuxRailTab : (hasVariables ? "variables" : "units");
+    const items = activeTab === "variables"
+      ? symbols.map((symbol) => ({ chipKey: symbol, label: symbol, onPress: () => onInsertVariable(symbol) }))
+      : unitOptions.map((unitOption) => ({ chipKey: unitOption.symbol, label: unitOption.label, onPress: () => onInsertUnit(unitOption.symbol) }));
     return (
       <View>
-        <Text style={styles.railLabel}>{copy.definedVariablesLabel}</Text>
+        {showTabs ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.railGroupTabs}>
+            <Pressable onPress={() => setActiveAuxRailTab("variables")} style={({ pressed }) => [styles.railGroupTab, activeTab === "variables" && styles.railGroupTabActive, pressed && styles.buttonPressed]}>
+              <Text style={[styles.railGroupTabText, activeTab === "variables" && styles.railGroupTabTextActive]}>{copy.definedVariablesLabel}</Text>
+            </Pressable>
+            <Pressable onPress={() => setActiveAuxRailTab("units")} style={({ pressed }) => [styles.railGroupTab, activeTab === "units" && styles.railGroupTabActive, pressed && styles.buttonPressed]}>
+              <Text style={[styles.railGroupTabText, activeTab === "units" && styles.railGroupTabTextActive]}>{copy.unitsLabel}</Text>
+            </Pressable>
+          </ScrollView>
+        ) : (
+          <Text style={styles.railLabel}>{hasVariables ? copy.definedVariablesLabel : copy.unitsLabel}</Text>
+        )}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.unitRail}>
-          {symbols.map((symbol) => (
-            <Pressable key={symbol} accessibilityLabel={`${copy.insert} ${symbol}`} onPress={() => onInsert(symbol)} style={({ pressed }) => [styles.unitChip, pressed && styles.buttonPressed]}>
-              <Text style={styles.unitChipText}>{symbol}</Text>
+          {items.map((item) => (
+            <Pressable key={item.chipKey} accessibilityLabel={`${copy.insert} ${item.label}`} onPress={item.onPress} style={({ pressed }) => [styles.unitChip, pressed && styles.buttonPressed]}>
+              <Text style={styles.unitChipText}>{item.label}</Text>
             </Pressable>
           ))}
         </ScrollView>
@@ -940,8 +1044,7 @@ export default function ConstantsScreen() {
                         updateLocalConstant(item.id, { symbol: name, expression: value });
                         setForcedSelection((current) => (current?.key === railKey ? null : current));
                       }}
-                      onFocus={() => setFocusedRailKey(railKey)}
-                      onBlur={() => scheduleRailBlur(railKey)}
+                      onFocus={() => setActiveRailKey(railKey)}
                       onSelectionChange={(event) => handleRailSelectionChange(railKey, event.nativeEvent.selection)}
                       selection={isRailForced ? forcedSelection.selection : undefined}
                       placeholder="v0=5m/s"
@@ -955,8 +1058,14 @@ export default function ConstantsScreen() {
                   {renderCharacterRail(railKey, (char) =>
                     insertCharacterIntoField(railKey, formatNameValue(item.symbol, item.expression), char, (name, value) => updateLocalConstant(item.id, { symbol: name, expression: value })),
                   )}
-                  {renderVariablesRail(railKey, getLocalConstantFieldSuggestions(notebookLocalConstants, constants, constantIndex), (symbol) =>
-                    insertVariableIntoField(railKey, item.symbol, item.expression, symbol, (nextExpression) => updateLocalConstant(item.id, { expression: nextExpression })),
+                  {renderAuxRail(
+                    railKey,
+                    getLocalConstantFieldSuggestions(notebookLocalConstants, constants, constantIndex),
+                    // クーロンの法則のkのように、次元に対応するグループが無い定数でも自分の式（例:"8.99e9N*m^2/C^2"）から
+                    // 単位候補を組み立てられるよう、quantityが未評価でもexpressionを手掛かりに渡す。
+                    compatibleUnitOptions(notebookResolvedBySymbol.get(item.symbol.trim())?.quantity, unitSystem, { expression: item.expression }),
+                    (symbol) => insertVariableIntoField(railKey, item.symbol, item.expression, symbol, (nextExpression) => updateLocalConstant(item.id, { expression: nextExpression })),
+                    (symbol) => insertUnitIntoField(railKey, item.symbol, item.expression, symbol, notebookConstantIdentifiers, (nextExpression) => updateLocalConstant(item.id, { expression: nextExpression })),
                   )}
                 </View>
               );
@@ -967,6 +1076,9 @@ export default function ConstantsScreen() {
             <Text style={styles.hintText}>{copy.stepsHint}</Text>
             {notebookSteps.map((step, stepIndex) => {
               const railKey = stepFieldKey(step.id);
+              // この手順の式で参照できる識別子（ローカル定数・グローバル定数・先行手順の結果記号）。
+              // 変数チップの候補と、単位挿入で保護すべき識別子は同じ集合なので1回だけ求めて共有する。
+              const stepFieldIdentifiers = getStepFieldSuggestions(notebookLocalConstants, constants, notebookSteps, stepIndex);
               const isRailForced = forcedSelection?.key === railKey;
               return (
               <View key={step.id} style={styles.stepCard}>
@@ -978,8 +1090,7 @@ export default function ConstantsScreen() {
                       applyStepNameValue(step, name, value);
                       setForcedSelection((current) => (current?.key === railKey ? null : current));
                     }}
-                    onFocus={() => setFocusedRailKey(railKey)}
-                    onBlur={() => scheduleRailBlur(railKey)}
+                    onFocus={() => setActiveRailKey(railKey)}
                     onSelectionChange={(event) => handleRailSelectionChange(railKey, event.nativeEvent.selection)}
                     selection={isRailForced ? forcedSelection.selection : undefined}
                     placeholder={copy.stepTitlePlaceholder}
@@ -993,12 +1104,30 @@ export default function ConstantsScreen() {
                 {renderCharacterRail(railKey, (char) =>
                   insertCharacterIntoField(railKey, formatNameValue(step.resultSymbol ?? "", step.expression), char, (name, value) => applyStepNameValue(step, name, value)),
                 )}
-                {renderVariablesRail(railKey, getStepFieldSuggestions(notebookLocalConstants, constants, notebookSteps, stepIndex), (symbol) =>
-                  insertVariableIntoField(railKey, step.resultSymbol ?? "", step.expression, symbol, (nextExpression) => updateStep(step.id, { expression: nextExpression })),
+                {renderAuxRail(
+                  railKey,
+                  stepFieldIdentifiers,
+                  // 手順は表示単位(targetUnit)が決まっていればそれを、無ければ式自体を手掛かりにする
+                  // （notebook-detail.tsxの結果チップと同じ考え方。運動量など次元に対応するグループが
+                  // 無い量でも、表示単位から接頭辞違いの候補を出せる）。
+                  compatibleUnitOptions(notebookStepResults[stepIndex]?.quantity, unitSystem, { expression: step.targetUnit.trim() || step.expression }),
+                  (symbol) => insertVariableIntoField(railKey, step.resultSymbol ?? "", step.expression, symbol, (nextExpression) => updateStep(step.id, { expression: nextExpression })),
+                  // 単位挿入で潰してはいけない識別子には、定数だけでなく**先行する手順の結果記号**も含める。
+                  // 手順に m のような単位と同じ綴りの名前を付けていると、それを参照している式で
+                  // 単位チップを押したときに変数参照の方が単位として書き換えられてしまうため。
+                  // チップに出す候補（stepFieldIdentifiers）がちょうどその式で使える識別子の集合なので、同じものを渡す。
+                  (symbol) => insertUnitIntoField(railKey, step.resultSymbol ?? "", step.expression, symbol, stepFieldIdentifiers, (nextExpression) => updateStep(step.id, { expression: nextExpression })),
                 )}
                 <Text style={styles.fieldSubLabel}>{copy.resultTitleLabel}</Text>
                 <TextInput value={step.title} onChangeText={(text) => updateStep(step.id, { title: text })} placeholder={copy.resultTitlePlaceholder} placeholderTextColor={colors.placeholder} style={styles.stepInput} />
                 <TextInput value={step.targetUnit} onChangeText={(text) => updateStep(step.id, { targetUnit: text })} placeholder={copy.outputUnitLabel} placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.stepInput} />
+                <Text style={styles.fieldSubLabel}>{copy.stepFormulaLatexLabel}</Text>
+                <TextInput value={step.formulaLatex ?? ""} onChangeText={(text) => updateStep(step.id, { formulaLatex: text })} placeholder={copy.formulaLatexPlaceholder} placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.stepInput} />
+                {step.formulaLatex ? (
+                  <View style={styles.latexPreview}>
+                    <LatexView latex={step.formulaLatex} color={colors.foreground} fontSize={15} displayMode={false} />
+                  </View>
+                ) : null}
               </View>
               );
             })}
