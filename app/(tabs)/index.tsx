@@ -549,7 +549,20 @@ export default function CalculatorScreen() {
     setPendingSelection(next);
   };
 
+  // 履歴の非同期復元が、ユーザー自身の操作を後から上書きしないようにするための記録。
+  // 式の中身の比較だけでは、全消し(AC)や「打ってから消した」で式が初期値（空）に戻ったときに
+  // 「まだ何もしていない」と誤判定してしまうため、操作そのものをここで覚えておく。
+  const hasUserInteractedRef = useRef(false);
+  // 注意: この関数を applyTargetUnit / chooseUnit のような「render中に呼ばれる関数（renderUnitChip）から
+  // 辿れる」関数の中に置くと、react-hooks/refs が「render中のref参照」として誤検知する
+  // （実際にはonPressの中でしか実行されないが、ルールは遅延コールバックと区別できない）。
+  // そのため表示単位の変更は、関数の中ではなくJSXのonPressハンドラ側で記録している。
+  const markUserInteraction = () => {
+    hasUserInteractedRef.current = true;
+  };
+
   const pressKey = (key: string) => {
+    markUserInteraction();
     if (key === "=") {
       void calculate();
       return;
@@ -660,6 +673,7 @@ export default function CalculatorScreen() {
   };
 
   const restoreHistory = (entry: (typeof history)[number]) => {
+    markUserInteraction();
     setExpression(entry.expression);
     placeCaret(entry.expression.length);
     setTargetUnit(entry.targetUnit);
@@ -698,6 +712,7 @@ export default function CalculatorScreen() {
     const restored = resolveStartupExpression({
       currentExpression: expression,
       initialExpression: initialExpressionRef.current,
+      hasUserInteracted: hasUserInteractedRef.current,
       latestHistoryEntry: history[0],
     });
     if (!restored) return;
@@ -752,6 +767,7 @@ export default function CalculatorScreen() {
   }, [copy, language, presetExpression, presetUnit]);
 
   const applySample = (sample: SampleCalculation) => {
+    markUserInteraction();
     const sampleTargetUnit = targetUnitForSample(sample);
     setExpression(sample.expression);
     placeCaret(sample.expression.length);
@@ -843,6 +859,7 @@ export default function CalculatorScreen() {
             <TextInput
               value={expression}
               onChangeText={(text) => {
+                markUserInteraction();
                 setExpression(text);
                 setFixSelection(null);
                 setError("");
@@ -999,11 +1016,11 @@ export default function CalculatorScreen() {
                   <Animated.Text numberOfLines={2} adjustsFontSizeToFit style={[styles.resultValue, resultAnimatedStyle]}>{display.value}</Animated.Text>
                   <View style={styles.conversionRow}>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.conversionRail} keyboardShouldPersistTaps="handled">
-                      <Pressable accessibilityLabel={copy.noUnit} onPress={() => applyTargetUnit("")} style={({ pressed }) => [styles.convertChip, !targetUnit.trim() && styles.convertChipActive, pressed && styles.pressed]}>
+                      <Pressable accessibilityLabel={copy.noUnit} onPress={() => { markUserInteraction(); applyTargetUnit(""); }} style={({ pressed }) => [styles.convertChip, !targetUnit.trim() && styles.convertChipActive, pressed && styles.pressed]}>
                         <Text style={[styles.convertChipText, !targetUnit.trim() && styles.convertChipTextActive]}>SI</Text>
                       </Pressable>
                       {conversionUnits.map((symbol) => (
-                        <Pressable accessibilityLabel={symbol} key={symbol} onPress={() => applyTargetUnit(symbol)} style={({ pressed }) => [styles.convertChip, targetUnit.trim() === symbol && styles.convertChipActive, pressed && styles.pressed]}>
+                        <Pressable accessibilityLabel={symbol} key={symbol} onPress={() => { markUserInteraction(); applyTargetUnit(symbol); }} style={({ pressed }) => [styles.convertChip, targetUnit.trim() === symbol && styles.convertChipActive, pressed && styles.pressed]}>
                           <Text style={[styles.convertChipText, targetUnit.trim() === symbol && styles.convertChipTextActive]}>{symbol}</Text>
                         </Pressable>
                       ))}

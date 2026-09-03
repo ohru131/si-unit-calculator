@@ -1076,6 +1076,9 @@ export default function ConstantsScreen() {
             <Text style={styles.hintText}>{copy.stepsHint}</Text>
             {notebookSteps.map((step, stepIndex) => {
               const railKey = stepFieldKey(step.id);
+              // この手順の式で参照できる識別子（ローカル定数・グローバル定数・先行手順の結果記号）。
+              // 変数チップの候補と、単位挿入で保護すべき識別子は同じ集合なので1回だけ求めて共有する。
+              const stepFieldIdentifiers = getStepFieldSuggestions(notebookLocalConstants, constants, notebookSteps, stepIndex);
               const isRailForced = forcedSelection?.key === railKey;
               return (
               <View key={step.id} style={styles.stepCard}>
@@ -1103,13 +1106,17 @@ export default function ConstantsScreen() {
                 )}
                 {renderAuxRail(
                   railKey,
-                  getStepFieldSuggestions(notebookLocalConstants, constants, notebookSteps, stepIndex),
+                  stepFieldIdentifiers,
                   // 手順は表示単位(targetUnit)が決まっていればそれを、無ければ式自体を手掛かりにする
                   // （notebook-detail.tsxの結果チップと同じ考え方。運動量など次元に対応するグループが
                   // 無い量でも、表示単位から接頭辞違いの候補を出せる）。
                   compatibleUnitOptions(notebookStepResults[stepIndex]?.quantity, unitSystem, { expression: step.targetUnit.trim() || step.expression }),
                   (symbol) => insertVariableIntoField(railKey, step.resultSymbol ?? "", step.expression, symbol, (nextExpression) => updateStep(step.id, { expression: nextExpression })),
-                  (symbol) => insertUnitIntoField(railKey, step.resultSymbol ?? "", step.expression, symbol, notebookConstantIdentifiers, (nextExpression) => updateStep(step.id, { expression: nextExpression })),
+                  // 単位挿入で潰してはいけない識別子には、定数だけでなく**先行する手順の結果記号**も含める。
+                  // 手順に m のような単位と同じ綴りの名前を付けていると、それを参照している式で
+                  // 単位チップを押したときに変数参照の方が単位として書き換えられてしまうため。
+                  // チップに出す候補（stepFieldIdentifiers）がちょうどその式で使える識別子の集合なので、同じものを渡す。
+                  (symbol) => insertUnitIntoField(railKey, step.resultSymbol ?? "", step.expression, symbol, stepFieldIdentifiers, (nextExpression) => updateStep(step.id, { expression: nextExpression })),
                 )}
                 <Text style={styles.fieldSubLabel}>{copy.resultTitleLabel}</Text>
                 <TextInput value={step.title} onChangeText={(text) => updateStep(step.id, { title: text })} placeholder={copy.resultTitlePlaceholder} placeholderTextColor={colors.placeholder} style={styles.stepInput} />

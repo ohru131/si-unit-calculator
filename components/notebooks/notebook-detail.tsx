@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import * as Clipboard from "expo-clipboard";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
@@ -159,12 +159,17 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   // props（notebook）だけが変わることがあるため、activeRailKey等が前のノートのフィールドキー
   // （idベース）を指したまま残ると、新しいノートの同じ位置のフィールドに古いキャレット位置が
   // 誤って復元されてしまう。
-  useEffect(() => {
+  // 上のlocalConstants/stepsの同期と同じく、useEffectではなくレンダー中に前回値と比較して直接
+  // 調整する（effectの中で同期的にsetStateすると余計な再レンダーが1往復増えるうえ、このファイルは
+  // 既にこの方式で揃えてある）。
+  const [syncedNotebookId, setSyncedNotebookId] = useState(notebook.id);
+  if (notebook.id !== syncedNotebookId) {
+    setSyncedNotebookId(notebook.id);
     setUnitOverrides({});
     setActiveRailKey(null);
     setFieldSelections({});
     setForcedSelection(null);
-  }, [notebook.id]);
+  }
 
   const copy = COPY[language];
 

@@ -17,17 +17,24 @@ export type StartupHistoryEntry = {
  * （実際にこの種の「テストは通るが挙動が壊れる」バグをこのプロジェクトで繰り返し踏んでいるため、
  * 判定ロジックだけをここに切り出してユニットテストできるようにしてある）。
  *
- * 呼び出し側は、マウント時点のexpressionの値をinitialExpressionとして固定で覚えておき、
- * ストアの読み込みが完了した瞬間のcurrentExpressionと比較する。両者が一致していれば
- * 「その間に何も変わっていない＝ユーザーはまだ何も打っていない」とみなして履歴を反映してよい。
- * 一致していなければ（ユーザー入力・クイックアクション・プリセット復元など何かが先に起きていた
- * ということなので）何も返さない。
+ * 判定は2段構えにする。
+ *
+ * 1. hasUserInteracted: 呼び出し側が「ユーザーが電卓の状態を変える操作をしたか」を明示的に記録する。
+ *    **式の中身だけを見る判定では足りない**。読み込み中に全消し(AC)を押した、あるいは何か打ってから
+ *    消した場合、式は初期値と同じ空文字に戻るので「何も起きていない」と誤判定し、ユーザーが自分で
+ *    消したはずの画面に履歴が復活してしまう。表示単位だけを変えた場合も式は変わらない。
+ * 2. currentExpression と initialExpression の比較: 1のフラグを立て忘れた経路（新しい導線を足したとき
+ *    など）でも、式が変わっていれば復元しないための保険。
+ *
+ * どちらか一方でも「もう触られている」と判断できれば復元しない。
  */
 export function resolveStartupExpression(params: {
   currentExpression: string;
   initialExpression: string;
+  hasUserInteracted: boolean;
   latestHistoryEntry: StartupHistoryEntry | undefined;
 }): StartupHistoryEntry | null {
+  if (params.hasUserInteracted) return null;
   if (params.currentExpression !== params.initialExpression) return null;
   return params.latestHistoryEntry ?? null;
 }
