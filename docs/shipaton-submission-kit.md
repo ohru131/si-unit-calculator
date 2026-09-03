@@ -20,7 +20,7 @@ Enter expressions such as `5cm + 1mm`, `1km ÷ 1min`, or `100N ÷ 0.01m²`. The 
 
 ### Unit Calculator Pro
 
-Pro is designed for repeated technical work. It adds a larger calculation history, CSV export for documentation, and a personal unit set for faster entry of frequently used units.
+Pro is designed for repeated technical work. A single one-time purchase removes the ads and adds CSV export for documentation plus a personal unit set for faster entry of frequently used units. The full calculation history is available to everyone, free of charge.
 
 ## Privacy policy draft
 

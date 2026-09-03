@@ -60,6 +60,9 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - 価格はストアのローカライズ済み文字列（`product.priceString`）をそのまま出す。自前で通貨記号を組まない。
   - 買い切り商品に**無料トライアルは設定できない**（App Store/Playの導入価格・トライアルはサブスク専用機能）。審査員向けはプロモコードで通す。
   - **ユーザーのキャンセルはエラーではない**。RevenueCatは `userCancelled` を持つオブジェクトでrejectするので、それを「購入に失敗しました」と出さないこと。
+  - **`RevenueCatUI.presentPaywallIfNeeded` にフォールバックしないこと**（一度入れて撤去した）。この関数はentitlementの有無しか見ず、**dashboardのofferingに入っている商品をそのまま表示する**ため、サブスク商品が残っていれば上の不変条件を迂回して継続課金を売ってしまう。買い切り商品が取れないときは購入させず理由（`productLoadFailed`）を出す。これで `react-native-purchases-ui` は未使用になっている。
+  - 購入・復元は**同期フラグ（`purchaseLockRef`）で直列化**する。`isPurchasing` state と `Pressable` の `disabled` はどちらもコミット後の値なので、同じフレームで `onPress` が2回走ると両方すり抜ける。課金APIを叩く経路なのでstateだけでは不十分。
+  - SDKキー未設定・`configure()` 完了前は購入も復元も**受け付けない**（`blockedReasonKey` / `isReady` で早期return）。叩けば必ず失敗し、「商品を読み込めません」「復元できません」と出て**本当の原因を隠す**ため。
 
 ## 既知の注意点・誤検知
 

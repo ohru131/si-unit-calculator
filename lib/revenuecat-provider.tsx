@@ -1,7 +1,6 @@
-import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Platform } from "react-native";
 import Purchases, { CustomerInfo, LOG_LEVEL, type PurchasesPackage } from "react-native-purchases";
-import RevenueCatUI from "react-native-purchases-ui";
 
 import { useGlobalSettings } from "@/lib/global-settings";
 import { type AppLanguage } from "@/lib/i18n";
@@ -144,6 +143,11 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
   // レンダー時に導出する（別途stateを持つと両者がずれる余地が生まれるため）。
   const [oneTimePackage, setOneTimePackage] = useState<PurchasesPackage | null>(null);
   const [isPurchasing, setIsPurchasing] = useState(false);
+  // isPurchasing（state）と Pressable の disabled はどちらも「コミット後」の値なので、
+  // 同じフレーム内で onPress が2回走ると両方とも false を読んで通過してしまう。
+  // 実際に課金APIを叩く経路なので、レンダーを介さない同期フラグで直列化する。
+  // isPurchasing は表示（インジケータ・ボタン無効化）専用として残す。
+  const purchaseLockRef = useRef(false);
   const isNativePurchaseAvailable = Platform.OS === "ios" || Platform.OS === "android";
   const platformKey = getPlatformKey();
 
@@ -162,11 +166,6 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
   const purchaseMessage = purchaseMessageKey ? copy[purchaseMessageKey] : blockedReasonKey ? copy[blockedReasonKey] : null;
   // ストアが返す表示用の価格文字列をそのまま出す（買い切りパッケージが未取得ならnull）。
   const priceLabel = oneTimePackage ? oneTimePackage.product.priceString : null;
-
-  const refreshCustomerInfo = useCallback(async () => {
-    const customerInfo = await Purchases.getCustomerInfo();
-    setIsPro(hasProEntitlement(customerInfo));
-  }, []);
 
   useEffect(() => {
     // 初期化する余地が無い環境（Web・SDKキー未設定）は blockedReasonKey で判別済みなので、
@@ -225,8 +224,19 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
       setPurchaseMessageKey("proUpgradeStoreOnly");
       return;
     }
+    // SDKキーが無い環境では初期化エフェクトが早期returnしていて Purchases.configure() を
+    // 通っていないため、getOfferings/purchasePackage は必ず拒否される。それを
+    // 「商品を読み込めませんでした」と出すと本当の原因（キー未設定）を隠してしまう。
+    if (blockedReasonKey !== null) {
+      setPurchaseMessageKey(blockedReasonKey);
+      return;
+    }
+    // configure() 完了前も同じ理由で失敗するので、準備できるまで受け付けない
+    // （この間は購入画面側にインジケータが出ている）。
+    if (!isReady) return;
     // 購入・復元のいずれかが進行中なら二重タップを無視する（多重購入の起動を防ぐ）。
-    if (isPurchasing) return;
+    if (purchaseLockRef.current) return;
+    purchaseLockRef.current = true;
     setIsPurchasing(true);
     setPurchaseMessageKey(null);
     try {
@@ -254,27 +264,33 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // 買い切りパッケージを直接取得できなかった場合でも、購入導線を断ち切って
-      // 課金意思のある顧客を取りこぼすより、RevenueCatのホスト型ペイウォールに
-      // フォールバックしたほうがまし（ストア側の一時的な取得失敗は起こりうるため）。
-      try {
-        await RevenueCatUI.presentPaywallIfNeeded({ requiredEntitlementIdentifier: PRO_ENTITLEMENT_IDENTIFIER });
-        await refreshCustomerInfo();
-      } catch (error) {
-        if (!isUserCancelledError(error)) setPurchaseMessageKey("productLoadFailed");
-      }
+      // ここに来るのは買い切りパッケージが取得できなかった場合。以前はRevenueCatの
+      // ホスト型ペイウォールにフォールバックしていたが、presentPaywallIfNeeded は
+      // entitlementの有無しか見ず、**dashboardのofferingに入っている商品をそのまま出す**。
+      // つまりサブスク商品が残っていれば「買い切り」と表示しておいて継続課金を売る経路に
+      // なってしまう。取りこぼしよりそちらのほうが重大なので、購入させずに理由を出す。
+      setPurchaseMessageKey("productLoadFailed");
     } finally {
+      purchaseLockRef.current = false;
       setIsPurchasing(false);
     }
-  }, [isNativePurchaseAvailable, isPurchasing, oneTimePackage, refreshCustomerInfo]);
+  }, [blockedReasonKey, isNativePurchaseAvailable, isReady, oneTimePackage]);
 
   const restorePurchases = useCallback(async () => {
     if (!isNativePurchaseAvailable) {
       setPurchaseMessageKey("restoreStoreOnly");
       return;
     }
-    // 購入・復元のいずれかが進行中なら二重タップを無視する。
-    if (isPurchasing) return;
+    // 購入と同じ理由で、configure() を通っていない環境では restorePurchases も必ず失敗する。
+    // 「復元できませんでした」だと原因が分からないので、判明している理由をそのまま出す。
+    if (blockedReasonKey !== null) {
+      setPurchaseMessageKey(blockedReasonKey);
+      return;
+    }
+    if (!isReady) return;
+    // 購入・復元のいずれかが進行中なら二重タップを無視する（購入と同じロックを共有する）。
+    if (purchaseLockRef.current) return;
+    purchaseLockRef.current = true;
     setIsPurchasing(true);
     try {
       setPurchaseMessageKey(null);
@@ -284,9 +300,10 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
     } catch {
       setPurchaseMessageKey("restoreFailed");
     } finally {
+      purchaseLockRef.current = false;
       setIsPurchasing(false);
     }
-  }, [isNativePurchaseAvailable, isPurchasing]);
+  }, [blockedReasonKey, isNativePurchaseAvailable, isReady]);
 
   const value = useMemo(
     () => ({ isPro, isReady, isNativePurchaseAvailable, purchaseMessage, priceLabel, isPurchasing, purchasePro, restorePurchases }),
