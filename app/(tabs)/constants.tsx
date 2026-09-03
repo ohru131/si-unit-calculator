@@ -37,6 +37,7 @@ import { useGlobalSettings } from "@/lib/global-settings";
 import { localizedText, type AppLanguage } from "@/lib/i18n";
 import { evaluateNotebookSteps, formatNameValue, normalizeStepForSave, parseNameValue, resolveNotebookLocalConstants } from "@/lib/notebook-engine";
 import { clampSelectionRange, getLocalConstantFieldSuggestions, getStepFieldSuggestions, insertConstantSymbol, mapCombinedSelectionToExpressionRange } from "@/lib/notebook-constant-suggestions";
+import { notebookFormulaRows } from "@/lib/notebook-formula-rows";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
 import { nextStepNamePatch } from "@/lib/notebook-step-title";
 import { type ImportedNotebook } from "@/lib/notebooks-backup";
@@ -80,7 +81,7 @@ const EN_COPY = {
   addLocalConstant: "Add constant", steps: "Steps (results)", stepsHint: "Enter as name=expression, e.g. v=v0+a*t. Can reference constants and earlier steps.", addStep: "Add step", stepTitlePlaceholder: "v=v0+a*t",
   outputUnitLabel: "Display unit (optional)", removeRow: "Remove",
   formulaLatexPlaceholder: "Display formula, optional LaTeX (e.g. v = v_0 + at)",
-  formulasLabel: "Formula explanations", formulasHint: "Optional. Add an explanation with its formula right below it; add as many pairs as you like.",
+  formulasLabel: "Formula explanations", formulasHint: "The formulas shown at the top of the notebook. The explanation is optional — a formula on its own is fine. Add as many as you like.",
   addFormula: "Add formula", formulaExplanationPlaceholder: "Explanation (e.g. This gives the velocity)",
   notebookBackup: "Backup", notebookExport: "Export", notebookImportDone: "{count} notebooks imported.",
   notebookExportDone: "Notebooks backup exported.", notebookReplaceImportConfirm: "Replace all your notebooks with the ones in this file? Preset notebooks are kept. This cannot be undone.",
@@ -89,7 +90,6 @@ const EN_COPY = {
   insert: "Insert", formulaCharactersLabel: "Symbols", definedVariablesLabel: "Defined variables", unitsLabel: "Units",
   symbolGroupSubscriptDigits: "Subscript digits", symbolGroupSubscriptLetters: "Subscript letters", symbolGroupGreekLower: "Greek (lowercase)", symbolGroupGreekUpper: "Greek (uppercase)",
   resultTitleLabel: "Display title", resultTitlePlaceholder: "e.g. Velocity v",
-  stepFormulaLatexLabel: "Formula (optional LaTeX)",
   formulaLatexRequired: "Each formula explanation needs its own formula (LaTeX). Remove the explanation or add the formula, otherwise it will be discarded on save.",
 } as const;
 const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
@@ -116,7 +116,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     addLocalConstant: "定数を追加", steps: "手順（結果）", stepsHint: "「名前＝式」の形で入力します。例：v=v0+a*t。定数や前の手順を参照できます。", addStep: "手順を追加", stepTitlePlaceholder: "v=v0+a*t",
     outputUnitLabel: "表示単位（任意）", removeRow: "削除",
     formulaLatexPlaceholder: "表示用の数式（任意、LaTeX。例：v = v_0 + at）",
-    formulasLabel: "数式の解説", formulasHint: "任意。説明文とその数式をペアで並べられます。説明文のすぐ下に数式を置き、ペアはいくつでも追加できます。",
+    formulasLabel: "数式の解説", formulasHint: "ノートの先頭に出す数式です。説明文は任意で、数式だけでも構いません。いくつでも追加できます。",
     addFormula: "数式を追加", formulaExplanationPlaceholder: "説明文（例：速度を求める式です）",
     notebookBackup: "バックアップ", notebookExport: "書き出す", notebookImportDone: "{count}件の計算ノートを読み込みました。",
     notebookExportDone: "計算ノートのバックアップを書き出しました。", notebookReplaceImportConfirm: "自分の計算ノートをすべて、このファイルの内容へ置き換えますか？プリセットは残ります。元に戻せません。",
@@ -125,7 +125,6 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     insert: "挿入", formulaCharactersLabel: "特殊記号", definedVariablesLabel: "定義済みの変数", unitsLabel: "単位",
     symbolGroupSubscriptDigits: "下付き数字", symbolGroupSubscriptLetters: "下付き文字", symbolGroupGreekLower: "ギリシャ文字（小文字）", symbolGroupGreekUpper: "ギリシャ文字（大文字）",
     resultTitleLabel: "表示タイトル", resultTitlePlaceholder: "例：速度 v",
-    stepFormulaLatexLabel: "数式（任意、LaTeX）",
     formulaLatexRequired: "数式の解説には数式（LaTeX）も入力してください。数式が不要なら説明文ごと削除してください（空のままだと保存時に消えます）。",
   },
   es: {
@@ -150,7 +149,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     addLocalConstant: "Añadir constante", steps: "Pasos (resultados)", stepsHint: "Escribe cada uno como nombre=expresión, por ejemplo v=v0+a*t. Puede usar constantes y pasos anteriores.", addStep: "Añadir paso", stepTitlePlaceholder: "v=v0+a*t",
     outputUnitLabel: "Unidad de visualización (opcional)", removeRow: "Quitar",
     formulaLatexPlaceholder: "Fórmula visible, LaTeX opcional (por ejemplo, v = v_0 + at)",
-    formulasLabel: "Explicaciones de fórmulas", formulasHint: "Opcional. Añade una explicación con su fórmula justo debajo; puedes añadir tantos pares como quieras.",
+    formulasLabel: "Explicaciones de fórmulas", formulasHint: "Las fórmulas que se muestran al principio del cuaderno. La explicación es opcional: una fórmula sola también vale. Añade tantas como quieras.",
     addFormula: "Añadir fórmula", formulaExplanationPlaceholder: "Explicación (por ejemplo, esto calcula la velocidad)",
     notebookBackup: "Copia de seguridad", notebookExport: "Exportar", notebookImportDone: "Se importaron {count} cuadernos.",
     notebookExportDone: "Se exportó la copia de seguridad de los cuadernos.", notebookReplaceImportConfirm: "¿Reemplazar todos tus cuadernos por los de este archivo? Los cuadernos preestablecidos se conservan. Esta acción no se puede deshacer.",
@@ -159,7 +158,6 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     insert: "Insertar", formulaCharactersLabel: "Símbolos", definedVariablesLabel: "Variables definidas", unitsLabel: "Unidades",
     symbolGroupSubscriptDigits: "Dígitos en subíndice", symbolGroupSubscriptLetters: "Letras en subíndice", symbolGroupGreekLower: "Griego (minúsculas)", symbolGroupGreekUpper: "Griego (mayúsculas)",
     resultTitleLabel: "Título mostrado", resultTitlePlaceholder: "p. ej., Velocidad v",
-    stepFormulaLatexLabel: "Fórmula (LaTeX opcional)",
     formulaLatexRequired: "Cada explicación de fórmula necesita su propia fórmula (LaTeX). Elimina la explicación o añade la fórmula; de lo contrario se descartará al guardar.",
   },
   "pt-BR": {
@@ -184,7 +182,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     addLocalConstant: "Adicionar constante", steps: "Etapas (resultados)", stepsHint: "Digite cada uma como nome=expressão, por exemplo v=v0+a*t. Pode referenciar constantes e etapas anteriores.", addStep: "Adicionar etapa", stepTitlePlaceholder: "v=v0+a*t",
     outputUnitLabel: "Unidade de exibição (opcional)", removeRow: "Remover",
     formulaLatexPlaceholder: "Fórmula exibida, LaTeX opcional (por exemplo, v = v_0 + at)",
-    formulasLabel: "Explicações das fórmulas", formulasHint: "Opcional. Adicione uma explicação com sua fórmula logo abaixo; adicione quantos pares quiser.",
+    formulasLabel: "Explicações das fórmulas", formulasHint: "As fórmulas exibidas no início do caderno. A explicação é opcional — uma fórmula sozinha também serve. Adicione quantas quiser.",
     addFormula: "Adicionar fórmula", formulaExplanationPlaceholder: "Explicação (por exemplo, isso calcula a velocidade)",
     notebookBackup: "Backup", notebookExport: "Exportar", notebookImportDone: "{count} cadernos importados.",
     notebookExportDone: "Backup dos cadernos exportado.", notebookReplaceImportConfirm: "Substituir todos os seus cadernos pelos deste arquivo? Os cadernos predefinidos são mantidos. Isso não pode ser desfeito.",
@@ -193,7 +191,6 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     insert: "Inserir", formulaCharactersLabel: "Símbolos", definedVariablesLabel: "Variáveis definidas", unitsLabel: "Unidades",
     symbolGroupSubscriptDigits: "Dígitos subscritos", symbolGroupSubscriptLetters: "Letras subscritas", symbolGroupGreekLower: "Grego (minúsculas)", symbolGroupGreekUpper: "Grego (maiúsculas)",
     resultTitleLabel: "Título exibido", resultTitlePlaceholder: "ex.: Velocidade v",
-    stepFormulaLatexLabel: "Fórmula (LaTeX opcional)",
     formulaLatexRequired: "Cada explicação de fórmula precisa de sua própria fórmula (LaTeX). Remova a explicação ou adicione a fórmula; caso contrário, ela será descartada ao salvar.",
   },
   de: {
@@ -218,7 +215,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     addLocalConstant: "Konstante hinzufügen", steps: "Schritte (Ergebnisse)", stepsHint: "Gib jeden als Name=Ausdruck ein, zum Beispiel v=v0+a*t. Kann Konstanten und frühere Schritte referenzieren.", addStep: "Schritt hinzufügen", stepTitlePlaceholder: "v=v0+a*t",
     outputUnitLabel: "Anzeigeeinheit (optional)", removeRow: "Entfernen",
     formulaLatexPlaceholder: "Anzeigeformel, optional LaTeX (z. B. v = v_0 + at)",
-    formulasLabel: "Formelerklärungen", formulasHint: "Optional. Füge eine Erklärung mit ihrer Formel direkt darunter hinzu; beliebig viele Paare möglich.",
+    formulasLabel: "Formelerklärungen", formulasHint: "Die Formeln, die oben im Rechenheft stehen. Die Erklärung ist optional — eine Formel allein genügt. Beliebig viele möglich.",
     addFormula: "Formel hinzufügen", formulaExplanationPlaceholder: "Erklärung (z. B. Damit wird die Geschwindigkeit berechnet)",
     notebookBackup: "Sicherung", notebookExport: "Exportieren", notebookImportDone: "{count} Rechenhefte importiert.",
     notebookExportDone: "Sicherung der Rechenhefte exportiert.", notebookReplaceImportConfirm: "Alle deine Rechenhefte durch die aus dieser Datei ersetzen? Vordefinierte Rechenhefte bleiben erhalten. Das kann nicht rückgängig gemacht werden.",
@@ -227,7 +224,6 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     insert: "Einfügen", formulaCharactersLabel: "Symbole", definedVariablesLabel: "Definierte Variablen", unitsLabel: "Einheiten",
     symbolGroupSubscriptDigits: "Tiefgestellte Ziffern", symbolGroupSubscriptLetters: "Tiefgestellte Buchstaben", symbolGroupGreekLower: "Griechisch (klein)", symbolGroupGreekUpper: "Griechisch (groß)",
     resultTitleLabel: "Anzeigetitel", resultTitlePlaceholder: "z. B. Geschwindigkeit v",
-    stepFormulaLatexLabel: "Formel (optional LaTeX)",
     formulaLatexRequired: "Jede Formelerklärung braucht eine eigene Formel (LaTeX). Entferne die Erklärung oder ergänze die Formel, sonst wird sie beim Speichern verworfen.",
   },
   fr: {
@@ -252,7 +248,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     addLocalConstant: "Ajouter une constante", steps: "Étapes (résultats)", stepsHint: "Saisissez chacune sous la forme nom=expression, par exemple v=v0+a*t. Peut référencer des constantes et des étapes précédentes.", addStep: "Ajouter une étape", stepTitlePlaceholder: "v=v0+a*t",
     outputUnitLabel: "Unité d'affichage (facultatif)", removeRow: "Retirer",
     formulaLatexPlaceholder: "Formule affichée, LaTeX facultatif (par exemple v = v_0 + at)",
-    formulasLabel: "Explications des formules", formulasHint: "Facultatif. Ajoutez une explication avec sa formule juste en dessous ; ajoutez autant de paires que vous voulez.",
+    formulasLabel: "Explications des formules", formulasHint: "Les formules affichées en haut du carnet. L'explication est facultative : une formule seule suffit. Ajoutez-en autant que vous voulez.",
     addFormula: "Ajouter une formule", formulaExplanationPlaceholder: "Explication (par exemple, ceci calcule la vitesse)",
     notebookBackup: "Sauvegarde", notebookExport: "Exporter", notebookImportDone: "{count} carnets importés.",
     notebookExportDone: "Sauvegarde des carnets exportée.", notebookReplaceImportConfirm: "Remplacer tous vos carnets par ceux de ce fichier ? Les carnets prédéfinis sont conservés. Cette action est irréversible.",
@@ -261,7 +257,6 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     insert: "Insérer", formulaCharactersLabel: "Symboles", definedVariablesLabel: "Variables définies", unitsLabel: "Unités",
     symbolGroupSubscriptDigits: "Chiffres en indice", symbolGroupSubscriptLetters: "Lettres en indice", symbolGroupGreekLower: "Grec (minuscules)", symbolGroupGreekUpper: "Grec (majuscules)",
     resultTitleLabel: "Titre affiché", resultTitlePlaceholder: "p. ex. Vitesse v",
-    stepFormulaLatexLabel: "Formule (LaTeX facultatif)",
     formulaLatexRequired: "Chaque explication de formule a besoin de sa propre formule (LaTeX). Supprimez l'explication ou ajoutez la formule, sinon elle sera perdue à l'enregistrement.",
   },
 };
@@ -565,7 +560,7 @@ export default function ConstantsScreen() {
     setNotebookDescription(notebook.description);
     setNotebookCategoryId(notebook.categoryId);
     setCategoryPickerExpandedParentId(categoryParentId(notebook.categoryId));
-    setNotebookFormulas(notebook.formulas.map((item) => ({ ...item })));
+    setNotebookFormulas(notebookFormulaRows(notebook.formulas, notebook.steps));
     setNotebookLocalConstants(notebook.localConstants.map((item) => ({ ...item })));
     setNotebookSteps(notebook.steps.map((item) => ({ ...item })));
     setNotebookError("");
@@ -629,7 +624,10 @@ export default function ConstantsScreen() {
     // 説明文だけ書いてLaTeXを空にした行は、下のfilterで黙って消える。無言で捨てず、
     // 保存前にはっきり教える（削除するか数式を足すかをユーザーに選んでもらう）。
     if (notebookFormulas.some((item) => item.explanation.trim() && !item.latex.trim())) { setNotebookError(copy.formulaLatexRequired); return; }
-    const normalizedSteps = notebookSteps.filter((step) => step.expression.trim()).map(normalizeStepForSave);
+    // 数式は「数式の解説」（formulas）に一本化する。編集画面はもう手順ごとのformulaLatexを
+    // 編集しないので、残すと画面から触れない古い値が残り続ける（表示側はformulasを優先するため
+    // 見えもしない）。formulasが空の場合は上のnotebookFormulaRowsで手順から拾い上げてある。
+    const normalizedSteps = notebookSteps.filter((step) => step.expression.trim()).map((step) => ({ ...normalizeStepForSave(step), formulaLatex: undefined }));
     const normalizedConstants = notebookLocalConstants.filter((item) => item.symbol.trim() && item.expression.trim()).map((item) => ({ ...item, symbol: item.symbol.trim(), expression: item.expression.trim() }));
     const normalizedFormulas = notebookFormulas.filter((item) => item.latex.trim()).map((item) => ({ ...item, explanation: item.explanation.trim(), latex: item.latex.trim() }));
     if (!title || !normalizedSteps.length) { setNotebookError(copy.validation); return; }
@@ -1110,13 +1108,6 @@ export default function ConstantsScreen() {
                 <Text style={styles.fieldSubLabel}>{copy.resultTitleLabel}</Text>
                 <TextInput value={step.title} onChangeText={(text) => updateStep(step.id, { title: text })} placeholder={copy.resultTitlePlaceholder} placeholderTextColor={colors.placeholder} style={styles.stepInput} />
                 <TextInput value={step.targetUnit} onChangeText={(text) => updateStep(step.id, { targetUnit: text })} placeholder={copy.outputUnitLabel} placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.stepInput} />
-                <Text style={styles.fieldSubLabel}>{copy.stepFormulaLatexLabel}</Text>
-                <TextInput value={step.formulaLatex ?? ""} onChangeText={(text) => updateStep(step.id, { formulaLatex: text })} placeholder={copy.formulaLatexPlaceholder} placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.stepInput} />
-                {step.formulaLatex ? (
-                  <View style={styles.latexPreview}>
-                    <LatexView latex={step.formulaLatex} color={colors.foreground} fontSize={15} displayMode={false} />
-                  </View>
-                ) : null}
               </View>
               );
             })}
