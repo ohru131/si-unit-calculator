@@ -21,7 +21,7 @@ const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "mon
 
 // 英語のキー集合を正にして、言語を足したときにキー漏れがその言語のブロックで型エラーになるようにする。
 const EN_COPY = {
-  edit: "Edit", save: "Save values", copy: "Copy", copied: "Copied",
+  edit: "Edit", share: "Share as PDF", save: "Save values", copy: "Copy", copied: "Copied",
   formulas: "Formula", inputs: "Inputs", results: "Results", noInputs: "This notebook has no local constants.", noSteps: "This notebook has no steps yet.",
   si: "SI base", referenceHint: "Use {symbol} in a later step.",
   pin: "Pin to calculator", unpin: "Unpin from calculator",
@@ -40,7 +40,7 @@ const EN_COPY = {
 const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   en: EN_COPY,
   ja: {
-    edit: "編集", save: "値を保存", copy: "コピー", copied: "コピーしました",
+    edit: "編集", share: "PDFで共有", save: "値を保存", copy: "コピー", copied: "コピーしました",
     formulas: "数式", inputs: "定数（入力値）", results: "結果", noInputs: "このノートにはローカル定数がありません。", noSteps: "このノートにはまだ手順がありません。",
     si: "SI標準", referenceHint: "後の手順で {symbol} として使えます。",
     pin: "電卓画面にピン留め", unpin: "ピン留めを解除",
@@ -57,7 +57,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     cancel: "キャンセル",
   },
   es: {
-    edit: "Editar", save: "Guardar valores", copy: "Copiar", copied: "Copiado",
+    edit: "Editar", share: "Compartir como PDF", save: "Guardar valores", copy: "Copiar", copied: "Copiado",
     formulas: "Fórmula", inputs: "Entradas", results: "Resultados", noInputs: "Este cuaderno no tiene constantes locales.", noSteps: "Este cuaderno todavía no tiene pasos.",
     si: "SI base", referenceHint: "Usa {symbol} en un paso posterior.",
     pin: "Fijar en la calculadora", unpin: "Quitar de fijados",
@@ -74,7 +74,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     cancel: "Cancelar",
   },
   "pt-BR": {
-    edit: "Editar", save: "Salvar valores", copy: "Copiar", copied: "Copiado",
+    edit: "Editar", share: "Compartilhar como PDF", save: "Salvar valores", copy: "Copiar", copied: "Copiado",
     formulas: "Fórmula", inputs: "Entradas", results: "Resultados", noInputs: "Este caderno não tem constantes locais.", noSteps: "Este caderno ainda não tem etapas.",
     si: "SI base", referenceHint: "Use {symbol} em uma etapa posterior.",
     pin: "Fixar na calculadora", unpin: "Desafixar",
@@ -91,7 +91,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     cancel: "Cancelar",
   },
   de: {
-    edit: "Bearbeiten", save: "Werte speichern", copy: "Kopieren", copied: "Kopiert",
+    edit: "Bearbeiten", share: "Als PDF teilen", save: "Werte speichern", copy: "Kopieren", copied: "Kopiert",
     formulas: "Formel", inputs: "Eingaben", results: "Ergebnisse", noInputs: "Dieses Rechenheft hat keine lokalen Konstanten.", noSteps: "Dieses Rechenheft hat noch keine Schritte.",
     si: "SI-Basis", referenceHint: "Verwende {symbol} in einem späteren Schritt.",
     pin: "Im Rechner anheften", unpin: "Anheften lösen",
@@ -108,7 +108,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     cancel: "Abbrechen",
   },
   fr: {
-    edit: "Modifier", save: "Enregistrer les valeurs", copy: "Copier", copied: "Copié",
+    edit: "Modifier", share: "Partager en PDF", save: "Enregistrer les valeurs", copy: "Copier", copied: "Copié",
     formulas: "Formule", inputs: "Entrées", results: "Résultats", noInputs: "Ce carnet n'a pas de constante locale.", noSteps: "Ce carnet n'a pas encore d'étape.",
     si: "SI de base", referenceHint: "Utilisez {symbol} dans une étape suivante.",
     pin: "Épingler à la calculatrice", unpin: "Désépingler",
@@ -139,6 +139,11 @@ type Props = {
    * 戻り先が無いため渡さない。渡された場合だけ戻る行を描画する。 */
   onBack?: () => void;
   onEdit: () => void;
+  /** PDF共有ボタン。今このコンポーネントが保持している表示単位の上書き（unitOverrides）を渡すのは
+   * 呼び出し元の役目にする（Proゲート・実際のファイル生成はlib/notebook-export.tsを叩く画面側の
+   * 責務のままにし、このコンポーネントにプラットフォーム固有の共有処理を持ち込まないため）。
+   * 渡された場合だけボタンを描画する。 */
+  onShare?: (unitOverrides: Record<string, string>) => void;
   /** ピン留めの切り替え。ノートタブではピン留めボタン自体を出さない
    * （ピン留めはライブラリのノート一覧の役割にする方針のため）。渡された場合だけボタンを描画する。 */
   onTogglePinned?: () => void;
@@ -153,7 +158,7 @@ type Props = {
   onSaveValues: (localConstants: NotebookLocalConstant[], steps: CalculationNoteStep[]) => Promise<void>;
 };
 
-export function NotebookDetail({ language, locale, unitSystem, measuringStandard, notebook, categoryLabel, globalConstants, onBack, onEdit, onTogglePinned, onTitlePress, onUse, onSaveValues }: Props) {
+export function NotebookDetail({ language, locale, unitSystem, measuringStandard, notebook, categoryLabel, globalConstants, onBack, onEdit, onShare, onTogglePinned, onTitlePress, onUse, onSaveValues }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [editableConstants, setEditableConstants] = useState<NotebookLocalConstant[]>(() => notebook.localConstants.map((item) => ({ ...item })));
@@ -367,6 +372,11 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
             {onTogglePinned ? (
               <Pressable accessibilityLabel={notebook.pinned ? copy.unpin : copy.pin} onPress={onTogglePinned} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
                 <IconSymbol name="pin.fill" size={16} color={notebook.pinned ? colors.primary : colors.muted} />
+              </Pressable>
+            ) : null}
+            {onShare ? (
+              <Pressable accessibilityLabel={copy.share} onPress={() => onShare(unitOverrides)} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
+                <IconSymbol name="square.and.arrow.up" size={16} color={colors.primary} />
               </Pressable>
             ) : null}
             <Pressable accessibilityLabel={copy.edit} onPress={onEdit} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>

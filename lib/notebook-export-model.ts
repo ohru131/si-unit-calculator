@@ -20,21 +20,18 @@ export type NotebookExportModel = {
 export type NotebookStepDisplay = {
   value?: string;
   error?: string;
-  /** 値が1つも無く、エラー文言だけを出す（components/notebooks/notebook-detail.tsxの
-   * `displayError && !displayValue` と同じ判定）。 */
+  // 値が1つも無く、エラー文言だけを出す（components/notebooks/notebook-detail.tsxの
+  // `displayError && !displayValue` と同じ判定）。
   isError: boolean;
 };
 
-/**
- * 手順1件ぶんの「画面に実際に表示される値・エラー文字列」を組み立てる。
- *
- * なぜ関数として切り出すか: components/notebooks/notebook-detail.tsx（画面）と
- * lib/notebook-export-model.ts（PDFエクスポート）の両方がこの判断（表示単位の上書き・
- * 次元が合わないときのSI表記へのフォールバック・単位ラベルの見栄え差し替え）を必要とする。
- * 2箇所で別々に実装すると、CLAUDE.mdのunitSuffixEndで実際に踏んだ不具合
- * （評価器と表示側の走査が食い違い、単位チップの差し替えが一部にしか効かなくなった）と
- * 同じ構造でPDFと画面の表示がズレる。
- */
+// 手順1件ぶんの「画面に実際に表示される値・エラー文字列」を組み立てる。
+// なぜ関数として切り出すか: components/notebooks/notebook-detail.tsx（画面）と
+// lib/notebook-export-model.ts（PDFエクスポート）の両方がこの判断（表示単位の上書き・
+// 次元が合わないときのSI表記へのフォールバック・単位ラベルの見栄え差し替え）を必要とする。
+// 2箇所で別々に実装すると、CLAUDE.mdのunitSuffixEndで実際に踏んだ不具合
+// （評価器と表示側の走査が食い違い、単位チップの差し替えが一部にしか効かなくなった）と
+// 同じ構造でPDFと画面の表示がズレる。
 export function resolveNotebookStepDisplay(
   result: NotebookStepResult,
   overrideUnit: string | undefined,
@@ -77,26 +74,24 @@ export function resolveNotebookStepDisplay(
 export type BuildNotebookExportModelOptions = {
   notebook: CalculationNotebook;
   globalConstants: SavedConstant[];
-  /** デフォルト値は付けない。渡し忘れた呼び出し元が黙って英語になると気付けないため
-   * （CLAUDE.mdの方針。lib/notebook-engine.tsのエントリポイントと同じ扱い）。 */
+  // デフォルト値は付けない。渡し忘れた呼び出し元が黙って英語になると気付けないため
+  // （CLAUDE.mdの方針。lib/notebook-engine.tsのエントリポイントと同じ扱い）。
   language: AppLanguage;
   locale?: string;
   unitSystem: UnitSystem;
-  /** measuringStandardはlib/units.tsのモジュール内状態（cup/tbsp/tsp等の換算値）を経由して
-   * formatQuantityの結果に反映されるため、この関数自体は値を直接読まない。それでも呼び出し元に
-   * 「この設定が変われば結果も変わりうる」ことを伝えるため、画面側（notebook-detail.tsxの
-   * stepResultsのuseMemo依存配列）と同じくシグネチャに含めておく。 */
+  // measuringStandardはlib/units.tsのモジュール内状態（cup/tbsp/tsp等の換算値）を経由して
+  // formatQuantityの結果に反映されるため、この関数自体は値を直接読まない。それでも呼び出し元に
+  // 「この設定が変われば結果も変わりうる」ことを伝えるため、画面側（notebook-detail.tsxの
+  // stepResultsのuseMemo依存配列）と同じくシグネチャに含めておく。
   measuringStandard: MeasuringStandard;
-  /** 手順ID→表示単位の上書き。画面が保持するunitOverridesとそのまま同じ形。 */
+  // 手順ID→表示単位の上書き。画面が保持するunitOverridesとそのまま同じ形。
   unitOverrides: Record<string, string>;
 };
 
-/**
- * 計算ノート1件を、PDFエクスポート（lib/notebook-export-html.ts）が必要とする形へ組み立てる。
- * 画面（notebook-detail.tsx）が使うのと同じ導出関数（evaluateNotebookSteps・
- * resolveNotebookStepDisplay・notebookFormulaRows・stepDisplayTitle）を通すことで、
- * PDFが画面と違う数値・単位表記を出してしまうことを防ぐ。
- */
+// 計算ノート1件を、PDFエクスポート（lib/notebook-export-html.ts）が必要とする形へ組み立てる。
+// 画面（notebook-detail.tsx）が使うのと同じ導出関数（evaluateNotebookSteps・
+// resolveNotebookStepDisplay・notebookFormulaRows・stepDisplayTitle）を通すことで、
+// PDFが画面と違う数値・単位表記を出してしまうことを防ぐ。
 export function buildNotebookExportModel(options: BuildNotebookExportModelOptions): NotebookExportModel {
   const { notebook, globalConstants, language, locale, unitSystem, measuringStandard, unitOverrides } = options;
   void measuringStandard;

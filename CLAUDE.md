@@ -54,6 +54,12 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - `components/notebooks/notebook-detail.tsx` — ルートは`View(flex:1)`で、**戻る/ピン留め/編集＋ノート名を固定ヘッダー**、値を編集したときの保存バーを**固定フッター**にしている（下までスクロールしても戻れる・保存できるようにするため）。狭い端末幅ではタイトルが潰れるので固定ヘッダーは上段（戻る＋ボタン）／下段（ノート名）の2段構成。`NotebookCategoryGrid`・`NotebookList`も戻る行をスクロール外に出し、中身だけをスクロールさせる（グリッドは以前`ScrollView`が無く、カテゴリが増えると画面外にはみ出して押せなかった）。
 - **数式の編集口は「数式の解説」（`formulas`）に一本化してある**。編集画面（`constants.tsx`）は手順ごとの`formulaLatex`を編集せず、保存時に`formulaLatex`を落として`formulas`へ寄せる。`formulas`が空のノート（プリセット112件中108件）は`notebookFormulaRows`（`lib/notebook-formula-rows.ts`）が手順の`formulaLatex`を**説明文なしの行**として拾い上げるので、数式だけのノートも同じ1箇所で編集できる。手順カードにLaTeX欄を復活させないこと（2箇所で設定できるうえ、表示側は`formulas`を優先するのでどちらが効くか分からなくなる）。
 - 表示側（`notebook-detail.tsx`）は`formulas`があればそれを、無ければ各手順の`formulaLatex`を数式カードに並べる。
+- `lib/notebook-export-model.ts` / `lib/notebook-export-html.ts` / `lib/notebook-export.ts` — 計算ノートのPDFエクスポート（Pro機能）。
+  - **画面のスクリーンショットは撮らない。** 自己完結したHTMLを1枚組んで `expo-print` の `printToFileAsync` へ渡す。数式はネイティブでは1つずつ別のWebViewで非同期ロードされるので、ビューのスナップショットでは半分だけ写る。KaTeXアセット（`lib/katex-assets.generated.ts`）はフォントまでbase64で埋め込み済みなのでHTMLならオフラインで同じ数式が出る。
+  - **`resolveNotebookStepDisplay` を画面とエクスポートの両方が通ること。** 結果は保存されておらず描画時に導出している（表示単位の上書き・次元が合わないときのSI表記へのフォールバック・単位ラベルの見栄え差し替え）。2箇所で実装すると`unitSuffixEnd`と同じ構造でPDFと画面の値がズレる。
+  - **`expo-print` はWebで使えない。** Web実装（`node_modules/expo-print/src/ExponentPrint.web.ts`）は `printAsync`・`printToFileAsync` のどちらも**オプションを一切見ず `window.print()` を呼ぶだけ**なので、渡したHTMLではなく「今表示中のアプリ画面」を印刷してしまう。Web版は既存パターン（Blob + `<a download>`）でHTMLをダウンロードさせ、ブラウザの印刷メニューからPDF保存してもらう。
+  - HTML生成側では**ユーザー入力（ノート名・手順名・式・定数）をHTMLエスケープし、LaTeXは `JSON.stringify` + `<`→`\u003c`** で埋め込む。LaTeXはKaTeXに渡すのでHTMLエスケープできず、素朴に埋めると数式中の `</script>` でスクリプトブロックが途中終了する。
+  - KaTeXアセット（約646KB）と各言語の見出しは**引数で受け取る**。純関数のまま保ち、テストを軽くするため。
 - `lib/revenuecat-provider.tsx` / `lib/purchase-offering.ts` — 課金は**買い切り（非消費型）1本**。サブスクは提供しない（電卓ジャンルはサブスクへの反発が突出して強い。根拠は `docs/market-research-2026-09.md` 第4節）。
   - **RevenueCatのofferingからサブスクを絶対に買わせない**のが最重要の不変条件。`selectOneTimePackage` は `productCategory === "SUBSCRIPTION"` と `subscriptionPeriod` を持つものを弾き、**`lifetime` スロットに入っていても弾く**（dashboardの設定ミスを想定）。判定を緩めると「買い切りと表示して継続課金させる」最悪の事故になるので、`tests/purchase-offering.test.ts` の該当テストを消さないこと。
   - 選択関数は**ジェネリック**にしてSDKの `PurchasesPackage` をそのまま返す（narrowな型に落とすと `Purchases.purchasePackage()` に渡す際にキャストが必要になる）。
@@ -107,6 +113,8 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 13. **[完了]** 単位チップが複合単位を丸ごと置き換えない不具合（`3m/s^2` → `3m/G`）を修正。電卓を `=` 前でもリアルタイム計算に。ノート履歴を「実際に使ったもの」に絞り1件ずつ削除可能に。数式の編集口を「数式の解説」へ一本化。プリセット133手順に結果記号を導出して結果欄を等式（`F = m*a`）に。
 
 14. **[完了]** 課金設計を見直し、サブスク（月額・年額）をやめて**買い切り1本**にした。あわせて**無料版の履歴5件制限を撤廃**（`app/(tabs)/index.tsx` の `visibleHistory`）し、Proの特典一覧から「無制限の履歴」を外した。`docs/market-research-2026-09.md` 第4節・第8節の推奨アクション3の実装。
+
+15. **[完了]** 計算ノートのPDFエクスポート（Proの4点目の特典）を実装。表示ロジックを `resolveNotebookStepDisplay` に一本化し、画面とPDFで値がズレないようにした。`docs/market-research-2026-09.md` 第3節P0の実装。
 
 ## 次にやりそうなこと（ユーザーから明示的な指示待ち）
 
