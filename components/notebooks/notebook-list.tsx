@@ -25,7 +25,7 @@ type Props = {
 // stepsが関数値（複数形の出し分け）を持つため、値はstringに揃えられない。
 // キーの集合と各値のシグネチャを揃えるためtypeof EN_COPYで言語ごとの形を要求する。
 const EN_COPY = {
-  empty: "No notebooks in this category yet", emptyHint: "Tap the + button to add one.",
+  empty: "No notebooks in this category yet", emptyHint: "Tap the + button above to add one.",
   steps: (count: number) => `${count} step${count === 1 ? "" : "s"}`,
   delete: "Delete", deleteConfirm: "Delete this notebook? This cannot be undone.", cancel: "Cancel",
   pin: "Pin to calculator", unpin: "Unpin from calculator", builtIn: "Built-in",
@@ -33,31 +33,31 @@ const EN_COPY = {
 const COPY: Record<AppLanguage, typeof EN_COPY> = {
   en: EN_COPY,
   ja: {
-    empty: "このカテゴリにはまだノートがありません", emptyHint: "右上の＋ボタンから追加できます。",
+    empty: "このカテゴリにはまだノートがありません", emptyHint: "上の＋ボタンから追加できます。",
     steps: (count: number) => `${count}件の手順`,
     delete: "削除", deleteConfirm: "このノートを削除しますか？元に戻せません。", cancel: "キャンセル",
     pin: "電卓画面にピン留め", unpin: "ピン留めを解除", builtIn: "プリセット",
   },
   es: {
-    empty: "Todavía no hay cuadernos en esta categoría", emptyHint: "Toca el botón + para añadir uno.",
+    empty: "Todavía no hay cuadernos en esta categoría", emptyHint: "Toca el botón + de arriba para añadir uno.",
     steps: (count: number) => `${count} paso${count === 1 ? "" : "s"}`,
     delete: "Eliminar", deleteConfirm: "¿Eliminar este cuaderno? Esta acción no se puede deshacer.", cancel: "Cancelar",
     pin: "Fijar en la calculadora", unpin: "Quitar de fijados", builtIn: "Integrado",
   },
   "pt-BR": {
-    empty: "Ainda não há cadernos nesta categoria", emptyHint: "Toque no botão + para adicionar um.",
+    empty: "Ainda não há cadernos nesta categoria", emptyHint: "Toque no botão + acima para adicionar um.",
     steps: (count: number) => `${count} etapa${count === 1 ? "" : "s"}`,
     delete: "Excluir", deleteConfirm: "Excluir este caderno? Isso não pode ser desfeito.", cancel: "Cancelar",
     pin: "Fixar na calculadora", unpin: "Desafixar", builtIn: "Integrado",
   },
   de: {
-    empty: "Noch keine Rechenhefte in dieser Kategorie", emptyHint: "Tippe auf das +, um eines hinzuzufügen.",
+    empty: "Noch keine Rechenhefte in dieser Kategorie", emptyHint: "Tippe oben auf das +, um eines hinzuzufügen.",
     steps: (count: number) => (count === 1 ? "1 Schritt" : `${count} Schritte`),
     delete: "Löschen", deleteConfirm: "Dieses Rechenheft löschen? Das kann nicht rückgängig gemacht werden.", cancel: "Abbrechen",
     pin: "Im Rechner anheften", unpin: "Anheften lösen", builtIn: "Integriert",
   },
   fr: {
-    empty: "Pas encore de carnet dans cette catégorie", emptyHint: "Touchez le bouton + pour en ajouter un.",
+    empty: "Pas encore de carnet dans cette catégorie", emptyHint: "Touchez le bouton + ci-dessus pour en ajouter un.",
     steps: (count: number) => `${count} étape${count === 1 ? "" : "s"}`,
     delete: "Supprimer", deleteConfirm: "Supprimer ce carnet ? Cette action est irréversible.", cancel: "Annuler",
     pin: "Épingler à la calculatrice", unpin: "Désépingler", builtIn: "Intégré",

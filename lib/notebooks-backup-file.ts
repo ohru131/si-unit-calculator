@@ -5,9 +5,19 @@ import { Platform } from "react-native";
 
 import type { CalculationNotebook, NotebookCategory } from "@/lib/calculator-store";
 import { type AppLanguage } from "@/lib/i18n";
-import { parseNotebooksBackup, serializeNotebooksBackup, type ImportedNotebook } from "@/lib/notebooks-backup";
+import { parseNotebooksBackup, sanitizeBackupFileLabel, serializeNotebooksBackup, type ParsedNotebooksBackup } from "@/lib/notebooks-backup";
 
-const FILE_NAME = "si-unit-calculator-notebooks.json";
+const FILE_NAME_BASE = "si-unit-calculator-notebooks";
+const FILE_NAME = `${FILE_NAME_BASE}.json`;
+
+// カテゴリ単位のエクスポートは全部同じファイル名だと区別が付かないため、渡されたラベル
+// （カテゴリ名）をファイル名へ差し込む。ラベル無し・整形の結果空になったとき（記号だけの
+// 名前など）は、これまでどおりの全体バックアップと同じファイル名にフォールバックする。
+function resolveNotebooksBackupFileName(fileLabel?: string): string {
+  if (!fileLabel) return FILE_NAME;
+  const sanitized = sanitizeBackupFileLabel(fileLabel);
+  return sanitized ? `${FILE_NAME_BASE}-${sanitized}.json` : FILE_NAME;
+}
 
 // このモジュールは入り口（exportNotebooksBackup・pickNotebooksBackup）が2個だけの浅いモジュールなので、
 // lib/units.tsのようにエラーコード化して表示側で翻訳する方式ではなく、
@@ -40,14 +50,15 @@ const FILE_MESSAGES: Record<AppLanguage, typeof EN_FILE_MESSAGES> = {
   },
 };
 
-export async function exportNotebooksBackup(notebooks: CalculationNotebook[], categories: NotebookCategory[], language: AppLanguage) {
+export async function exportNotebooksBackup(notebooks: CalculationNotebook[], categories: NotebookCategory[], language: AppLanguage, fileLabel?: string) {
   const content = serializeNotebooksBackup(notebooks, categories);
+  const fileName = resolveNotebooksBackupFileName(fileLabel);
   if (Platform.OS === "web") {
     const blob = new Blob([content], { type: "application/json;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = FILE_NAME;
+    anchor.download = fileName;
     anchor.style.display = "none";
     document.body.appendChild(anchor);
     anchor.click();
@@ -55,7 +66,7 @@ export async function exportNotebooksBackup(notebooks: CalculationNotebook[], ca
     setTimeout(() => URL.revokeObjectURL(url), 0);
     return;
   }
-  const fileUri = `${FileSystem.cacheDirectory}${FILE_NAME}`;
+  const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
   await FileSystem.writeAsStringAsync(fileUri, content, { encoding: FileSystem.EncodingType.UTF8 });
   if (!(await Sharing.isAvailableAsync())) throw new Error(FILE_MESSAGES[language].sharingUnavailable);
   await Sharing.shareAsync(fileUri, { dialogTitle: FILE_MESSAGES[language].dialogTitle, mimeType: "application/json" });
@@ -70,7 +81,7 @@ async function readPickedAsset(asset: DocumentPicker.DocumentPickerAsset) {
   return FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.UTF8 });
 }
 
-export async function pickNotebooksBackup(language: AppLanguage): Promise<ImportedNotebook[] | null> {
+export async function pickNotebooksBackup(language: AppLanguage): Promise<ParsedNotebooksBackup | null> {
   const result = await DocumentPicker.getDocumentAsync({
     type: ["application/json", "text/json", "text/plain"],
     copyToCacheDirectory: true,
