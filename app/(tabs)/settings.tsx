@@ -92,7 +92,7 @@ export default function SettingsScreen() {
 
 const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   content: { gap: 14, paddingBottom: 30, paddingTop: 8 },
-  header: { paddingBottom: 6 }, title: { color: colors.foreground, fontSize: 30, fontWeight: "700", letterSpacing: -0.6 }, subtitle: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 4 },
+  header: { paddingBottom: 6 }, title: { color: colors.foreground, fontSize: 22, fontWeight: "700", letterSpacing: -0.5 }, subtitle: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 4 },
   card: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 18, borderWidth: 1, padding: 16 }, label: { color: colors.foreground, fontSize: 15, fontWeight: "800" }, description: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 7 },
   // 言語が増えるとチップが横に溢れるため折り返す（6言語だと確実に溢れる）。
   options: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 }, option: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderRadius: 12, flex: 1, paddingVertical: 11 }, optionActive: { backgroundColor: colors.primaryFill }, optionText: { color: colors.muted, fontSize: 14, fontWeight: "700" }, optionTextActive: { color: colors.onPrimary },

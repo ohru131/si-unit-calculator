@@ -60,12 +60,12 @@ const nextFormulaId = () => `formula-${Date.now()}-${formulaSeq++}`;
 
 // 英語のキー集合を正にして、言語を足したときにキー漏れがその言語のブロックで型エラーになるようにする。
 const EN_COPY = {
-  title: "Library", subtitle: "Save reusable calculation notebooks and global constants on this device.",
+  title: "Library",
   notebooksTab: "Notebooks", constantsTab: "Global constants",
-  add: "Add", close: "Close", save: "Save", saving: "Saving…", delete: "Delete", cancel: "Cancel",
+  close: "Close", save: "Save", saving: "Saving…", delete: "Delete", cancel: "Cancel",
   constantEmpty: "No constants yet", constantEmptyHint: "Store a reusable value such as W = 3cm.",
   titleLabel: "Name", descriptionLabel: "Description", expressionLabel: "Expression", symbolLabel: "Symbol",
-  constantEditor: "Constant",
+  constantEditor: "Constant", constantNew: "New constant",
   deleteConfirm: "Delete this item? This cannot be undone.", validation: "Please fill in the required fields.",
   backup: "Backup", export: "Export", clearAll: "Clear all", restore: "Restore",
   exportDone: "Constants backup exported.",
@@ -95,12 +95,12 @@ const EN_COPY = {
 const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   en: EN_COPY,
   ja: {
-    title: "ライブラリ", subtitle: "よく使う計算ノート・グローバル定数を、この端末に保存して再利用できます。",
+    title: "ライブラリ",
     notebooksTab: "計算ノート", constantsTab: "グローバル定数",
-    add: "追加", close: "閉じる", save: "保存", saving: "保存中…", delete: "削除", cancel: "キャンセル",
+    close: "閉じる", save: "保存", saving: "保存中…", delete: "削除", cancel: "キャンセル",
     constantEmpty: "定数はまだありません", constantEmptyHint: "例：W = 3cm のように、よく使う値を保存できます。",
     titleLabel: "名前", descriptionLabel: "説明", expressionLabel: "式", symbolLabel: "記号",
-    constantEditor: "定数",
+    constantEditor: "定数", constantNew: "新しい定数",
     deleteConfirm: "この項目を削除しますか？元に戻せません。", validation: "必須項目を入力してください。",
     backup: "バックアップ", export: "書き出す", clearAll: "すべて消去", restore: "復活",
     exportDone: "定数バックアップを書き出しました。",
@@ -128,12 +128,12 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     formulaLatexRequired: "数式の解説には数式（LaTeX）も入力してください。数式が不要なら説明文ごと削除してください（空のままだと保存時に消えます）。",
   },
   es: {
-    title: "Biblioteca", subtitle: "Guarda cuadernos de cálculo reutilizables y constantes globales en este dispositivo.",
+    title: "Biblioteca",
     notebooksTab: "Cuadernos", constantsTab: "Constantes globales",
-    add: "Añadir", close: "Cerrar", save: "Guardar", saving: "Guardando…", delete: "Eliminar", cancel: "Cancelar",
+    close: "Cerrar", save: "Guardar", saving: "Guardando…", delete: "Eliminar", cancel: "Cancelar",
     constantEmpty: "Aún no hay constantes", constantEmptyHint: "Guarda un valor reutilizable, por ejemplo W = 3cm.",
     titleLabel: "Nombre", descriptionLabel: "Descripción", expressionLabel: "Expresión", symbolLabel: "Símbolo",
-    constantEditor: "Constante",
+    constantEditor: "Constante", constantNew: "Nueva constante",
     deleteConfirm: "¿Eliminar este elemento? Esta acción no se puede deshacer.", validation: "Completa los campos obligatorios.",
     backup: "Copia de seguridad", export: "Exportar", clearAll: "Borrar todo", restore: "Restaurar",
     exportDone: "Se exportó la copia de seguridad de las constantes.",
@@ -161,12 +161,12 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     formulaLatexRequired: "Cada explicación de fórmula necesita su propia fórmula (LaTeX). Elimina la explicación o añade la fórmula; de lo contrario se descartará al guardar.",
   },
   "pt-BR": {
-    title: "Biblioteca", subtitle: "Salve cadernos de cálculo reutilizáveis e constantes globais neste dispositivo.",
+    title: "Biblioteca",
     notebooksTab: "Cadernos", constantsTab: "Constantes globais",
-    add: "Adicionar", close: "Fechar", save: "Salvar", saving: "Salvando…", delete: "Excluir", cancel: "Cancelar",
+    close: "Fechar", save: "Salvar", saving: "Salvando…", delete: "Excluir", cancel: "Cancelar",
     constantEmpty: "Ainda não há constantes", constantEmptyHint: "Salve um valor reutilizável, por exemplo W = 3cm.",
     titleLabel: "Nome", descriptionLabel: "Descrição", expressionLabel: "Expressão", symbolLabel: "Símbolo",
-    constantEditor: "Constante",
+    constantEditor: "Constante", constantNew: "Nova constante",
     deleteConfirm: "Excluir este item? Isso não pode ser desfeito.", validation: "Preencha os campos obrigatórios.",
     backup: "Backup", export: "Exportar", clearAll: "Limpar tudo", restore: "Restaurar",
     exportDone: "Backup das constantes exportado.",
@@ -194,12 +194,12 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     formulaLatexRequired: "Cada explicação de fórmula precisa de sua própria fórmula (LaTeX). Remova a explicação ou adicione a fórmula; caso contrário, ela será descartada ao salvar.",
   },
   de: {
-    title: "Bibliothek", subtitle: "Speichere wiederverwendbare Rechenhefte und globale Konstanten auf diesem Gerät.",
+    title: "Bibliothek",
     notebooksTab: "Rechenhefte", constantsTab: "Globale Konstanten",
-    add: "Hinzufügen", close: "Schließen", save: "Speichern", saving: "Speichert…", delete: "Löschen", cancel: "Abbrechen",
+    close: "Schließen", save: "Speichern", saving: "Speichert…", delete: "Löschen", cancel: "Abbrechen",
     constantEmpty: "Noch keine Konstanten", constantEmptyHint: "Speichere einen wiederverwendbaren Wert, zum Beispiel W = 3cm.",
     titleLabel: "Name", descriptionLabel: "Beschreibung", expressionLabel: "Ausdruck", symbolLabel: "Symbol",
-    constantEditor: "Konstante",
+    constantEditor: "Konstante", constantNew: "Neue Konstante",
     deleteConfirm: "Diesen Eintrag löschen? Das kann nicht rückgängig gemacht werden.", validation: "Bitte fülle die Pflichtfelder aus.",
     backup: "Sicherung", export: "Exportieren", clearAll: "Alle löschen", restore: "Wiederherstellen",
     exportDone: "Sicherung der Konstanten exportiert.",
@@ -227,12 +227,12 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     formulaLatexRequired: "Jede Formelerklärung braucht eine eigene Formel (LaTeX). Entferne die Erklärung oder ergänze die Formel, sonst wird sie beim Speichern verworfen.",
   },
   fr: {
-    title: "Bibliothèque", subtitle: "Enregistrez des carnets de calcul réutilisables et des constantes globales sur cet appareil.",
+    title: "Bibliothèque",
     notebooksTab: "Carnets", constantsTab: "Constantes globales",
-    add: "Ajouter", close: "Fermer", save: "Enregistrer", saving: "Enregistrement…", delete: "Supprimer", cancel: "Annuler",
+    close: "Fermer", save: "Enregistrer", saving: "Enregistrement…", delete: "Supprimer", cancel: "Annuler",
     constantEmpty: "Aucune constante pour le moment", constantEmptyHint: "Enregistrez une valeur réutilisable, par exemple W = 3cm.",
     titleLabel: "Nom", descriptionLabel: "Description", expressionLabel: "Expression", symbolLabel: "Symbole",
-    constantEditor: "Constante",
+    constantEditor: "Constante", constantNew: "Nouvelle constante",
     deleteConfirm: "Supprimer cet élément ? Cette action est irréversible.", validation: "Veuillez remplir les champs obligatoires.",
     backup: "Sauvegarde", export: "Exporter", clearAll: "Tout effacer", restore: "Restaurer",
     exportDone: "Sauvegarde des constantes exportée.",
@@ -889,17 +889,15 @@ export default function ConstantsScreen() {
 
   const renderContent = () => (topSection === "notebooks" ? renderNotebooksSection() : renderConstantsSection());
 
-  const handleAddPress = () => {
-    if (topSection === "constants") openConstantEditor();
-    else openNewNotebook();
-  };
-
-  const showAddButton = topSection !== "notebooks" || !selectedNotebook;
+  // ノート詳細画面（selectedNotebookがある間）以外は、カテゴリグリッド・カテゴリ内ノート一覧の
+  // どちらの表示中でも同じ位置から追加できるようにしたいので、子コンポーネント
+  // （NotebookCategoryGrid/NotebookList）の中に置かず、一覧の直前（スクロール領域の外）に
+  // このファイル側で1行だけ置く。「＋ 新しいカテゴリ」ボタンと同じstyles.sectionChipの見た目に揃える。
+  const showAddRow = topSection !== "notebooks" || !selectedNotebook;
 
   return <ScreenContainer className="px-5" containerClassName="bg-background">
     <View style={styles.header}>
-      <View><Text style={styles.title}>{copy.title}</Text><Text style={styles.subtitle}>{copy.subtitle}</Text></View>
-      {showAddButton ? <Pressable accessibilityLabel={copy.add} onPress={handleAddPress} style={({ pressed }) => [styles.addButton, pressed && styles.buttonPressed]}><IconSymbol name="plus.circle.fill" size={28} color={colors.primary} /></Pressable> : null}
+      <Text style={styles.title}>{copy.title}</Text>
     </View>
     <View style={styles.sectionRail}>
       {sectionItems.map((item) => (
@@ -910,6 +908,15 @@ export default function ConstantsScreen() {
     </View>
     {topSection === "constants" ? <View style={styles.backupCard}><Text style={styles.backupTitle}>{copy.backup}</Text><View style={styles.backupActions}><Pressable onPress={() => void handleExportConstants()} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.export}</Text></Pressable><Pressable onPress={() => void handleImportConstants("merge")} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.merge}</Text></Pressable><Pressable onPress={() => void handleImportConstants("replace")} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.replace}</Text></Pressable><Pressable onPress={() => setPendingClearConstants(true)} style={({ pressed }) => [styles.clearButton, pressed && styles.buttonPressed]}><Text style={styles.clearButtonText}>{copy.clearAll}</Text></Pressable>{hasRestorableConstants ? <Pressable onPress={() => void handleRestoreConstants()} style={({ pressed }) => [styles.restoreButton, pressed && styles.buttonPressed]}><Text style={styles.restoreButtonText}>{copy.restore}</Text></Pressable> : null}</View>{backupNotice ? <Text style={styles.backupNotice}>{backupNotice}</Text> : null}</View> : null}
     {topSection === "notebooks" && !selectedNotebook ? <View style={styles.backupCard}><Text style={styles.backupTitle}>{copy.notebookBackup}</Text><View style={styles.backupActions}><Pressable onPress={() => void handleExportNotebooks()} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.notebookExport}</Text></Pressable><Pressable onPress={() => void handleImportNotebooks("merge")} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.notebookMerge}</Text></Pressable><Pressable onPress={() => void handleImportNotebooks("replace")} style={({ pressed }) => [styles.backupButton, pressed && styles.buttonPressed]}><Text style={styles.backupButtonText}>{copy.notebookReplace}</Text></Pressable></View>{notebookBackupNotice ? <Text style={styles.backupNotice}>{notebookBackupNotice}</Text> : null}</View> : null}
+
+    {showAddRow ? (
+      <Pressable
+        onPress={() => (topSection === "constants" ? openConstantEditor() : openNewNotebook())}
+        style={({ pressed }) => [styles.sectionChip, styles.addRow, pressed && styles.buttonPressed]}
+      >
+        <Text style={styles.sectionChipText}>＋ {topSection === "constants" ? copy.constantNew : copy.notebookNew}</Text>
+      </Pressable>
+    ) : null}
 
     {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /></View> : renderContent()}
 
@@ -1173,10 +1180,14 @@ export default function ConstantsScreen() {
 }
 
 const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
-  header: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between", paddingBottom: 14, paddingTop: 8 },
-  title: { color: colors.foreground, fontSize: 30, fontWeight: "700", letterSpacing: -0.6 }, subtitle: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 4, maxWidth: "88%" },
-  addButton: { alignItems: "center", backgroundColor: colors.primarySurface, borderRadius: 22, height: 44, justifyContent: "center", width: 44 },
+  // タイトルを電卓画面（app/(tabs)/index.tsx）と同じfontSize/letterSpacingに揃えたので、
+  // 見出し部分の余白も文字が小さくなった分だけ詰める。
+  header: { paddingBottom: 4, paddingTop: 6 },
+  title: { color: colors.foreground, fontSize: 22, fontWeight: "700", letterSpacing: -0.5 },
   sectionRail: { flexDirection: "row", flexWrap: "wrap", gap: 7, paddingBottom: 14 }, sectionChip: { backgroundColor: colors.surfaceSecondary, borderRadius: 14, paddingHorizontal: 11, paddingVertical: 8 }, sectionChipActive: { backgroundColor: colors.primaryFill }, sectionChipText: { color: colors.muted, fontSize: 12, fontWeight: "700" }, sectionChipTextActive: { color: colors.onPrimary },
+  // 一覧（カテゴリグリッド／カテゴリ内ノート一覧）の直前に置く追加ボタン。sectionChipの見た目を流用しつつ、
+  // 縦積みのViewの中では既定でstretchして横幅いっぱいに広がってしまうため、自身の内容幅に収める。
+  addRow: { alignSelf: "flex-start", marginBottom: 12 },
   backupCard: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 14, borderWidth: 1, marginBottom: 12, padding: 12 }, backupTitle: { color: colors.foreground, fontSize: 13, fontWeight: "800" }, backupActions: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 9 }, backupButton: { backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 9, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 8 }, backupButtonText: { color: colors.primary, fontSize: 12, fontWeight: "800" }, clearButton: { backgroundColor: colors.errorSurface, borderColor: colors.errorBorder, borderRadius: 9, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 8 }, clearButtonText: { color: colors.error, fontSize: 12, fontWeight: "800" }, restoreButton: { backgroundColor: colors.successSurface, borderColor: colors.successBorder, borderRadius: 9, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 8 }, restoreButtonText: { color: colors.success, fontSize: 12, fontWeight: "800" }, backupNotice: { color: colors.muted, fontSize: 11, lineHeight: 17, marginTop: 8 },
   loading: { alignItems: "center", flex: 1, justifyContent: "center" }, list: { gap: 10, paddingBottom: 30 }, emptyList: { flexGrow: 1, justifyContent: "center", paddingBottom: 96 }, emptyCard: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 20, borderWidth: 1, paddingHorizontal: 30, paddingVertical: 32 }, emptyTitle: { color: colors.foreground, fontSize: 17, fontWeight: "700", marginTop: 12 }, emptyText: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 7, textAlign: "center" },
   libraryCard: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, flexDirection: "row", minHeight: 82, paddingHorizontal: 13, paddingVertical: 12 }, libraryMain: { flex: 1 }, libraryTitle: { color: colors.foreground, fontSize: 15, fontWeight: "800" }, libraryExpression: { color: colors.primary, fontFamily: mono, fontSize: 12, fontWeight: "700", marginTop: 5 }, deleteButton: { alignItems: "center", height: 38, justifyContent: "center", width: 38 },
