@@ -4,9 +4,10 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import { ImportedConstant } from "@/lib/constants-backup";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { APP_LANGUAGES, AppLanguage, isAppLanguage, localizedText, LocalizedText } from "@/lib/i18n";
-import { PRESET_NOTEBOOK_CATEGORIES, PRESET_NOTEBOOK_SEEDS } from "@/lib/notebook-formulas";
+import { PRESET_NOTEBOOK_CATEGORIES, PRESET_NOTEBOOK_SEEDS, PRESET_NOTEBOOK_SEEDS_AS_SEEDED } from "@/lib/notebook-formulas";
+import { presetResultSymbolPatch } from "@/lib/notebook-result-symbols";
 import type { NotebookSeedConstant } from "@/lib/notebook-formulas/types";
-import { pushNotebookHistoryEntry, type NotebookHistoryEntry } from "@/lib/notebook-history";
+import { pushNotebookHistoryEntry, removeNotebookHistoryEntry, type NotebookHistoryEntry } from "@/lib/notebook-history";
 import { PresetPriceProfile, resolvePresetPriceProfile } from "@/lib/preset-price-defaults";
 import type { ImportedNotebook } from "@/lib/notebooks-backup";
 import { parseConstantDefinition, Quantity, SavedConstant } from "@/lib/units";
@@ -163,6 +164,7 @@ type CalculatorStore = {
   upsertNotebookCategory: (input: { id?: string; name: string }) => Promise<NotebookCategory>;
   removeNotebookCategory: (id: string) => Promise<void>;
   recordNotebookUse: (notebook: CalculationNotebook) => Promise<void>;
+  removeNotebookHistoryEntry: (id: string) => Promise<void>;
   clearNotebookHistory: () => Promise<void>;
 };
 
@@ -343,6 +345,39 @@ export function localizePresetNotebooks(notebooks: CalculationNotebook[], langua
   return { notebooks: nextNotebooks, changed };
 }
 
+/**
+ * 保存済みのプリセットノートへ、シード側で導出した結果記号（と、それに伴う s1・s2… 参照の
+ * 書き換え）を後から反映する。プリセットの投入はカテゴリ単位で1回きりなので、これが無いと
+ * 既にインストール済みの端末では結果欄が式だけの表示のまま変わらない。
+ *
+ * どのノートに当てるか・当てないかの判定は lib/notebook-result-symbols.ts の純関数に置いて
+ * テストできるようにし、ここではノートとシードの突き合わせ（idからの添字の復元）だけを行う。
+ */
+export function applyPresetResultSymbols(notebooks: CalculationNotebook[]): { notebooks: CalculationNotebook[]; changed: boolean } {
+  let changed = false;
+
+  const nextNotebooks = notebooks.map((notebook) => {
+    if (!notebook.isPreset) return notebook;
+    const seeds = PRESET_NOTEBOOK_SEEDS[notebook.categoryId];
+    const rawSeeds = PRESET_NOTEBOOK_SEEDS_AS_SEEDED[notebook.categoryId];
+    if (!seeds || !rawSeeds) return notebook;
+
+    const seedIndex = extractTrailingIndex(notebook.id, presetIdPrefix(presetNotebookId(notebook.categoryId, 0)));
+    if (seedIndex === undefined) return notebook;
+
+    const seed = seeds[seedIndex];
+    const rawSeed = rawSeeds[seedIndex];
+    if (!seed || !rawSeed) return notebook;
+
+    const nextSteps = presetResultSymbolPatch(notebook.steps, rawSeed.steps, seed.steps);
+    if (!nextSteps) return notebook;
+    changed = true;
+    return { ...notebook, steps: nextSteps };
+  });
+
+  return { notebooks: nextNotebooks, changed };
+}
+
 export function CalculatorProvider({ children }: { children: ReactNode }) {
   const { language, currencyCode, regionCode, isReady: isGlobalSettingsReady } = useGlobalSettings();
   const [constants, setConstants] = useState<SavedConstant[]>([]);
@@ -516,6 +551,17 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           // 古いまま（または移行フォールバックのnullのまま）になり、投入と再解決の言語が食い違う。
           presetsLanguage = language;
           presetsLanguageDirty = true;
+        }
+
+        // 投入済みのプリセットへ、シード側で導出した結果記号を後から反映する（結果欄を
+        // 「m*a」ではなく「F = m*a」と読めるようにするため）。投入はカテゴリ単位で1回きりなので、
+        // ここで当てないと既存インストールでは永遠に反映されない。
+        {
+          const withResultSymbols = applyPresetResultSymbols(nextNotebooks);
+          if (withResultSymbols.changed) {
+            nextNotebooks = withResultSymbols.notebooks;
+            notebooksDirty = true;
+          }
         }
 
         if (notebooksDirty) {
@@ -752,8 +798,11 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     await persistNotebooks(nextNotebooks);
   }, [persistNotebookCategories, persistNotebooks]);
 
-  // ノートを開くたびに「最近使ったノート」履歴へ1件積む。titleはこの時点のスナップショットとして
-  // 保存する（後でノートが改名・削除されても「何を開いたか」自体は残るようにするため）。
+  // ノートを**実際に使った**とき（値を編集した・単位を切り替えた・結果をコピーした・保存した）に
+  // 「最近使ったノート」履歴へ1件積む。開いて眺めただけで積むと、カテゴリを辿る途中に覗いた
+  // ノートまで並んでしまい、目的の「使ったノートへ戻る」導線として役に立たなくなる。
+  // titleはこの時点のスナップショットとして保存する（後でノートが改名・削除されても
+  // 「何を使ったか」自体は残るようにするため）。
   // 積み直しロジック（同じノートの重複除去・先頭追加・上限）はlib/notebook-history.tsの
   // 純関数に切り出してあり、ここではその関数を呼ぶだけにする（テストで検証できるようにするため）。
   const recordNotebookUse = useCallback(async (notebook: CalculationNotebook) => {
@@ -767,6 +816,10 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     await persistNotebookHistory(pushNotebookHistoryEntry(notebookHistoryRef.current, entry));
   }, [persistNotebookHistory]);
 
+  const removeNotebookHistoryEntryById = useCallback(async (id: string) => {
+    await persistNotebookHistory(removeNotebookHistoryEntry(notebookHistoryRef.current, id));
+  }, [persistNotebookHistory]);
+
   const clearNotebookHistory = useCallback(async () => {
     await persistNotebookHistory([]);
   }, [persistNotebookHistory]);
@@ -778,7 +831,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
       upsertConstant, removeConstant, importConstants, clearConstants, restoreClearedConstants,
       addHistoryEntry, clearHistory, toggleFavoriteUnit,
       upsertNotebook, importNotebooks, removeNotebook, toggleNotebookPinned, upsertNotebookCategory, removeNotebookCategory,
-      recordNotebookUse, clearNotebookHistory,
+      recordNotebookUse, removeNotebookHistoryEntry: removeNotebookHistoryEntryById, clearNotebookHistory,
     }),
     [
       constants, history, favoriteUnits, notebooks, notebookCategories, notebookHistory,
@@ -786,7 +839,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
       upsertConstant, removeConstant, importConstants, clearConstants, restoreClearedConstants,
       addHistoryEntry, clearHistory, toggleFavoriteUnit,
       upsertNotebook, importNotebooks, removeNotebook, toggleNotebookPinned, upsertNotebookCategory, removeNotebookCategory,
-      recordNotebookUse, clearNotebookHistory,
+      recordNotebookUse, removeNotebookHistoryEntryById, clearNotebookHistory,
     ],
   );
 

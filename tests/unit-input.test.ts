@@ -280,3 +280,61 @@ describe("指数表記の数値", () => {
     expect(segments).toEqual([["number", "2"], ["operator", "*"], ["identifier", "e"]]);
   });
 });
+
+describe("数値直後の単位サフィックス", () => {
+  // 数値の直後は、評価器が識別子より先に単位として貪欲に読む区間（lib/units.ts の unitSuffixEnd）。
+  // 解析側が識別子集合を先に見て語を切っていたため、定数名 m を持つノート（運動方程式など）で
+  // "3m/s^2" が m（識別子）・/・s^2 に割れ、単位チップが s^2 だけを差し替えて "3m/G" になっていた。
+  it("定数名と同じ綴りの単位でも複合単位を丸ごと1区間にする", () => {
+    const segments = analyzeExpression("3m/s^2", ["m", "a"]).segments.map((segment) => [segment.kind, segment.text]);
+    expect(segments).toEqual([["number", "3"], ["unit", "m/s^2"]]);
+  });
+
+  it("単位チップの差し替えが複合単位の全体に効く", () => {
+    expect(insertUnitAtEnd("3m/s^2", "G", ["m", "a"])).toBe("3G");
+    expect(insertUnitAtEnd("9.8m/s²", "G", ["m", "a"])).toBe("9.8G");
+  });
+
+  // "*" で繋いだ複合単位（N*m など）も1区間にする。以前は "*" を区切りとして扱っておらず、
+  // "3N*m" の m だけが差し替え対象（定数名に m があると識別子扱いで追記）になっていた。
+  it("アスタリスクで繋いだ複合単位も1区間にする", () => {
+    const segments = analyzeExpression("3N*m", ["m"]).segments.map((segment) => [segment.kind, segment.text]);
+    expect(segments).toEqual([["number", "3"], ["unit", "N*m"]]);
+    expect(insertUnitAtEnd("3N*m", "J", ["m"])).toBe("3J");
+  });
+
+  // 区切りの綴りは評価器の normalize() が受け付けるもの（* / × · ÷）に揃える。揃えないと、
+  // SI表記そのままの "3N·m"（formatQuantityが · を使う）で N までしか読まず、単位チップが
+  // m だけを差し替えて "3N·J" になる。
+  it("· × ÷ で繋いだ複合単位も1区間にする", () => {
+    expect(analyzeExpression("3N·m").segments.map((segment) => [segment.kind, segment.text])).toEqual([["number", "3"], ["unit", "N·m"]]);
+    expect(analyzeExpression("3N×m").segments.map((segment) => [segment.kind, segment.text])).toEqual([["number", "3"], ["unit", "N×m"]]);
+    expect(analyzeExpression("6m÷s").segments.map((segment) => [segment.kind, segment.text])).toEqual([["number", "6"], ["unit", "m÷s"]]);
+    expect(insertUnitAtEnd("3N·m", "J")).toBe("3J");
+  });
+
+  // 数値と単位の間の空白は評価器が読み飛ばすので、解析側も同じ扱いにする。
+  it("数値と単位の間に空白があっても単位として読む", () => {
+    const segments = analyzeExpression("3 m/s^2", ["m"]).segments.map((segment) => [segment.kind, segment.text]);
+    expect(segments).toEqual([["number", "3"], ["space", " "], ["unit", "m/s^2"]]);
+  });
+
+  // 単位の始まりでない文字が続くときは取り込まない（"2m*3" は m まで）。
+  it("区切りの先が単位でなければ取り込まない", () => {
+    const segments = analyzeExpression("2m*3", ["m"]).segments.map((segment) => [segment.kind, segment.text]);
+    expect(segments).toEqual([["number", "2"], ["unit", "m"], ["operator", "*"], ["number", "3"]]);
+  });
+
+  // 数値の直後でない語は従来どおり識別子が優先される（"m*a" は定数の掛け算）。
+  it("数値の直後でなければ識別子の解決を優先する", () => {
+    const segments = analyzeExpression("m*a", ["m", "a"]).segments.map((segment) => [segment.kind, segment.text]);
+    expect(segments).toEqual([["identifier", "m"], ["operator", "*"], ["identifier", "a"]]);
+  });
+
+  // 区切りの先が既知の識別子なら単位側へ巻き込まない（"kg*s" は単位として成立してしまうため、
+  // s が手順の結果記号のときに式の意味が変わる）。
+  it("区切りの先が既知の識別子なら単位に巻き込まない", () => {
+    const segments = analyzeExpression("kg*s", ["s"]).segments.map((segment) => [segment.kind, segment.text]);
+    expect(segments).toEqual([["unit", "kg"], ["operator", "*"], ["identifier", "s"]]);
+  });
+});
