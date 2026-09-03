@@ -87,6 +87,12 @@ const EN_COPY = {
   measuringStandardHint: "Sets the actual size used for cup, tbsp, and tsp everywhere in the app.",
   standardUS: "US customary (cup ≈ 236.6 mL)",
   standardJIS: "Japanese JIS (cup = 200 mL)",
+  resetPresetsTitle: "Reset preset notebooks",
+  resetPresetsHint: "Restore all built-in notebooks to their original values, discarding any edits you made to them. Notebooks you created yourself are not affected.",
+  resetPresetsButton: "Reset presets",
+  resetPresetsConfirmMessage: "This restores all built-in (preset) notebooks to their original defaults, discarding any edits you made to them. Notebooks you created yourself are kept and are not affected. This cannot be undone.",
+  resetPresetsDone: "Preset notebooks have been reset.",
+  cancel: "Cancel",
 } as const;
 
 const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
@@ -132,6 +138,12 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     measuringStandardHint: "アプリ内すべてのカップ・大さじ・小さじの実際の量をまとめて切り替えます。",
     standardUS: "米国基準（カップ ≈ 236.6mL）",
     standardJIS: "日本のJIS規格（カップ = 200mL）",
+    resetPresetsTitle: "プリセットの計算ノートを初期状態に戻す",
+    resetPresetsHint: "組み込みの計算ノートをすべて元の値に戻し、加えた編集を破棄します。自分で作成した計算ノートには影響しません。",
+    resetPresetsButton: "プリセットをリセット",
+    resetPresetsConfirmMessage: "組み込み（プリセット）の計算ノートをすべて元の初期値に戻し、加えた編集を破棄します。自分で作成した計算ノートは残り、影響を受けません。この操作は元に戻せません。",
+    resetPresetsDone: "プリセットの計算ノートをリセットしました。",
+    cancel: "キャンセル",
   },
   es: {
     calculator: "Calculadora de unidades",
@@ -174,6 +186,12 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     measuringStandardHint: "Define el tamaño real que se usa para taza, cucharada y cucharadita en toda la app.",
     standardUS: "Habitual de EE. UU. (taza ≈ 236,6 mL)",
     standardJIS: "Norma JIS de Japón (taza = 200 mL)",
+    resetPresetsTitle: "Restablecer cuadernos preestablecidos",
+    resetPresetsHint: "Restaura todos los cuadernos integrados a sus valores originales, descartando cualquier edición que hayas hecho en ellos. No afecta a los cuadernos que creaste tú mismo.",
+    resetPresetsButton: "Restablecer preestablecidos",
+    resetPresetsConfirmMessage: "Esto restaura todos los cuadernos integrados (preestablecidos) a sus valores originales, descartando cualquier edición que hayas hecho en ellos. Los cuadernos que creaste tú mismo se conservan y no se ven afectados. Esta acción no se puede deshacer.",
+    resetPresetsDone: "Se restablecieron los cuadernos preestablecidos.",
+    cancel: "Cancelar",
   },
   "pt-BR": {
     calculator: "Calculadora de unidades",
@@ -216,6 +234,12 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     measuringStandardHint: "Define o tamanho real usado para xícara, colher de sopa e colher de chá em todo o app.",
     standardUS: "Padrão dos EUA (xícara ≈ 236,6 mL)",
     standardJIS: "Norma JIS do Japão (xícara = 200 mL)",
+    resetPresetsTitle: "Redefinir cadernos predefinidos",
+    resetPresetsHint: "Restaura todos os cadernos embutidos aos valores originais, descartando qualquer edição feita neles. Os cadernos que você mesmo criou não são afetados.",
+    resetPresetsButton: "Redefinir predefinidos",
+    resetPresetsConfirmMessage: "Isso restaura todos os cadernos embutidos (predefinidos) aos valores originais, descartando qualquer edição feita neles. Os cadernos que você mesmo criou são mantidos e não são afetados. Isso não pode ser desfeito.",
+    resetPresetsDone: "Os cadernos predefinidos foram redefinidos.",
+    cancel: "Cancelar",
   },
   de: {
     calculator: "Einheitenrechner",
@@ -258,6 +282,12 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     measuringStandardHint: "Legt die tatsächliche Größe fest, die überall in der App für Tasse, Esslöffel und Teelöffel verwendet wird.",
     standardUS: "US-Standard (Tasse ≈ 236,6 mL)",
     standardJIS: "Japanischer JIS-Standard (Tasse = 200 mL)",
+    resetPresetsTitle: "Vordefinierte Rechenhefte zurücksetzen",
+    resetPresetsHint: "Setzt alle integrierten Rechenhefte auf ihre ursprünglichen Werte zurück und verwirft alle Bearbeitungen, die du daran vorgenommen hast. Rechenhefte, die du selbst erstellt hast, sind davon nicht betroffen.",
+    resetPresetsButton: "Vordefinierte zurücksetzen",
+    resetPresetsConfirmMessage: "Dadurch werden alle integrierten (vordefinierten) Rechenhefte auf ihre ursprünglichen Standardwerte zurückgesetzt, wodurch alle Bearbeitungen, die du daran vorgenommen hast, verworfen werden. Rechenhefte, die du selbst erstellt hast, bleiben erhalten und sind davon nicht betroffen. Das kann nicht rückgängig gemacht werden.",
+    resetPresetsDone: "Die vordefinierten Rechenhefte wurden zurückgesetzt.",
+    cancel: "Abbrechen",
   },
   fr: {
     calculator: "Calculatrice d'unités",
@@ -300,6 +330,12 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     measuringStandardHint: "Définit la contenance réelle utilisée pour tasse, cuillère à soupe et cuillère à café dans toute l'app.",
     standardUS: "Norme américaine (tasse ≈ 236,6 mL)",
     standardJIS: "Norme JIS japonaise (tasse = 200 mL)",
+    resetPresetsTitle: "Réinitialiser les carnets prédéfinis",
+    resetPresetsHint: "Restaure tous les carnets intégrés à leurs valeurs d'origine, en annulant les modifications que tu y as apportées. Les carnets que tu as créés toi-même ne sont pas concernés.",
+    resetPresetsButton: "Réinitialiser les prédéfinis",
+    resetPresetsConfirmMessage: "Cela restaure tous les carnets intégrés (prédéfinis) à leurs valeurs d'origine, en annulant les modifications que tu y as apportées. Les carnets que tu as créés toi-même sont conservés et ne sont pas concernés. Cette action est irréversible.",
+    resetPresetsDone: "Les carnets prédéfinis ont été réinitialisés.",
+    cancel: "Annuler",
   },
 };
 

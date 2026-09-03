@@ -24,3 +24,15 @@ export function collectExportCategoryIds(categoryId: string, categories: PresetN
 export function countUserNotebooksInCategories(categoryIds: string[], notebooks: Pick<CalculationNotebook, "categoryId" | "isPreset">[]): number {
   return notebooks.filter((notebook) => !notebook.isPreset && categoryIds.includes(notebook.categoryId)).length;
 }
+
+/**
+ * エクスポートボタンを出すかどうかの判定。ユーザー作成ノート（!isPreset）だけでなく、
+ * プリセットへの編集（isPreset && updatedAt !== createdAt。lib/notebooks-backup.tsの
+ * buildPresetNotebookOverridesと同じ判定基準）も書き出し対象になった（プリセットへの
+ * override）ため、後者だけの場合でもボタンを出す必要がある。countUserNotebooksInCategoriesは
+ * 「ユーザー作成ノートの件数」という別の目的（既存の呼び出し・テストが依存）で使い続けるため、
+ * 判定基準を変えずに別関数として追加した。
+ */
+export function categoryExportHasContent(categoryIds: string[], notebooks: Pick<CalculationNotebook, "categoryId" | "isPreset" | "createdAt" | "updatedAt">[]): boolean {
+  return notebooks.some((notebook) => categoryIds.includes(notebook.categoryId) && (!notebook.isPreset || notebook.updatedAt !== notebook.createdAt));
+}

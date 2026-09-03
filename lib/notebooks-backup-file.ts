@@ -5,7 +5,7 @@ import { Platform } from "react-native";
 
 import type { CalculationNotebook, NotebookCategory } from "@/lib/calculator-store";
 import { type AppLanguage } from "@/lib/i18n";
-import { parseNotebooksBackup, sanitizeBackupFileLabel, serializeNotebooksBackup, type ImportedNotebook } from "@/lib/notebooks-backup";
+import { parseNotebooksBackup, sanitizeBackupFileLabel, serializeNotebooksBackup, type ParsedNotebooksBackup } from "@/lib/notebooks-backup";
 
 const FILE_NAME_BASE = "si-unit-calculator-notebooks";
 const FILE_NAME = `${FILE_NAME_BASE}.json`;
@@ -81,7 +81,7 @@ async function readPickedAsset(asset: DocumentPicker.DocumentPickerAsset) {
   return FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.UTF8 });
 }
 
-export async function pickNotebooksBackup(language: AppLanguage): Promise<ImportedNotebook[] | null> {
+export async function pickNotebooksBackup(language: AppLanguage): Promise<ParsedNotebooksBackup | null> {
   const result = await DocumentPicker.getDocumentAsync({
     type: ["application/json", "text/json", "text/plain"],
     copyToCacheDirectory: true,

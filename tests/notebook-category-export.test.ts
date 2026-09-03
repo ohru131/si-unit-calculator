@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { collectExportCategoryIds, countUserNotebooksInCategories } from "../lib/notebook-category-export";
+import { categoryExportHasContent, collectExportCategoryIds, countUserNotebooksInCategories } from "../lib/notebook-category-export";
 import { PRESET_NOTEBOOK_CATEGORIES } from "../lib/notebook-formulas";
 
 describe("collectExportCategoryIds", () => {
@@ -57,5 +57,31 @@ describe("countUserNotebooksInCategories", () => {
 
   it("ユーザー作成ノートが1件も無ければ0を返す（エクスポートボタンを出さない判定に使う）", () => {
     expect(countUserNotebooksInCategories(["physics-mechanics"], [{ categoryId: "physics-mechanics", isPreset: true }])).toBe(0);
+  });
+});
+
+describe("categoryExportHasContent", () => {
+  it("ユーザー作成ノートが1件でもあればtrue", () => {
+    expect(categoryExportHasContent(["physics-mechanics"], [
+      { categoryId: "physics-mechanics", isPreset: false, createdAt: "2026-01-01", updatedAt: "2026-01-01" },
+    ])).toBe(true);
+  });
+
+  it("プリセットの編集（updatedAt !== createdAt）が1件でもあればtrue", () => {
+    expect(categoryExportHasContent(["astronomy"], [
+      { categoryId: "astronomy", isPreset: true, createdAt: "2026-01-01", updatedAt: "2026-02-01" },
+    ])).toBe(true);
+  });
+
+  it("プリセットが未編集（updatedAt === createdAt）ならfalse", () => {
+    expect(categoryExportHasContent(["astronomy"], [
+      { categoryId: "astronomy", isPreset: true, createdAt: "2026-01-01", updatedAt: "2026-01-01" },
+    ])).toBe(false);
+  });
+
+  it("対象範囲外のカテゴリは無視される", () => {
+    expect(categoryExportHasContent(["cooking"], [
+      { categoryId: "astronomy", isPreset: true, createdAt: "2026-01-01", updatedAt: "2026-02-01" },
+    ])).toBe(false);
   });
 });

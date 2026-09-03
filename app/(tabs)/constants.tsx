@@ -40,7 +40,7 @@ import { clampSelectionRange, getLocalConstantFieldSuggestions, getStepFieldSugg
 import { notebookFormulaRows } from "@/lib/notebook-formula-rows";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
 import { nextStepNamePatch } from "@/lib/notebook-step-title";
-import { type ImportedNotebook } from "@/lib/notebooks-backup";
+import { type ImportedNotebook, type PresetNotebookOverride } from "@/lib/notebooks-backup";
 import { exportNotebooksBackup, pickNotebooksBackup } from "@/lib/notebooks-backup-file";
 import { getUnitInsertionRange, replaceExpressionRange } from "@/lib/unit-input";
 import { compatibleUnitOptions } from "@/lib/unit-options";
@@ -86,6 +86,8 @@ const EN_COPY = {
   notebookBackup: "Backup", notebookExport: "Export", notebookImportDone: "{count} notebooks imported.",
   notebookExportDone: "Notebooks backup exported.", notebookReplaceImportConfirm: "Replace all your notebooks with the ones in this file? Preset notebooks are kept. This cannot be undone.",
   notebookMerge: "Merge and replace matches", notebookReplace: "Replace all notebooks",
+  notebookPresetOverrideTitle: "Preset notebook edits", notebookPresetOverrideWarning: "This backup includes edits to {count} preset notebooks. Importing will overwrite what's currently on this device.",
+  notebookImportContinue: "Import", notebookPresetOverridesApplied: "{count} preset notebook edits applied.",
   notebookTitlePlaceholder: "Bending stress", notebookDescriptionPlaceholder: "Optional note",
   insert: "Insert", formulaCharactersLabel: "Symbols", definedVariablesLabel: "Defined variables", unitsLabel: "Units",
   symbolGroupSubscriptDigits: "Subscript digits", symbolGroupSubscriptLetters: "Subscript letters", symbolGroupGreekLower: "Greek (lowercase)", symbolGroupGreekUpper: "Greek (uppercase)",
@@ -121,6 +123,8 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     notebookBackup: "バックアップ", notebookExport: "書き出す", notebookImportDone: "{count}件の計算ノートを読み込みました。",
     notebookExportDone: "計算ノートのバックアップを書き出しました。", notebookReplaceImportConfirm: "自分の計算ノートをすべて、このファイルの内容へ置き換えますか？プリセットは残ります。元に戻せません。",
     notebookMerge: "追加・同名は置換", notebookReplace: "すべての計算ノートを置換",
+    notebookPresetOverrideTitle: "プリセットの計算ノートの編集", notebookPresetOverrideWarning: "このバックアップにはプリセット計算ノート{count}件の編集が含まれます。取り込むと、いま端末にあるその内容が上書きされます。",
+    notebookImportContinue: "取り込む", notebookPresetOverridesApplied: "プリセット計算ノートの編集を{count}件反映しました。",
     notebookTitlePlaceholder: "曲げ応力", notebookDescriptionPlaceholder: "任意のメモ",
     insert: "挿入", formulaCharactersLabel: "特殊記号", definedVariablesLabel: "定義済みの変数", unitsLabel: "単位",
     symbolGroupSubscriptDigits: "下付き数字", symbolGroupSubscriptLetters: "下付き文字", symbolGroupGreekLower: "ギリシャ文字（小文字）", symbolGroupGreekUpper: "ギリシャ文字（大文字）",
@@ -154,6 +158,8 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     notebookBackup: "Copia de seguridad", notebookExport: "Exportar", notebookImportDone: "Se importaron {count} cuadernos.",
     notebookExportDone: "Se exportó la copia de seguridad de los cuadernos.", notebookReplaceImportConfirm: "¿Reemplazar todos tus cuadernos por los de este archivo? Los cuadernos preestablecidos se conservan. Esta acción no se puede deshacer.",
     notebookMerge: "Combinar y reemplazar coincidencias", notebookReplace: "Reemplazar todos los cuadernos",
+    notebookPresetOverrideTitle: "Ediciones de cuadernos preestablecidos", notebookPresetOverrideWarning: "Esta copia de seguridad incluye ediciones de {count} cuadernos preestablecidos. Al importar, se sobrescribirá el contenido que hay ahora en este dispositivo.",
+    notebookImportContinue: "Importar", notebookPresetOverridesApplied: "Se aplicaron {count} ediciones de cuadernos preestablecidos.",
     notebookTitlePlaceholder: "Esfuerzo de flexión", notebookDescriptionPlaceholder: "Nota opcional",
     insert: "Insertar", formulaCharactersLabel: "Símbolos", definedVariablesLabel: "Variables definidas", unitsLabel: "Unidades",
     symbolGroupSubscriptDigits: "Dígitos en subíndice", symbolGroupSubscriptLetters: "Letras en subíndice", symbolGroupGreekLower: "Griego (minúsculas)", symbolGroupGreekUpper: "Griego (mayúsculas)",
@@ -187,6 +193,8 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     notebookBackup: "Backup", notebookExport: "Exportar", notebookImportDone: "{count} cadernos importados.",
     notebookExportDone: "Backup dos cadernos exportado.", notebookReplaceImportConfirm: "Substituir todos os seus cadernos pelos deste arquivo? Os cadernos predefinidos são mantidos. Isso não pode ser desfeito.",
     notebookMerge: "Mesclar e substituir coincidências", notebookReplace: "Substituir todos os cadernos",
+    notebookPresetOverrideTitle: "Edições de cadernos predefinidos", notebookPresetOverrideWarning: "Este backup inclui edições em {count} cadernos predefinidos. A importação substituirá o conteúdo atual deste aparelho.",
+    notebookImportContinue: "Importar", notebookPresetOverridesApplied: "{count} edições de cadernos predefinidos aplicadas.",
     notebookTitlePlaceholder: "Tensão de flexão", notebookDescriptionPlaceholder: "Nota opcional",
     insert: "Inserir", formulaCharactersLabel: "Símbolos", definedVariablesLabel: "Variáveis definidas", unitsLabel: "Unidades",
     symbolGroupSubscriptDigits: "Dígitos subscritos", symbolGroupSubscriptLetters: "Letras subscritas", symbolGroupGreekLower: "Grego (minúsculas)", symbolGroupGreekUpper: "Grego (maiúsculas)",
@@ -220,6 +228,8 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     notebookBackup: "Sicherung", notebookExport: "Exportieren", notebookImportDone: "{count} Rechenhefte importiert.",
     notebookExportDone: "Sicherung der Rechenhefte exportiert.", notebookReplaceImportConfirm: "Alle deine Rechenhefte durch die aus dieser Datei ersetzen? Vordefinierte Rechenhefte bleiben erhalten. Das kann nicht rückgängig gemacht werden.",
     notebookMerge: "Zusammenführen, Übereinstimmungen ersetzen", notebookReplace: "Alle Rechenhefte ersetzen",
+    notebookPresetOverrideTitle: "Bearbeitungen an vordefinierten Rechenheften", notebookPresetOverrideWarning: "Dieses Backup enthält Bearbeitungen an {count} vordefinierten Rechenheften. Beim Importieren wird der aktuelle Inhalt auf diesem Gerät überschrieben.",
+    notebookImportContinue: "Importieren", notebookPresetOverridesApplied: "{count} Bearbeitungen an vordefinierten Rechenheften übernommen.",
     notebookTitlePlaceholder: "Biegespannung", notebookDescriptionPlaceholder: "Optionale Notiz",
     insert: "Einfügen", formulaCharactersLabel: "Symbole", definedVariablesLabel: "Definierte Variablen", unitsLabel: "Einheiten",
     symbolGroupSubscriptDigits: "Tiefgestellte Ziffern", symbolGroupSubscriptLetters: "Tiefgestellte Buchstaben", symbolGroupGreekLower: "Griechisch (klein)", symbolGroupGreekUpper: "Griechisch (groß)",
@@ -253,6 +263,8 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     notebookBackup: "Sauvegarde", notebookExport: "Exporter", notebookImportDone: "{count} carnets importés.",
     notebookExportDone: "Sauvegarde des carnets exportée.", notebookReplaceImportConfirm: "Remplacer tous vos carnets par ceux de ce fichier ? Les carnets prédéfinis sont conservés. Cette action est irréversible.",
     notebookMerge: "Fusionner et remplacer les correspondances", notebookReplace: "Remplacer tous les carnets",
+    notebookPresetOverrideTitle: "Modifications de carnets prédéfinis", notebookPresetOverrideWarning: "Cette sauvegarde contient des modifications de {count} carnets prédéfinis. L'importation écrasera leur contenu actuel sur cet appareil.",
+    notebookImportContinue: "Importer", notebookPresetOverridesApplied: "{count} modifications de carnets prédéfinis appliquées.",
     notebookTitlePlaceholder: "Contrainte de flexion", notebookDescriptionPlaceholder: "Note facultative",
     insert: "Insérer", formulaCharactersLabel: "Symboles", definedVariablesLabel: "Variables définies", unitsLabel: "Unités",
     symbolGroupSubscriptDigits: "Chiffres en indice", symbolGroupSubscriptLetters: "Lettres en indice", symbolGroupGreekLower: "Grec (minuscules)", symbolGroupGreekUpper: "Grec (majuscules)",
@@ -348,7 +360,10 @@ export default function ConstantsScreen() {
   const [showNewCategoryField, setShowNewCategoryField] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [notebookBackupNotice, setNotebookBackupNotice] = useState("");
-  const [pendingReplaceNotebookImport, setPendingReplaceNotebookImport] = useState<ImportedNotebook[] | null>(null);
+  // 「置き換えインポート」と「プリセットへの編集(override)を含むインポート」は、どちらも
+  // 取り込み前に確認ダイアログを1回だけ出す必要がある（両方に該当する場合でも2回続けて
+  // 出さない）ため、pendingとして持つ情報を1つの状態にまとめる。
+  const [pendingNotebookImport, setPendingNotebookImport] = useState<{ mode: "merge" | "replace"; entries: ImportedNotebook[]; presetOverrides: PresetNotebookOverride[] } | null>(null);
 
   const copy = COPY[language];
 
@@ -519,25 +534,41 @@ export default function ConstantsScreen() {
     }
   };
 
+  // 取り込み後の通知文を組み立てる。プリセットへの編集(override)を1件以上反映した場合は、
+  // ノート件数の通知に続けて件数を追記する（notebookImportDoneとnotebookPresetOverridesAppliedを
+  // 別キーに分けているのは、6言語ぶん組み合わせを別々に訳すより自然なため）。
+  const buildNotebookImportNotice = (result: { notebookCount: number; presetOverrideCount: number }) => {
+    const base = copy.notebookImportDone.replace("{count}", String(result.notebookCount));
+    if (result.presetOverrideCount <= 0) return base;
+    return `${base} ${copy.notebookPresetOverridesApplied.replace("{count}", String(result.presetOverrideCount))}`;
+  };
+
   const handleImportNotebooks = async (mode: "merge" | "replace") => {
     try {
-      const entries = await pickNotebooksBackup(language);
-      if (!entries) return;
-      if (mode === "replace") { setPendingReplaceNotebookImport(entries); return; }
-      const count = await importNotebooks(entries, "merge");
-      setNotebookBackupNotice(copy.notebookImportDone.replace("{count}", String(count)));
+      const picked = await pickNotebooksBackup(language);
+      if (!picked) return;
+      const { notebooks: entries, presetOverrides } = picked;
+      // 置き換えは既存どおり必ず確認する。マージでも、プリセットへの編集が含まれるなら
+      // 「取り込むと上書きされる」ことを確認してもらう（置き換え確認とプリセット編集の警告を
+      // 両方出すべき経路では、後のConfirmDialogが1つの文面にまとめて両方を伝える）。
+      if (mode === "replace" || presetOverrides.length > 0) {
+        setPendingNotebookImport({ mode, entries, presetOverrides });
+        return;
+      }
+      const result = await importNotebooks(entries, "merge", presetOverrides);
+      setNotebookBackupNotice(buildNotebookImportNotice(result));
     } catch (cause) {
       setNotebookBackupNotice(engineErrorMessage(cause));
     }
   };
 
-  const confirmReplaceNotebookImport = async () => {
-    const entries = pendingReplaceNotebookImport;
-    setPendingReplaceNotebookImport(null);
-    if (!entries) return;
+  const confirmPendingNotebookImport = async () => {
+    const pending = pendingNotebookImport;
+    setPendingNotebookImport(null);
+    if (!pending) return;
     try {
-      const count = await importNotebooks(entries, "replace");
-      setNotebookBackupNotice(copy.notebookImportDone.replace("{count}", String(count)));
+      const result = await importNotebooks(pending.entries, pending.mode, pending.presetOverrides);
+      setNotebookBackupNotice(buildNotebookImportNotice(result));
     } catch (cause) {
       setNotebookBackupNotice(engineErrorMessage(cause));
     }
@@ -1190,14 +1221,25 @@ export default function ConstantsScreen() {
     />
 
     <ConfirmDialog
-      visible={Boolean(pendingReplaceNotebookImport)}
-      title={copy.notebookReplace}
-      message={copy.notebookReplaceImportConfirm}
+      visible={Boolean(pendingNotebookImport)}
+      title={pendingNotebookImport?.mode === "replace" ? copy.notebookReplace : copy.notebookPresetOverrideTitle}
+      message={
+        pendingNotebookImport
+          ? [
+              // 置き換えなら既存の確認文をそのまま使い、プリセット編集の警告を後ろに続ける
+              // （両方に該当する経路でダイアログを2回出さないよう、1つの文面にまとめる）。
+              pendingNotebookImport.mode === "replace" ? copy.notebookReplaceImportConfirm : null,
+              pendingNotebookImport.presetOverrides.length > 0
+                ? copy.notebookPresetOverrideWarning.replace("{count}", String(pendingNotebookImport.presetOverrides.length))
+                : null,
+            ].filter(Boolean).join("\n\n")
+          : ""
+      }
       cancelLabel={copy.cancel}
-      confirmLabel={copy.notebookReplace}
-      destructive
-      onCancel={() => setPendingReplaceNotebookImport(null)}
-      onConfirm={() => void confirmReplaceNotebookImport()}
+      confirmLabel={pendingNotebookImport?.mode === "replace" ? copy.notebookReplace : copy.notebookImportContinue}
+      destructive={pendingNotebookImport?.mode === "replace"}
+      onCancel={() => setPendingNotebookImport(null)}
+      onConfirm={() => void confirmPendingNotebookImport()}
     />
   </ScreenContainer>;
 }

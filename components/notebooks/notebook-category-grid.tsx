@@ -7,7 +7,7 @@ import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { UNCATEGORIZED_CATEGORY_ID, type CalculationNotebook, type NotebookCategory } from "@/lib/calculator-store";
 import { localizedText, type AppLanguage } from "@/lib/i18n";
-import { collectExportCategoryIds, countUserNotebooksInCategories } from "@/lib/notebook-category-export";
+import { categoryExportHasContent, collectExportCategoryIds } from "@/lib/notebook-category-export";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
 
 type Props = {
@@ -108,7 +108,7 @@ export function NotebookCategoryGrid({ language, notebooks, notebookCategories, 
     // parentId関係だけを見るので、ユーザー作成カテゴリ・未分類のIDを渡しても安全に[自分自身]を返す）。
     const exportInfoFor = (categoryId: string) => {
       const categoryIds = collectExportCategoryIds(categoryId, PRESET_NOTEBOOK_CATEGORIES);
-      return { categoryIds, canExport: countUserNotebooksInCategories(categoryIds, notebooks) > 0 };
+      return { categoryIds, canExport: categoryExportHasContent(categoryIds, notebooks) };
     };
     if (parentCategoryId) {
       const childIds = childIdsByParent.get(parentCategoryId) ?? [];
@@ -157,7 +157,9 @@ export function NotebookCategoryGrid({ language, notebooks, notebookCategories, 
               </Pressable>
               {/* リネーム・削除はユーザー作成カテゴリだけ（プリセット・未分類は改名／削除できないため）。
                   エクスポートはプリセットカテゴリ・未分類のカードにも、その範囲にユーザー作成ノートが
-                  1件以上あれば出す（プリセットの葉カテゴリや未分類にもユーザーがノートを置けるため）。
+                  1件以上あるか、プリセットへの編集（override）が1件以上あれば出す（プリセットの
+                  葉カテゴリや未分類にもユーザーがノートを置けるし、プリセットの値だけを書き換えて
+                  ノートを作らないユーザーもいるため）。
                   どちらか一方だけのときも見た目を揃えるため、同じcardActionsの行にまとめる。 */}
               {!row.isPreset || row.canExport ? (
                 <View style={styles.cardActions}>

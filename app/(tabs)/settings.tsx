@@ -3,10 +3,12 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-
 import { useRouter } from "expo-router";
 
 import { ScreenContainer } from "@/components/screen-container";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { useAds } from "@/lib/ads-provider";
+import { useCalculatorStore } from "@/lib/calculator-store";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { APP_LANGUAGES, LANGUAGE_META } from "@/lib/i18n";
 import { type ThemePreference, useThemeContext } from "@/lib/theme-provider";
@@ -16,7 +18,13 @@ export default function SettingsScreen() {
   const { language, locale, measuringStandard, setLanguage, setMeasuringStandard, t, unitSystem, setUnitSystem } = useGlobalSettings();
   const { themePreference, setThemePreference } = useThemeContext();
   const { adFree, isAdsPlatformAvailable, redeemMessage, redeemCode } = useAds();
+  const { resetPresetNotebooks } = useCalculatorStore();
   const [redeemInput, setRedeemInput] = useState("");
+  // プリセットの計算ノートを初期状態に戻す操作は破壊的（ユーザーの編集を破棄する）ため、
+  // 既存のバックアップ画面（app/(tabs)/constants.tsx）の置き換えインポートと同じく
+  // ConfirmDialogで確認を挟む。
+  const [pendingResetPresets, setPendingResetPresets] = useState(false);
+  const [resetPresetsNotice, setResetPresetsNotice] = useState("");
   const router = useRouter();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -26,6 +34,12 @@ export default function SettingsScreen() {
   const systems: { id: UnitSystem; label: string }[] = [{ id: "metric", label: t("systemMetric") }, { id: "us", label: t("systemUS") }, { id: "uk", label: t("systemUK") }];
   const themeOptions: { id: ThemePreference; label: string }[] = [{ id: "system", label: t("themeSystem") }, { id: "light", label: t("themeLight") }, { id: "dark", label: t("themeDark") }];
   const measuringStandards: { id: MeasuringStandard; label: string }[] = [{ id: "us", label: t("standardUS") }, { id: "jis", label: t("standardJIS") }];
+
+  const confirmResetPresets = async () => {
+    setPendingResetPresets(false);
+    await resetPresetNotebooks();
+    setResetPresetsNotice(t("resetPresetsDone"));
+  };
 
   return <ScreenContainer className="px-5" containerClassName="bg-background">
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -85,8 +99,26 @@ export default function SettingsScreen() {
         <View style={styles.a11yTitle}><IconSymbol name="accessibility" size={22} color={colors.primary} /><Text style={styles.label}>{t("accessibility")}</Text></View>
         <Text style={styles.description}>{t("accessibilityHint")}</Text>
       </View>
+      <View style={styles.card}>
+        <Text style={styles.label}>{t("resetPresetsTitle")}</Text>
+        <Text style={styles.description}>{t("resetPresetsHint")}</Text>
+        <Pressable onPress={() => setPendingResetPresets(true)} style={({ pressed }) => [styles.resetButton, pressed && styles.pressed]}>
+          <Text style={styles.resetButtonText}>{t("resetPresetsButton")}</Text>
+        </Pressable>
+        {resetPresetsNotice ? <Text style={styles.description}>{resetPresetsNotice}</Text> : null}
+      </View>
       <View style={styles.regionCard}><Text style={styles.regionLabel}>{t("region")}</Text><Text selectable style={styles.regionValue}>{locale}</Text></View>
     </ScrollView>
+    <ConfirmDialog
+      visible={pendingResetPresets}
+      title={t("resetPresetsTitle")}
+      message={t("resetPresetsConfirmMessage")}
+      cancelLabel={t("cancel")}
+      confirmLabel={t("resetPresetsButton")}
+      destructive
+      onCancel={() => setPendingResetPresets(false)}
+      onConfirm={() => void confirmResetPresets()}
+    />
   </ScreenContainer>;
 }
 
@@ -104,4 +136,5 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   redeemInput: { borderColor: colors.border, borderRadius: 12, borderWidth: 1, color: colors.foreground, flex: 1, fontSize: 14, paddingHorizontal: 12, paddingVertical: 10 },
   redeemButton: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderRadius: 12, justifyContent: "center", paddingHorizontal: 14 }, redeemButtonDisabled: { opacity: 0.5 }, redeemButtonText: { color: colors.foreground, fontSize: 13, fontWeight: "700" },
   redeemMessage: { color: colors.muted, fontSize: 12, marginTop: 8 },
+  resetButton: { alignItems: "center", backgroundColor: colors.errorSurface, borderColor: colors.errorBorder, borderRadius: 12, borderWidth: 1, marginTop: 14, paddingVertical: 11 }, resetButtonText: { color: colors.error, fontSize: 14, fontWeight: "800" },
 });
