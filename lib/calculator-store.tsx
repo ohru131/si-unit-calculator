@@ -4,7 +4,8 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import { ImportedConstant } from "@/lib/constants-backup";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { APP_LANGUAGES, AppLanguage, isAppLanguage, localizedText, LocalizedText } from "@/lib/i18n";
-import { PRESET_NOTEBOOK_CATEGORIES, PRESET_NOTEBOOK_SEEDS } from "@/lib/notebook-formulas";
+import { PRESET_NOTEBOOK_CATEGORIES, PRESET_NOTEBOOK_SEEDS, PRESET_NOTEBOOK_SEEDS_AS_SEEDED } from "@/lib/notebook-formulas";
+import { presetResultSymbolPatch } from "@/lib/notebook-result-symbols";
 import type { NotebookSeedConstant } from "@/lib/notebook-formulas/types";
 import { pushNotebookHistoryEntry, removeNotebookHistoryEntry, type NotebookHistoryEntry } from "@/lib/notebook-history";
 import { PresetPriceProfile, resolvePresetPriceProfile } from "@/lib/preset-price-defaults";
@@ -344,6 +345,39 @@ export function localizePresetNotebooks(notebooks: CalculationNotebook[], langua
   return { notebooks: nextNotebooks, changed };
 }
 
+/**
+ * 保存済みのプリセットノートへ、シード側で導出した結果記号（と、それに伴う s1・s2… 参照の
+ * 書き換え）を後から反映する。プリセットの投入はカテゴリ単位で1回きりなので、これが無いと
+ * 既にインストール済みの端末では結果欄が式だけの表示のまま変わらない。
+ *
+ * どのノートに当てるか・当てないかの判定は lib/notebook-result-symbols.ts の純関数に置いて
+ * テストできるようにし、ここではノートとシードの突き合わせ（idからの添字の復元）だけを行う。
+ */
+export function applyPresetResultSymbols(notebooks: CalculationNotebook[]): { notebooks: CalculationNotebook[]; changed: boolean } {
+  let changed = false;
+
+  const nextNotebooks = notebooks.map((notebook) => {
+    if (!notebook.isPreset) return notebook;
+    const seeds = PRESET_NOTEBOOK_SEEDS[notebook.categoryId];
+    const rawSeeds = PRESET_NOTEBOOK_SEEDS_AS_SEEDED[notebook.categoryId];
+    if (!seeds || !rawSeeds) return notebook;
+
+    const seedIndex = extractTrailingIndex(notebook.id, presetIdPrefix(presetNotebookId(notebook.categoryId, 0)));
+    if (seedIndex === undefined) return notebook;
+
+    const seed = seeds[seedIndex];
+    const rawSeed = rawSeeds[seedIndex];
+    if (!seed || !rawSeed) return notebook;
+
+    const nextSteps = presetResultSymbolPatch(notebook.steps, rawSeed.steps, seed.steps);
+    if (!nextSteps) return notebook;
+    changed = true;
+    return { ...notebook, steps: nextSteps };
+  });
+
+  return { notebooks: nextNotebooks, changed };
+}
+
 export function CalculatorProvider({ children }: { children: ReactNode }) {
   const { language, currencyCode, regionCode, isReady: isGlobalSettingsReady } = useGlobalSettings();
   const [constants, setConstants] = useState<SavedConstant[]>([]);
@@ -517,6 +551,17 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           // 古いまま（または移行フォールバックのnullのまま）になり、投入と再解決の言語が食い違う。
           presetsLanguage = language;
           presetsLanguageDirty = true;
+        }
+
+        // 投入済みのプリセットへ、シード側で導出した結果記号を後から反映する（結果欄を
+        // 「m*a」ではなく「F = m*a」と読めるようにするため）。投入はカテゴリ単位で1回きりなので、
+        // ここで当てないと既存インストールでは永遠に反映されない。
+        {
+          const withResultSymbols = applyPresetResultSymbols(nextNotebooks);
+          if (withResultSymbols.changed) {
+            nextNotebooks = withResultSymbols.notebooks;
+            notebooksDirty = true;
+          }
         }
 
         if (notebooksDirty) {
