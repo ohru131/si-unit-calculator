@@ -10,7 +10,7 @@ The demonstration is designed for a vertical 9:16 presentation at 1179×2556 pix
 | 0:12–0:29 | Mixed-length expression and compatible units | SI normalization and safe unit conversion |
 | 0:29–0:46 | Samples screen | Speed, pressure, energy, and examples |
 | 0:46–1:04 | Constants and calculation history | Reusable constants and repeatable work |
-| 1:04–1:23 | Pro screen | Pro value: history, CSV, unit set |
+| 1:04–1:23 | Pro screen | Pro value: ad-free, CSV, unit set |
 | 1:23–1:43 | CSV and unit chips | Documentation and workflow benefits |
 | 1:43–1:52 | Closing title | Target users and call to action |
 
@@ -24,7 +24,7 @@ Speak in US English with a clear, confident, warm product-demo delivery at a ste
 >
 > For repeated work, save constants such as width and height, then reuse them in later expressions. Calculation history stays on your device and can be restored with one tap.
 >
-> Unit Calculator Pro adds a longer history, CSV export for documentation, and a personal unit set for the units you use most. The core calculator remains available to everyone. Pro is for people who want to make technical work repeatable.
+> Unit Calculator Pro is a one-time purchase that removes ads, adds CSV export for documentation, and unlocks a personal unit set for the units you use most. The core calculator remains available to everyone. Pro is for people who want to make technical work repeatable.
 >
 > Unit Calculator Pro. Calculate with confidence, in any compatible unit.
 
@@ -35,5 +35,5 @@ Use only the following concise overlays, keeping the app UI as the focal point:
 1. **Calculate in SI. Display in any compatible unit.**
 2. **Speed · Pressure · Energy · Power**
 3. **Save constants. Reuse your work.**
-4. **Pro: History · CSV · My Unit Set**
+4. **Pro: Ad-Free · CSV · My Unit Set**
 5. **Unit Calculator Pro — Calculate with confidence.**
