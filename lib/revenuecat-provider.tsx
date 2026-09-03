@@ -4,6 +4,7 @@ import Purchases, { CustomerInfo, LOG_LEVEL, type PurchasesPackage } from "react
 
 import { useGlobalSettings } from "@/lib/global-settings";
 import { type AppLanguage } from "@/lib/i18n";
+import { resolvePurchaseMessageKey } from "@/lib/purchase-message";
 import { selectOneTimePackageFromOfferings } from "@/lib/purchase-offering";
 
 export const PRO_ENTITLEMENT_IDENTIFIER = "pro";
@@ -169,7 +170,10 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
   // 初期化する余地が無い環境では待つものが無いので、最初から準備完了として扱う。
   const isReady = blockedReasonKey !== null ? true : isNativeReady;
   // 購入操作などで設定されたメッセージを優先し、無ければ上記の「使えない理由」を出す。
-  const purchaseMessage = purchaseMessageKey ? copy[purchaseMessageKey] : blockedReasonKey ? copy[blockedReasonKey] : null;
+  // Proが有効になった後に残ると矛盾するメッセージの除外も含めてlib/purchase-message.tsに
+  // 切り出してある（判定をテストで固定するため）。
+  const messageKey = resolvePurchaseMessageKey(purchaseMessageKey, blockedReasonKey, isPro);
+  const purchaseMessage = messageKey ? copy[messageKey] : null;
   // ストアが返す表示用の価格文字列をそのまま出す（買い切りパッケージが未取得ならnull）。
   const priceLabel = oneTimePackage ? oneTimePackage.product.priceString : null;
 

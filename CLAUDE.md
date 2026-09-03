@@ -64,6 +64,7 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - 購入・復元は**同期フラグ（`purchaseLockRef`）で直列化**する。`isPurchasing` state と `Pressable` の `disabled` はどちらもコミット後の値なので、同じフレームで `onPress` が2回走ると両方すり抜ける。課金APIを叩く経路なのでstateだけでは不十分。
   - SDKキー未設定・`configure()` 完了前は購入も復元も**受け付けない**（`blockedReasonKey` / `isReady` で早期return）。叩けば必ず失敗し、「商品を読み込めません」「復元できません」と出て**本当の原因を隠す**ため。
   - **`purchasePackage()` が成功しても `pro` entitlement が付いてくるとは限らない**（dashboardで商品をentitlementに紐付け忘れている等。サブスク→買い切りの移行中はまさにこの状態になりうる）。`hasProEntitlement` を確認できたときだけ「ご購入ありがとうございます」を出し、そうでなければ復元とサポートへ導く（`purchaseNotApplied`）。支払ったのにProが有効にならないユーザーに成功メッセージを出すのが最悪の体験なので、`setIsPro` と成功メッセージを別々に判断しないこと。
+  - 購入メッセージは**Proが有効になった時点で矛盾するものを落とす**（`lib/purchase-message.ts` の `resolvePurchaseMessageKey`）。`purchaseNotApplied` / `noRestorablePurchase` は「Proが無い」と主張する文言なので、あとからリスナー経由でProが有効になると「Pro利用中」カードと並んで表示されてしまう（表示側はメッセージを `isPro` に関係なく出す）。リスナーでstateを消しに行くのではなくレンダー時に落とすのは、Proが有効になる経路が購入・復元・リスナーの3つあるため。
 
 ## 既知の注意点・誤検知
 
