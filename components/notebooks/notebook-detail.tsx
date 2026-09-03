@@ -381,7 +381,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                     insertSymbolIntoField(railKey, item.symbol, item.expression, symbol, (nextExpression) => updateConstant(item.id, { expression: nextExpression })),
                   )}
                   {inputUnits.length ? (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.unitRail}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.unitRail}>
                       {inputUnits.map((unitOption) => (
                         <Pressable
                           key={unitOption.symbol}
@@ -488,7 +488,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                     </>
                   )}
                   {compatibleUnits.length ? (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.unitRail}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.unitRail}>
                       <Pressable onPress={() => setUnitOverrides((current) => ({ ...current, [result.step.id]: "" }))} style={({ pressed }) => [styles.unitChip, !effectiveUnit && styles.unitChipActive, pressed && styles.pressed]}>
                         <Text style={[styles.unitChipText, !effectiveUnit && styles.unitChipTextActive]}>{copy.si}</Text>
                       </Pressable>
