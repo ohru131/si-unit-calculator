@@ -200,9 +200,13 @@ export function applyPresetNotebookOverrides(
       ...notebook,
       title: override.title,
       description: override.description,
-      formulas: override.formulas.map((formula, index) => ({ id: `${notebook.id}-override-formula-${index}`, ...formula })),
-      localConstants: override.localConstants.map((constant, index) => ({ id: `${notebook.id}-override-constant-${index}`, ...constant })),
-      steps: override.steps.map((step, index) => ({ id: `${notebook.id}-override-step-${index}`, ...step })),
+      // 取り込んだ要素をスプレッドで展開すると、ファイル側に id が入っていたとき（手で編集した
+      // JSONなど。検証関数は既知のフィールドの型しか見ないので余分なキーは素通りする）に
+      // 生成した決定的なidを上書きしてしまう。id同士が衝突すると、編集画面が別の行を書き換える。
+      // 検証済みの既知フィールドだけを取り出して組み直す。
+      formulas: override.formulas.map(({ explanation, latex }, index) => ({ id: `${notebook.id}-override-formula-${index}`, explanation, latex })),
+      localConstants: override.localConstants.map(({ symbol, expression }, index) => ({ id: `${notebook.id}-override-constant-${index}`, symbol, expression })),
+      steps: override.steps.map(({ title, expression, targetUnit, formulaLatex, resultSymbol }, index) => ({ id: `${notebook.id}-override-step-${index}`, title, expression, targetUnit, formulaLatex, resultSymbol })),
       updatedAt: now,
     };
   });

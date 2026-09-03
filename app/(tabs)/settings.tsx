@@ -38,8 +38,14 @@ export default function SettingsScreen() {
 
   const confirmResetPresets = async () => {
     setPendingResetPresets(false);
-    await resetPresetNotebooks();
-    setResetPresetsNotice(t("resetPresetsDone"));
+    // AsyncStorageへの書き込みは失敗しうる。catchしないと未処理のPromise拒否になるうえ、
+    // 完了メッセージも出ないまま「押したのに何も起きない」状態になってしまう。
+    try {
+      await resetPresetNotebooks();
+      setResetPresetsNotice(t("resetPresetsDone"));
+    } catch {
+      setResetPresetsNotice(t("backupGenericError"));
+    }
   };
 
   return <ScreenContainer className="px-5" containerClassName="bg-background">

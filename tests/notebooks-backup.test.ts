@@ -169,6 +169,25 @@ describe("applyPresetNotebookOverrides", () => {
     expect(notebooks[0].title).toBe("ユーザーのノート");
   });
 
+  // 検証関数（isImportedNotebookFormula等）は既知フィールドの型しか見ないので、手で編集した
+  // JSONに id を仕込むと素通りする。スプレッドで展開していると生成した決定的idを上書きされ、
+  // id同士が衝突して編集画面が別の行を書き換えてしまう。
+  it("ファイル側にidが仕込まれていても、生成した決定的なidを上書きさせない", () => {
+    const presetNotebooks = [makeNotebook()];
+    const overrides = [{
+      presetId: "notebook-preset-astronomy-0",
+      title: "T",
+      description: "",
+      formulas: [{ explanation: "e", latex: "l", id: "仕込んだID" }],
+      localConstants: [{ symbol: "m", expression: "1kg", id: "仕込んだID" }],
+      steps: [{ title: "t", expression: "1", targetUnit: "", id: "仕込んだID" }],
+    }] as unknown as PresetNotebookOverride[];
+    const { notebooks } = applyPresetNotebookOverrides(presetNotebooks, overrides, now);
+    expect(notebooks[0].formulas[0].id).toBe("notebook-preset-astronomy-0-override-formula-0");
+    expect(notebooks[0].localConstants[0].id).toBe("notebook-preset-astronomy-0-override-constant-0");
+    expect(notebooks[0].steps[0].id).toBe("notebook-preset-astronomy-0-override-step-0");
+  });
+
   it("一致するpresetIdが無いoverrideは黙って捨てられる（該当ノートは変更されない）", () => {
     const presetNotebooks = [makeNotebook()];
     const overrides: PresetNotebookOverride[] = [{

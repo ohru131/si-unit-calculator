@@ -753,9 +753,11 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
       title: entry.title,
       description: entry.description,
       categoryId: resolveCategoryId(entry),
-      formulas: entry.formulas.map((formula, formulaIndex) => ({ id: `import-${importedAt}-${index}-formula-${formulaIndex}`, ...formula })),
-      localConstants: entry.localConstants.map((constant, constantIndex) => ({ id: `import-${importedAt}-${index}-constant-${constantIndex}`, ...constant })),
-      steps: entry.steps.map((step, stepIndex) => ({ id: `import-${importedAt}-${index}-step-${stepIndex}`, ...step })),
+      // applyPresetNotebookOverridesと同じ理由で、取り込んだ要素をスプレッドせず既知の
+      // フィールドだけを取り出して組み直す（ファイル側のidで生成idを上書きさせない）。
+      formulas: entry.formulas.map(({ explanation, latex }, formulaIndex) => ({ id: `import-${importedAt}-${index}-formula-${formulaIndex}`, explanation, latex })),
+      localConstants: entry.localConstants.map(({ symbol, expression }, constantIndex) => ({ id: `import-${importedAt}-${index}-constant-${constantIndex}`, symbol, expression })),
+      steps: entry.steps.map(({ title, expression, targetUnit, formulaLatex, resultSymbol }, stepIndex) => ({ id: `import-${importedAt}-${index}-step-${stepIndex}`, title, expression, targetUnit, formulaLatex, resultSymbol })),
       pinned: false,
       isPreset: false,
       createdAt: now,
