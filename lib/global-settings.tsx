@@ -49,6 +49,9 @@ const MEASURING_STANDARD_KEY = "si-unit-calculator.measuring-standard.v1";
 const EN_COPY = {
   calculator: "Unit Calculator",
   calculatorSubtitle: "Calculate in SI. Display in compatible units.",
+  // タブラベル。「計算ノート」だとタブ幅に収まらないため、components/notebooks/notebook-history-sheet.tsx の
+  // notebooksButton（ノート履歴シートの呼び出しボタン）と同じ短い語に揃える。
+  notebook: "Notebooks",
   constants: "Library",
   pro: "Pro",
   examples: "Start with examples",
@@ -126,6 +129,7 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
   ja: {
     calculator: "単位付き電卓",
     calculatorSubtitle: "SIで計算し、互換性のある単位で表示します。",
+    notebook: "ノート",
     constants: "ライブラリ",
     pro: "Pro",
     examples: "サンプルから始める",
@@ -198,6 +202,7 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
   es: {
     calculator: "Calculadora de unidades",
     calculatorSubtitle: "Calcula en unidades del SI. Se muestra en unidades compatibles.",
+    notebook: "Cuadernos",
     constants: "Biblioteca",
     pro: "Pro",
     examples: "Empezar con ejemplos",
@@ -270,6 +275,7 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
   "pt-BR": {
     calculator: "Calculadora de unidades",
     calculatorSubtitle: "Calcula no SI. Exibe em unidades compatíveis.",
+    notebook: "Cadernos",
     constants: "Biblioteca",
     pro: "Pro",
     examples: "Comece com exemplos",
@@ -342,6 +348,7 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
   de: {
     calculator: "Einheitenrechner",
     calculatorSubtitle: "Berechnung im SI-System. Anzeige in kompatiblen Einheiten.",
+    notebook: "Rechenhefte",
     constants: "Bibliothek",
     pro: "Pro",
     examples: "Mit Beispielen starten",
@@ -414,6 +421,7 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
   fr: {
     calculator: "Calculatrice d'unités",
     calculatorSubtitle: "Calcule en unités SI. Affiche dans des unités compatibles.",
+    notebook: "Carnets",
     constants: "Bibliothèque",
     pro: "Pro",
     examples: "Commencer avec des exemples",

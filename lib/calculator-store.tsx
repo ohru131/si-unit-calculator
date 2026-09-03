@@ -23,6 +23,9 @@ const NOTEBOOKS_MIGRATED_STORAGE_KEY = "si-unit-calculator.notebooks-migrated.v1
 const NOTEBOOKS_SEEDED_PRESETS_STORAGE_KEY = "si-unit-calculator.notebooks-seeded-presets.v1";
 // HISTORY_STORAGE_KEY（計算履歴）とは別物。ノートの使用履歴専用のキー。
 const NOTEBOOK_HISTORY_STORAGE_KEY = "si-unit-calculator.notebook-history.v1";
+// 「ノート」タブに表示中の1件。タブを切り替えても・アプリを再起動しても同じノートが
+// 出続けることが価値の中心なので、明示的に永続化する（画面側の実装はこのストアの外）。
+const ACTIVE_NOTEBOOK_STORAGE_KEY = "si-unit-calculator.active-notebook.v1";
 // プリセットの表示文言を最後に解決した言語。resolveLocalizedField の「未編集判定」を
 // 対応言語全部との比較ではなく、この言語のシード文言とだけの比較に絞るために使う
 // （詳しくは resolveLocalizedField のコメントを参照）。
@@ -147,6 +150,9 @@ type CalculatorStore = {
   notebooks: CalculationNotebook[];
   notebookCategories: NotebookCategory[];
   notebookHistory: NotebookHistoryEntry[];
+  /** 「ノート」タブに表示中のノートID。無い（null）ときは画面側が resolveActiveNotebook で
+   * 履歴→ピン留めの順にフォールバックする（このストアは選択状態の保持だけを担当する）。 */
+  activeNotebookId: string | null;
   hasRestorableConstants: boolean;
   isLoading: boolean;
   upsertConstant: (symbol: string, expression: string) => Promise<SavedConstant>;
@@ -169,6 +175,7 @@ type CalculatorStore = {
   recordNotebookUse: (notebook: CalculationNotebook) => Promise<void>;
   removeNotebookHistoryEntry: (id: string) => Promise<void>;
   clearNotebookHistory: () => Promise<void>;
+  setActiveNotebookId: (id: string | null) => Promise<void>;
 };
 
 const CalculatorContext = createContext<CalculatorStore | null>(null);
@@ -431,6 +438,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
   const [notebooks, setNotebooks] = useState<CalculationNotebook[]>([]);
   const [notebookCategories, setNotebookCategories] = useState<NotebookCategory[]>([]);
   const [notebookHistory, setNotebookHistory] = useState<NotebookHistoryEntry[]>([]);
+  const [activeNotebookId, setActiveNotebookIdState] = useState<string | null>(null);
   const [clearedConstants, setClearedConstants] = useState<SavedConstant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -465,6 +473,17 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     notebookHistoryRef.current = next;
     setNotebookHistory(next);
     await AsyncStorage.setItem(NOTEBOOK_HISTORY_STORAGE_KEY, JSON.stringify(next));
+  }, []);
+
+  // removeNotebook・importNotebooksが「消えたノートを指していたらnullにする」判定をするときに
+  // 直前の値を参照するため、他のrefと同じ理由でrefを持つ。値そのものはstring | nullなので
+  // JSON化せずAsyncStorageへ直接文字列として出し入れする（nullは削除で表現する）。
+  const activeNotebookIdRef = useRef<string | null>(activeNotebookId);
+  const persistActiveNotebookId = useCallback(async (next: string | null) => {
+    activeNotebookIdRef.current = next;
+    setActiveNotebookIdState(next);
+    if (next === null) await AsyncStorage.removeItem(ACTIVE_NOTEBOOK_STORAGE_KEY);
+    else await AsyncStorage.setItem(ACTIVE_NOTEBOOK_STORAGE_KEY, next);
   }, []);
 
   const notebookCategoriesRef = useRef<NotebookCategory[]>(notebookCategories);
@@ -502,6 +521,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           migratedRaw,
           seededPresetsRaw,
           presetsLanguageRaw,
+          activeNotebookIdRaw,
         ] = await Promise.all([
           AsyncStorage.getItem(CONSTANTS_STORAGE_KEY),
           AsyncStorage.getItem(HISTORY_STORAGE_KEY),
@@ -513,6 +533,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           AsyncStorage.getItem(NOTEBOOKS_MIGRATED_STORAGE_KEY),
           AsyncStorage.getItem(NOTEBOOKS_SEEDED_PRESETS_STORAGE_KEY),
           AsyncStorage.getItem(PRESETS_LANGUAGE_STORAGE_KEY),
+          AsyncStorage.getItem(ACTIVE_NOTEBOOK_STORAGE_KEY),
         ]);
 
         let nextNotebooks = parseStoredArray(notebooksRaw).filter(isCalculationNotebook).map((item) => ({ ...item, formulas: item.formulas ?? [], pinned: item.pinned === true, isPreset: item.isPreset === true }));
@@ -584,6 +605,12 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         }
         if (presetsLanguageDirty) await AsyncStorage.setItem(PRESETS_LANGUAGE_STORAGE_KEY, presetsLanguage as AppLanguage);
 
+        // 保存されていたIDが指すノートがもう存在しない（削除された・別端末のバックアップを
+        // 取り込んだ、など）なら null として扱う。resolveNotebookHistory と同じ「現存突き合わせ」の
+        // 考え方。無効なIDのまま保持すると、画面側が毎回「存在しないノートを探して失敗する」
+        // 処理を強いられるので、ここで一度きり正規化しておく。
+        const loadedActiveNotebookId = typeof activeNotebookIdRaw === "string" && nextNotebooks.some((notebook) => notebook.id === activeNotebookIdRaw) ? activeNotebookIdRaw : null;
+
         if (!active) return;
         setConstants(parseStoredArray(constantsRaw).filter(isSavedConstant));
         setHistory(parseStoredArray(historyRaw).filter(isSavedCalculation));
@@ -602,6 +629,8 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         }
         setClearedConstants(parseStoredArray(clearedConstantsRaw).filter(isSavedConstant));
         presetsLanguageRef.current = presetsLanguage;
+        activeNotebookIdRef.current = loadedActiveNotebookId;
+        setActiveNotebookIdState(loadedActiveNotebookId);
       } catch {
         if (!active) return;
         setConstants([]);
@@ -615,6 +644,8 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         setNotebookHistory([]);
         setClearedConstants([]);
         presetsLanguageRef.current = null;
+        activeNotebookIdRef.current = null;
+        setActiveNotebookIdState(null);
       } finally {
         if (active) setIsLoading(false);
       }
@@ -777,17 +808,26 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
       }
     }
     const { notebooks: nextPresetNotebooks, appliedCount: presetOverrideCount } = applyPresetNotebookOverrides(presetNotebooks, presetOverrides, now);
+    const nextAllNotebooks = [...nextPresetNotebooks, ...nextUserNotebooks].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
     // ノートより先にカテゴリを書き込む。逆にすると、カテゴリ書き込みが失敗した場合に
     // 存在しないcategoryIdを参照するノートが残ってしまい、カテゴリ一覧からも辿れなくなる。
     // 参照されない空カテゴリが残るだけの方が実害が小さい。
     await persistNotebookCategories(categories);
-    await persistNotebooks([...nextPresetNotebooks, ...nextUserNotebooks].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)));
+    await persistNotebooks(nextAllNotebooks);
+    // replaceでユーザー作成ノートを丸ごと入れ替えた（IDも新規採番される）結果、「ノート」タブが
+    // 表示中だったノートが消えていたらnullに戻す。mergeでも既存ノートをid維持で上書きするので
+    // 消えることはないが、判定自体はどちらのmodeでも同じ「現存するか」で共通に扱える。
+    if (activeNotebookIdRef.current !== null && !nextAllNotebooks.some((notebook) => notebook.id === activeNotebookIdRef.current)) await persistActiveNotebookId(null);
     return { notebookCount: importedNotebooks.length, presetOverrideCount };
-  }, [persistNotebookCategories, persistNotebooks]);
+  }, [persistActiveNotebookId, persistNotebookCategories, persistNotebooks]);
 
   // プリセットの計算ノートを現在のシードから作り直し、ユーザーの編集（値の書き換え・
   // タイトル変更など）を破棄する。ユーザー作成ノート（!isPreset）・ユーザー作成カテゴリには
   // 一切触れない（破壊的な操作なので、呼び出し側でConfirmDialogによる確認を挟むこと）。
+  // activeNotebookIdには触れない: プリセットのIDは presetNotebookId(categoryId, seedIndex) で
+  // 決定的に採番され、このリセットでも同じ規則で作り直すのでIDは変わらない
+  // （中身だけがシードへ戻る）。したがって「ノート」タブがプリセットを表示中でも、
+  // このリセット後も同じノートを指し続けられ、nullに戻す必要はない。
   const resetPresetNotebooks = useCallback(async () => {
     const now = new Date().toISOString();
     const priceProfile = resolvePresetPriceProfile(currencyCode, regionCode, language);
@@ -807,7 +847,10 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     const target = notebooksRef.current.find((item) => item.id === id);
     if (target?.isPreset) return;
     await persistNotebooks(notebooksRef.current.filter((item) => item.id !== id));
-  }, [persistNotebooks]);
+    // 「ノート」タブが表示中だったノートを削除したら、指す先を失うのでnullに戻す
+    // （画面側はnullを見てresolveActiveNotebookで履歴・ピン留めに自動フォールバックする）。
+    if (activeNotebookIdRef.current === id) await persistActiveNotebookId(null);
+  }, [persistActiveNotebookId, persistNotebooks]);
 
   const toggleNotebookPinned = useCallback(async (id: string) => {
     await persistNotebooks(notebooksRef.current.map((item) => (item.id === id ? { ...item, pinned: !item.pinned } : item)));
@@ -860,22 +903,29 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     await persistNotebookHistory([]);
   }, [persistNotebookHistory]);
 
+  // 「ノート」タブが表示するノートを明示的に切り替える／選択解除する（null）ときに画面側から呼ぶ。
+  // 現存チェックはしない: 呼び出し側（画面）は今まさに表示しているノート、あるいは
+  // resolveActiveNotebookが返したノートのidを渡すはずなので、ここで二重に検証する必要はない。
+  const setActiveNotebookId = useCallback(async (id: string | null) => {
+    await persistActiveNotebookId(id);
+  }, [persistActiveNotebookId]);
+
   const value = useMemo(
     () => ({
-      constants, history, favoriteUnits, notebooks, notebookCategories, notebookHistory,
+      constants, history, favoriteUnits, notebooks, notebookCategories, notebookHistory, activeNotebookId,
       hasRestorableConstants: clearedConstants.length > 0, isLoading,
       upsertConstant, removeConstant, importConstants, clearConstants, restoreClearedConstants,
       addHistoryEntry, clearHistory, toggleFavoriteUnit,
       upsertNotebook, importNotebooks, removeNotebook, resetPresetNotebooks, toggleNotebookPinned, upsertNotebookCategory, removeNotebookCategory,
-      recordNotebookUse, removeNotebookHistoryEntry: removeNotebookHistoryEntryById, clearNotebookHistory,
+      recordNotebookUse, removeNotebookHistoryEntry: removeNotebookHistoryEntryById, clearNotebookHistory, setActiveNotebookId,
     }),
     [
-      constants, history, favoriteUnits, notebooks, notebookCategories, notebookHistory,
+      constants, history, favoriteUnits, notebooks, notebookCategories, notebookHistory, activeNotebookId,
       clearedConstants.length, isLoading,
       upsertConstant, removeConstant, importConstants, clearConstants, restoreClearedConstants,
       addHistoryEntry, clearHistory, toggleFavoriteUnit,
       upsertNotebook, importNotebooks, removeNotebook, resetPresetNotebooks, toggleNotebookPinned, upsertNotebookCategory, removeNotebookCategory,
-      recordNotebookUse, removeNotebookHistoryEntryById, clearNotebookHistory,
+      recordNotebookUse, removeNotebookHistoryEntryById, clearNotebookHistory, setActiveNotebookId,
     ],
   );
 

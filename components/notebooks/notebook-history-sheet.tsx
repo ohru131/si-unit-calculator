@@ -13,7 +13,7 @@ type Props = {
   visible: boolean;
   language: AppLanguage;
   entries: ResolvedNotebookHistoryEntry[];
-  /** ピン留めされたノート一覧。電卓画面上部のピン留めチップ列とは別の入口として、このシートにも並べて出す。 */
+  /** ピン留めされたノート一覧。最近使ったノートと並べて、ノートタブのノート切替シートに出す。 */
   pinnedNotebooks: CalculationNotebook[];
   /** 現存するユーザー作成カテゴリ名の解決に使う。プリセットカテゴリはPRESET_NOTEBOOK_CATEGORIESから
    * 直接引けるが、ユーザー作成分はこのpropが無いと名前を出せない（storeを直接読まない設計のため）。 */
@@ -26,10 +26,7 @@ type Props = {
 };
 
 // キーの集合は英語が正。他言語でキーが欠けるとその言語ブロックで型エラーになり、翻訳漏れのチェックリストになる。
-// notebooksButtonは呼び出し側（電卓画面）が新設する「ノート」ボタンのラベルとして使う想定
-// （このコンポーネント自体はボタンを描画しない。画面への組み込みは別担当のため、ラベルの翻訳だけここに用意する）。
 const EN_COPY = {
-  notebooksButton: "Notebooks",
   title: "Notebooks",
   hint: "Your pinned notebooks and recently used ones. Tap one to open it.",
   pinnedSectionTitle: "Pinned",
@@ -45,7 +42,6 @@ const EN_COPY = {
 const COPY: Record<AppLanguage, typeof EN_COPY> = {
   en: EN_COPY,
   ja: {
-    notebooksButton: "ノート",
     title: "ノート",
     hint: "ピン留めしたノートと、最近使ったノートです。タップすると開けます。",
     pinnedSectionTitle: "ピン留め",
@@ -59,7 +55,6 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     uncategorized: "未分類",
   },
   es: {
-    notebooksButton: "Cuadernos",
     title: "Cuadernos",
     hint: "Tus cuadernos fijados y los usados recientemente. Toca uno para abrirlo.",
     pinnedSectionTitle: "Fijados",
@@ -73,7 +68,6 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     uncategorized: "Sin categoría",
   },
   "pt-BR": {
-    notebooksButton: "Cadernos",
     title: "Cadernos",
     hint: "Seus cadernos fixados e os usados recentemente. Toque em um para abri-lo.",
     pinnedSectionTitle: "Fixados",
@@ -87,7 +81,6 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     uncategorized: "Sem categoria",
   },
   de: {
-    notebooksButton: "Rechenhefte",
     title: "Rechenhefte",
     hint: "Deine angehefteten und zuletzt verwendeten Rechenhefte. Tippe eines an, um es zu öffnen.",
     pinnedSectionTitle: "Angeheftet",
@@ -101,7 +94,6 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     uncategorized: "Ohne Kategorie",
   },
   fr: {
-    notebooksButton: "Carnets",
     title: "Carnets",
     hint: "Vos carnets épinglés et récemment utilisés. Appuyez sur l'un d'eux pour l'ouvrir.",
     pinnedSectionTitle: "Épinglés",
@@ -115,9 +107,6 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     uncategorized: "Sans catégorie",
   },
 };
-
-/** 呼び出し側（電卓画面）が「ノート」ボタンのラベルなど、このシート以外の場所で使う文言。 */
-export const NOTEBOOK_HISTORY_SHEET_COPY = COPY;
 
 function categoryLabel(categoryId: string, notebookCategories: NotebookCategory[], language: AppLanguage, copy: typeof EN_COPY): string {
   if (categoryId === UNCATEGORIZED_CATEGORY_ID) return copy.uncategorized;
