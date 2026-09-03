@@ -54,6 +54,15 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - `components/notebooks/notebook-detail.tsx` — ルートは`View(flex:1)`で、**戻る/ピン留め/編集＋ノート名を固定ヘッダー**、値を編集したときの保存バーを**固定フッター**にしている（下までスクロールしても戻れる・保存できるようにするため）。狭い端末幅ではタイトルが潰れるので固定ヘッダーは上段（戻る＋ボタン）／下段（ノート名）の2段構成。`NotebookCategoryGrid`・`NotebookList`も戻る行をスクロール外に出し、中身だけをスクロールさせる（グリッドは以前`ScrollView`が無く、カテゴリが増えると画面外にはみ出して押せなかった）。
 - **数式の編集口は「数式の解説」（`formulas`）に一本化してある**。編集画面（`constants.tsx`）は手順ごとの`formulaLatex`を編集せず、保存時に`formulaLatex`を落として`formulas`へ寄せる。`formulas`が空のノート（プリセット112件中108件）は`notebookFormulaRows`（`lib/notebook-formula-rows.ts`）が手順の`formulaLatex`を**説明文なしの行**として拾い上げるので、数式だけのノートも同じ1箇所で編集できる。手順カードにLaTeX欄を復活させないこと（2箇所で設定できるうえ、表示側は`formulas`を優先するのでどちらが効くか分からなくなる）。
 - 表示側（`notebook-detail.tsx`）は`formulas`があればそれを、無ければ各手順の`formulaLatex`を数式カードに並べる。
+- `lib/revenuecat-provider.tsx` / `lib/purchase-offering.ts` — 課金は**買い切り（非消費型）1本**。サブスクは提供しない（電卓ジャンルはサブスクへの反発が突出して強い。根拠は `docs/market-research-2026-09.md` 第4節）。
+  - **RevenueCatのofferingからサブスクを絶対に買わせない**のが最重要の不変条件。`selectOneTimePackage` は `productCategory === "SUBSCRIPTION"` と `subscriptionPeriod` を持つものを弾き、**`lifetime` スロットに入っていても弾く**（dashboardの設定ミスを想定）。判定を緩めると「買い切りと表示して継続課金させる」最悪の事故になるので、`tests/purchase-offering.test.ts` の該当テストを消さないこと。
+  - 選択関数は**ジェネリック**にしてSDKの `PurchasesPackage` をそのまま返す（narrowな型に落とすと `Purchases.purchasePackage()` に渡す際にキャストが必要になる）。
+  - 価格はストアのローカライズ済み文字列（`product.priceString`）をそのまま出す。自前で通貨記号を組まない。
+  - 買い切り商品に**無料トライアルは設定できない**（App Store/Playの導入価格・トライアルはサブスク専用機能）。審査員向けはプロモコードで通す。
+  - **ユーザーのキャンセルはエラーではない**。RevenueCatは `userCancelled` を持つオブジェクトでrejectするので、それを「購入に失敗しました」と出さないこと。
+  - **`RevenueCatUI.presentPaywallIfNeeded` にフォールバックしないこと**（一度入れて撤去した）。この関数はentitlementの有無しか見ず、**dashboardのofferingに入っている商品をそのまま表示する**ため、サブスク商品が残っていれば上の不変条件を迂回して継続課金を売ってしまう。買い切り商品が取れないときは購入させず理由（`productLoadFailed`）を出す。これで `react-native-purchases-ui` は未使用になっている。
+  - 購入・復元は**同期フラグ（`purchaseLockRef`）で直列化**する。`isPurchasing` state と `Pressable` の `disabled` はどちらもコミット後の値なので、同じフレームで `onPress` が2回走ると両方すり抜ける。課金APIを叩く経路なのでstateだけでは不十分。
+  - SDKキー未設定・`configure()` 完了前は購入も復元も**受け付けない**（`blockedReasonKey` / `isReady` で早期return）。叩けば必ず失敗し、「商品を読み込めません」「復元できません」と出て**本当の原因を隠す**ため。
 
 ## 既知の注意点・誤検知
 
@@ -94,6 +103,8 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 11. **[完了・PR #25でマージ済み]** 手順タイトルの固定数値をやめ、編集画面に記号・変数レールと表示タイトル欄を追加。結果一覧の「最終結果」バッジを削除。
 12. **[完了・PR #26でマージ済み]** レールをフォーカスに連動させず常時表示に、編集画面に単位ボタン、電卓に「ノート」ボタン（使用履歴）とAC、起動時の式を最後に計算した式に、単位グループを11追加。
 13. **[完了]** 単位チップが複合単位を丸ごと置き換えない不具合（`3m/s^2` → `3m/G`）を修正。電卓を `=` 前でもリアルタイム計算に。ノート履歴を「実際に使ったもの」に絞り1件ずつ削除可能に。数式の編集口を「数式の解説」へ一本化。プリセット133手順に結果記号を導出して結果欄を等式（`F = m*a`）に。
+
+14. **[完了]** 課金設計を見直し、サブスク（月額・年額）をやめて**買い切り1本**にした。あわせて**無料版の履歴5件制限を撤廃**（`app/(tabs)/index.tsx` の `visibleHistory`）し、Proの特典一覧から「無制限の履歴」を外した。`docs/market-research-2026-09.md` 第4節・第8節の推奨アクション3の実装。
 
 ## 次にやりそうなこと（ユーザーから明示的な指示待ち）
 
