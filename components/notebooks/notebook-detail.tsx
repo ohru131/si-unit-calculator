@@ -11,10 +11,11 @@ import { type CalculationNotebook, type CalculationNoteStep, type NotebookLocalC
 import { type AppLanguage } from "@/lib/i18n";
 import { getLocalConstantFieldSuggestions, getStepFieldSuggestions, insertConstantSymbol, mapCombinedSelectionToExpressionRange } from "@/lib/notebook-constant-suggestions";
 import { evaluateNotebookSteps, formatNameValue, normalizeStepForSave, parseNameValue, resolveNotebookLocalConstants, trimResultSymbol } from "@/lib/notebook-engine";
+import { resolveNotebookStepDisplay } from "@/lib/notebook-export-model";
 import { nextStepNamePatch, stepDisplayTitle } from "@/lib/notebook-step-title";
 import { getUnitInsertionRange, replaceExpressionRange } from "@/lib/unit-input";
 import { compatibleUnitOptions, compatibleUnitOptionsFromHints } from "@/lib/unit-options";
-import { formatQuantity, type MeasuringStandard, type SavedConstant, type UnitSystem } from "@/lib/units";
+import { type MeasuringStandard, type SavedConstant, type UnitSystem } from "@/lib/units";
 
 const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" });
 
@@ -478,28 +479,10 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
               // 表示単位も未指定だと、結果は 10 m²/s³ と出せているのに候補が0件になってしまう。
               // 候補が0件だと下の単位レールが丸ごと消え、SIへ戻すチップまで押せなくなる。
               const compatibleUnits = compatibleUnitOptionsFromHints(result.quantity, unitSystem, [effectiveUnit, result.step.expression, result.siFallback]);
-              let displayValue = result.formatted;
-              let displayError = result.error;
-              if (result.quantity && overrideUnit !== undefined) {
-                if (overrideUnit === "") {
-                  displayValue = result.siFallback;
-                  displayError = undefined;
-                } else {
-                  try {
-                    displayValue = formatQuantity(result.quantity, overrideUnit, locale);
-                    displayError = undefined;
-                  } catch (cause) {
-                    displayValue = result.siFallback;
-                    displayError = cause instanceof Error ? cause.message : displayError;
-                  }
-                }
-              }
-              if (displayValue && effectiveUnit) {
-                const label = compatibleUnits.find((unitOption) => unitOption.symbol === effectiveUnit)?.label;
-                if (label && label !== effectiveUnit && displayValue.endsWith(effectiveUnit)) {
-                  displayValue = `${displayValue.slice(0, -effectiveUnit.length)}${label}`;
-                }
-              }
+              // 表示単位の上書き・次元不一致時のSI表記へのフォールバック・単位ラベルの見栄え差し替えは
+              // lib/notebook-export-model.ts の resolveNotebookStepDisplay に一本化してある
+              // （PDFエクスポートと画面がこの判断を別々に実装すると表示がズレるため）。
+              const { value: displayValue, error: displayError } = resolveNotebookStepDisplay(result, overrideUnit, unitSystem, locale);
               const stepRailKey = stepFieldKey(result.step.id);
               return (
                 <View key={result.step.id} style={[styles.resultCard, isFinalStep && result.quantity ? styles.resultCardFinal : null]}>
