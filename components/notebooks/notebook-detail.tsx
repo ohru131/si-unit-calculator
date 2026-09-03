@@ -106,11 +106,19 @@ type Props = {
   unitSystem: UnitSystem;
   measuringStandard: MeasuringStandard;
   notebook: CalculationNotebook;
-  categoryLabel: string;
+  /** 戻る行に出すカテゴリ名。onBackを渡さない（戻る導線が無い）画面では使われない。 */
+  categoryLabel?: string;
   globalConstants: SavedConstant[];
-  onBack: () => void;
+  /** 「カテゴリに戻る」の戻る行を出すかどうか。ノートタブ（app/(tabs)/notebook.tsx）には
+   * 戻り先が無いため渡さない。渡された場合だけ戻る行を描画する。 */
+  onBack?: () => void;
   onEdit: () => void;
-  onTogglePinned: () => void;
+  /** ピン留めの切り替え。ノートタブではピン留めボタン自体を出さない
+   * （ピン留めはライブラリのノート一覧の役割にする方針のため）。渡された場合だけボタンを描画する。 */
+  onTogglePinned?: () => void;
+  /** ノート名（stickyTitle）をボタンにしたいときのハンドラ。ノートタブではこれでノート切替シートを開く。
+   * 渡さなければ従来どおりただのテキストとして表示する。 */
+  onTitlePress?: () => void;
   /** このノートを「使った」ときに呼ぶ（値の編集・表示単位の切り替え・結果のコピー・保存）。
    * 開いただけでは呼ばない。カテゴリを辿る途中に覗いたノートまで最近使ったノートに並ぶと、
    * 「作業していたノートへ戻る」導線として役に立たなくなるため。
@@ -119,7 +127,7 @@ type Props = {
   onSaveValues: (localConstants: NotebookLocalConstant[], steps: CalculationNoteStep[]) => Promise<void>;
 };
 
-export function NotebookDetail({ language, locale, unitSystem, measuringStandard, notebook, categoryLabel, globalConstants, onBack, onEdit, onTogglePinned, onUse, onSaveValues }: Props) {
+export function NotebookDetail({ language, locale, unitSystem, measuringStandard, notebook, categoryLabel, globalConstants, onBack, onEdit, onTogglePinned, onTitlePress, onUse, onSaveValues }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [editableConstants, setEditableConstants] = useState<NotebookLocalConstant[]>(() => notebook.localConstants.map((item) => ({ ...item })));
@@ -317,21 +325,32 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   return (
     <View style={styles.root}>
       <View style={styles.stickyHeader}>
-        <View style={styles.stickyTopRow}>
-          <Pressable onPress={onBack} style={({ pressed }) => [styles.backRow, pressed && styles.pressed]}>
-            <IconSymbol name="chevron.left" size={16} color={colors.primary} />
-            <Text numberOfLines={1} style={styles.backLabel}>{backLabel}</Text>
-          </Pressable>
-          <View style={styles.headerActions}>
-            <Pressable accessibilityLabel={notebook.pinned ? copy.unpin : copy.pin} onPress={onTogglePinned} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
-              <IconSymbol name="pin.fill" size={16} color={notebook.pinned ? colors.primary : colors.muted} />
+        <View style={[styles.stickyTopRow, !onBack && styles.stickyTopRowEnd]}>
+          {onBack ? (
+            <Pressable onPress={onBack} style={({ pressed }) => [styles.backRow, pressed && styles.pressed]}>
+              <IconSymbol name="chevron.left" size={16} color={colors.primary} />
+              <Text numberOfLines={1} style={styles.backLabel}>{backLabel}</Text>
             </Pressable>
+          ) : null}
+          <View style={styles.headerActions}>
+            {onTogglePinned ? (
+              <Pressable accessibilityLabel={notebook.pinned ? copy.unpin : copy.pin} onPress={onTogglePinned} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
+                <IconSymbol name="pin.fill" size={16} color={notebook.pinned ? colors.primary : colors.muted} />
+              </Pressable>
+            ) : null}
             <Pressable accessibilityLabel={copy.edit} onPress={onEdit} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
               <IconSymbol name="pencil" size={16} color={colors.primary} />
             </Pressable>
           </View>
         </View>
-        <Text numberOfLines={1} style={styles.stickyTitle}>{notebook.title}</Text>
+        {onTitlePress ? (
+          <Pressable accessibilityLabel={notebook.title} onPress={onTitlePress} style={({ pressed }) => [styles.stickyTitleButton, pressed && styles.pressed]}>
+            <Text numberOfLines={1} style={styles.stickyTitle}>{notebook.title}</Text>
+            <IconSymbol name="chevron.right" size={13} color={colors.muted} />
+          </Pressable>
+        ) : (
+          <Text numberOfLines={1} style={styles.stickyTitle}>{notebook.title}</Text>
+        )}
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.container}>
@@ -543,11 +562,15 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   // 上段（戻る・ピン留め/編集）と下段（ノート名）の2段に分けて、どちらも省略されないようにする。
   stickyHeader: { backgroundColor: colors.background, borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth, gap: 6, paddingBottom: 10, paddingTop: 4 },
   stickyTopRow: { alignItems: "center", flexDirection: "row", gap: 10, justifyContent: "space-between" },
+  // onBackが無い（戻る行を出さない）画面では左側の要素が無くなるため、ボタン列を右端に寄せる。
+  stickyTopRowEnd: { justifyContent: "flex-end" },
   scroll: { flex: 1 },
   container: { gap: 12, paddingBottom: 40, paddingTop: 12 },
   backRow: { alignItems: "center", flexDirection: "row", flexShrink: 1, gap: 4 },
   backLabel: { color: colors.primary, flexShrink: 1, fontSize: 14, fontWeight: "800" },
-  stickyTitle: { color: colors.foreground, fontSize: 16, fontWeight: "800" },
+  stickyTitle: { color: colors.foreground, flexShrink: 1, fontSize: 16, fontWeight: "800" },
+  // onTitlePressがあるとき（ノート名をタップしてノート切替シートを開ける画面）だけ使う行。
+  stickyTitleButton: { alignItems: "center", alignSelf: "flex-start", flexDirection: "row", gap: 4, maxWidth: "100%" },
   description: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 4 },
   headerActions: { flexDirection: "row", gap: 8 },
   headerButton: { alignItems: "center", backgroundColor: colors.primarySurface, borderRadius: 18, height: 36, justifyContent: "center", width: 36 },

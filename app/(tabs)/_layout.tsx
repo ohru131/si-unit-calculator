@@ -99,6 +99,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="notebook"
+        options={{
+          title: t("notebook"),
+          // ライブラリ（constants）は"bookmark.fill"を使っているので、開いた本を模した
+          // "book.fill"にして見分けやすくする（両方ともMaterialIconsマッピング済み: bookmark/auto-stories）。
+          tabBarIcon: ({ color }) => <IconSymbol size={25} name="book.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="constants"
         options={{
           title: t("constants"),

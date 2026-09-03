@@ -14,7 +14,6 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { NotebookCategoryGrid } from "@/components/notebooks/notebook-category-grid";
-import { NotebookDetail } from "@/components/notebooks/notebook-detail";
 import { NotebookEditorSheet } from "@/components/notebooks/notebook-editor-sheet";
 import { NotebookList } from "@/components/notebooks/notebook-list";
 import { ScreenContainer } from "@/components/screen-container";
@@ -113,10 +112,10 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
 
 export default function ConstantsScreen() {
   const router = useRouter();
-  const { notebookExpression, notebookUnit, openNotebookId } = useLocalSearchParams<{ notebookExpression?: string | string[]; notebookUnit?: string | string[]; openNotebookId?: string | string[] }>();
+  const { notebookExpression, notebookUnit } = useLocalSearchParams<{ notebookExpression?: string | string[]; notebookUnit?: string | string[] }>();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { language, locale, measuringStandard, unitSystem } = useGlobalSettings();
+  const { language, locale, unitSystem } = useGlobalSettings();
   const {
     constants,
     isLoading,
@@ -126,6 +125,7 @@ export default function ConstantsScreen() {
     removeNotebook,
     removeNotebookCategory,
     recordNotebookUse,
+    setActiveNotebookId,
     toggleNotebookPinned,
     upsertConstant,
     upsertNotebook,
@@ -135,7 +135,6 @@ export default function ConstantsScreen() {
   const [topSection, setTopSection] = useState<TopSection>("notebooks");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [browsingParentCategoryId, setBrowsingParentCategoryId] = useState<string | null>(null);
-  const [selectedNotebookId, setSelectedNotebookId] = useState<string | null>(null);
 
   // グローバル定数の編集シート。
   const [constantEditorVisible, setConstantEditorVisible] = useState(false);
@@ -256,14 +255,6 @@ export default function ConstantsScreen() {
     setNotebookEditorVisible(true);
   };
 
-  const openEditNotebook = (notebook: CalculationNotebook) => {
-    setEditingNotebook(notebook);
-    setNotebookPresetExpression(undefined);
-    setNotebookPresetTargetUnit(undefined);
-    setNotebookEditorSession((current) => current + 1);
-    setNotebookEditorVisible(true);
-  };
-
   // ルートパラメータ（電卓画面の「保存」ボタン）は常に新規ノートを開く契約。
   // 同じ値を持つパラメータで再実行されないよう、処理済みの値をrefで覚えておく。
   const handledNotebookParamRef = useRef<string | null>(null);
@@ -282,25 +273,6 @@ export default function ConstantsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notebookExpression, notebookUnit]);
 
-  // ルートパラメータ（電卓画面のピン留めチップ）でノート詳細を直接開く。
-  // notebooksの読み込み完了前は見つからないため、読み込み完了後の再実行で開けるようにする。
-  const handledOpenNotebookIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    const id = Array.isArray(openNotebookId) ? openNotebookId[0] : openNotebookId;
-    if (!id || handledOpenNotebookIdRef.current === id) return;
-    const notebook = notebooks.find((item) => item.id === id);
-    if (!notebook) return;
-    handledOpenNotebookIdRef.current = id;
-    setTopSection("notebooks");
-    setBrowsingParentCategoryId(PRESET_NOTEBOOK_CATEGORIES.find((category) => category.id === notebook.categoryId)?.parentId ?? null);
-    setSelectedCategoryId(notebook.categoryId);
-    setSelectedNotebookId(notebook.id);
-    // パラメータを消費済みにしておく。消さないままだと、一度戻ってから同じ
-    // ピン留めチップをもう一度押しても（値が変わらない）再度開けなくなる。
-    router.setParams({ openNotebookId: undefined });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openNotebookId, notebooks]);
-
   const closeNotebookEditor = () => setNotebookEditorVisible(false);
 
   // 保存はNotebookEditorSheetのonSaveプロップから呼ばれる。保存されたノートを受け取り、
@@ -312,28 +284,19 @@ export default function ConstantsScreen() {
     return saved;
   };
 
-  const selectedNotebook = selectedNotebookId ? notebooks.find((item) => item.id === selectedNotebookId) : undefined;
   const notebooksInCategory = selectedCategoryId ? notebooks.filter((item) => item.categoryId === selectedCategoryId) : [];
 
+  // ノートの中身を大きく表示する画面はノートタブ（app/(tabs)/notebook.tsx）に一本化した。
+  // ここではタップされたノートをアクティブにしてからそちらへ遷移するだけにする
+  // （「そのノートを開いた」という操作なので、ライブラリを辿る途中に覗いただけとは区別するため、
+  // ノート詳細側のonUseとは別にここでrecordNotebookUseは呼ばない。実際に値を編集する・単位を
+  // 切り替える等の「使った」操作はノートタブ側のNotebookDetailが検知する）。
+  const openNotebookInNotebookTab = (id: string) => {
+    void setActiveNotebookId(id);
+    router.push("/notebook");
+  };
+
   const renderNotebooksSection = () => {
-    if (selectedNotebook) {
-      return (
-        <NotebookDetail
-          language={language}
-          locale={locale}
-          unitSystem={unitSystem}
-          measuringStandard={measuringStandard}
-          notebook={selectedNotebook}
-          categoryLabel={categoryLabel(selectedNotebook.categoryId)}
-          globalConstants={constants}
-          onBack={() => setSelectedNotebookId(null)}
-          onEdit={() => openEditNotebook(selectedNotebook)}
-          onTogglePinned={() => void toggleNotebookPinned(selectedNotebook.id)}
-          onUse={() => void recordNotebookUse(selectedNotebook)}
-          onSaveValues={async (nextLocalConstants, nextSteps) => { await upsertNotebook({ id: selectedNotebook.id, title: selectedNotebook.title, description: selectedNotebook.description, categoryId: selectedNotebook.categoryId, formulas: selectedNotebook.formulas, localConstants: nextLocalConstants, steps: nextSteps }); }}
-        />
-      );
-    }
     if (selectedCategoryId) {
       return (
         <NotebookList
@@ -343,7 +306,7 @@ export default function ConstantsScreen() {
           notebooks={notebooksInCategory}
           globalConstants={constants}
           onBack={() => setSelectedCategoryId(null)}
-          onOpen={setSelectedNotebookId}
+          onOpen={openNotebookInNotebookTab}
           onDelete={(id) => void removeNotebook(id)}
           onTogglePinned={(id) => void toggleNotebookPinned(id)}
         />
@@ -398,31 +361,27 @@ export default function ConstantsScreen() {
 
   const renderContent = () => (topSection === "notebooks" ? renderNotebooksSection() : renderConstantsSection());
 
-  // ノート詳細画面（selectedNotebookがある間）以外は、カテゴリグリッド・カテゴリ内ノート一覧の
-  // どちらの表示中でも同じ位置から追加できるようにしたいので、子コンポーネント
-  // （NotebookCategoryGrid/NotebookList）の中に置かず、一覧の直前（スクロール領域の外）に
-  // このファイル側で1行だけ置く。「＋ 新しいカテゴリ」ボタンと同じstyles.sectionChipの見た目に揃える。
-  const showAddRow = topSection !== "notebooks" || !selectedNotebook;
-
   return <ScreenContainer className="px-5" containerClassName="bg-background">
     <View style={styles.header}>
       <Text style={styles.title}>{copy.title}</Text>
     </View>
     <View style={styles.sectionRail}>
       {sectionItems.map((item) => (
-        <Pressable key={item.id} onPress={() => { setTopSection(item.id); setSelectedCategoryId(null); setBrowsingParentCategoryId(null); setSelectedNotebookId(null); }} style={({ pressed }) => [styles.sectionChip, topSection === item.id && styles.sectionChipActive, pressed && styles.buttonPressed]}>
+        <Pressable key={item.id} onPress={() => { setTopSection(item.id); setSelectedCategoryId(null); setBrowsingParentCategoryId(null); }} style={({ pressed }) => [styles.sectionChip, topSection === item.id && styles.sectionChipActive, pressed && styles.buttonPressed]}>
           <Text style={[styles.sectionChipText, topSection === item.id && styles.sectionChipTextActive]}>{item.label}</Text>
         </Pressable>
       ))}
     </View>
-    {showAddRow ? (
-      <Pressable
-        onPress={() => (topSection === "constants" ? openConstantEditor() : openNewNotebook())}
-        style={({ pressed }) => [styles.sectionChip, styles.addRow, pressed && styles.buttonPressed]}
-      >
-        <Text style={styles.sectionChipText}>＋ {topSection === "constants" ? copy.constantNew : copy.notebookNew}</Text>
-      </Pressable>
-    ) : null}
+    {/* ノート詳細画面をこの画面から無くしたので、カテゴリグリッド・カテゴリ内ノート一覧のどちらの
+        表示中でも常に追加できる。子コンポーネント（NotebookCategoryGrid/NotebookList）の中に
+        置かず、一覧の直前（スクロール領域の外）にこのファイル側で1行だけ置く。
+        「＋ 新しいカテゴリ」ボタンと同じstyles.sectionChipの見た目に揃える。 */}
+    <Pressable
+      onPress={() => (topSection === "constants" ? openConstantEditor() : openNewNotebook())}
+      style={({ pressed }) => [styles.sectionChip, styles.addRow, pressed && styles.buttonPressed]}
+    >
+      <Text style={styles.sectionChipText}>＋ {topSection === "constants" ? copy.constantNew : copy.notebookNew}</Text>
+    </Pressable>
 
     {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /></View> : renderContent()}
 
