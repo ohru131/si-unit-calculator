@@ -303,6 +303,16 @@ describe("数値直後の単位サフィックス", () => {
     expect(insertUnitAtEnd("3N*m", "J", ["m"])).toBe("3J");
   });
 
+  // 区切りの綴りは評価器の normalize() が受け付けるもの（* / × · ÷）に揃える。揃えないと、
+  // SI表記そのままの "3N·m"（formatQuantityが · を使う）で N までしか読まず、単位チップが
+  // m だけを差し替えて "3N·J" になる。
+  it("· × ÷ で繋いだ複合単位も1区間にする", () => {
+    expect(analyzeExpression("3N·m").segments.map((segment) => [segment.kind, segment.text])).toEqual([["number", "3"], ["unit", "N·m"]]);
+    expect(analyzeExpression("3N×m").segments.map((segment) => [segment.kind, segment.text])).toEqual([["number", "3"], ["unit", "N×m"]]);
+    expect(analyzeExpression("6m÷s").segments.map((segment) => [segment.kind, segment.text])).toEqual([["number", "6"], ["unit", "m÷s"]]);
+    expect(insertUnitAtEnd("3N·m", "J")).toBe("3J");
+  });
+
   // 数値と単位の間の空白は評価器が読み飛ばすので、解析側も同じ扱いにする。
   it("数値と単位の間に空白があっても単位として読む", () => {
     const segments = analyzeExpression("3 m/s^2", ["m"]).segments.map((segment) => [segment.kind, segment.text]);

@@ -72,6 +72,8 @@ const BUILT_IN_IDENTIFIERS = ["sin", "cos", "tan", "asin", "acos", "atan", "atan
 const WORD_START_PATTERN = new RegExp(`[Ωµμ%°${IDENTIFIER_START_CHAR_CLASS}]`);
 const WORD_BODY_PATTERN = new RegExp(`[Ωµμ%°⁰¹²³⁴⁵⁶⁷⁸⁹⁻^${IDENTIFIER_BODY_CHAR_CLASS}]`);
 const NUMBER_START_PATTERN = /[0-9.]/;
+// 複合単位の区切りとして扱う記号。評価器の normalize() が * と / へ書き換えるものと同じ集合。
+const UNIT_SEPARATOR_PATTERN = /[*/×·÷]/;
 const DEFINITION_PATTERN = new RegExp(`^\\s*([${IDENTIFIER_START_CHAR_CLASS}][${IDENTIFIER_BODY_CHAR_CLASS}]*)\\s*=`);
 
 const DEFAULT_UNITS: Record<UnitSystem, string[]> = {
@@ -166,9 +168,10 @@ export function analyzeExpression(input: string, identifiers: string[] = []): Ex
       while (index < input.length && WORD_BODY_PATTERN.test(input[index])) index += 1;
       const word = input.slice(start, index);
       // 「m/s」「N·m」のように、区切り記号を含む単位のまとまりも一区間として扱う。
+      // 区切りの綴りは評価器の normalize() が受け付けるもの（* / × · ÷）に揃える。
       // 区切りの先が既知の識別子（定数名・手順の結果記号）のときは、単位側へ巻き込まない。
       if (!knownIdentifiers.has(word)) {
-        while (input[index] === "/" || input[index] === "·" || input[index] === "*") {
+        while (UNIT_SEPARATOR_PATTERN.test(input[index] ?? "")) {
           let lookahead = index + 1;
           while (lookahead < input.length && WORD_BODY_PATTERN.test(input[lookahead])) lookahead += 1;
           if (lookahead === index + 1) break;

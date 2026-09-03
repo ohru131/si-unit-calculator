@@ -682,9 +682,12 @@ function isUnitStart(character: string | undefined) {
   return Boolean(character && /[A-Za-zΩµμ%°]/.test(character));
 }
 
-// 上付き数字は normalize() が ^n へ書き換えるためトークナイザ側では現れないが、この関数は
-// 生の入力文字列（lib/unit-input.ts の解析）からも呼ぶので、その表記もここで受け付ける。
-const UNIT_SUFFIX_BODY_PATTERN = /[A-Za-zΩµμ%°0-9^*/⁰¹²³⁴⁵⁶⁷⁸⁹⁻]/;
+// 上付き数字（²）や別綴りの演算子（· × ÷）は normalize() が ^n・*・/ へ書き換えるため
+// トークナイザ側では現れないが、この関数は生の入力文字列（lib/unit-input.ts の解析）からも
+// 呼ぶので、それらの表記もここで受け付ける。受け付けないと "3N·m" の N までしか読まず、
+// 評価器は N·m を1つの単位として計算しているのに単位チップが m だけを差し替えて "3N·J" になる。
+const UNIT_SUFFIX_BODY_PATTERN = /[A-Za-zΩµμ%°0-9^*/×·÷⁰¹²³⁴⁵⁶⁷⁸⁹⁻]/;
+const UNIT_SUFFIX_SEPARATOR_PATTERN = /[*/×·÷]/;
 
 /**
  * 数値の直後に続く単位サフィックス（例: "3m/s^2" の "m/s^2"）の終端を返す。
@@ -696,7 +699,7 @@ const UNIT_SUFFIX_BODY_PATTERN = /[A-Za-zΩµμ%°0-9^*/⁰¹²³⁴⁵⁶⁷⁸
 export function unitSuffixEnd(source: string, start: number): number {
   let index = start;
   while (UNIT_SUFFIX_BODY_PATTERN.test(source[index] ?? "")) {
-    if ((source[index] === "/" || source[index] === "*") && !isUnitStart(source[index + 1])) break;
+    if (UNIT_SUFFIX_SEPARATOR_PATTERN.test(source[index]) && !isUnitStart(source[index + 1])) break;
     index += 1;
   }
   return index;
