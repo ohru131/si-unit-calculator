@@ -27,6 +27,7 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - **設計の使い分け**: `lib/units.ts` は深い再帰評価の中から35箇所throwしていて全内部関数に言語を引き回すのが侵襲的すぎるので**コード方式**。一方 `lib/notebook-engine.ts` やバックアップ系は入り口が1〜2個の浅いモジュールなので**エントリポイントに `language: AppLanguage` 引数を追加する方式**。引数は**デフォルト値を付けない**（付けると渡し忘れた呼び出し元が黙って英語になり気付けない）。
 - `lib/units.ts` — 単位計算エンジン。7次元ベクトル `[length, mass, time, current, temperature, amount, luminousIntensity]`。`BASE_UNITS` に完全一致キーがあり、なければ `PREFIXES`（SI接頭辞）で分解を試みる**完全一致優先**の解決順。新しい単位記号を足すときはこの順序のおかげで大抵の接頭辞と衝突しない（例: `cal` は `c`+`al` と誤解釈されない）。
   - `parseUnit`（裸の数値に付く単位サフィックス、例 `"5kN*m"`）は **括弧非対応**。`*` `/` `^` の連続でチェーンする必要がある。
+  - **数値の直後は識別子より単位解決が先**で、しかも `*` `/` を跨いで**貪欲に**読む（`3m/s^2` は定数 `m` があっても `m/s^2` という1つの単位）。この走査規則は `unitSuffixEnd` としてexportしてあり、評価器と表示側の解析（`lib/unit-input.ts`）が**必ず同じものを使う**。ここを片方だけ独自に実装すると、単位チップの差し替え範囲が複合単位の一部だけになって `3m/G` のような式ができる（実際に踏んだバグ）。
   - `evaluateExpression`（完全な数式）は括弧対応。ローカル定数の式は必ずこちら経由なので括弧が使える。
   - **ハマりどころ**: 数値に単位を直接くっつける形（例 `13.6eV/n^2`）だと、`n` がnanoプレフィックスとして食われて `eV/n^2` を一つの複合単位として誤解析される。ローカル定数を割るときは `13.6eV/(n^2)` のように括弧で区切ると単位サフィックスの貪欲マッチが止まり、正しく完全式として評価される。
   - ローカル定数名はunit記号と同名でも安全にシャドーイングされる（識別子解決が単位解決より先）。例えば `C`（本来はクーロン）をキャパシタンスの定数名に、`N`（本来はニュートン）をコイルの巻数の定数名に使っても、その式の中では定数の値が優先される。
@@ -37,6 +38,8 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - **重要な落とし穴**: 手順に`resultSymbol`（例 `"v"`）を付けると、その手順は`s1`ではなく`v`で登録される（`s1`は**使えなくなる**）。しかも`s1`は未定義エラーにならず**単位の`s`（1秒）として黙って解釈される**ため、次元が合ってしまう式では気付かないまま間違った答えが出る（実際に`s1*t₂`が`10800 s²`になるバグを踏んだ）。`resultSymbol`を付けた手順を後続から参照するときは必ずその記号名で書く。
 `resolveNotebookLocalConstants` はローカル定数を順に解決（グローバル定数をローカルでシャドー可）。
 - `lib/notebook-formulas/` — プリセット計算ノートの中身。ビルド生成物は無く、`source/`配下のTypeScriptが唯一の情報源（旧`default-notebooks.json` + `scripts/generate-default-notebooks.ts`による生成ステップは廃止済み）。
+  - **`index.ts`は`source/categories.ts`の生シードをそのまま出さない**。`withDerivedResultSymbols`（`lib/notebook-result-symbols.ts`）を通し、`resultSymbol`が無い手順に**数式(`formulaLatex`)の左辺から導いた記号**を補ってからexportする（結果欄を「m*a」ではなく「F = m*a」と等式で読めるようにするため。156手順中133件に付く）。生シードは`PRESET_NOTEBOOK_SEEDS_AS_SEEDED`として別途export（既存インストールへの後追い反映で「式が投入時のままか」を判定するのに使う）。
+  - 記号を補うと`s1`参照が壊れるので**後続手順の`s1`・`s2`…参照も同時に書き換える**。この不変条件は`tests/notebook-result-symbols.test.ts`が全プリセットに対して機械的に検証する。左辺が分数・プライム記号・数字始まり、または既存の記号と衝突する場合は補わない（従来どおり式だけの表示）。
   - `types.ts` — `PresetNotebookCategory`（`parentId?`で親子2階層に対応）、`NotebookSeed`/`NotebookSeedStep`（`formulaLatex?`でLaTeX表示に対応）。`NotebookSeedConstant`の`symbol`はその式の`formulaLatex`内の変数と同じ記号にする（下付き文字・ギリシャ文字も識別子として使えるため、表示専用の別名フィールドは無い）。
   - `source/materials.ts`（材料力学・既存7件）, `source/physics.ts`（高校物理: 力学/熱/波動/電気/原子の5サブカテゴリ）, `source/practical.ts`（電気の基礎計算/天体・宇宙/フィットネス/化学/車・自転車/料理）, `source/science.ts`（小中理科: 速さ・運動/密度・濃度/圧力・浮力/力・仕事・てこ/熱・温度/電気・回路/光・音/地学・天気/化学変化の9サブカテゴリ・46件）。
   - `source/categories.ts` — `PRESET_NOTEBOOK_CATEGORIES`（カテゴリ一覧）に加え、カテゴリID→ノート配列（上記の各ドメインファイルからexportした配列）の対応表`PRESET_NOTEBOOK_SEEDS`もここに集約している。新しいカテゴリを追加するときは、この対応表とカテゴリ一覧の両方をここで1ファイルだけ触ればよい。
@@ -44,11 +47,13 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - `index.ts` は `source/categories.ts` の `PRESET_NOTEBOOK_CATEGORIES` と `PRESET_NOTEBOOK_SEEDS`（`Record<categoryId, NotebookSeed[]>`）をそのまま再exportするだけ。**この2つのexport名・shapeは`lib/calculator-store.tsx`が依存しているので変えない**。
   - 新しいプリセットを足すときは `tests/notebook-formulas.test.ts` が全プリセットの全手順を実際にノートエンジンで計算してエラーがないか自動チェックする（次元不整合・パースエラーを機械的に検出できる）ので、まずそのテストを通すこと。このテストは`resultSymbol`もアプリ本体と同じように渡している（渡さないと上記の`s1`落とし穴を検出できない）。
   - ただしテストで検出できるのはエラーだけで、**数値が物理的に正しいかは検出できない**（`s1`が1秒と解釈されるようなケースは次元が通ってしまう）。プリセットを足したら実際にアプリを開いて表示される値を確認すること。
+- `app/(tabs)/index.tsx`（電卓） — **計算結果は state ではなく式から導出する**（`previewCalculatorInput`）。`=` を押さなくてもリアルタイムに結果が出る。`=` は「履歴に残す・定数を保存する・エラーを出す」確定操作だけを担当する。リアルタイム表示と確定計算は `lib/calculator-input.ts` の同じ関数（`evaluateCalculatorInput`）を通すこと（定数定義 `W = 3cm` の扱いが2箇所に分かれると、片方だけ値を出せない食い違いになる）。
 - `lib/calculator-store.tsx` — アプリの状態管理本体。`CalculationNotebook`（`categoryId`, `localConstants`, `steps`, `pinned`, `isPreset`）。プリセットは`isPreset: true`で削除不可（UI・store両方でガード）。プリセットの投入はカテゴリID単位で冪等（新カテゴリを追加しても既存データは壊れない）。
 - `components/notebooks/notebook-category-grid.tsx` + `app/(tabs)/constants.tsx` — カテゴリグリッドは2階層ナビゲーション対応（大分類→サブカテゴリ→ノート一覧）。`parentCategoryId` propで表示階層を切替。ユーザー作成カテゴリ（`NotebookCategory`）は今のところ親子階層に非対応（あくまでプリセットの高校物理のみ階層化。スコープを広げすぎないための判断）。
 - `components/ui/latex-view.tsx` / `.web.tsx` — KaTeXによる本物のLaTeX描画。ネイティブはWebView（`react-native-webview`）+ `postMessage`で高さ自動調整、Webは`katex.renderToString`を直接DOMに挿入。フォント込みのKaTeXアセットは `scripts/generate-katex-assets.mjs` で `lib/katex-assets.generated.ts` に事前生成・コミット済み（`pnpm katex:generate`で再生成可能。中身は自動生成なので手編集しない）。
 - `components/notebooks/notebook-detail.tsx` — ルートは`View(flex:1)`で、**戻る/ピン留め/編集＋ノート名を固定ヘッダー**、値を編集したときの保存バーを**固定フッター**にしている（下までスクロールしても戻れる・保存できるようにするため）。狭い端末幅ではタイトルが潰れるので固定ヘッダーは上段（戻る＋ボタン）／下段（ノート名）の2段構成。`NotebookCategoryGrid`・`NotebookList`も戻る行をスクロール外に出し、中身だけをスクロールさせる（グリッドは以前`ScrollView`が無く、カテゴリが増えると画面外にはみ出して押せなかった）。
-- ユーザー作成ノートの手順には`formulaLatex`は付かない（プリセットのみ）。`notebook-detail.tsx`は`formulaLatex`があればLatexView、なければプレーンテキストにフォールバックする設計。
+- **数式の編集口は「数式の解説」（`formulas`）に一本化してある**。編集画面（`constants.tsx`）は手順ごとの`formulaLatex`を編集せず、保存時に`formulaLatex`を落として`formulas`へ寄せる。`formulas`が空のノート（プリセット112件中108件）は`notebookFormulaRows`（`lib/notebook-formula-rows.ts`）が手順の`formulaLatex`を**説明文なしの行**として拾い上げるので、数式だけのノートも同じ1箇所で編集できる。手順カードにLaTeX欄を復活させないこと（2箇所で設定できるうえ、表示側は`formulas`を優先するのでどちらが効くか分からなくなる）。
+- 表示側（`notebook-detail.tsx`）は`formulas`があればそれを、無ければ各手順の`formulaLatex`を数式カードに並べる。
 
 ## 既知の注意点・誤検知
 
@@ -85,6 +90,10 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - **並行翻訳すると訳語がファイル間でブレる**。実際に「計算ノート」の独語訳が `Rechenheft` と `Notizbuch` に割れ、独語で敬称(Sie)と親称(du)が混在した。**先に用語集を作ってから分担すること**。それでも最後に横断チェックが必要。
 - **既存の日本語が間違っていると4言語に伝播する**。`physics.ts` の「熱量」ノートが日本語だけ「熱量の保存」という誤ラベルで、翻訳担当が日本語に従ったため4言語に「保存」の意味が伝播した（CodeRabbitが検出）。翻訳前に en/ja の食い違いを疑うこと。
 - 日本の理科教育に固有の概念（飽和水蒸気量・初期微動継続時間・空走距離など）は**造語しない**。定訳を探す→無ければ説明的に訳す→それも無理なら `LocalizedText` の英語フォールバックに任せる。
+
+11. **[完了・PR #25でマージ済み]** 手順タイトルの固定数値をやめ、編集画面に記号・変数レールと表示タイトル欄を追加。結果一覧の「最終結果」バッジを削除。
+12. **[完了・PR #26でマージ済み]** レールをフォーカスに連動させず常時表示に、編集画面に単位ボタン、電卓に「ノート」ボタン（使用履歴）とAC、起動時の式を最後に計算した式に、単位グループを11追加。
+13. **[完了]** 単位チップが複合単位を丸ごと置き換えない不具合（`3m/s^2` → `3m/G`）を修正。電卓を `=` 前でもリアルタイム計算に。ノート履歴を「実際に使ったもの」に絞り1件ずつ削除可能に。数式の編集口を「数式の解説」へ一本化。プリセット133手順に結果記号を導出して結果欄を等式（`F = m*a`）に。
 
 ## 次にやりそうなこと（ユーザーから明示的な指示待ち）
 

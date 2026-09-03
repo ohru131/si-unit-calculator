@@ -8,6 +8,7 @@ import {
   IDENTIFIER_START_CHAR_CLASS,
   parseUnit,
   UNIT_GROUPS,
+  unitSuffixEnd,
   unitSearchText,
   type UnitGroup,
   type UnitOption,
@@ -71,6 +72,8 @@ const BUILT_IN_IDENTIFIERS = ["sin", "cos", "tan", "asin", "acos", "atan", "atan
 const WORD_START_PATTERN = new RegExp(`[Ωµμ%°${IDENTIFIER_START_CHAR_CLASS}]`);
 const WORD_BODY_PATTERN = new RegExp(`[Ωµμ%°⁰¹²³⁴⁵⁶⁷⁸⁹⁻^${IDENTIFIER_BODY_CHAR_CLASS}]`);
 const NUMBER_START_PATTERN = /[0-9.]/;
+// 複合単位の区切りとして扱う記号。評価器の normalize() が * と / へ書き換えるものと同じ集合。
+const UNIT_SEPARATOR_PATTERN = /[*/×·÷]/;
 const DEFINITION_PATTERN = new RegExp(`^\\s*([${IDENTIFIER_START_CHAR_CLASS}][${IDENTIFIER_BODY_CHAR_CLASS}]*)\\s*=`);
 
 const DEFAULT_UNITS: Record<UnitSystem, string[]> = {
@@ -78,6 +81,13 @@ const DEFAULT_UNITS: Record<UnitSystem, string[]> = {
   us: ["in", "ft", "yd", "mi", "oz", "lb", "s", "min", "h", "°F", "gal", "ft²"],
   uk: ["mm", "m", "km", "mi", "g", "kg", "s", "min", "h", "°C", "L", "m²"],
 };
+
+// 評価器は数値と単位の間の空白を読み飛ばす（"3 m/s^2" も単位付きの数量）ので、
+// 直前が空白区間のときは1つ手前まで遡って数値かどうかを見る。
+function followsNumberAt(segments: ExpressionSegment[]) {
+  const previousIndex = segments[segments.length - 1]?.kind === "space" ? segments.length - 2 : segments.length - 1;
+  return segments[previousIndex]?.kind === "number";
+}
 
 function isUnitText(text: string) {
   try {
@@ -141,31 +151,41 @@ export function analyzeExpression(input: string, identifiers: string[] = []): Ex
     }
 
     if (WORD_START_PATTERN.test(character)) {
+      // 数値の直後（間の空白は無視）は、評価器が識別子より先に単位サフィックスとして貪欲に
+      // 読む区間なので、こちらも同じ規則で丸ごと1区間にする。ここで識別子集合を先に見て語を
+      // 切っていたため、定数 m を持つノートの "3m/s^2" が m（識別子）・/・s^2 に割れ、
+      // 単位チップの差し替え範囲が s^2 だけになって "3m/G" ができてしまっていた。
+      if (followsNumberAt(segments)) {
+        index = unitSuffixEnd(input, start);
+        const text = input.slice(start, index);
+        const registered = findRegisteredUnit(text);
+        const computable = isUnitText(text);
+        segments.push({ text, kind: computable ? "unit" : "unknown-unit", start, end: index, canonical: registered?.unit.symbol ?? (computable ? text : undefined) });
+        continue;
+      }
+
       index += 1;
       while (index < input.length && WORD_BODY_PATTERN.test(input[index])) index += 1;
       const word = input.slice(start, index);
       // 「m/s」「N·m」のように、区切り記号を含む単位のまとまりも一区間として扱う。
+      // 区切りの綴りは評価器の normalize() が受け付けるもの（* / × · ÷）に揃える。
+      // 区切りの先が既知の識別子（定数名・手順の結果記号）のときは、単位側へ巻き込まない。
       if (!knownIdentifiers.has(word)) {
-        while (input[index] === "/" || input[index] === "·") {
+        while (UNIT_SEPARATOR_PATTERN.test(input[index] ?? "")) {
           let lookahead = index + 1;
           while (lookahead < input.length && WORD_BODY_PATTERN.test(input[lookahead])) lookahead += 1;
-          if (lookahead === index + 1 || !isUnitText(input.slice(start, lookahead))) break;
+          if (lookahead === index + 1) break;
+          if (knownIdentifiers.has(input.slice(index + 1, lookahead))) break;
+          if (!isUnitText(input.slice(start, lookahead))) break;
           index = lookahead;
         }
       }
       const text = input.slice(start, index);
-      const previous = segments[segments.length - 1];
-      const followsNumber = previous?.kind === "number" && previous.end === start;
       const registered = findRegisteredUnit(text);
 
       // 計算できる表記だけを単位として扱い、「kmh」のような別表記は正式な記号への修正候補付きで示す。
       const computable = isUnitText(text);
       const canonical = registered?.unit.symbol ?? (computable ? text : undefined);
-
-      if (followsNumber) {
-        segments.push({ text, kind: computable ? "unit" : "unknown-unit", start, end: index, canonical });
-        continue;
-      }
 
       if (knownIdentifiers.has(text)) segments.push({ text, kind: "identifier", start, end: index });
       else if (computable) segments.push({ text, kind: "unit", start, end: index, canonical });

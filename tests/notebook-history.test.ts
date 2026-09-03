@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { CalculationNotebook } from "../lib/calculator-store";
-import { NOTEBOOK_HISTORY_LIMIT, NotebookHistoryEntry, pushNotebookHistoryEntry, resolveNotebookHistory } from "../lib/notebook-history";
+import { NOTEBOOK_HISTORY_LIMIT, NotebookHistoryEntry, pushNotebookHistoryEntry, removeNotebookHistoryEntry, resolveNotebookHistory } from "../lib/notebook-history";
 
 // 型だけを使うので実際に calculator-store.tsx をロードしない（notebook-preset-localization.test.ts と
 // 同じ理由: calculator-store.tsx は useGlobalSettings 経由で expo-localization まで芋づる式に
@@ -100,5 +100,37 @@ describe("resolveNotebookHistory", () => {
     const resolved = resolveNotebookHistory(history, notebooks);
     expect(resolved[0].notebook?.id).toBe("notebook-1");
     expect(resolved[1].notebook?.id).toBe("notebook-2");
+  });
+});
+
+describe("pushNotebookHistoryEntry（先頭の据え置き）", () => {
+  // この関数は「値を編集した」「単位を切り替えた」といった操作のたびに呼ばれるので、
+  // 既に先頭にいるノートを積み直すと1文字打つたびに保存が走ってしまう。
+  it("既に先頭にいるノートは積み直さず、同じ配列をそのまま返す", () => {
+    const first = makeEntry({ id: "h1", notebookId: "notebook-1", openedAt: "2026-01-01T00:00:00.000Z" });
+    const history = pushNotebookHistoryEntry([], first);
+    const again = pushNotebookHistoryEntry(history, makeEntry({ id: "h2", notebookId: "notebook-1", openedAt: "2026-01-05T00:00:00.000Z" }));
+    expect(again).toBe(history);
+    expect(again.map((entry) => entry.id)).toEqual(["h1"]);
+  });
+
+  // 別のノートを挟めば、戻ってきたときにきちんと先頭へ積み直される。
+  it("別のノートを挟んだあとなら先頭へ積み直す", () => {
+    let history = pushNotebookHistoryEntry([], makeEntry({ id: "h1", notebookId: "notebook-1" }));
+    history = pushNotebookHistoryEntry(history, makeEntry({ id: "h2", notebookId: "notebook-2" }));
+    history = pushNotebookHistoryEntry(history, makeEntry({ id: "h3", notebookId: "notebook-1" }));
+    expect(history.map((entry) => entry.id)).toEqual(["h3", "h2"]);
+  });
+});
+
+describe("removeNotebookHistoryEntry", () => {
+  it("指定した1件だけを取り除く", () => {
+    const history = [makeEntry({ id: "h1", notebookId: "notebook-1" }), makeEntry({ id: "h2", notebookId: "notebook-2" }), makeEntry({ id: "h3", notebookId: "notebook-3" })];
+    expect(removeNotebookHistoryEntry(history, "h2").map((entry) => entry.id)).toEqual(["h1", "h3"]);
+  });
+
+  it("存在しないidなら何も変わらない", () => {
+    const history = [makeEntry({ id: "h1", notebookId: "notebook-1" })];
+    expect(removeNotebookHistoryEntry(history, "missing").map((entry) => entry.id)).toEqual(["h1"]);
   });
 });

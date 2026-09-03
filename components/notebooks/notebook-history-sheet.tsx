@@ -17,6 +17,8 @@ type Props = {
    * 直接引けるが、ユーザー作成分はこのpropが無いと名前を出せない（storeを直接読まない設計のため）。 */
   notebookCategories: NotebookCategory[];
   onSelect: (notebookId: string) => void;
+  /** 1件だけ履歴から消す。全消去だと消したい1件のために他まで巻き添えになるため別に用意する。 */
+  onRemove: (entryId: string) => void;
   onClear: () => void;
   onClose: () => void;
 };
@@ -27,11 +29,12 @@ type Props = {
 const EN_COPY = {
   notebooksButton: "Notebooks",
   title: "Recent notebooks",
-  hint: "Notebooks you've opened recently. Tap one to reopen it.",
+  hint: "Notebooks you've actually used. Tap one to reopen it.",
   clear: "Clear",
   close: "Close",
-  empty: "No notebooks opened yet.",
-  emptyHint: "Notebooks you open will show up here so you can find them again.",
+  empty: "No notebooks used yet.",
+  emptyHint: "A notebook shows up here once you change a value, switch a unit, or copy a result in it.",
+  remove: "Remove from history",
   deleted: "Deleted",
   uncategorized: "Uncategorized",
 };
@@ -40,55 +43,60 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
   ja: {
     notebooksButton: "ノート",
     title: "最近使ったノート",
-    hint: "最近開いた計算ノートです。タップすると開き直せます。",
+    hint: "実際に使った計算ノートです。タップすると開き直せます。",
     clear: "消去",
     close: "閉じる",
-    empty: "まだ開いたノートがありません。",
-    emptyHint: "ノートを開くとここに表示され、後から辿れるようになります。",
+    empty: "まだ使ったノートがありません。",
+    emptyHint: "ノートの中で値を変える・単位を切り替える・結果をコピーすると、ここに残ります。",
+    remove: "履歴から削除",
     deleted: "削除済み",
     uncategorized: "未分類",
   },
   es: {
     notebooksButton: "Cuadernos",
     title: "Cuadernos recientes",
-    hint: "Cuadernos que abriste recientemente. Toca uno para volver a abrirlo.",
+    hint: "Cuadernos que has usado realmente. Toca uno para volver a abrirlo.",
     clear: "Borrar",
     close: "Cerrar",
-    empty: "Aún no has abierto ningún cuaderno.",
-    emptyHint: "Los cuadernos que abras aparecerán aquí para que puedas encontrarlos de nuevo.",
+    empty: "Aún no has usado ningún cuaderno.",
+    emptyHint: "Un cuaderno aparece aquí cuando cambias un valor, cambias una unidad o copias un resultado en él.",
+    remove: "Quitar del historial",
     deleted: "Eliminado",
     uncategorized: "Sin categoría",
   },
   "pt-BR": {
     notebooksButton: "Cadernos",
     title: "Cadernos recentes",
-    hint: "Cadernos que você abriu recentemente. Toque em um para abri-lo novamente.",
+    hint: "Cadernos que você realmente usou. Toque em um para abri-lo novamente.",
     clear: "Limpar",
     close: "Fechar",
-    empty: "Você ainda não abriu nenhum caderno.",
-    emptyHint: "Os cadernos que você abrir aparecerão aqui para você encontrá-los de novo.",
+    empty: "Você ainda não usou nenhum caderno.",
+    emptyHint: "Um caderno aparece aqui quando você altera um valor, troca uma unidade ou copia um resultado nele.",
+    remove: "Remover do histórico",
     deleted: "Excluído",
     uncategorized: "Sem categoria",
   },
   de: {
     notebooksButton: "Rechenhefte",
     title: "Zuletzt verwendete Rechenhefte",
-    hint: "Rechenhefte, die du zuletzt geöffnet hast. Tippe eines an, um es erneut zu öffnen.",
+    hint: "Rechenhefte, die du tatsächlich verwendet hast. Tippe eines an, um es erneut zu öffnen.",
     clear: "Löschen",
     close: "Schließen",
-    empty: "Du hast noch kein Rechenheft geöffnet.",
-    emptyHint: "Geöffnete Rechenhefte erscheinen hier, damit du sie wiederfindest.",
+    empty: "Du hast noch kein Rechenheft verwendet.",
+    emptyHint: "Ein Rechenheft erscheint hier, sobald du darin einen Wert änderst, eine Einheit wechselst oder ein Ergebnis kopierst.",
+    remove: "Aus dem Verlauf entfernen",
     deleted: "Gelöscht",
     uncategorized: "Ohne Kategorie",
   },
   fr: {
     notebooksButton: "Carnets",
     title: "Carnets récents",
-    hint: "Carnets que vous avez ouverts récemment. Appuyez sur l'un d'eux pour le rouvrir.",
+    hint: "Carnets que vous avez réellement utilisés. Appuyez sur l'un d'eux pour le rouvrir.",
     clear: "Effacer",
     close: "Fermer",
-    empty: "Aucun carnet ouvert pour le moment.",
-    emptyHint: "Les carnets que vous ouvrez apparaîtront ici pour que vous puissiez les retrouver.",
+    empty: "Aucun carnet utilisé pour le moment.",
+    emptyHint: "Un carnet apparaît ici dès que vous y modifiez une valeur, changez d'unité ou copiez un résultat.",
+    remove: "Retirer de l'historique",
     deleted: "Supprimé",
     uncategorized: "Sans catégorie",
   },
@@ -105,7 +113,7 @@ function categoryLabel(categoryId: string, notebookCategories: NotebookCategory[
   return userCategory?.name ?? copy.uncategorized;
 }
 
-export function NotebookHistorySheet({ visible, language, entries, notebookCategories, onSelect, onClear, onClose }: Props) {
+export function NotebookHistorySheet({ visible, language, entries, notebookCategories, onSelect, onRemove, onClear, onClose }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const copy = COPY[language];
@@ -159,13 +167,25 @@ export function NotebookHistorySheet({ visible, language, entries, notebookCateg
                       <Text style={styles.historyDate}>{dateFormatter.format(new Date(entry.openedAt))}</Text>
                     </View>
                   );
-                  return isAvailable ? (
-                    <Pressable accessibilityLabel={title} key={entry.id} onPress={() => onSelect(entry.notebookId)} style={({ pressed }) => [styles.historyRow, pressed && styles.cardPressed]}>
-                      {row}
+                  // 削除ボタンは行の外側に置く。行そのものをPressableにしているため、
+                  // 中に入れ子にすると「開く」と「消す」のどちらが反応したのか分かりにくくなる。
+                  const remove = (
+                    <Pressable accessibilityLabel={`${copy.remove}: ${title}`} onPress={() => onRemove(entry.id)} hitSlop={8} style={({ pressed }) => [styles.removeButton, pressed && styles.pressed]}>
+                      <IconSymbol name="xmark" size={12} color={colors.muted} />
                     </Pressable>
-                  ) : (
-                    <View key={entry.id} style={[styles.historyRow, styles.historyRowDisabled]}>
-                      {row}
+                  );
+                  return (
+                    <View key={entry.id} style={styles.historyRowWrap}>
+                      {isAvailable ? (
+                        <Pressable accessibilityLabel={title} onPress={() => onSelect(entry.notebookId)} style={({ pressed }) => [styles.historyRow, styles.historyRowGrow, pressed && styles.cardPressed]}>
+                          {row}
+                        </Pressable>
+                      ) : (
+                        <View style={[styles.historyRow, styles.historyRowGrow, styles.historyRowDisabled]}>
+                          {row}
+                        </View>
+                      )}
+                      {remove}
                     </View>
                   );
                 })}
@@ -196,7 +216,10 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   clearButton: { padding: 4 },
   clearButtonText: { color: colors.error, fontSize: 11, fontWeight: "700" },
   modalList: { gap: 8, paddingBottom: 18, paddingTop: 10 },
-  historyRow: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 11, borderWidth: 1, marginBottom: 6, paddingHorizontal: 12, paddingVertical: 10 },
+  historyRowWrap: { alignItems: "center", flexDirection: "row", gap: 6, marginBottom: 6 },
+  historyRow: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 11, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
+  historyRowGrow: { flex: 1 },
+  removeButton: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderRadius: 14, height: 28, justifyContent: "center", width: 28 },
   historyRowDisabled: { opacity: 0.55 },
   historyRowInner: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
   historyRowMain: { alignItems: "center", flex: 1, flexDirection: "row", gap: 8, marginRight: 10 },
