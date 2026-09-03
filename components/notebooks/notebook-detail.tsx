@@ -12,7 +12,7 @@ import { getLocalConstantFieldSuggestions, getStepFieldSuggestions, insertConsta
 import { evaluateNotebookSteps, formatNameValue, normalizeStepForSave, parseNameValue, resolveNotebookLocalConstants, trimResultSymbol } from "@/lib/notebook-engine";
 import { nextStepNamePatch, stepDisplayTitle } from "@/lib/notebook-step-title";
 import { getUnitInsertionRange, replaceExpressionRange } from "@/lib/unit-input";
-import { compatibleUnitOptions } from "@/lib/unit-options";
+import { compatibleUnitOptions, compatibleUnitOptionsFromHints } from "@/lib/unit-options";
 import { formatQuantity, type MeasuringStandard, type SavedConstant, type UnitSystem } from "@/lib/units";
 
 const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" });
@@ -410,10 +410,11 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
               const isFinalStep = index === stepResults.length - 1;
               const overrideUnit = unitOverrides[result.step.id];
               const effectiveUnit = overrideUnit ?? result.step.targetUnit.trim();
-              // フォールバックの手掛かりは、この手順自体の式（symbol参照ばかりで単位を含まないことが多い）
-              // ではなく、今表示に使っている単位（未指定なら手順のtargetUnit）を渡す。運動量(kg*m/sなど、
-              // 次元に対応するグループが無い量)でも、既に決まっている表示単位からSI接頭辞違いの候補を出せる。
-              const compatibleUnits = compatibleUnitOptions(result.quantity, unitSystem, { expression: effectiveUnit || result.step.expression });
+              // フォールバックの手掛かりは「今表示に使っている単位 → この手順の式 → 実際に表示している
+              // SI表記」の順に試す。式は symbol 参照ばかりで単位を含まないことが多く（例: v0*a）、
+              // 表示単位も未指定だと、結果は 10 m²/s³ と出せているのに候補が0件になってしまう。
+              // 候補が0件だと下の単位レールが丸ごと消え、SIへ戻すチップまで押せなくなる。
+              const compatibleUnits = compatibleUnitOptionsFromHints(result.quantity, unitSystem, [effectiveUnit, result.step.expression, result.siFallback]);
               let displayValue = result.formatted;
               let displayError = result.error;
               if (result.quantity && overrideUnit !== undefined) {

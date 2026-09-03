@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { compatibleUnitOptions } from "../lib/unit-options";
+import { compatibleUnitOptions, compatibleUnitOptionsFromHints } from "../lib/unit-options";
 import { evaluateExpression, parseConstantDefinition } from "../lib/units";
 
 describe("compatibleUnitOptions", () => {
@@ -71,5 +71,42 @@ describe("compatibleUnitOptions", () => {
     // expression側に単位が無い（フォールバックが空になる）ケースでも、主経路のグループ結果が優先される。
     const options = compatibleUnitOptions(quantity, "metric", { expression: "" });
     expect(options.map((option) => option.symbol)).toEqual(expect.arrayContaining(["m", "km", "cm", "mm"]));
+  });
+});
+
+describe("compatibleUnitOptionsFromHints", () => {
+  // 合成次元（名前の付いた単位グループが無い量）の候補は「実際に書かれている単位」から組み立てる
+  // ため、手掛かりが1つだけだとそこに単位が無いときに0件になる。呼び出し側では候補0件＝単位レール
+  // （SIへ戻すチップを含む）が丸ごと消えることを意味するので、手掛かりを順に試せる必要がある。
+  const compositeQuantity = { value: 10, dimension: [2, 0, -3, 0, 0, 0, 0] } as never;
+
+  it("識別子だけの式と未指定の表示単位で0件になっても、SI表記の手掛かりで候補が出る", () => {
+    expect(compatibleUnitOptions(compositeQuantity, "metric", { expression: "v0*a" })).toEqual([]);
+    expect(compatibleUnitOptionsFromHints(compositeQuantity, "metric", ["", "v0*a", "10 m²/s³"])).toEqual([
+      { symbol: "m²/s³", label: "m²/s³" },
+    ]);
+  });
+
+  it("先に候補が得られた手掛かりを採用し、後ろは見ない", () => {
+    // 表示単位が決まっていればそれを優先する（後ろのSI表記に引きずられない）。
+    expect(compatibleUnitOptionsFromHints(compositeQuantity, "metric", ["m²/s³", "v0*a", "10 m²/s³"])).toEqual([
+      { symbol: "m²/s³", label: "m²/s³" },
+    ]);
+  });
+
+  it("空・undefinedの手掛かりは読み飛ばす", () => {
+    expect(compatibleUnitOptionsFromHints(compositeQuantity, "metric", [undefined, "", "   ", "10 m²/s³"])).toEqual([
+      { symbol: "m²/s³", label: "m²/s³" },
+    ]);
+  });
+
+  it("どの手掛かりでも見つからなければ空を返す", () => {
+    expect(compatibleUnitOptionsFromHints(compositeQuantity, "metric", ["v0*a", "b*c"])).toEqual([]);
+  });
+
+  it("名前の付いた次元グループがある量では、手掛かりに関係なくグループの候補を返す", () => {
+    const lengthQuantity = { value: 1, dimension: [1, 0, 0, 0, 0, 0, 0] } as never;
+    const chips = compatibleUnitOptionsFromHints(lengthQuantity, "metric", ["", "v0*a"]);
+    expect(chips.some((chip) => chip.symbol === "m")).toBe(true);
   });
 });

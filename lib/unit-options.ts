@@ -58,3 +58,30 @@ export function compatibleUnitOptions(quantity: Quantity | undefined, unitSystem
 
   return collected.slice(0, limit);
 }
+
+/**
+ * 手掛かりを優先順に試して、最初に候補が得られたものを採用する。
+ *
+ * なぜ必要か: 合成次元（名前の付いた単位グループが無い量）の候補は「式や表示単位に実際に書かれて
+ * いる単位」から組み立てるが、手掛かりが1つだけだとそこに単位が書かれていないときに0件になる。
+ * 例えば `v0*a`（識別子だけの式）で表示単位も未指定だと、結果は `10 m²/s³` と表示できているのに
+ * 候補が0件になり、呼び出し側は単位レールごと（SIへ戻すチップも含めて）出せなくなる。
+ * そこで「表示単位 → 式 → 実際に表示しているSI表記」の順に試せるようにする。
+ *
+ * 判定を呼び出し側の条件分岐で書くとテストが同じ手順を手で再現するだけになるため、ここに置く。
+ */
+export function compatibleUnitOptionsFromHints(
+  quantity: Quantity | undefined,
+  unitSystem: UnitSystem,
+  hints: (string | undefined)[],
+  options?: { limit?: number },
+): UnitChoice[] {
+  // 次元グループがあるときは手掛かりに関係なく同じ結果になるので、最初の1回で確定する。
+  for (const hint of hints) {
+    if (!hint?.trim()) continue;
+    const found = compatibleUnitOptions(quantity, unitSystem, { expression: hint, limit: options?.limit });
+    if (found.length) return found;
+  }
+  // どの手掛かりでも見つからなかったときは、グループだけで引ける分（通常は空）を返す。
+  return compatibleUnitOptions(quantity, unitSystem, { limit: options?.limit });
+}
