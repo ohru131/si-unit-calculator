@@ -281,6 +281,13 @@ export default function ConstantsScreen() {
   const saveNotebookToStore = async (input: Parameters<typeof upsertNotebook>[0]) => {
     const saved = await upsertNotebook(input);
     void recordNotebookUse(saved);
+    // 新規作成（idが無い＝これから採番される）なら、そのままノートタブで開く。ノートを作る目的は
+    // 使うことなので、作った直後にライブラリへ戻されると必ず手で開き直す操作が挟まる。
+    // 既存ノートの編集では遷移しない（もう開いている画面から編集シートを出しているだけなので）。
+    if (input.id === undefined) {
+      void setActiveNotebookId(saved.id);
+      router.push("/notebook");
+    }
     return saved;
   };
 
