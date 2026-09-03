@@ -92,6 +92,17 @@ export const IDENTIFIER_START_CHAR_CLASS = `A-Za-z_${UNICODE_IDENTIFIER_EXTRA_CH
 export const IDENTIFIER_BODY_CHAR_CLASS = `A-Za-z0-9_${UNICODE_IDENTIFIER_EXTRA_CHARS}`;
 
 /** 識別子（定数名）全体にマッチする正規表現。入力の先頭からの部分一致に使う（^始まり、末尾アンカーなし）。 */
+/**
+ * 数値トークンの規則（指数表記を含む）。
+ *
+ * 評価器と、入力解析（lib/unit-input.ts の analyzeExpression）で**必ず同じ規則を使う**ためにexportする。
+ * 以前は解析側が独自に `[0-9.]` の並びだけを数値とみなしていたため、`2e-6C` の指数部が
+ * `e` / `-` / `6` に割れて `e` が「使えない単位」として赤く表示され、`8.99e9N` に至っては
+ * `e9N` ごと不明な単位になっていた（エンジンは正しく計算できているのに解析側だけが誤判定する、
+ * という食い違い）。規則を2箇所に持つとまた必ずずれるので、ここを唯一の情報源にする。
+ */
+export const NUMBER_TOKEN_PATTERN = /^(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/;
+
 export const IDENTIFIER_PATTERN = new RegExp(`^[${IDENTIFIER_START_CHAR_CLASS}][${IDENTIFIER_BODY_CHAR_CLASS}]*`, "u");
 
 const ZERO: Dimension = [0, 0, 0, 0, 0, 0, 0];
@@ -127,6 +138,20 @@ const BASE_UNIT_GROUPS: UnitGroup[] = [
   { id: "angle", label: "角度", dimension: ZERO, units: [{ symbol: "rad", label: "rad" }, { symbol: "deg", label: "deg" }, { symbol: "°", label: "°" }] },
   { id: "ratio", label: "割合・無次元", dimension: ZERO, units: [{ symbol: "%", label: "%" }, { symbol: "ppm", label: "ppm" }] },
   { id: "amount", label: "物質量", dimension: DIMENSIONS.amount, units: [{ symbol: "mol", label: "mol" }, { symbol: "mmol", label: "mmol" }] },
+  // 以下は計算ノートのプリセット定数を全件洗い出した結果、次元に対応するグループが無く単位チップが
+  // 0件になっていた定数・手順のうち、物理量として名前が付いて単位のバリエーションが意味を持つものを追加した
+  // （lib/unit-options.ts の compatibleUnitOptions からの参照先。詳細はnotebook-detail.tsxの単位チップ表示を参照）。
+  { id: "density", label: "密度", dimension: [-3, 1, 0, 0, 0, 0, 0], units: [{ symbol: "kg/m³", label: "kg/m³" }, { symbol: "g/cm³", label: "g/cm³" }, { symbol: "g/mL", label: "g/mL" }, { symbol: "g/L", label: "g/L" }, { symbol: "g/m³", label: "g/m³" }] },
+  { id: "resistance", label: "抵抗", dimension: [2, 1, -3, -2, 0, 0, 0], units: [{ symbol: "Ω", label: "Ω" }, { symbol: "mΩ", label: "mΩ" }, { symbol: "kΩ", label: "kΩ" }, { symbol: "MΩ", label: "MΩ" }] },
+  { id: "charge", label: "電荷", dimension: [0, 0, 1, 1, 0, 0, 0], units: [{ symbol: "C", label: "C" }, { symbol: "mC", label: "mC" }, { symbol: "µC", label: "µC" }, { symbol: "nC", label: "nC" }, { symbol: "pC", label: "pC" }] },
+  { id: "capacitance", label: "静電容量", dimension: [-2, -1, 4, 2, 0, 0, 0], units: [{ symbol: "F", label: "F" }, { symbol: "mF", label: "mF" }, { symbol: "µF", label: "µF" }, { symbol: "nF", label: "nF" }, { symbol: "pF", label: "pF" }] },
+  { id: "magneticFlux", label: "磁束", dimension: [2, 1, -2, -1, 0, 0, 0], units: [{ symbol: "Wb", label: "Wb" }, { symbol: "mWb", label: "mWb" }, { symbol: "µWb", label: "µWb" }] },
+  { id: "springConstant", label: "ばね定数", dimension: [0, 1, -2, 0, 0, 0, 0], units: [{ symbol: "N/m", label: "N/m" }, { symbol: "N/mm", label: "N/mm" }, { symbol: "N/cm", label: "N/cm" }, { symbol: "kN/m", label: "kN/m" }] },
+  { id: "specificHeatCapacity", label: "比熱", dimension: [2, 0, -2, 0, -1, 0, 0], units: [{ symbol: "J/kg/K", label: "J/(kg·K)" }, { symbol: "kJ/kg/K", label: "kJ/(kg·K)" }, { symbol: "cal/g/K", label: "cal/(g·K)" }] },
+  { id: "molarMass", label: "モル質量", dimension: [0, 1, 0, 0, 0, -1, 0], units: [{ symbol: "g/mol", label: "g/mol" }, { symbol: "kg/mol", label: "kg/mol" }] },
+  { id: "molarEnergy", label: "モルエネルギー", dimension: [2, 1, -2, 0, 0, -1, 0], units: [{ symbol: "J/mol", label: "J/mol" }, { symbol: "kJ/mol", label: "kJ/mol" }] },
+  { id: "molarConcentration", label: "モル濃度", dimension: [-3, 0, 0, 0, 0, 1, 0], units: [{ symbol: "mol/m³", label: "mol/m³" }, { symbol: "mol/L", label: "mol/L" }, { symbol: "mmol/L", label: "mmol/L" }] },
+  { id: "areaMomentOfInertia", label: "断面二次モーメント", dimension: [4, 0, 0, 0, 0, 0, 0], units: [{ symbol: "m⁴", label: "m⁴" }, { symbol: "mm⁴", label: "mm⁴" }, { symbol: "cm⁴", label: "cm⁴" }, { symbol: "in⁴", label: "in⁴" }] },
 ];
 
 type UnitMeta = { aliases?: string[]; name?: LocalizedText };
@@ -236,6 +261,48 @@ const UNIT_META: Record<string, UnitMeta> = {
   yr: { aliases: ["year", "years", "年"], name: { en: "year", ja: "年", es: "año", "pt-BR": "ano", de: "Jahr", fr: "année" } },
   mol: { aliases: ["mole", "moles", "モル"], name: { en: "mole", ja: "モル", es: "mol", "pt-BR": "mol", de: "Mol", fr: "mole" } },
   mmol: { aliases: ["millimole", "millimoles", "ミリモル"], name: { en: "millimole", ja: "ミリモル", es: "milimol", "pt-BR": "milimol", de: "Millimol", fr: "millimole" } },
+  // 以下、単位チップが0件だった定数（密度・抵抗・電荷・静電容量・磁束・ばね定数・比熱・モル質量・
+  // モルエネルギー・モル濃度・断面二次モーメント）のために追加した単位。
+  "kg/m³": { aliases: ["kg/m3", "kg/m^3"], name: { en: "kilogram per cubic meter", ja: "キログラム毎立方メートル", es: "kilogramo por metro cúbico", "pt-BR": "quilograma por metro cúbico", de: "Kilogramm pro Kubikmeter", fr: "kilogramme par mètre cube" } },
+  "g/cm³": { aliases: ["g/cm3", "g/cm^3"], name: { en: "gram per cubic centimeter", ja: "グラム毎立方センチメートル", es: "gramo por centímetro cúbico", "pt-BR": "grama por centímetro cúbico", de: "Gramm pro Kubikzentimeter", fr: "gramme par centimètre cube" } },
+  "g/mL": { aliases: ["g/ml"], name: { en: "gram per milliliter", ja: "グラム毎ミリリットル", es: "gramo por mililitro", "pt-BR": "grama por mililitro", de: "Gramm pro Milliliter", fr: "gramme par millilitre" } },
+  "g/L": { aliases: ["g/l"], name: { en: "gram per liter", ja: "グラム毎リットル", es: "gramo por litro", "pt-BR": "grama por litro", de: "Gramm pro Liter", fr: "gramme par litre" } },
+  "g/m³": { aliases: ["g/m3", "g/m^3"], name: { en: "gram per cubic meter", ja: "グラム毎立方メートル", es: "gramo por metro cúbico", "pt-BR": "grama por metro cúbico", de: "Gramm pro Kubikmeter", fr: "gramme par mètre cube" } },
+  "Ω": { aliases: ["Ohm"], name: { en: "ohm", ja: "オーム", es: "ohmio", "pt-BR": "ohm", de: "Ohm", fr: "ohm" } },
+  "mΩ": { name: { en: "milliohm", ja: "ミリオーム", es: "miliohmio", "pt-BR": "miliohm", de: "Milliohm", fr: "milliohm" } },
+  "kΩ": { name: { en: "kiloohm", ja: "キロオーム", es: "kilohmio", "pt-BR": "kilohm", de: "Kiloohm", fr: "kiloohm" } },
+  "MΩ": { name: { en: "megaohm", ja: "メガオーム", es: "megaohmio", "pt-BR": "megaohm", de: "Megaohm", fr: "mégaohm" } },
+  C: { aliases: ["coulomb", "coulombs", "クーロン"], name: { en: "coulomb", ja: "クーロン", es: "culombio", "pt-BR": "coulomb", de: "Coulomb", fr: "coulomb" } },
+  mC: { aliases: ["millicoulomb", "ミリクーロン"], name: { en: "millicoulomb", ja: "ミリクーロン", es: "milicoulombio", "pt-BR": "milicoulomb", de: "Millicoulomb", fr: "millicoulomb" } },
+  "µC": { aliases: ["uC", "microcoulomb", "マイクロクーロン"], name: { en: "microcoulomb", ja: "マイクロクーロン", es: "microcoulombio", "pt-BR": "microcoulomb", de: "Mikrocoulomb", fr: "microcoulomb" } },
+  nC: { aliases: ["nanocoulomb", "ナノクーロン"], name: { en: "nanocoulomb", ja: "ナノクーロン", es: "nanocoulombio", "pt-BR": "nanocoulomb", de: "Nanocoulomb", fr: "nanocoulomb" } },
+  pC: { aliases: ["picocoulomb", "ピコクーロン"], name: { en: "picocoulomb", ja: "ピコクーロン", es: "picocoulombio", "pt-BR": "picocoulomb", de: "Picocoulomb", fr: "picocoulomb" } },
+  F: { aliases: ["farad", "farads", "ファラド"], name: { en: "farad", ja: "ファラド", es: "faradio", "pt-BR": "farad", de: "Farad", fr: "farad" } },
+  mF: { aliases: ["millifarad", "ミリファラド"], name: { en: "millifarad", ja: "ミリファラド", es: "milifaradio", "pt-BR": "milifarad", de: "Millifarad", fr: "millifarad" } },
+  "µF": { aliases: ["uF", "microfarad", "マイクロファラド"], name: { en: "microfarad", ja: "マイクロファラド", es: "microfaradio", "pt-BR": "microfarad", de: "Mikrofarad", fr: "microfarad" } },
+  nF: { aliases: ["nanofarad", "ナノファラド"], name: { en: "nanofarad", ja: "ナノファラド", es: "nanofaradio", "pt-BR": "nanofarad", de: "Nanofarad", fr: "nanofarad" } },
+  pF: { aliases: ["picofarad", "ピコファラド"], name: { en: "picofarad", ja: "ピコファラド", es: "picofaradio", "pt-BR": "picofarad", de: "Picofarad", fr: "picofarad" } },
+  Wb: { aliases: ["weber", "webers", "ウェーバ"], name: { en: "weber", ja: "ウェーバ", es: "weber", "pt-BR": "weber", de: "Weber", fr: "weber" } },
+  mWb: { aliases: ["milliweber", "ミリウェーバ"], name: { en: "milliweber", ja: "ミリウェーバ", es: "miliweber", "pt-BR": "miliweber", de: "Milliweber", fr: "milliweber" } },
+  "µWb": { aliases: ["uWb", "microweber", "マイクロウェーバ"], name: { en: "microweber", ja: "マイクロウェーバ", es: "microweber", "pt-BR": "microweber", de: "Mikroweber", fr: "microweber" } },
+  "N/m": { name: { en: "newton per meter", ja: "ニュートン毎メートル", es: "newton por metro", "pt-BR": "newton por metro", de: "Newton pro Meter", fr: "newton par mètre" } },
+  "N/mm": { name: { en: "newton per millimeter", ja: "ニュートン毎ミリメートル", es: "newton por milímetro", "pt-BR": "newton por milímetro", de: "Newton pro Millimeter", fr: "newton par millimètre" } },
+  "N/cm": { name: { en: "newton per centimeter", ja: "ニュートン毎センチメートル", es: "newton por centímetro", "pt-BR": "newton por centímetro", de: "Newton pro Zentimeter", fr: "newton par centimètre" } },
+  "kN/m": { name: { en: "kilonewton per meter", ja: "キロニュートン毎メートル", es: "kilonewton por metro", "pt-BR": "quilonewton por metro", de: "Kilonewton pro Meter", fr: "kilonewton par mètre" } },
+  "J/kg/K": { aliases: ["J/(kg*K)", "J/(kg·K)"], name: { en: "joule per kilogram-kelvin", ja: "ジュール毎キログラム毎ケルビン", es: "julio por kilogramo y kelvin", "pt-BR": "joule por quilograma-kelvin", de: "Joule pro Kilogramm und Kelvin", fr: "joule par kilogramme-kelvin" } },
+  "kJ/kg/K": { aliases: ["kJ/(kg*K)", "kJ/(kg·K)"], name: { en: "kilojoule per kilogram-kelvin", ja: "キロジュール毎キログラム毎ケルビン", es: "kilojulio por kilogramo y kelvin", "pt-BR": "quilojoule por quilograma-kelvin", de: "Kilojoule pro Kilogramm und Kelvin", fr: "kilojoule par kilogramme-kelvin" } },
+  "cal/g/K": { aliases: ["cal/(g*K)", "cal/(g·K)"], name: { en: "calorie per gram-kelvin", ja: "カロリー毎グラム毎ケルビン", es: "caloría por gramo y kelvin", "pt-BR": "caloria por grama-kelvin", de: "Kalorie pro Gramm und Kelvin", fr: "calorie par gramme-kelvin" } },
+  "g/mol": { name: { en: "gram per mole", ja: "グラム毎モル", es: "gramo por mol", "pt-BR": "grama por mol", de: "Gramm pro Mol", fr: "gramme par mole" } },
+  "kg/mol": { name: { en: "kilogram per mole", ja: "キログラム毎モル", es: "kilogramo por mol", "pt-BR": "quilograma por mol", de: "Kilogramm pro Mol", fr: "kilogramme par mole" } },
+  "J/mol": { name: { en: "joule per mole", ja: "ジュール毎モル", es: "julio por mol", "pt-BR": "joule por mol", de: "Joule pro Mol", fr: "joule par mole" } },
+  "kJ/mol": { name: { en: "kilojoule per mole", ja: "キロジュール毎モル", es: "kilojulio por mol", "pt-BR": "quilojoule por mol", de: "Kilojoule pro Mol", fr: "kilojoule par mole" } },
+  "mol/m³": { aliases: ["mol/m3", "mol/m^3"], name: { en: "mole per cubic meter", ja: "モル毎立方メートル", es: "mol por metro cúbico", "pt-BR": "mol por metro cúbico", de: "Mol pro Kubikmeter", fr: "mole par mètre cube" } },
+  "mol/L": { aliases: ["mol/l"], name: { en: "mole per liter", ja: "モル毎リットル", es: "mol por litro", "pt-BR": "mol por litro", de: "Mol pro Liter", fr: "mole par litre" } },
+  "mmol/L": { aliases: ["mmol/l"], name: { en: "millimole per liter", ja: "ミリモル毎リットル", es: "milimol por litro", "pt-BR": "milimol por litro", de: "Millimol pro Liter", fr: "millimole par litre" } },
+  "m⁴": { aliases: ["m4", "m^4"], name: { en: "meter to the fourth power", ja: "メートルの4乗", es: "metro a la cuarta potencia", "pt-BR": "metro à quarta potência", de: "Meter hoch vier", fr: "mètre à la puissance quatre" } },
+  "mm⁴": { aliases: ["mm4", "mm^4"], name: { en: "millimeter to the fourth power", ja: "ミリメートルの4乗", es: "milímetro a la cuarta potencia", "pt-BR": "milímetro à quarta potência", de: "Millimeter hoch vier", fr: "millimètre à la puissance quatre" } },
+  "cm⁴": { aliases: ["cm4", "cm^4"], name: { en: "centimeter to the fourth power", ja: "センチメートルの4乗", es: "centímetro a la cuarta potencia", "pt-BR": "centímetro à quarta potência", de: "Zentimeter hoch vier", fr: "centimètre à la puissance quatre" } },
+  "in⁴": { aliases: ["in4", "in^4"], name: { en: "inch to the fourth power", ja: "インチの4乗", es: "pulgada a la cuarta potencia", "pt-BR": "polegada à quarta potência", de: "Zoll hoch vier", fr: "pouce à la puissance quatre" } },
 };
 
 export const UNIT_GROUPS: UnitGroup[] = BASE_UNIT_GROUPS.map((group) => ({
@@ -648,7 +715,7 @@ function tokenize(input: string): Token[] {
       continue;
     }
 
-    const numberMatch = source.slice(index).match(/^(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/);
+    const numberMatch = source.slice(index).match(NUMBER_TOKEN_PATTERN);
     if (numberMatch) {
       const numericValue = Number(numberMatch[0]);
       index += numberMatch[0].length;
@@ -894,7 +961,12 @@ export function getCompatibleUnitGroups(dimension: Dimension): UnitGroup[] {
 
 const REGIONAL_PRIORITY: Record<UnitSystem, Record<string, string[]>> = {
   metric: { length: ["m", "km", "cm", "mm"], area: ["m²", "km²", "cm²"], volume: ["L", "mL", "m³"], mass: ["kg", "g", "mg"], temperature: ["°C", "K"], velocity: ["m/s", "km/h", "cm/s", "kine", "kt"], acceleration: ["m/s²", "Gal", "mGal", "G"], pressure: ["Pa", "kPa", "bar"], energy: ["J", "kJ", "Wh"], power: ["W", "kW"] },
-  us: { length: ["in", "ft", "yd", "mi"], area: ["in²", "ft²", "yd²", "acre"], volume: ["gal", "qt", "pt"], mass: ["lb", "oz"], temperature: ["°F"], velocity: ["mph", "ft/s", "kt", "m/s"], acceleration: ["ft/s²", "G", "m/s²", "Gal", "mGal"], pressure: ["psi", "atm"], energy: ["BTU", "Wh"], power: ["hp", "W"] },
+  // areaMomentOfInertia のみ、既存グループと違って米国式(in⁴)を先頭にする実益があるため追加する。
+  // それ以外の新規グループ（density/resistance/charge/capacitance/magneticFlux/springConstant/
+  // specificHeatCapacity/molarMass/molarEnergy/molarConcentration）は地域ごとの慣用単位が
+  // 存在しない（SI単位のみ）ため、あえて優先度を設定しない。未設定でも getRegionalUnits は
+  // `?? []` で空配列にフォールバックし、そのままgroup.units全件を返すため壊れない。
+  us: { length: ["in", "ft", "yd", "mi"], area: ["in²", "ft²", "yd²", "acre"], volume: ["gal", "qt", "pt"], mass: ["lb", "oz"], temperature: ["°F"], velocity: ["mph", "ft/s", "kt", "m/s"], acceleration: ["ft/s²", "G", "m/s²", "Gal", "mGal"], pressure: ["psi", "atm"], energy: ["BTU", "Wh"], power: ["hp", "W"], areaMomentOfInertia: ["in⁴", "mm⁴", "cm⁴", "m⁴"] },
   uk: { length: ["mm", "m", "km", "mi"], area: ["m²", "acre"], volume: ["L", "pt"], mass: ["kg", "st", "lb"], temperature: ["°C"], velocity: ["mph", "km/h", "kt", "m/s"], acceleration: ["m/s²", "G", "Gal"], pressure: ["bar", "psi"], energy: ["kJ", "Wh"], power: ["kW", "hp"] },
 };
 

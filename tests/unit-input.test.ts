@@ -253,3 +253,30 @@ describe("getSameDimensionUnitSuggestions", () => {
     expect(symbols).not.toContain("au");
   });
 });
+
+describe("指数表記の数値", () => {
+  // 評価器（lib/units.ts）は 2e-6C や 8.99e9N を正しく計算できるのに、解析側だけが独自の
+  // 「[0-9.]の並び」で数値を切っていたため、指数部が「使えない単位」として赤く表示されていた。
+  // プリセット（クーロンの法則の q₁ = 2e-6C、k = 8.99e9N*m^2/C^2）が実際に踏んでいたケース。
+  it("指数部を数値トークンに含める（2e-6C）", () => {
+    const segments = analyzeExpression("2e-6C").segments.map((segment) => [segment.kind, segment.text]);
+    expect(segments).toEqual([["number", "2e-6"], ["unit", "C"]]);
+  });
+
+  it("正の指数でも単位と分離できる（8.99e9N）", () => {
+    const segments = analyzeExpression("8.99e9N").segments.map((segment) => [segment.kind, segment.text]);
+    expect(segments).toEqual([["number", "8.99e9"], ["unit", "N"]]);
+  });
+
+  it("指数表記を含む式に「使えない単位」が残らない", () => {
+    expect(analyzeExpression("2e-6C").unresolved).toEqual([]);
+    expect(analyzeExpression("8.99e9N*m^2/C^2").unresolved).toEqual([]);
+    expect(analyzeExpression("6.674e-11N*m^2/kg^2").unresolved).toEqual([]);
+  });
+
+  // e を単独で書いたとき（自然対数の底）は従来どおり識別子として扱われ、指数表記に吸われない。
+  it("指数部として成立しない e は数値に吸収しない", () => {
+    const segments = analyzeExpression("2*e").segments.map((segment) => [segment.kind, segment.text]);
+    expect(segments).toEqual([["number", "2"], ["operator", "*"], ["identifier", "e"]]);
+  });
+});
