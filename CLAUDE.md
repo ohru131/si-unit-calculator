@@ -63,6 +63,7 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - **`RevenueCatUI.presentPaywallIfNeeded` にフォールバックしないこと**（一度入れて撤去した）。この関数はentitlementの有無しか見ず、**dashboardのofferingに入っている商品をそのまま表示する**ため、サブスク商品が残っていれば上の不変条件を迂回して継続課金を売ってしまう。買い切り商品が取れないときは購入させず理由（`productLoadFailed`）を出す。これで `react-native-purchases-ui` は未使用になっている。
   - 購入・復元は**同期フラグ（`purchaseLockRef`）で直列化**する。`isPurchasing` state と `Pressable` の `disabled` はどちらもコミット後の値なので、同じフレームで `onPress` が2回走ると両方すり抜ける。課金APIを叩く経路なのでstateだけでは不十分。
   - SDKキー未設定・`configure()` 完了前は購入も復元も**受け付けない**（`blockedReasonKey` / `isReady` で早期return）。叩けば必ず失敗し、「商品を読み込めません」「復元できません」と出て**本当の原因を隠す**ため。
+  - **`purchasePackage()` が成功しても `pro` entitlement が付いてくるとは限らない**（dashboardで商品をentitlementに紐付け忘れている等。サブスク→買い切りの移行中はまさにこの状態になりうる）。`hasProEntitlement` を確認できたときだけ「ご購入ありがとうございます」を出し、そうでなければ復元とサポートへ導く（`purchaseNotApplied`）。支払ったのにProが有効にならないユーザーに成功メッセージを出すのが最悪の体験なので、`setIsPro` と成功メッセージを別々に判断しないこと。
 
 ## 既知の注意点・誤検知
 
