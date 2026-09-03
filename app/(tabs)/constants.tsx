@@ -497,6 +497,28 @@ export default function ConstantsScreen() {
     }
   };
 
+  // カテゴリカードのエクスポートボタン用にカテゴリIDからラベルを引く。categoryLabel（上のcategoryOptions）は
+  // 「高校物理」のような親カテゴリをノートの所属先として選べないため除外してあり、親カテゴリIDでは
+  // 引けない。ファイル名に使うだけなのでプリセット（親も含む）・ユーザー作成・未分類の全部を見る。
+  const exportCategoryFileLabel = (categoryId: string) => {
+    const preset = PRESET_NOTEBOOK_CATEGORIES.find((category) => category.id === categoryId);
+    if (preset) return localizedText(preset.label, language);
+    const userCategory = notebookCategories.find((category) => category.id === categoryId);
+    return userCategory ? userCategory.name : copy.uncategorized;
+  };
+
+  // カテゴリカードから「このカテゴリ（親なら配下の子カテゴリぶんも含む）」のユーザー作成ノートだけを書き出す。
+  // 対象IDの集合はNotebookCategoryGrid側（lib/notebook-category-export.ts）で組み立て済みのものを受け取る。
+  const handleExportCategoryNotebooks = async (categoryIds: string[]) => {
+    try {
+      const fileLabel = exportCategoryFileLabel(categoryIds[0]);
+      await exportNotebooksBackup(notebooks.filter((notebook) => categoryIds.includes(notebook.categoryId)), notebookCategories, language, fileLabel);
+      setNotebookBackupNotice(copy.notebookExportDone);
+    } catch (cause) {
+      setNotebookBackupNotice(engineErrorMessage(cause));
+    }
+  };
+
   const handleImportNotebooks = async (mode: "merge" | "replace") => {
     try {
       const entries = await pickNotebooksBackup(language);
@@ -859,6 +881,7 @@ export default function ConstantsScreen() {
         onCreateCategory={(name) => void upsertNotebookCategory({ name })}
         onRenameCategory={(id, name) => void upsertNotebookCategory({ id, name })}
         onDeleteCategory={(id) => void removeNotebookCategory(id)}
+        onExportCategory={(categoryIds) => void handleExportCategoryNotebooks(categoryIds)}
       />
     );
   };

@@ -136,6 +136,24 @@ export function serializeNotebooksBackup(notebooks: CalculationNotebook[], categ
   return JSON.stringify(createNotebooksBackup(notebooks, categories, exportedAt), null, 2);
 }
 
+// Windows/macOS双方でファイル名に使えない文字（制御文字含む）。カテゴリ単位のエクスポートは
+// ユーザーが自由に付けたカテゴリ名をそのままファイル名に混ぜるため、ここで必ず無害化する。
+const FORBIDDEN_FILE_LABEL_CHARS = /[\\/:*?"<>|\u0000-\u001f]/g;
+// ファイルシステム・共有シート側の長さ制限に余裕を持たせるための上限（拡張子・接頭辞は含まない）。
+const MAX_BACKUP_FILE_LABEL_LENGTH = 60;
+
+/**
+ * カテゴリ名などユーザー由来の文字列を、バックアップファイル名の一部として安全に使える形に整形する。
+ * 禁則文字はハイフンに置換し、連続したハイフン・前後の空白やハイフンを畳んでから長さを制限する。
+ * 全体が禁則文字や記号だけだった場合は空文字を返すので、呼び出し側はそれをラベル無し扱い
+ * （既存の既定ファイル名へのフォールバック）の合図として使える。
+ */
+export function sanitizeBackupFileLabel(label: string): string {
+  const withoutForbiddenChars = label.replace(FORBIDDEN_FILE_LABEL_CHARS, "-");
+  const collapsed = withoutForbiddenChars.replace(/-+/g, "-").replace(/^[\s-]+|[\s-]+$/g, "");
+  return collapsed.slice(0, MAX_BACKUP_FILE_LABEL_LENGTH).replace(/^[\s-]+|[\s-]+$/g, "");
+}
+
 export function parseNotebooksBackup(raw: string, language: AppLanguage): ImportedNotebook[] {
   const messages = BACKUP_MESSAGES[language];
   let parsed: unknown;
