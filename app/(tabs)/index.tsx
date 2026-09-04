@@ -27,6 +27,7 @@ import { exportCalculationHistory } from "@/lib/calculation-export";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { historyToAutoConstants } from "@/lib/history-auto-constants";
 import { localizedText, type AppLanguage } from "@/lib/i18n";
+import { BASE_META, buildBaseRows, NUMBER_BASES, parseBaseInput, type NumberBase } from "@/lib/number-base";
 import { getCalculatorQuickShortcut } from "@/lib/quick-shortcuts";
 import { usePro } from "@/lib/revenuecat-provider";
 import { buildUnitComparisonRows } from "@/lib/unit-comparison";
@@ -84,6 +85,14 @@ const EN_COPY = {
   csvExportFailed: "Could not export the CSV file.",
   compareUnits: "Compare units",
   compareUnitsHint: "Tap a row to show the result in that unit.",
+  numberBase: "Bases",
+  numberBaseHint: "Whole numbers without units only.",
+  numberBaseResultLabel: "Current result",
+  numberBaseInputLabel: "Convert a value",
+  numberBaseInsert: "Insert",
+  numberBaseUnavailable: "Base conversion needs a whole number with no unit.",
+  numberBaseInvalid: "Not a valid number in this base.",
+  numberBaseOutOfRange: "This value is too large to convert exactly.",
 };
 const COPY: Record<AppLanguage, typeof EN_COPY> = {
   en: EN_COPY,
@@ -113,6 +122,14 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     csvExportFailed: "CSVを出力できませんでした。",
     compareUnits: "単位を比較",
     compareUnitsHint: "行をタップするとその単位で表示します。",
+    numberBase: "進数",
+    numberBaseHint: "単位の付かない整数だけが対象です。",
+    numberBaseResultLabel: "現在の結果",
+    numberBaseInputLabel: "値を変換",
+    numberBaseInsert: "式に挿入",
+    numberBaseUnavailable: "進数変換は、単位の付かない整数にのみ使えます。",
+    numberBaseInvalid: "この基数では使えない文字が含まれています。",
+    numberBaseOutOfRange: "この値は大きすぎて正確に変換できません。",
   },
   es: {
     definitionHint: "Definir una constante: W = 3cm", calculate: "=", siBase: "Base SI", emptyResult: "Escribe una expresión para ver el resultado. Toca = para guardarlo en el historial.", pickUnit: "Elige una unidad registrada", speedTitle: "Distancia, tiempo y velocidad", speedFormula: "Velocidad = distancia ÷ tiempo     Distancia = velocidad × tiempo", findSpeed: "Calcular velocidad", findDistance: "Calcular distancia", findTime: "Calcular tiempo", savedHistory: "Cálculos guardados", historyHint: "Los últimos resultados están disponibles como a1, a2, etc.", clear: "Borrar", helpTitle: "Ejemplos", helpDone: "Listo", unitSearch: "Buscar unidades, nombres o categorías", copied: "Cálculo copiado", copy: "Copiar", unitDetails: "Detalles de la unidad", siConversion: "Conversión SI", commonUse: "Uso común", close: "Cerrar", advancedMath: "Matemáticas avanzadas", advancedMathHint: "Los ángulos usan rad, deg o °. Incluye trigonometría inversa, logaritmos y atan2(y, x).", saveTemplate: "Guardar", samples: "Ejemplos", units: "Unidades", shortcuts: "Velocidad", math: "Matemáticas", outputUnit: "Unidad mostrada", insertUnit: "Insertar unidad", registered: "Registrada", supported: "Compatible, sin listar", unknown: "Unidad no válida", unknownHint: "Revisa el símbolo o elige un candidato abajo.", history: "Historial", use: "Usar", noUnit: "Base SI", compatible: "Compatible con este resultado", allCandidates: "Candidatos más cercanos", hintFix: "Corregir", hintComplete: "Completar", hintAttach: "Añadir", hintReplace: "Sustituir", hintInsert: "Insertar", more: "Más", showAs: "Mostrar como", fixTap: "Toca la unidad en rojo para corregirla.", noCandidates: "No se encontró ningún candidato. Revisa el símbolo.", aliasNote: "igual a", noSearchResults: "Ninguna unidad coincide con esta búsqueda.", noSearchResultsHint: "Prueba otro símbolo, nombre o categoría.", noHistory: "Aún no hay cálculos guardados.", noHistoryHint: "Cada resultado que calculas se guarda aquí automáticamente.", browseUnits: "Explorar categorías",
@@ -140,6 +157,14 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     csvExportFailed: "No se pudo exportar el archivo CSV.",
     compareUnits: "Comparar unidades",
     compareUnitsHint: "Toca una fila para mostrar el resultado en esa unidad.",
+    numberBase: "Bases",
+    numberBaseHint: "Solo números enteros sin unidad.",
+    numberBaseResultLabel: "Resultado actual",
+    numberBaseInputLabel: "Convertir un valor",
+    numberBaseInsert: "Insertar",
+    numberBaseUnavailable: "La conversión de base requiere un número entero sin unidad.",
+    numberBaseInvalid: "No es un número válido en esta base.",
+    numberBaseOutOfRange: "Este valor es demasiado grande para convertirlo con exactitud.",
   },
   "pt-BR": {
     definitionHint: "Definir uma constante: W = 3cm", calculate: "=", siBase: "Base SI", emptyResult: "Digite uma expressão para ver o resultado. Toque em = para salvá-lo no histórico.", pickUnit: "Escolha uma unidade registrada", speedTitle: "Distância, tempo e velocidade", speedFormula: "Velocidade = distância ÷ tempo     Distância = velocidade × tempo", findSpeed: "Calcular velocidade", findDistance: "Calcular distância", findTime: "Calcular tempo", savedHistory: "Cálculos salvos", historyHint: "Os últimos resultados ficam disponíveis como a1, a2 etc.", clear: "Limpar", helpTitle: "Exemplos", helpDone: "Concluído", unitSearch: "Buscar unidades, nomes ou categorias", copied: "Cálculo copiado", copy: "Copiar", unitDetails: "Detalhes da unidade", siConversion: "Conversão SI", commonUse: "Uso comum", close: "Fechar", advancedMath: "Matemática avançada", advancedMathHint: "Os ângulos usam rad, deg ou °. Inclui trigonometria inversa, logaritmos e atan2(y, x).", saveTemplate: "Salvar", samples: "Exemplos", units: "Unidades", shortcuts: "Velocidade", math: "Matemática", outputUnit: "Unidade de exibição", insertUnit: "Inserir unidade", registered: "Registrada", supported: "Compatível, não listada", unknown: "Unidade inválida", unknownHint: "Verifique o símbolo ou escolha um candidato abaixo.", history: "Histórico", use: "Usar", noUnit: "Base SI", compatible: "Compatível com este resultado", allCandidates: "Candidatos mais próximos", hintFix: "Corrigir", hintComplete: "Concluir", hintAttach: "Adicionar", hintReplace: "Substituir", hintInsert: "Inserir", more: "Mais", showAs: "Exibir como", fixTap: "Toque na unidade em vermelho para corrigi-la.", noCandidates: "Nenhum candidato encontrado. Verifique o símbolo.", aliasNote: "igual a", noSearchResults: "Nenhuma unidade corresponde a esta busca.", noSearchResultsHint: "Tente outro símbolo, nome ou categoria.", noHistory: "Ainda não há cálculos salvos.", noHistoryHint: "Cada resultado calculado é salvo aqui automaticamente.", browseUnits: "Explorar categorias",
@@ -167,6 +192,14 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     csvExportFailed: "Não foi possível exportar o arquivo CSV.",
     compareUnits: "Comparar unidades",
     compareUnitsHint: "Toque em uma linha para exibir o resultado nessa unidade.",
+    numberBase: "Bases",
+    numberBaseHint: "Apenas números inteiros sem unidade.",
+    numberBaseResultLabel: "Resultado atual",
+    numberBaseInputLabel: "Converter um valor",
+    numberBaseInsert: "Inserir",
+    numberBaseUnavailable: "A conversão de base exige um número inteiro sem unidade.",
+    numberBaseInvalid: "Não é um número válido nesta base.",
+    numberBaseOutOfRange: "Este valor é grande demais para converter com exatidão.",
   },
   de: {
     definitionHint: "Konstante definieren: W = 3cm", calculate: "=", siBase: "SI-Basis", emptyResult: "Gib einen Ausdruck ein, um das Ergebnis zu sehen. Tippe auf =, um es im Verlauf zu speichern.", pickUnit: "Registrierte Einheit wählen", speedTitle: "Strecke, Zeit & Geschwindigkeit", speedFormula: "Geschwindigkeit = Strecke ÷ Zeit     Strecke = Geschwindigkeit × Zeit", findSpeed: "Geschwindigkeit berechnen", findDistance: "Strecke berechnen", findTime: "Zeit berechnen", savedHistory: "Gespeicherte Berechnungen", historyHint: "Die letzten Ergebnisse stehen als a1, a2 usw. zur Verfügung.", clear: "Löschen", helpTitle: "Beispiele", helpDone: "Fertig", unitSearch: "Einheiten, Namen oder Kategorien suchen", copied: "Berechnung kopiert", copy: "Kopieren", unitDetails: "Details zur Einheit", siConversion: "SI-Umrechnung", commonUse: "Typische Verwendung", close: "Schließen", advancedMath: "Erweiterte Mathematik", advancedMathHint: "Winkel in rad, deg oder °. Enthält inverse Trigonometrie, Logarithmen und atan2(y, x).", saveTemplate: "Speichern", samples: "Beispiele", units: "Einheiten", shortcuts: "Geschwindigkeit", math: "Mathematik", outputUnit: "Anzeigeeinheit", insertUnit: "Einheit einfügen", registered: "Registriert", supported: "Unterstützt, nicht gelistet", unknown: "Keine gültige Einheit", unknownHint: "Prüfe das Symbol oder wähle unten einen Vorschlag.", history: "Verlauf", use: "Verwenden", noUnit: "SI-Basis", compatible: "Passt zu diesem Ergebnis", allCandidates: "Nächste Vorschläge", hintFix: "Beheben", hintComplete: "Fertig", hintAttach: "Anfügen", hintReplace: "Ersetzen", hintInsert: "Einfügen", more: "Mehr", showAs: "Anzeigen als", fixTap: "Tippe auf die rote Einheit, um sie zu korrigieren.", noCandidates: "Kein Vorschlag gefunden. Prüfe das Symbol.", aliasNote: "entspricht", noSearchResults: "Keine Einheit passt zu dieser Suche.", noSearchResultsHint: "Versuche ein anderes Symbol, einen anderen Namen oder eine andere Kategorie.", noHistory: "Noch keine gespeicherten Berechnungen.", noHistoryHint: "Jedes berechnete Ergebnis wird hier automatisch gespeichert.", browseUnits: "Kategorien durchsuchen",
@@ -194,6 +227,14 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     csvExportFailed: "Die CSV-Datei konnte nicht exportiert werden.",
     compareUnits: "Einheiten vergleichen",
     compareUnitsHint: "Tippe auf eine Zeile, um das Ergebnis in dieser Einheit anzuzeigen.",
+    numberBase: "Zahlensysteme",
+    numberBaseHint: "Nur ganze Zahlen ohne Einheit.",
+    numberBaseResultLabel: "Aktuelles Ergebnis",
+    numberBaseInputLabel: "Wert umrechnen",
+    numberBaseInsert: "Einfügen",
+    numberBaseUnavailable: "Die Umrechnung braucht eine ganze Zahl ohne Einheit.",
+    numberBaseInvalid: "Keine gültige Zahl in diesem Zahlensystem.",
+    numberBaseOutOfRange: "Dieser Wert ist zu groß für eine exakte Umrechnung.",
   },
   fr: {
     definitionHint: "Définir une constante : W = 3cm", calculate: "=", siBase: "Base SI", emptyResult: "Saisissez une expression pour voir le résultat. Appuyez sur = pour l'enregistrer dans l'historique.", pickUnit: "Choisir une unité enregistrée", speedTitle: "Distance, temps et vitesse", speedFormula: "Vitesse = distance ÷ temps     Distance = vitesse × temps", findSpeed: "Calculer la vitesse", findDistance: "Calculer la distance", findTime: "Calculer le temps", savedHistory: "Calculs enregistrés", historyHint: "Les derniers résultats sont disponibles sous la forme a1, a2, etc.", clear: "Effacer", helpTitle: "Exemples", helpDone: "Terminé", unitSearch: "Rechercher des unités, des noms ou des catégories", copied: "Calcul copié", copy: "Copier", unitDetails: "Détails de l'unité", siConversion: "Conversion SI", commonUse: "Usage courant", close: "Fermer", advancedMath: "Mathématiques avancées", advancedMathHint: "Les angles utilisent rad, deg ou °. Comprend la trigonométrie inverse, les logarithmes et atan2(y, x).", saveTemplate: "Enregistrer", samples: "Exemples", units: "Unités", shortcuts: "Vitesse", math: "Maths", outputUnit: "Unité affichée", insertUnit: "Insérer une unité", registered: "Enregistrée", supported: "Prise en charge, non listée", unknown: "Unité non valide", unknownHint: "Vérifiez le symbole ou choisissez un candidat ci-dessous.", history: "Historique", use: "Utiliser", noUnit: "Base SI", compatible: "Compatible avec ce résultat", allCandidates: "Candidats les plus proches", hintFix: "Corriger", hintComplete: "Terminer", hintAttach: "Ajouter", hintReplace: "Remplacer", hintInsert: "Insérer", more: "Plus", showAs: "Afficher en", fixTap: "Touchez l'unité en rouge pour la corriger.", noCandidates: "Aucun candidat trouvé. Vérifiez le symbole.", aliasNote: "identique à", noSearchResults: "Aucune unité ne correspond à cette recherche.", noSearchResultsHint: "Essayez un autre symbole, nom ou catégorie.", noHistory: "Aucun calcul enregistré pour le moment.", noHistoryHint: "Chaque résultat calculé est enregistré ici automatiquement.", browseUnits: "Parcourir les catégories",
@@ -221,6 +262,14 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     csvExportFailed: "Impossible d'exporter le fichier CSV.",
     compareUnits: "Comparer les unités",
     compareUnitsHint: "Touchez une ligne pour afficher le résultat dans cette unité.",
+    numberBase: "Bases",
+    numberBaseHint: "Uniquement des nombres entiers sans unité.",
+    numberBaseResultLabel: "Résultat actuel",
+    numberBaseInputLabel: "Convertir une valeur",
+    numberBaseInsert: "Insérer",
+    numberBaseUnavailable: "La conversion de base nécessite un nombre entier sans unité.",
+    numberBaseInvalid: "Nombre non valide dans cette base.",
+    numberBaseOutOfRange: "Cette valeur est trop grande pour être convertie exactement.",
   },
 };
 
@@ -293,6 +342,11 @@ export default function CalculatorScreen() {
   const [showAdvancedKeys, setShowAdvancedKeys] = useState(false);
   // 単位比較表はデフォルト折りたたみ。永続化はしない（開閉状態は画面を開くたびリセットしてよい）。
   const [showComparison, setShowComparison] = useState(false);
+  // 進数（2/8/16進）シート。showComparisonと同様、開閉状態・入力途中の値は永続化しない。
+  const [showNumberBase, setShowNumberBase] = useState(false);
+  const [numberBaseInput, setNumberBaseInput] = useState("");
+  const [inputBase, setInputBase] = useState<NumberBase>(16);
+  const [activeBase, setActiveBase] = useState<NumberBase>(10);
   const [unitPickerMode, setUnitPickerMode] = useState<"insert" | "target">("insert");
   const [unitInfoSymbol, setUnitInfoSymbol] = useState<string | null>(null);
   const [unitSearch, setUnitSearch] = useState("");
@@ -474,6 +528,16 @@ export default function CalculatorScreen() {
       locale,
     });
   }, [display, expression, locale, measuringStandard, result, targetUnit, unitSystem]);
+
+  const baseRows = useMemo(() => buildBaseRows(result ?? undefined, activeBase), [activeBase, result]);
+  // 空入力のときはエラーを出さない方針（=を押すまでエラーを出さない既存の電卓の方針に合わせる）ため、
+  // パース結果とは別に「まだ何も打っていない」かどうかを見る。
+  const numberBaseParse = useMemo(() => parseBaseInput(numberBaseInput, inputBase), [inputBase, numberBaseInput]);
+  // parseBaseInput が "empty" を返すのは trim 後に空のときだけで、それはこの左辺の条件と
+  // 完全に一致する。つまり "empty" 用の文言は絶対に表示されないので分岐にも文言にも持たない。
+  const numberBaseErrorKey = !numberBaseInput.trim() || numberBaseParse.status === "ok"
+    ? null
+    : numberBaseParse.code === "outOfRange" ? "numberBaseOutOfRange" : "numberBaseInvalid";
 
   const rememberUnit = (symbol: string) => {
     const trimmed = symbol.trim();
@@ -1104,6 +1168,7 @@ export default function CalculatorScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.toolRail} keyboardShouldPersistTaps="handled">
           <Pressable onPress={() => setShowSamples(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.samples}</Text></Pressable>
           {isAdvancedMode ? <Pressable onPress={() => setShowAdvancedKeys(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.math}</Text></Pressable> : null}
+          <Pressable onPress={() => setShowNumberBase(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.numberBase}</Text></Pressable>
         </ScrollView>
 
         <CalculatorBannerAd />
@@ -1214,6 +1279,83 @@ export default function CalculatorScreen() {
 
       <Modal visible={showAdvancedKeys} transparent animationType="fade" onRequestClose={() => setShowAdvancedKeys(false)}>
         <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><View style={styles.sheetHeaderMain}><Text style={styles.sheetTitle}>{copy.advancedMath}</Text><Text style={styles.sheetSubtitle}>{copy.advancedMathHint}</Text></View><Pressable accessibilityLabel={copy.close} onPress={() => setShowAdvancedKeys(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.advancedKeyRow}>{ADVANCED_KEYS.map((key) => <Pressable accessibilityLabel={key} key={key} onPress={() => { pressKey(key); setShowAdvancedKeys(false); }} style={({ pressed }) => [styles.advancedKey, pressed && styles.pressed]}><Text style={styles.advancedKeyText}>{key}</Text></Pressable>)}</View></View></View>
+      </Modal>
+
+      <Modal visible={showNumberBase} transparent animationType="slide" onRequestClose={() => setShowNumberBase(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.compactSheet}>
+            <View style={styles.sheetHeader}>
+              <View style={styles.sheetHeaderMain}>
+                <Text style={styles.sheetTitle}>{copy.numberBase}</Text>
+                <Text style={styles.sheetSubtitle}>{copy.numberBaseHint}</Text>
+              </View>
+              <Pressable accessibilityLabel={copy.close} onPress={() => setShowNumberBase(false)} style={styles.closeHelp}>
+                <IconSymbol name="xmark" size={20} color={colors.muted} />
+              </Pressable>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>
+              <Text style={styles.cardLabel}>{copy.numberBaseResultLabel}</Text>
+              {baseRows.length ? (
+                <View style={styles.comparisonTable}>
+                  {baseRows.map((row) => (
+                    // タップするとその基数の行をハイライトするだけ（activeBaseはこの一覧の表示にしか使わない）。
+                    // display.value（結果カードの大きい数値）は単位表示と競合するため、ここでは絶対に変更しない。
+                    <Pressable key={row.base} accessibilityLabel={`${row.label} ${row.text}`} onPress={() => setActiveBase(row.base)} style={({ pressed }) => [styles.comparisonRow, row.isActive && styles.comparisonRowActive, pressed && styles.pressed]}>
+                      <Text style={[styles.comparisonRowLabel, row.isActive && styles.comparisonRowLabelActive]}>{row.label}</Text>
+                      <Text selectable numberOfLines={1} style={[styles.comparisonRowValue, row.isActive && styles.comparisonRowValueActive]}>{row.text}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.numberBaseEmptyText}>{copy.numberBaseUnavailable}</Text>
+              )}
+
+              <Text style={[styles.cardLabel, styles.numberBaseSectionGap]}>{copy.numberBaseInputLabel}</Text>
+              <View style={styles.conversionRail}>
+                {NUMBER_BASES.map((base) => (
+                  <Pressable
+                    accessibilityLabel={BASE_META[base].label}
+                    key={base}
+                    onPress={() => setInputBase(base)}
+                    style={({ pressed }) => [styles.convertChip, inputBase === base && styles.convertChipActive, pressed && styles.pressed]}
+                  >
+                    <Text style={[styles.convertChipText, inputBase === base && styles.convertChipTextActive]}>{BASE_META[base].label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <View style={styles.numberBaseInputRow}>
+                <TextInput
+                  value={numberBaseInput}
+                  onChangeText={setNumberBaseInput}
+                  placeholder={`${BASE_META[inputBase].prefix}0`}
+                  placeholderTextColor={colors.placeholder}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  style={styles.numberBaseInput}
+                />
+                <Pressable
+                  accessibilityLabel={copy.numberBaseInsert}
+                  disabled={numberBaseParse.status !== "ok"}
+                  onPress={() => {
+                    if (numberBaseParse.status !== "ok") return;
+                    // 挿入は既存のキャレット挿入の経路（pressKey）をそのまま使う。markUserInteraction()も
+                    // pressKeyの中で呼ばれるので、ここで別途呼ぶ必要は無い。
+                    pressKey(String(numberBaseParse.value));
+                    setShowNumberBase(false);
+                  }}
+                  style={({ pressed }) => [styles.numberBaseInsertButton, numberBaseParse.status !== "ok" && styles.numberBaseInsertButtonDisabled, pressed && styles.pressed]}
+                >
+                  <Text style={styles.numberBaseInsertButtonText}>{copy.numberBaseInsert}</Text>
+                </Pressable>
+              </View>
+              {numberBaseParse.status === "ok" ? (
+                <Text selectable style={styles.numberBaseResultText}>{numberBaseParse.value}</Text>
+              ) : numberBaseErrorKey ? (
+                <Text style={styles.messageErrorText}>{copy[numberBaseErrorKey]}</Text>
+              ) : null}
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
 
       <Modal visible={showHistory} transparent animationType="slide" onRequestClose={() => setShowHistory(false)}>
@@ -1391,6 +1533,15 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   comparisonRowLabelActive: { color: colors.onPrimary },
   comparisonRowValue: { color: colors.foreground, flexShrink: 1, fontFamily: mono, fontSize: 12, fontWeight: "600", textAlign: "right" },
   comparisonRowValueActive: { color: colors.onPrimary },
+
+  numberBaseEmptyText: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 4 },
+  numberBaseSectionGap: { marginTop: 18 },
+  numberBaseInputRow: { alignItems: "center", flexDirection: "row", gap: 8, marginTop: 10 },
+  numberBaseInput: { backgroundColor: colors.surfaceSecondary, borderRadius: 10, color: colors.foreground, flex: 1, fontFamily: mono, fontSize: 15, paddingHorizontal: 12, paddingVertical: 10 },
+  numberBaseInsertButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 10, justifyContent: "center", paddingHorizontal: 16, paddingVertical: 12 },
+  numberBaseInsertButtonDisabled: { opacity: 0.5 },
+  numberBaseInsertButtonText: { color: colors.onPrimary, fontSize: 13, fontWeight: "800" },
+  numberBaseResultText: { color: colors.foreground, fontFamily: mono, fontSize: 13, fontWeight: "700", marginTop: 8 },
 
   siRow: { alignItems: "center", flexDirection: "row", gap: 8, justifyContent: "space-between", marginTop: 7 },
   siLabel: { color: colors.muted, fontSize: 11 },
