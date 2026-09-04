@@ -1,6 +1,7 @@
 import { View, type ViewProps } from "react-native";
 import { SafeAreaView, type Edge } from "react-native-safe-area-context";
 
+import { useColors } from "@/hooks/use-colors";
 import { cn } from "@/lib/utils";
 
 export interface ScreenContainerProps extends ViewProps {
@@ -47,6 +48,7 @@ export function ScreenContainer({
   style,
   ...props
 }: ScreenContainerProps) {
+  const colors = useColors();
   return (
     <View
       className={cn(
@@ -54,6 +56,9 @@ export function ScreenContainer({
         "bg-background",
         containerClassName
       )}
+      // NativeWindのCSS変数(bg-background)はネイティブでダークモード切替時に反映されない
+      // ことがあるため、確実に効くJSベースの色（useColors）で明示的に上書きする。
+      style={{ backgroundColor: colors.background }}
       {...props}
     >
       <SafeAreaView

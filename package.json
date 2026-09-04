@@ -14,8 +14,8 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "qr": "node scripts/generate_qr.mjs",
     "katex:generate": "node scripts/generate-katex-assets.mjs"
   },
@@ -70,7 +70,7 @@
     "react-dom": "19.2.3",
     "react-native": "0.86.2",
     "react-native-gesture-handler": "~2.32.0",
-    "react-native-google-mobile-ads": "^16.5.0",
+    "react-native-google-mobile-ads": "16.3.4",
     "react-native-purchases": "^10.7.2",
     "react-native-purchases-ui": "^10.7.2",
     "react-native-reanimated": "~4.5.1",
@@ -104,5 +104,10 @@
     "typescript": "~6.0.3",
     "vitest": "^2.1.9"
   },
-  "packageManager": "pnpm@9.12.0"
+  "packageManager": "pnpm@9.12.0",
+  "pnpm": {
+    "overrides": {
+      "@expo/dom-webview": "57.0.1"
+    }
+  }
 }
