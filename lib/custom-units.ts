@@ -32,7 +32,15 @@ export type CustomUnit = {
 export function isCustomUnit(value: unknown): value is CustomUnit {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<CustomUnit>;
-  return typeof candidate.symbol === "string" && isUsableCustomUnitSymbol(candidate.symbol)
+  return typeof candidate.symbol === "string"
+    // isUsableCustomUnitSymbolはtrimしてから検証するので、" shaku " のような前後に空白の付いた
+    // 記号もそこは通ってしまう。ところが登録時（parseCustomUnit）は必ず symbol.trim() を保存する
+    // ため、空白付きの記号は「保存データが壊れている」か「手で編集された外部のバックアップ
+    // ファイル」からしか入ってこない。しかも式のトークナイザは空白込みの記号を絶対に作らない
+    // ので、通してしまうと "shaku" とは別キーとして登録され、設定画面には並ぶのに式では
+    // 絶対に解決されない幽霊単位になる（重複排除も別物として素通りする）。ここで弾く。
+    && candidate.symbol === candidate.symbol.trim()
+    && isUsableCustomUnitSymbol(candidate.symbol)
     && typeof candidate.expression === "string"
     // scaleが0の単位は convertQuantity の除算で Infinity になるので、壊れた保存データとして落とす
     // （parseCustomUnitはzeroScaleで弾くが、ここは保存済みデータが壊れている場合の防御）。
@@ -56,10 +64,14 @@ export function parseCustomUnitsField(value: unknown): CustomUnit[] {
   });
 }
 
-// 2つのCustomUnitが「実質同じ定義」かどうか。バックアップ取り込みで、同じ記号でも定義式が
-// 違うものを黙って上書きしないための判定に使う。expressionだけでなく評価結果
-// （scale/offset/dimension）まで見るのは、見た目の式が違っても同じ値になるケース
-// （"0.303m" と "303mm" など）を無用に警告しないため。
+// 2つのCustomUnitが「完全に同じ定義」かどうか。バックアップ取り込みで、同じ記号でも中身が
+// 違うものを黙って上書きしないための判定に使う。
+//
+// 評価結果（scale/offset/dimension）だけでなく expression も比較する。expression は表示と
+// 再編集のために保存しているユーザーの入力そのもので、取り込みで置き換わればユーザーから見て
+// 定義が書き換わったことになるため（例: 端末で "303mm" に直したあと "0.303m" 時代の古い
+// バックアップを取り込むと、同じ値でも編集が巻き戻る。これは警告すべき上書き）。
+// 評価結果だけを見る実装にすると、この巻き戻りが無言で起きる。
 export function customUnitsAreEqual(a: CustomUnit, b: CustomUnit): boolean {
   return a.expression === b.expression && a.scale === b.scale && a.offset === b.offset
     && a.dimension.length === b.dimension.length && a.dimension.every((component, index) => component === b.dimension[index]);

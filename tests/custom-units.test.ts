@@ -316,6 +316,21 @@ describe("isCustomUnit（保存データ・バックアップの復元検証）"
   it("dimensionが7要素でない要素は拒否する", () => {
     expect(isCustomUnit({ ...VALID, dimension: [1, 0, 0, 0, 0, 0] })).toBe(false);
   });
+
+  // isUsableCustomUnitSymbol はtrimしてから検証するので、この検査が無いと " shaku " が通る。
+  // 通ると "shaku" とは別キーで登録され、式のトークナイザは空白込みの記号を作らないので
+  // 絶対に解決されない幽霊単位になる。登録時は必ず symbol.trim() が保存されるため、
+  // 空白付きは壊れた保存データか手で編集された外部ファイルからしか来ない。
+  it("前後に空白の付いた記号を弾く", () => {
+    expect(isCustomUnit({ ...VALID, symbol: " shaku " })).toBe(false);
+    expect(isCustomUnit({ ...VALID, symbol: "shaku " })).toBe(false);
+    expect(isCustomUnit({ ...VALID, symbol: " shaku" })).toBe(false);
+  });
+
+  it("空白付きの記号はparseCustomUnitsFieldでも捨てられ、trim済みの同名だけが残る", () => {
+    const parsed = parseCustomUnitsField([{ ...VALID, symbol: " shaku " }, VALID]);
+    expect(parsed).toEqual([VALID]);
+  });
 });
 
 describe("parseCustomUnitsField", () => {
@@ -348,6 +363,16 @@ describe("customUnitsAreEqual / countCustomUnitConflicts", () => {
     expect(customUnitsAreEqual(SHAKU, { ...SHAKU, scale: 0.3 })).toBe(false);
     expect(customUnitsAreEqual(SHAKU, { ...SHAKU, offset: 1 })).toBe(false);
     expect(customUnitsAreEqual(SHAKU, { ...SHAKU, dimension: [0, 1, 0, 0, 0, 0, 0] })).toBe(false);
+  });
+
+  // 評価結果が同じでも expression が違えば「違う定義」として扱う（＝確認ダイアログを出す）。
+  // expression は再編集のために保存しているユーザーの入力そのもので、取り込みで置き換われば
+  // ユーザーから見て定義が書き換わるため。ここを評価結果だけの比較にすると、"303mm" に直した
+  // あと "0.303m" 時代の古いバックアップを取り込んだときに編集の巻き戻りが無言で起きる。
+  it("評価結果が同じでも定義式が違えば別の定義として扱う", () => {
+    const sameValue: CustomUnit = { ...SHAKU, expression: "303mm" };
+    expect(customUnitsAreEqual(SHAKU, sameValue)).toBe(false);
+    expect(countCustomUnitConflicts([SHAKU], [sameValue])).toBe(1);
   });
 
   it("記号が新規なら衝突として数えない", () => {
