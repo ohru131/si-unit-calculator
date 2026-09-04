@@ -39,14 +39,15 @@ export default function SettingsScreen() {
   // 「英語UIしか読めない状態でも自分の言語を見つけられる」ため。
   const languages = APP_LANGUAGES.map((id) => ({ id, label: LANGUAGE_META[id].endonym }));
   const systems: { id: UnitSystem; label: string }[] = [{ id: "metric", label: t("systemMetric") }, { id: "us", label: t("systemUS") }, { id: "uk", label: t("systemUK") }];
-  const themeOptions: { id: ThemePreference; label: string }[] = [{ id: "system", label: t("themeSystem") }, { id: "light", label: t("themeLight") }, { id: "dark", label: t("themeDark") }];
-  const measuringStandards: { id: MeasuringStandard; label: string }[] = [{ id: "us", label: t("standardUS") }, { id: "jis", label: t("standardJIS") }];
+  // shortLabelは折りたたみが閉じた行の値に使う。展開したラジオでは説明的な label を出す。
+  const themeOptions: { id: ThemePreference; label: string; shortLabel: string }[] = [{ id: "system", label: t("themeSystem"), shortLabel: t("themeSystemShort") }, { id: "light", label: t("themeLight"), shortLabel: t("themeLight") }, { id: "dark", label: t("themeDark"), shortLabel: t("themeDark") }];
+  const measuringStandards: { id: MeasuringStandard; label: string; shortLabel: string }[] = [{ id: "us", label: t("standardUS"), shortLabel: t("standardUSShort") }, { id: "jis", label: t("standardJIS"), shortLabel: t("standardJISShort") }];
   // 折りたたみが閉じた行の右端に出す現在値。選択肢を作っている配列（上の4つ）から引く
   // ことで、翻訳を直したときにここが食い違う心配をなくす。
   const languageValue = languages.find((option) => option.id === language)?.label ?? "";
-  const themeValue = themeOptions.find((option) => option.id === themePreference)?.label ?? "";
+  const themeValue = themeOptions.find((option) => option.id === themePreference)?.shortLabel ?? "";
   const systemValue = systems.find((option) => option.id === unitSystem)?.label ?? "";
-  const measuringStandardValue = measuringStandards.find((option) => option.id === measuringStandard)?.label ?? "";
+  const measuringStandardValue = measuringStandards.find((option) => option.id === measuringStandard)?.shortLabel ?? "";
   // 0件のときは行に値を出さない。customUnitEmptyは「まだ自作の単位はありません。」という
   // 文章で、行の値の位置に置くと狭い端末幅で「まだ自作の単位はあ…」と切れて読めなくなる
   // （仏語は42文字あり確実に切れる）。開けば同じ文章が空状態として出るので、閉じた行は
@@ -227,7 +228,8 @@ export default function SettingsScreen() {
 }
 
 const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
-  content: { gap: 14, paddingBottom: 30, paddingTop: 8 },
+  // h1を撤去したので、先頭のカードが安全領域の直下に張り付かないよう上余白を広げる。
+  content: { gap: 14, paddingBottom: 30, paddingTop: 16 },
   card: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 18, borderWidth: 1, padding: 16 }, label: { color: colors.foreground, fontSize: 15, fontWeight: "800" }, description: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 7 },
   cardTitle: { alignItems: "center", flexDirection: "row", gap: 8 },
   // 言語が増えるとチップが横に溢れるため折り返す（6言語だと確実に溢れる）。
