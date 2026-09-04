@@ -15,11 +15,11 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 
 ### CodeRabbitを実際に動かすための前提（2026-09-04に判明）
 
-- **エージェントが立てたPRは自動レビューされない。** このセッションではPRの作者が `claude[bot]`（Bot）になり、#1〜#32（作者 `ohru131`）と違って自動レビューが一度も走らなかった。CodeRabbit自身の説明では原因は **PR作者にシートが割り当てられていないこと**で、`ignore_usernames` による除外ではない。
-  - 手動で `@coderabbitai review` すれば動くが、**オープンソース枠（1時間に1回）** に落ちるため待ち行列になる。
-  - **`claude[bot]` からのコマンドは無視される**ので、依頼は人間のアカウントから投げる必要がある。恒久対応は `claude[bot]` にシートを割り当てること。
+- **PR作成はGitHub MCPの `create_pull_request` を使う。** そうすればPRの作者が `ohru131`（人間のアカウント）になり、**CodeRabbitの自動レビューがシート付きで走る**（#36 で確認済み。レビュー依頼のコメントを投げる必要は無い）。
+  - **REST直叩き（`POST /repos/.../pulls`）だと作者が `claude[bot]` になり、自動レビューが走らない。** 2026-09-04以前はこちらの方法しか無いと誤認していて、#33〜#35 で「自動レビューが走らないので人間のアカウントから `@coderabbitai review` を投げる」という余計な手順を踏んでいた。**MCPを使えば不要。**
+  - `claude[bot]` 名義になってしまった場合は、**`claude[bot]` からのコマンドは無視される**ので依頼は人間のアカウントから投げる必要がある。手動依頼は**オープンソース枠（1時間に1回）** に落ちるため待ち行列になる。
   - レート制限中の依頼は「Review triggered」と表示されたあと**数秒後に「Review rate limited」へ書き換えられる**。最初の返信だけ見て走ったと判断しないこと。
-- **PRの作者がBotになるのはプロキシ側の仕様**で、`gh` を入れても変わらない（`gh api` 経由の書き込みも `claude[bot]` になる。加えて `gh pr create` はGraphQLがegressポリシーで塞がれていて動かない）。PR作成はREST（`POST /repos/.../pulls`）で行う。
+  - なお `gh pr create` はGraphQLがegressポリシーで塞がれていて動かない（`gh api` 経由の書き込みも `claude[bot]` になる）。
 - **判定バッジ（Merge Risk）は古いコミット時点で凍結表示される。** `final_review_risk_coverage` の `coveredCommitId` が現在のheadと一致しているかを毎回確認する（実際に #34 で、修正済みなのに「🟡 Moderate・マージ前に解決すべき」と出続けた）。
 
 ## アーキテクチャの要点

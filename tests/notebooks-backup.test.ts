@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/global-settings", () => ({ useGlobalSettings: () => ({ language: "en", currencyCode: null, regionCode: null }) }));
 
 import type { CalculationNotebook } from "../lib/calculator-store";
+import type { CustomUnit } from "../lib/custom-units";
 import {
   applyPresetNotebookOverrides,
   buildPresetNotebookOverrides,
@@ -271,5 +272,65 @@ describe("createNotebooksBackup / parseNotebooksBackup のpresetOverrides往復"
     // 壊れた2件は捨てられ、有効な1件だけが残る。
     expect(parsed.presetOverrides).toHaveLength(1);
     expect(parsed.presetOverrides[0].presetId).toBe("notebook-preset-astronomy-0");
+  });
+});
+
+describe("createNotebooksBackup / parseNotebooksBackup のcustomUnits往復", () => {
+  const SHAKU: CustomUnit = { symbol: "shaku", expression: "0.303m", scale: 0.303, offset: 0, dimension: [1, 0, 0, 0, 0, 0, 0] };
+
+  it("自作単位ありで書き出す→読み込むと往復する", () => {
+    const raw = serializeNotebooksBackup([], [], [SHAKU]);
+    const parsed = parseNotebooksBackup(raw, "en");
+    expect(parsed.customUnits).toEqual([SHAKU]);
+  });
+
+  it("自作単位が無いときはcustomUnitsフィールド自体が出ない（従来どおりの形）", () => {
+    const raw = serializeNotebooksBackup([makeNotebook()], [], []);
+    const backup = JSON.parse(raw);
+    expect(backup.customUnits).toBeUndefined();
+    expect(parseNotebooksBackup(raw, "en").customUnits).toEqual([]);
+  });
+
+  it("customUnitsを持たない古い形式のファイルも今までどおり読める（後方互換）", () => {
+    const legacyBackup = {
+      format: "si-unit-calculator.notebooks",
+      version: 1,
+      exportedAt: "2026-01-01T00:00:00.000Z",
+      notebooks: [{ title: "自作ノート", description: "", formulas: [], localConstants: [], steps: [{ title: "s", expression: "1m", targetUnit: "m" }] }],
+    };
+    const parsed = parseNotebooksBackup(JSON.stringify(legacyBackup), "en");
+    expect(parsed.notebooks).toHaveLength(1);
+    expect(parsed.customUnits).toEqual([]);
+  });
+
+  it("壊れた自作単位はその要素だけ黙って捨てる", () => {
+    const backupWithBrokenUnits = {
+      format: "si-unit-calculator.notebooks",
+      version: 1,
+      exportedAt: "2026-01-01T00:00:00.000Z",
+      notebooks: [],
+      customUnits: [
+        SHAKU,
+        { symbol: "s3", expression: "1m", scale: 1, offset: 0, dimension: [1, 0, 0, 0, 0, 0, 0] }, // 記号に数字を含む
+        { symbol: "zero", expression: "0m", scale: 0, offset: 0, dimension: [1, 0, 0, 0, 0, 0, 0] }, // scaleが0
+        { symbol: "bad", expression: "1m", scale: 1, offset: 0, dimension: [1, 0, 0, 0, 0, 0] }, // dimensionが6要素
+        { symbol: "m", expression: "1m", scale: 1, offset: 0, dimension: [1, 0, 0, 0, 0, 0, 0] }, // 組み込み単位と衝突
+      ],
+    };
+    const parsed = parseNotebooksBackup(JSON.stringify(backupWithBrokenUnits), "en");
+    expect(parsed.customUnits).toEqual([SHAKU]);
+  });
+
+  it("同じ記号が複数含まれていたら先勝ちで1つに絞る", () => {
+    const differentShaku: CustomUnit = { ...SHAKU, expression: "0.3m", scale: 0.3 };
+    const backupWithDuplicateSymbol = {
+      format: "si-unit-calculator.notebooks",
+      version: 1,
+      exportedAt: "2026-01-01T00:00:00.000Z",
+      notebooks: [],
+      customUnits: [SHAKU, differentShaku],
+    };
+    const parsed = parseNotebooksBackup(JSON.stringify(backupWithDuplicateSymbol), "en");
+    expect(parsed.customUnits).toEqual([SHAKU]);
   });
 });

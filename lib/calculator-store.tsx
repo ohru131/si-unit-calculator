@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { ImportedConstant } from "@/lib/constants-backup";
-import { isUsableCustomUnitSymbol, type CustomUnit } from "@/lib/custom-units";
+import { mergeCustomUnits, parseCustomUnitsField, type CustomUnit } from "@/lib/custom-units";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { APP_LANGUAGES, AppLanguage, isAppLanguage, localizedText, LocalizedText } from "@/lib/i18n";
 import { PRESET_NOTEBOOK_CATEGORIES, PRESET_NOTEBOOK_SEEDS, PRESET_NOTEBOOK_SEEDS_AS_SEEDED } from "@/lib/notebook-formulas";
@@ -160,7 +160,7 @@ type CalculatorStore = {
   isLoading: boolean;
   upsertConstant: (symbol: string, expression: string) => Promise<SavedConstant>;
   removeConstant: (symbol: string) => Promise<void>;
-  importConstants: (entries: ImportedConstant[], mode: "merge" | "replace") => Promise<number>;
+  importConstants: (entries: ImportedConstant[], mode: "merge" | "replace", customUnits: CustomUnit[]) => Promise<{ count: number; customUnitCount: number }>;
   clearConstants: () => Promise<void>;
   restoreClearedConstants: () => Promise<boolean>;
   addHistoryEntry: (entry: SavedCalculation) => Promise<void>;
@@ -169,7 +169,7 @@ type CalculatorStore = {
   saveCustomUnit: (unit: CustomUnit) => Promise<void>;
   deleteCustomUnit: (symbol: string) => Promise<void>;
   upsertNotebook: (input: Omit<CalculationNotebook, "id" | "createdAt" | "updatedAt" | "pinned" | "isPreset"> & { id?: string }) => Promise<CalculationNotebook>;
-  importNotebooks: (entries: ImportedNotebook[], mode: "merge" | "replace", presetOverrides: PresetNotebookOverride[]) => Promise<{ notebookCount: number; presetOverrideCount: number }>;
+  importNotebooks: (entries: ImportedNotebook[], mode: "merge" | "replace", presetOverrides: PresetNotebookOverride[], customUnits: CustomUnit[]) => Promise<{ notebookCount: number; presetOverrideCount: number; customUnitCount: number }>;
   removeNotebook: (id: string) => Promise<void>;
   /** プリセットの計算ノートを現在のシードから作り直し、ユーザーの編集を破棄する。ユーザー作成ノート・
    * ユーザー作成カテゴリには一切触れない（詳しくは定義側のコメントを参照）。 */
@@ -191,27 +191,10 @@ function isSavedConstant(value: unknown): value is SavedConstant {
   return typeof candidate.symbol === "string" && typeof candidate.expression === "string" && typeof candidate.createdAt === "string" && typeof candidate.quantity?.siValue === "number" && Array.isArray(candidate.quantity.dimension) && candidate.quantity.dimension.length === 7;
 }
 
-// 壊れた保存データ（他端末からの古いバックアップ、手動編集された可能性のあるAsyncStorageの中身など）が
-// 混ざっていても起動を落とさないよう、他のisSavedXxxと同じ「怪しい要素はfilterで捨てる」防御にする。
-// dimensionは7要素の数値配列であることまで見る（lib/units.tsのDimensionはタプルだが、
-// AsyncStorageから読んだ値には型情報が付かないため実行時に長さと要素の型を検証する必要がある）。
-// 記号の形式チェックは isUsableCustomUnitSymbol（lib/custom-units.ts）に一本化する。
-// 以前はここで「空文字でなければOK」しか見ておらず、保存データに symbol: "m" のような
-// 組み込み単位と衝突する記号や数字入りの記号が混ざっていても素通りしていた。組み込みが
-// 常に優先されるため、そういう記号は設定画面には並ぶのに式では絶対に解決されない
-// 「幽霊単位」になる。
-function isCustomUnit(value: unknown): value is CustomUnit {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Partial<CustomUnit>;
-  return typeof candidate.symbol === "string" && isUsableCustomUnitSymbol(candidate.symbol)
-    && typeof candidate.expression === "string"
-    // scaleが0の単位は convertQuantity の除算で Infinity になるので、壊れた保存データとして落とす
-    // （parseCustomUnitはzeroScaleで弾くが、ここは保存済みデータが壊れている場合の防御）。
-    && typeof candidate.scale === "number" && Number.isFinite(candidate.scale) && candidate.scale !== 0
-    && typeof candidate.offset === "number" && Number.isFinite(candidate.offset)
-    && Array.isArray(candidate.dimension) && candidate.dimension.length === 7
-    && candidate.dimension.every((component) => typeof component === "number" && Number.isFinite(component));
-}
+// isCustomUnit（保存済みデータの検証）は lib/custom-units.ts に一本化してある。バックアップ
+// 復元（notebooks-backup.ts / constants-backup.ts）と保存データ復元（このファイル）の両方が
+// 同じ判定を通るようにするため（判定を2箇所に分けると、記号 "m" のような絶対に解決されない
+// 「幽霊単位」がどちらか片方の復元経路だけで素通りしてしまう）。
 
 // CustomUnit（保存形。再編集用にexpressionも持つ）→ CustomUnitRegistration（lib/units.tsの
 // エンジンが要求する最小形）への変換。2箇所（初回ロード時とsave/delete後の再登録時）から
@@ -688,15 +671,8 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           // エンジンのレジストリ（lib/units.tsのsetCustomUnits）はモジュール状態でAsyncStorageに
           // 永続化されないので、アプリ起動のたびにここで読み込んだ内容を必ず再登録し直す
           // （でないと再起動直後は自作単位が式の中で一切解決できない）。
-          // 記号が重複していた場合は先勝ちで1つに絞る。setCustomUnitsRegistryは記号をキーに
-          // 上書き登録するだけで重複を検出しないため、壊れた保存データに同じ記号が複数あると
-          // 黙って後の要素が勝ってしまい、設定画面の一覧と実際に解決される単位がズレる。
-          const seenCustomUnitSymbols = new Set<string>();
-          const loadedCustomUnits = parseStoredArray(customUnitsRaw).filter(isCustomUnit).filter((unit) => {
-            if (seenCustomUnitSymbols.has(unit.symbol)) return false;
-            seenCustomUnitSymbols.add(unit.symbol);
-            return true;
-          });
+          // 検証・重複排除（先勝ち）は parseCustomUnitsField（lib/custom-units.ts）に一本化してある。
+          const loadedCustomUnits = parseCustomUnitsField(parseStoredArray(customUnitsRaw));
           customUnitsRef.current = loadedCustomUnits;
           setCustomUnitsState(loadedCustomUnits);
           setCustomUnitsRegistry(loadedCustomUnits.map(toCustomUnitRegistration));
@@ -785,7 +761,12 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     await persistConstants(constants.filter((item) => item.symbol !== symbol));
   }, [constants, persistConstants]);
 
-  const importConstants = useCallback(async (entries: ImportedConstant[], mode: "merge" | "replace") => {
+  // customUnitsは、定数の定義式（例: "2shaku"）がユーザー定義単位に依存している場合に必要。
+  // 自作単位は「追加・同名記号の置換」だけを行い、既存の自作単位を削除しない（modeに関わらず
+  // 常に同じ規則。詳しくは mergeCustomUnits のコメントを参照）。定数の解決より先に登録しないと、
+  // parseConstantDefinition が自作単位の記号を解決できず取り込みが失敗する。
+  const importConstants = useCallback(async (entries: ImportedConstant[], mode: "merge" | "replace", customUnits: CustomUnit[]) => {
+    if (customUnits.length > 0) await persistCustomUnits(mergeCustomUnits(customUnitsRef.current, customUnits));
     const incomingSymbols = new Set(entries.map((item) => item.symbol));
     const next = mode === "replace" ? [] : constants.filter((item) => !incomingSymbols.has(item.symbol));
     let pending = [...entries];
@@ -806,8 +787,8 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     }
     if (pending.length) throw new Error(STORE_MESSAGES[language].constantsImportFailed(pending.map((item) => item.symbol).join(", ")));
     await persistConstants(next.sort((left, right) => left.symbol.localeCompare(right.symbol)));
-    return entries.length;
-  }, [constants, language, persistConstants]);
+    return { count: entries.length, customUnitCount: customUnits.length };
+  }, [constants, language, persistConstants, persistCustomUnits]);
 
   const clearConstants = useCallback(async () => {
     await AsyncStorage.setItem(CLEARED_CONSTANTS_STORAGE_KEY, JSON.stringify(constants));
@@ -865,7 +846,12 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
   // replaceは「ユーザー作成ノートを入れ替える」操作であって、プリセットを「シードに戻す」操作ではない
   // （そのための操作は設定画面の「プリセットの計算ノートを初期状態に戻す」で別途提供している）ため、
   // ここでmodeによる分岐を入れない。
-  const importNotebooks = useCallback(async (entries: ImportedNotebook[], mode: "merge" | "replace", presetOverrides: PresetNotebookOverride[]) => {
+  // customUnitsは、取り込むノートが自作単位（例: "2shaku"）を参照している場合に必要。
+  // 自作単位は「追加・同名記号の置換」だけを行い、既存の自作単位を削除しない（modeに関わらず
+  // 常に同じ規則。詳しくは mergeCustomUnits のコメントを参照）。ノート本体より先に登録しないと、
+  // 取り込み直後にノートを開いたときにまだ式の中で解決できない。
+  const importNotebooks = useCallback(async (entries: ImportedNotebook[], mode: "merge" | "replace", presetOverrides: PresetNotebookOverride[], customUnits: CustomUnit[]) => {
+    if (customUnits.length > 0) await persistCustomUnits(mergeCustomUnits(customUnitsRef.current, customUnits));
     const now = new Date().toISOString();
     const importedAt = Date.now();
     let categories = notebookCategoriesRef.current;
@@ -918,8 +904,8 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     // 表示中だったノートが消えていたらnullに戻す。mergeでも既存ノートをid維持で上書きするので
     // 消えることはないが、判定自体はどちらのmodeでも同じ「現存するか」で共通に扱える。
     if (activeNotebookIdRef.current !== null && !nextAllNotebooks.some((notebook) => notebook.id === activeNotebookIdRef.current)) await persistActiveNotebookId(null);
-    return { notebookCount: importedNotebooks.length, presetOverrideCount };
-  }, [persistActiveNotebookId, persistNotebookCategories, persistNotebooks]);
+    return { notebookCount: importedNotebooks.length, presetOverrideCount, customUnitCount: customUnits.length };
+  }, [persistActiveNotebookId, persistNotebookCategories, persistNotebooks, persistCustomUnits]);
 
   // プリセットの計算ノートを現在のシードから作り直し、ユーザーの編集（値の書き換え・
   // タイトル変更など）を破棄する。ユーザー作成ノート（!isPreset）・ユーザー作成カテゴリには

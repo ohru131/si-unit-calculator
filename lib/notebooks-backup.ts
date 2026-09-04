@@ -1,4 +1,5 @@
 import { UNCATEGORIZED_CATEGORY_ID, type CalculationNotebook, type NotebookCategory } from "@/lib/calculator-store";
+import { parseCustomUnitsField, type CustomUnit } from "@/lib/custom-units";
 import { type AppLanguage } from "@/lib/i18n";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
 
@@ -98,6 +99,13 @@ export type NotebooksBackup = {
    * バージョニングは変えない方針）。
    */
   presetOverrides?: PresetNotebookOverride[];
+  /**
+   * 任意フィールド。上のpresetOverridesと同じ理由でversionは上げない。取り込むノートが
+   * 自作単位（例: "2shaku"）を参照している場合、この情報が無いと別端末でノートの計算が壊れる
+   * （記号が未定義になるため）。空配列のときはフィールド自体を出さない（自作単位を
+   * 使っていないユーザーのバックアップが今までと1バイトも変わらないようにするため）。
+   */
+  customUnits?: CustomUnit[];
 };
 
 function isImportedNotebookFormula(value: unknown): value is ImportedNotebookFormula {
@@ -213,7 +221,7 @@ export function applyPresetNotebookOverrides(
   return { notebooks: nextNotebooks, appliedCount };
 }
 
-export function createNotebooksBackup(notebooks: CalculationNotebook[], categories: NotebookCategory[], exportedAt = new Date().toISOString()): NotebooksBackup {
+export function createNotebooksBackup(notebooks: CalculationNotebook[], categories: NotebookCategory[], customUnits: CustomUnit[] = [], exportedAt = new Date().toISOString()): NotebooksBackup {
   const presetOverrides = buildPresetNotebookOverrides(notebooks);
   return {
     format: NOTEBOOKS_BACKUP_FORMAT,
@@ -227,13 +235,15 @@ export function createNotebooksBackup(notebooks: CalculationNotebook[], categori
       localConstants: notebook.localConstants.map(({ symbol, expression }) => ({ symbol, expression })),
       steps: notebook.steps.map(({ title, expression, targetUnit, formulaLatex, resultSymbol }) => ({ title, expression, targetUnit, formulaLatex, resultSymbol })),
     })),
-    // 空配列をわざわざ書き出さない（従来どおりプリセット編集が無いバックアップは今までと同じ形にする）。
+    // 空配列をわざわざ書き出さない（従来どおりプリセット編集・自作単位が無いバックアップは
+    // 今までと同じ形にする）。
     ...(presetOverrides.length > 0 ? { presetOverrides } : {}),
+    ...(customUnits.length > 0 ? { customUnits: customUnits.map(({ symbol, expression, scale, offset, dimension }) => ({ symbol, expression, scale, offset, dimension })) } : {}),
   };
 }
 
-export function serializeNotebooksBackup(notebooks: CalculationNotebook[], categories: NotebookCategory[], exportedAt?: string) {
-  return JSON.stringify(createNotebooksBackup(notebooks, categories, exportedAt), null, 2);
+export function serializeNotebooksBackup(notebooks: CalculationNotebook[], categories: NotebookCategory[], customUnits: CustomUnit[] = [], exportedAt?: string) {
+  return JSON.stringify(createNotebooksBackup(notebooks, categories, customUnits, exportedAt), null, 2);
 }
 
 // Windows/macOS双方でファイル名に使えない文字（制御文字含む）。カテゴリ単位のエクスポートは
@@ -258,6 +268,8 @@ export type ParsedNotebooksBackup = {
   notebooks: ImportedNotebook[];
   /** presetOverridesが無い（バージョン導入前の）古いファイルでは常に空配列になる。 */
   presetOverrides: PresetNotebookOverride[];
+  /** customUnitsが無い（この機能の導入前の）古いファイルでは常に空配列になる。 */
+  customUnits: CustomUnit[];
 };
 
 export function parseNotebooksBackup(raw: string, language: AppLanguage): ParsedNotebooksBackup {
@@ -277,8 +289,9 @@ export function parseNotebooksBackup(raw: string, language: AppLanguage): Parsed
     throw new Error(messages.unsupportedVersion(String(backup.version)));
   }
   if (!backup.notebooks.every(isImportedNotebook)) throw new Error(messages.invalidNotebooks);
-  // presetOverridesは任意フィールドなので無くても既存どおり読める。壊れた要素は
+  // presetOverrides・customUnitsはどちらも任意フィールドなので無くても既存どおり読める。壊れた要素は
   // ファイル全体を無効にせず、その要素だけを黙って捨てる（ノート本体は取り込めるべきなので）。
   const presetOverrides = Array.isArray(backup.presetOverrides) ? backup.presetOverrides.filter(isPresetNotebookOverride) : [];
-  return { notebooks: backup.notebooks, presetOverrides };
+  const customUnits = parseCustomUnitsField(backup.customUnits);
+  return { notebooks: backup.notebooks, presetOverrides, customUnits };
 }
