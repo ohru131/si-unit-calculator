@@ -10,6 +10,8 @@ import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { useAds } from "@/lib/ads-provider";
 import { useCalculatorStore } from "@/lib/calculator-store";
+import { customUnitErrorMessage } from "@/lib/custom-unit-messages";
+import { parseCustomUnit } from "@/lib/custom-units";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { APP_LANGUAGES, LANGUAGE_META } from "@/lib/i18n";
 import { type ThemePreference, useThemeContext } from "@/lib/theme-provider";
@@ -19,8 +21,11 @@ export default function SettingsScreen() {
   const { language, locale, measuringStandard, setLanguage, setMeasuringStandard, t, unitSystem, setUnitSystem } = useGlobalSettings();
   const { themePreference, setThemePreference } = useThemeContext();
   const { adFree, isAdsPlatformAvailable, redeemMessage, redeemCode } = useAds();
-  const { resetPresetNotebooks } = useCalculatorStore();
+  const { resetPresetNotebooks, customUnits, saveCustomUnit, deleteCustomUnit, constants } = useCalculatorStore();
   const [redeemInput, setRedeemInput] = useState("");
+  const [customUnitSymbol, setCustomUnitSymbol] = useState("");
+  const [customUnitDefinition, setCustomUnitDefinition] = useState("");
+  const [customUnitError, setCustomUnitError] = useState("");
   // プリセットの計算ノートを初期状態に戻す操作は破壊的（ユーザーの編集を破棄する）ため、
   // 既存のバックアップ画面（app/(tabs)/constants.tsx）の置き換えインポートと同じく
   // ConfirmDialogで確認を挟む。
@@ -48,6 +53,40 @@ export default function SettingsScreen() {
     }
   };
 
+  // エラー時は入力を消さない: ユーザーが定義式を打ち間違えた場合に、直しやすいよう
+  // 入力内容をそのまま残す（symbolTaken等では記号だけ直せばよい）。保存自体
+  // （AsyncStorageへの書き込み）が失敗したときも同じ方針で、入力を消さずにエラーを出す。
+  const handleAddCustomUnit = async () => {
+    const result = parseCustomUnit(customUnitSymbol, customUnitDefinition, {
+      existingSymbols: customUnits.map((unit) => unit.symbol),
+      constants,
+    });
+    if (result.status === "error") {
+      setCustomUnitError(customUnitErrorMessage(result.code, language));
+      return;
+    }
+    try {
+      await saveCustomUnit(result.unit);
+    } catch {
+      setCustomUnitError(t("customUnitSaveFailed"));
+      return;
+    }
+    setCustomUnitError("");
+    setCustomUnitSymbol("");
+    setCustomUnitDefinition("");
+  };
+
+  // 削除も保存と同じくAsyncStorageへの書き込みを伴うため、失敗しうる。握りつぶすと
+  // 一覧からは消えて見えるのに次回起動で復活する、という食い違いになるのでエラーを出す。
+  const handleDeleteCustomUnit = async (symbol: string) => {
+    try {
+      await deleteCustomUnit(symbol);
+      setCustomUnitError("");
+    } catch {
+      setCustomUnitError(t("customUnitSaveFailed"));
+    }
+  };
+
   return <ScreenContainer className="px-5" containerClassName="bg-background">
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.header}><Text style={styles.title}>{t("settings")}</Text><Text style={styles.subtitle}>{t("settingsSubtitle")}</Text></View>
@@ -64,6 +103,58 @@ export default function SettingsScreen() {
         <Text style={styles.label}>{t("measuringStandard")}</Text>
         <Text style={styles.description}>{t("measuringStandardHint")}</Text>
         <View style={styles.systemList}>{measuringStandards.map((option) => <Pressable accessibilityRole="radio" accessibilityState={{ selected: measuringStandard === option.id }} accessibilityLabel={`${t("measuringStandard")}: ${option.label}`} key={option.id} onPress={() => void setMeasuringStandard(option.id)} style={({ pressed }) => [styles.systemRow, measuringStandard === option.id && styles.systemRowActive, pressed && styles.pressed]}><View style={[styles.radio, measuringStandard === option.id && styles.radioActive]}>{measuringStandard === option.id ? <View style={styles.radioInner} /> : null}</View><Text style={styles.systemText}>{option.label}</Text></Pressable>)}</View>
+      </View>
+      <View style={styles.card}>
+        <Text style={styles.label}>{t("customUnits")}</Text>
+        <Text style={styles.description}>{t("customUnitsHint")}</Text>
+        <View style={styles.customUnitInputRow}>
+          <TextInput
+            value={customUnitSymbol}
+            onChangeText={setCustomUnitSymbol}
+            placeholder={t("customUnitSymbolPlaceholder")}
+            placeholderTextColor={colors.placeholder}
+            autoCapitalize="none"
+            autoCorrect={false}
+            accessibilityLabel={t("customUnitSymbolPlaceholder")}
+            style={styles.customUnitSymbolInput}
+          />
+          <TextInput
+            value={customUnitDefinition}
+            onChangeText={setCustomUnitDefinition}
+            placeholder={t("customUnitDefinitionPlaceholder")}
+            placeholderTextColor={colors.placeholder}
+            autoCapitalize="none"
+            autoCorrect={false}
+            accessibilityLabel={t("customUnitDefinitionPlaceholder")}
+            style={styles.customUnitDefinitionInput}
+          />
+        </View>
+        <Pressable
+          disabled={!customUnitSymbol.trim() || !customUnitDefinition.trim()}
+          onPress={() => void handleAddCustomUnit()}
+          style={({ pressed }) => [styles.resetButton, styles.customUnitAddButton, (!customUnitSymbol.trim() || !customUnitDefinition.trim()) && styles.redeemButtonDisabled, pressed && styles.pressed]}
+        >
+          <Text style={styles.customUnitAddButtonText}>{t("customUnitAdd")}</Text>
+        </Pressable>
+        {customUnitError ? <Text style={styles.customUnitErrorText}>{customUnitError}</Text> : null}
+        {customUnits.length ? (
+          <View style={styles.customUnitList}>
+            {customUnits.map((unit) => (
+              <View key={unit.symbol} style={styles.customUnitRow}>
+                <Text style={styles.customUnitRowText}>{unit.symbol} = {unit.expression}</Text>
+                <Pressable
+                  accessibilityLabel={`${t("customUnitDelete")}: ${unit.symbol}`}
+                  onPress={() => void handleDeleteCustomUnit(unit.symbol)}
+                  style={({ pressed }) => [styles.customUnitDeleteButton, pressed && styles.pressed]}
+                >
+                  <Text style={styles.customUnitDeleteButtonText}>{t("customUnitDelete")}</Text>
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.description}>{t("customUnitEmpty")}</Text>
+        )}
       </View>
       <View style={styles.card}>
         <Text style={styles.label}>{t("theme")}</Text>
@@ -145,4 +236,13 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   redeemButton: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderRadius: 12, justifyContent: "center", paddingHorizontal: 14 }, redeemButtonDisabled: { opacity: 0.5 }, redeemButtonText: { color: colors.foreground, fontSize: 13, fontWeight: "700" },
   redeemMessage: { color: colors.muted, fontSize: 12, marginTop: 8 },
   resetButton: { alignItems: "center", backgroundColor: colors.errorSurface, borderColor: colors.errorBorder, borderRadius: 12, borderWidth: 1, marginTop: 14, paddingVertical: 11 }, resetButtonText: { color: colors.error, fontSize: 14, fontWeight: "800" },
+  customUnitInputRow: { flexDirection: "row", gap: 8, marginTop: 12 },
+  customUnitSymbolInput: { borderColor: colors.border, borderRadius: 12, borderWidth: 1, color: colors.foreground, flex: 1, fontSize: 14, paddingHorizontal: 12, paddingVertical: 10 },
+  customUnitDefinitionInput: { borderColor: colors.border, borderRadius: 12, borderWidth: 1, color: colors.foreground, flex: 2, fontSize: 14, paddingHorizontal: 12, paddingVertical: 10 },
+  customUnitAddButton: { backgroundColor: colors.primaryFill, borderWidth: 0 }, customUnitAddButtonText: { color: colors.onPrimary, fontSize: 14, fontWeight: "800" },
+  customUnitErrorText: { color: colors.error, fontSize: 12, marginTop: 8 },
+  customUnitList: { gap: 8, marginTop: 14 },
+  customUnitRow: { alignItems: "center", borderColor: colors.border, borderRadius: 12, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 },
+  customUnitRowText: { color: colors.foreground, flex: 1, fontFamily: "monospace", fontSize: 13, fontWeight: "700", marginRight: 8 },
+  customUnitDeleteButton: { backgroundColor: colors.surfaceSecondary, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 }, customUnitDeleteButtonText: { color: colors.error, fontSize: 12, fontWeight: "700" },
 });

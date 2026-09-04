@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { ImportedConstant } from "@/lib/constants-backup";
+import { isUsableCustomUnitSymbol, type CustomUnit } from "@/lib/custom-units";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { APP_LANGUAGES, AppLanguage, isAppLanguage, localizedText, LocalizedText } from "@/lib/i18n";
 import { PRESET_NOTEBOOK_CATEGORIES, PRESET_NOTEBOOK_SEEDS, PRESET_NOTEBOOK_SEEDS_AS_SEEDED } from "@/lib/notebook-formulas";
@@ -10,11 +11,12 @@ import type { NotebookSeedConstant } from "@/lib/notebook-formulas/types";
 import { pushNotebookHistoryEntry, removeNotebookHistoryEntry, type NotebookHistoryEntry } from "@/lib/notebook-history";
 import { PresetPriceProfile, resolvePresetPriceProfile } from "@/lib/preset-price-defaults";
 import { applyPresetNotebookOverrides, type ImportedNotebook, type PresetNotebookOverride } from "@/lib/notebooks-backup";
-import { parseConstantDefinition, Quantity, SavedConstant } from "@/lib/units";
+import { parseConstantDefinition, Quantity, SavedConstant, setCustomUnits as setCustomUnitsRegistry, type CustomUnitRegistration } from "@/lib/units";
 
 const CONSTANTS_STORAGE_KEY = "si-unit-calculator.constants.v1";
 const HISTORY_STORAGE_KEY = "si-unit-calculator.history.v1";
 const FAVORITE_UNITS_STORAGE_KEY = "si-unit-calculator.favorite-units.v1";
+const CUSTOM_UNITS_STORAGE_KEY = "si-unit-calculator.custom-units.v1";
 const NOTES_STORAGE_KEY = "si-unit-calculator.notes.v1";
 const CLEARED_CONSTANTS_STORAGE_KEY = "si-unit-calculator.cleared-constants.v1";
 const NOTEBOOKS_STORAGE_KEY = "si-unit-calculator.notebooks.v1";
@@ -147,6 +149,7 @@ type CalculatorStore = {
   constants: SavedConstant[];
   history: SavedCalculation[];
   favoriteUnits: string[];
+  customUnits: CustomUnit[];
   notebooks: CalculationNotebook[];
   notebookCategories: NotebookCategory[];
   notebookHistory: NotebookHistoryEntry[];
@@ -163,6 +166,8 @@ type CalculatorStore = {
   addHistoryEntry: (entry: SavedCalculation) => Promise<void>;
   clearHistory: () => Promise<void>;
   toggleFavoriteUnit: (unit: string) => Promise<void>;
+  saveCustomUnit: (unit: CustomUnit) => Promise<void>;
+  deleteCustomUnit: (symbol: string) => Promise<void>;
   upsertNotebook: (input: Omit<CalculationNotebook, "id" | "createdAt" | "updatedAt" | "pinned" | "isPreset"> & { id?: string }) => Promise<CalculationNotebook>;
   importNotebooks: (entries: ImportedNotebook[], mode: "merge" | "replace", presetOverrides: PresetNotebookOverride[]) => Promise<{ notebookCount: number; presetOverrideCount: number }>;
   removeNotebook: (id: string) => Promise<void>;
@@ -184,6 +189,35 @@ function isSavedConstant(value: unknown): value is SavedConstant {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<SavedConstant>;
   return typeof candidate.symbol === "string" && typeof candidate.expression === "string" && typeof candidate.createdAt === "string" && typeof candidate.quantity?.siValue === "number" && Array.isArray(candidate.quantity.dimension) && candidate.quantity.dimension.length === 7;
+}
+
+// 壊れた保存データ（他端末からの古いバックアップ、手動編集された可能性のあるAsyncStorageの中身など）が
+// 混ざっていても起動を落とさないよう、他のisSavedXxxと同じ「怪しい要素はfilterで捨てる」防御にする。
+// dimensionは7要素の数値配列であることまで見る（lib/units.tsのDimensionはタプルだが、
+// AsyncStorageから読んだ値には型情報が付かないため実行時に長さと要素の型を検証する必要がある）。
+// 記号の形式チェックは isUsableCustomUnitSymbol（lib/custom-units.ts）に一本化する。
+// 以前はここで「空文字でなければOK」しか見ておらず、保存データに symbol: "m" のような
+// 組み込み単位と衝突する記号や数字入りの記号が混ざっていても素通りしていた。組み込みが
+// 常に優先されるため、そういう記号は設定画面には並ぶのに式では絶対に解決されない
+// 「幽霊単位」になる。
+function isCustomUnit(value: unknown): value is CustomUnit {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<CustomUnit>;
+  return typeof candidate.symbol === "string" && isUsableCustomUnitSymbol(candidate.symbol)
+    && typeof candidate.expression === "string"
+    // scaleが0の単位は convertQuantity の除算で Infinity になるので、壊れた保存データとして落とす
+    // （parseCustomUnitはzeroScaleで弾くが、ここは保存済みデータが壊れている場合の防御）。
+    && typeof candidate.scale === "number" && Number.isFinite(candidate.scale) && candidate.scale !== 0
+    && typeof candidate.offset === "number" && Number.isFinite(candidate.offset)
+    && Array.isArray(candidate.dimension) && candidate.dimension.length === 7
+    && candidate.dimension.every((component) => typeof component === "number" && Number.isFinite(component));
+}
+
+// CustomUnit（保存形。再編集用にexpressionも持つ）→ CustomUnitRegistration（lib/units.tsの
+// エンジンが要求する最小形）への変換。2箇所（初回ロード時とsave/delete後の再登録時）から
+// 同じ変換を呼ぶので、ズレないよう1箇所にまとめる。
+function toCustomUnitRegistration(unit: CustomUnit): CustomUnitRegistration {
+  return { symbol: unit.symbol, scale: unit.scale, offset: unit.offset, dimension: unit.dimension };
 }
 
 function isSavedCalculation(value: unknown): value is SavedCalculation {
@@ -435,6 +469,9 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
   const [constants, setConstants] = useState<SavedConstant[]>([]);
   const [history, setHistory] = useState<SavedCalculation[]>([]);
   const [favoriteUnits, setFavoriteUnits] = useState<string[]>([]);
+  // setCustomUnitsという名前はlib/units.tsが公開する登録関数（エンジン側の名前）と衝突するため、
+  // このProviderのReact stateセッターはsetCustomUnitsStateという別名にしておく。
+  const [customUnits, setCustomUnitsState] = useState<CustomUnit[]>([]);
   const [notebooks, setNotebooks] = useState<CalculationNotebook[]>([]);
   const [notebookCategories, setNotebookCategories] = useState<NotebookCategory[]>([]);
   const [notebookHistory, setNotebookHistory] = useState<NotebookHistoryEntry[]>([]);
@@ -455,6 +492,36 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
   const persistFavoriteUnits = useCallback(async (next: string[]) => {
     setFavoriteUnits(next);
     await AsyncStorage.setItem(FAVORITE_UNITS_STORAGE_KEY, JSON.stringify(next));
+  }, []);
+
+  // 自作単位はここで保存すると同時に、lib/units.tsのエンジンへも再登録する。エンジンの
+  // レジストリ（BASE_UNITSに足すのではなく別枠で持つ解決テーブル）はモジュール読み込み時に
+  // 空で始まるだけのメモリ上の状態でAsyncStorageには一切触れないため、保存・削除のたびに
+  // ここから明示的にsetCustomUnitsRegistryを呼ばないと、次に式を評価したときに反映されない。
+  //
+  // 他のpersistXxxとは逆に、ここだけAsyncStorage.setItemを先にawaitしてから
+  // state・レジストリを更新する。自作単位は保存に失敗すると「エンジンは新しい単位を
+  // 解決できるのに次回起動では消えている」という食い違いになり、しかもレジストリまで
+  // 書き換わっているぶん他のpersistXxx（stateだけが食い違う）より影響が大きいため。
+  //
+  // notebooksRefと同じ理由でrefも持つ。saveCustomUnit/deleteCustomUnitは直前の一覧を基準に
+  // 次の配列を組み立てるため、stateのクロージャだけを見ていると、保存中（awaitの間）に
+  // 2回目の操作が走ったときに古い一覧を基準にしてしまう（自作単位を2つ続けて削除すると
+  // 1つ目が復活する）。上のようにsetItemを先にawaitする分この窓が広いので、refは
+  // awaitより前に同期更新し、保存に失敗したときだけ巻き戻す。
+  const customUnitsRef = useRef<CustomUnit[]>(customUnits);
+  const persistCustomUnits = useCallback(async (next: CustomUnit[]) => {
+    const previous = customUnitsRef.current;
+    customUnitsRef.current = next;
+    try {
+      await AsyncStorage.setItem(CUSTOM_UNITS_STORAGE_KEY, JSON.stringify(next));
+    } catch (error) {
+      // 後続の操作が既に別の値を入れている場合は巻き戻さない（その値のほうが新しい）。
+      if (customUnitsRef.current === next) customUnitsRef.current = previous;
+      throw error;
+    }
+    setCustomUnitsState(next);
+    setCustomUnitsRegistry(next.map(toCustomUnitRegistration));
   }, []);
 
   // toggleNotebookPinnedなど、直前の呼び出し結果を踏まえて計算する更新が連続で呼ばれても
@@ -514,6 +581,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           constantsRaw,
           historyRaw,
           favoriteUnitsRaw,
+          customUnitsRaw,
           notebooksRaw,
           notebookCategoriesRaw,
           notebookHistoryRaw,
@@ -526,6 +594,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           AsyncStorage.getItem(CONSTANTS_STORAGE_KEY),
           AsyncStorage.getItem(HISTORY_STORAGE_KEY),
           AsyncStorage.getItem(FAVORITE_UNITS_STORAGE_KEY),
+          AsyncStorage.getItem(CUSTOM_UNITS_STORAGE_KEY),
           AsyncStorage.getItem(NOTEBOOKS_STORAGE_KEY),
           AsyncStorage.getItem(NOTEBOOK_CATEGORIES_STORAGE_KEY),
           AsyncStorage.getItem(NOTEBOOK_HISTORY_STORAGE_KEY),
@@ -615,6 +684,23 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         setConstants(parseStoredArray(constantsRaw).filter(isSavedConstant));
         setHistory(parseStoredArray(historyRaw).filter(isSavedCalculation));
         setFavoriteUnits(parseStoredArray(favoriteUnitsRaw).filter((unit): unit is string => typeof unit === "string"));
+        {
+          // エンジンのレジストリ（lib/units.tsのsetCustomUnits）はモジュール状態でAsyncStorageに
+          // 永続化されないので、アプリ起動のたびにここで読み込んだ内容を必ず再登録し直す
+          // （でないと再起動直後は自作単位が式の中で一切解決できない）。
+          // 記号が重複していた場合は先勝ちで1つに絞る。setCustomUnitsRegistryは記号をキーに
+          // 上書き登録するだけで重複を検出しないため、壊れた保存データに同じ記号が複数あると
+          // 黙って後の要素が勝ってしまい、設定画面の一覧と実際に解決される単位がズレる。
+          const seenCustomUnitSymbols = new Set<string>();
+          const loadedCustomUnits = parseStoredArray(customUnitsRaw).filter(isCustomUnit).filter((unit) => {
+            if (seenCustomUnitSymbols.has(unit.symbol)) return false;
+            seenCustomUnitSymbols.add(unit.symbol);
+            return true;
+          });
+          customUnitsRef.current = loadedCustomUnits;
+          setCustomUnitsState(loadedCustomUnits);
+          setCustomUnitsRegistry(loadedCustomUnits.map(toCustomUnitRegistration));
+        }
         notebooksRef.current = nextNotebooks;
         setNotebooks(nextNotebooks);
         {
@@ -636,6 +722,9 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         setConstants([]);
         setHistory([]);
         setFavoriteUnits([]);
+        customUnitsRef.current = [];
+        setCustomUnitsState([]);
+        setCustomUnitsRegistry([]);
         notebooksRef.current = [];
         setNotebooks([]);
         notebookCategoriesRef.current = [];
@@ -747,6 +836,17 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     const next = favoriteUnits.includes(unit) ? favoriteUnits.filter((item) => item !== unit) : [...favoriteUnits, unit];
     await persistFavoriteUnits(next);
   }, [favoriteUnits, persistFavoriteUnits]);
+
+  // 同じ記号の自作単位が既にあれば置き換える（編集）。無ければ追加する。
+  // 直前の一覧はstateではなくrefから読む（連続操作で古い配列を基準にしないため）。
+  const saveCustomUnit = useCallback(async (unit: CustomUnit) => {
+    const next = [...customUnitsRef.current.filter((item) => item.symbol !== unit.symbol), unit];
+    await persistCustomUnits(next);
+  }, [persistCustomUnits]);
+
+  const deleteCustomUnit = useCallback(async (symbol: string) => {
+    await persistCustomUnits(customUnitsRef.current.filter((item) => item.symbol !== symbol));
+  }, [persistCustomUnits]);
 
   const upsertNotebook = useCallback(async (input: Omit<CalculationNotebook, "id" | "createdAt" | "updatedAt" | "pinned" | "isPreset"> & { id?: string }) => {
     const now = new Date().toISOString();
@@ -912,18 +1012,18 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(
     () => ({
-      constants, history, favoriteUnits, notebooks, notebookCategories, notebookHistory, activeNotebookId,
+      constants, history, favoriteUnits, customUnits, notebooks, notebookCategories, notebookHistory, activeNotebookId,
       hasRestorableConstants: clearedConstants.length > 0, isLoading,
       upsertConstant, removeConstant, importConstants, clearConstants, restoreClearedConstants,
-      addHistoryEntry, clearHistory, toggleFavoriteUnit,
+      addHistoryEntry, clearHistory, toggleFavoriteUnit, saveCustomUnit, deleteCustomUnit,
       upsertNotebook, importNotebooks, removeNotebook, resetPresetNotebooks, toggleNotebookPinned, upsertNotebookCategory, removeNotebookCategory,
       recordNotebookUse, removeNotebookHistoryEntry: removeNotebookHistoryEntryById, clearNotebookHistory, setActiveNotebookId,
     }),
     [
-      constants, history, favoriteUnits, notebooks, notebookCategories, notebookHistory, activeNotebookId,
+      constants, history, favoriteUnits, customUnits, notebooks, notebookCategories, notebookHistory, activeNotebookId,
       clearedConstants.length, isLoading,
       upsertConstant, removeConstant, importConstants, clearConstants, restoreClearedConstants,
-      addHistoryEntry, clearHistory, toggleFavoriteUnit,
+      addHistoryEntry, clearHistory, toggleFavoriteUnit, saveCustomUnit, deleteCustomUnit,
       upsertNotebook, importNotebooks, removeNotebook, resetPresetNotebooks, toggleNotebookPinned, upsertNotebookCategory, removeNotebookCategory,
       recordNotebookUse, removeNotebookHistoryEntryById, clearNotebookHistory, setActiveNotebookId,
     ],
