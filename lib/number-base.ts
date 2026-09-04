@@ -14,8 +14,6 @@ export const BASE_META: Record<NumberBase, { label: string; prefix: string }> = 
   16: { label: "HEX", prefix: "0x" },
 };
 
-export type BaseRow = { base: NumberBase; label: string; text: string; isActive: boolean };
-
 export type BaseParseErrorCode = "empty" | "invalidDigits" | "outOfRange";
 export type BaseParseResult = { status: "ok"; value: number } | { status: "error"; code: BaseParseErrorCode };
 
@@ -42,34 +40,39 @@ export function canRepresentInBase(quantity: Quantity | undefined): boolean {
   return isDimensionless && Number.isSafeInteger(quantity.siValue);
 }
 
+// 符号・接頭辞・桁を分けて返す。画面が接頭辞だけ別の色で描くために使う。
+export type BaseTextParts = { sign: string; prefix: string; digits: string };
+
 /**
- * 数値を指定した基数の接頭辞付き文字列にする。安全整数でなければnull。
- * - 16進は大文字（0xFF。0xffにはしない）。
- * - 負数は符号＋絶対値の文字列にする（-255 → "-0xFF"）。2の補数は使わない。
+ * 数値を指定した基数の符号・接頭辞・桁に分解する。安全整数でなければnull。
+ * - 16進は大文字（FF。ffにはしない）。
+ * - 負数は符号＋絶対値の文字列にする（-255 → sign:"-", digits:"FF"）。2の補数は使わない。
  *   2の補数はビット幅（8/16/32/64bit等）を決めないと表現が定まらないが、
  *   このアプリにはビット幅という概念自体が無いため、常に成立する符号＋絶対値にしている。
  */
-export function formatInBase(value: number, base: NumberBase): string | null {
+export function formatInBaseParts(value: number, base: NumberBase): BaseTextParts | null {
   if (!Number.isSafeInteger(value)) return null;
   const meta = BASE_META[base];
   const sign = value < 0 ? "-" : "";
   const digits = Math.abs(value).toString(base);
-  const text = base === 16 ? digits.toUpperCase() : digits;
-  return `${sign}${meta.prefix}${text}`;
+  return { sign, prefix: meta.prefix, digits: base === 16 ? digits.toUpperCase() : digits };
 }
 
-/** 現在の結果を、表示順（NUMBER_BASES）の各基数で1行ずつ並べる。対象外なら空配列。 */
-export function buildBaseRows(quantity: Quantity | undefined, activeBase: NumberBase): BaseRow[] {
-  if (!canRepresentInBase(quantity)) return [];
-  // canRepresentInBaseがtrueを返した時点でquantityは存在し、siValueは安全整数なので、
-  // formatInBaseがnullを返すことは無い（呼び出し不変条件）。
-  const siValue = (quantity as Quantity).siValue;
-  return NUMBER_BASES.map((base) => ({
-    base,
-    label: BASE_META[base].label,
-    text: formatInBase(siValue, base) ?? "",
-    isActive: base === activeBase,
-  }));
+/** 数値を指定した基数の接頭辞付き文字列にする。組み立ては必ずformatInBasePartsに任せ、ここでは連結だけ行う。 */
+export function formatInBase(value: number, base: NumberBase): string | null {
+  const parts = formatInBaseParts(value, base);
+  if (!parts) return null;
+  return `${parts.sign}${parts.prefix}${parts.digits}`;
+}
+
+/** その基数で使える桁文字（大文字）。例: 16なら "0123456789ABCDEF"。 */
+export function baseDigits(base: NumberBase): string {
+  return "0123456789ABCDEF".slice(0, base);
+}
+
+/** 1文字がその基数の桁として使えるか（大文字小文字どちらも受け付ける）。 */
+export function isBaseDigitAllowed(character: string, base: NumberBase): boolean {
+  return baseDigits(base).includes(character.toUpperCase());
 }
 
 /**

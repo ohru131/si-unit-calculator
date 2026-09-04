@@ -28,7 +28,7 @@ import { exportCalculationHistory } from "@/lib/calculation-export";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { historyToAutoConstants } from "@/lib/history-auto-constants";
 import { localizedText, type AppLanguage } from "@/lib/i18n";
-import { BASE_META, buildBaseRows, NUMBER_BASES, parseBaseInput, type NumberBase } from "@/lib/number-base";
+import { BASE_META, canRepresentInBase, formatInBaseParts, isBaseDigitAllowed, NUMBER_BASES, parseBaseInput, type NumberBase } from "@/lib/number-base";
 import { getCalculatorQuickShortcut } from "@/lib/quick-shortcuts";
 import { usePro } from "@/lib/revenuecat-provider";
 import { buildUnitComparisonRows } from "@/lib/unit-comparison";
@@ -54,6 +54,11 @@ import { formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, getReg
 // "="の隣に残すことで、誤爆したときの実害を最小にする配置にしている。
 const KEYS = ["(", ")", "÷", "AC", "7", "8", "9", "×", "4", "5", "6", "-", "1", "2", "3", "+", ".", "0", "⌫", "="];
 const ADVANCED_KEYS = ["sin(", "cos(", "tan(", "asin(", "acos(", "atan(", "atan2(", "ln(", "log(", "log2(", "sqrt(", "^", "π", "e"];
+// 16進の入力モード専用。キーパッド本体の配置は変えず、直上に小さな別の行として出す。
+const HEX_LETTER_KEYS = ["A", "B", "C", "D", "E", "F"];
+// 進数入力モード中に押せてはいけないキー（演算子・小数点・括弧）。16進の桁のまま演算に入ると
+// 評価器が解釈できないため、まず = で10進へ確定させてから通常の式に組み込む運用にする。
+const BASE_INPUT_DISABLED_KEYS = ["(", ")", "÷", "×", "-", "+", "."];
 const RAIL_LIMIT = 8;
 const RECENT_UNIT_LIMIT = 8;
 
@@ -86,14 +91,6 @@ const EN_COPY = {
   csvExportFailed: "Could not export the CSV file.",
   compareUnits: "Compare units",
   compareUnitsHint: "Tap a row to show the result in that unit.",
-  numberBase: "Bases",
-  numberBaseHint: "Whole numbers without units only.",
-  numberBaseResultLabel: "Current result",
-  numberBaseInputLabel: "Convert a value",
-  numberBaseInsert: "Insert",
-  numberBaseUnavailable: "Base conversion needs a whole number with no unit.",
-  numberBaseInvalid: "Not a valid number in this base.",
-  numberBaseOutOfRange: "This value is too large to convert exactly.",
   sampleConfirmTitle: "Load an example?",
   sampleConfirmMessage: "The expression you have typed will be replaced.",
   sampleConfirmButton: "Load",
@@ -126,14 +123,6 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     csvExportFailed: "CSVを出力できませんでした。",
     compareUnits: "単位を比較",
     compareUnitsHint: "行をタップするとその単位で表示します。",
-    numberBase: "進数",
-    numberBaseHint: "単位の付かない整数だけが対象です。",
-    numberBaseResultLabel: "現在の結果",
-    numberBaseInputLabel: "値を変換",
-    numberBaseInsert: "式に挿入",
-    numberBaseUnavailable: "進数変換は、単位の付かない整数にのみ使えます。",
-    numberBaseInvalid: "この基数では使えない文字が含まれています。",
-    numberBaseOutOfRange: "この値は大きすぎて正確に変換できません。",
     sampleConfirmTitle: "サンプルを読み込みますか？",
     sampleConfirmMessage: "入力中の式は置き換えられます。",
     sampleConfirmButton: "読み込む",
@@ -164,14 +153,6 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     csvExportFailed: "No se pudo exportar el archivo CSV.",
     compareUnits: "Comparar unidades",
     compareUnitsHint: "Toca una fila para mostrar el resultado en esa unidad.",
-    numberBase: "Bases",
-    numberBaseHint: "Solo números enteros sin unidad.",
-    numberBaseResultLabel: "Resultado actual",
-    numberBaseInputLabel: "Convertir un valor",
-    numberBaseInsert: "Insertar",
-    numberBaseUnavailable: "La conversión de base requiere un número entero sin unidad.",
-    numberBaseInvalid: "No es un número válido en esta base.",
-    numberBaseOutOfRange: "Este valor es demasiado grande para convertirlo con exactitud.",
     sampleConfirmTitle: "¿Cargar un ejemplo?",
     sampleConfirmMessage: "Se reemplazará la expresión que has escrito.",
     sampleConfirmButton: "Cargar",
@@ -202,14 +183,6 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     csvExportFailed: "Não foi possível exportar o arquivo CSV.",
     compareUnits: "Comparar unidades",
     compareUnitsHint: "Toque em uma linha para exibir o resultado nessa unidade.",
-    numberBase: "Bases",
-    numberBaseHint: "Apenas números inteiros sem unidade.",
-    numberBaseResultLabel: "Resultado atual",
-    numberBaseInputLabel: "Converter um valor",
-    numberBaseInsert: "Inserir",
-    numberBaseUnavailable: "A conversão de base exige um número inteiro sem unidade.",
-    numberBaseInvalid: "Não é um número válido nesta base.",
-    numberBaseOutOfRange: "Este valor é grande demais para converter com exatidão.",
     sampleConfirmTitle: "Carregar um exemplo?",
     sampleConfirmMessage: "A expressão que você digitou será substituída.",
     sampleConfirmButton: "Carregar",
@@ -240,14 +213,6 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     csvExportFailed: "Die CSV-Datei konnte nicht exportiert werden.",
     compareUnits: "Einheiten vergleichen",
     compareUnitsHint: "Tippe auf eine Zeile, um das Ergebnis in dieser Einheit anzuzeigen.",
-    numberBase: "Zahlensysteme",
-    numberBaseHint: "Nur ganze Zahlen ohne Einheit.",
-    numberBaseResultLabel: "Aktuelles Ergebnis",
-    numberBaseInputLabel: "Wert umrechnen",
-    numberBaseInsert: "Einfügen",
-    numberBaseUnavailable: "Die Umrechnung braucht eine ganze Zahl ohne Einheit.",
-    numberBaseInvalid: "Keine gültige Zahl in diesem Zahlensystem.",
-    numberBaseOutOfRange: "Dieser Wert ist zu groß für eine exakte Umrechnung.",
     sampleConfirmTitle: "Beispiel laden?",
     sampleConfirmMessage: "Der eingegebene Ausdruck wird ersetzt.",
     sampleConfirmButton: "Laden",
@@ -278,14 +243,6 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     csvExportFailed: "Impossible d'exporter le fichier CSV.",
     compareUnits: "Comparer les unités",
     compareUnitsHint: "Touchez une ligne pour afficher le résultat dans cette unité.",
-    numberBase: "Bases",
-    numberBaseHint: "Uniquement des nombres entiers sans unité.",
-    numberBaseResultLabel: "Résultat actuel",
-    numberBaseInputLabel: "Convertir une valeur",
-    numberBaseInsert: "Insérer",
-    numberBaseUnavailable: "La conversion de base nécessite un nombre entier sans unité.",
-    numberBaseInvalid: "Nombre non valide dans cette base.",
-    numberBaseOutOfRange: "Cette valeur est trop grande pour être convertie exactement.",
     sampleConfirmTitle: "Charger un exemple ?",
     sampleConfirmMessage: "L'expression que vous avez saisie sera remplacée.",
     sampleConfirmButton: "Charger",
@@ -364,11 +321,11 @@ export default function CalculatorScreen() {
   const [showAdvancedKeys, setShowAdvancedKeys] = useState(false);
   // 単位比較表はデフォルト折りたたみ。永続化はしない（開閉状態は画面を開くたびリセットしてよい）。
   const [showComparison, setShowComparison] = useState(false);
-  // 進数（2/8/16進）シート。showComparisonと同様、開閉状態・入力途中の値は永続化しない。
-  const [showNumberBase, setShowNumberBase] = useState(false);
-  const [numberBaseInput, setNumberBaseInput] = useState("");
-  const [inputBase, setInputBase] = useState<NumberBase>(16);
+  // 結果カードの大きい数値をどの基数で描くか（表示モード）。showComparisonと同様、永続化しない。
   const [activeBase, setActiveBase] = useState<NumberBase>(10);
+  // 式が空のときだけ有効になる、進数の桁を直接打ち込むモード。nullなら通常の電卓。
+  // showComparisonと同様、永続化しない（画面を開くたびリセットしてよい）。
+  const [baseInputMode, setBaseInputMode] = useState<NumberBase | null>(null);
   const [unitPickerMode, setUnitPickerMode] = useState<"insert" | "target">("insert");
   const [unitInfoSymbol, setUnitInfoSymbol] = useState<string | null>(null);
   const [unitSearch, setUnitSearch] = useState("");
@@ -551,15 +508,27 @@ export default function CalculatorScreen() {
     });
   }, [display, expression, locale, measuringStandard, result, targetUnit, unitSystem]);
 
-  const baseRows = useMemo(() => buildBaseRows(result ?? undefined, activeBase), [activeBase, result]);
-  // 空入力のときはエラーを出さない方針（=を押すまでエラーを出さない既存の電卓の方針に合わせる）ため、
-  // パース結果とは別に「まだ何も打っていない」かどうかを見る。
-  const numberBaseParse = useMemo(() => parseBaseInput(numberBaseInput, inputBase), [inputBase, numberBaseInput]);
-  // parseBaseInput が "empty" を返すのは trim 後に空のときだけで、それはこの左辺の条件と
-  // 完全に一致する。つまり "empty" 用の文言は絶対に表示されないので分岐にも文言にも持たない。
-  const numberBaseErrorKey = !numberBaseInput.trim() || numberBaseParse.status === "ok"
-    ? null
-    : numberBaseParse.code === "outOfRange" ? "numberBaseOutOfRange" : "numberBaseInvalid";
+  // 進数入力モード中の変換結果。expressionには接頭辞を含まない生の桁だけが入っている
+  // （接頭辞は表示のときだけ足す）ので、パースにも接頭辞なしの生の桁をそのまま渡す。
+  const baseInputParse = useMemo(
+    () => (baseInputMode !== null ? parseBaseInput(expression, baseInputMode) : null),
+    [baseInputMode, expression],
+  );
+  // 基数チップを出す条件は次の2つのどちらか（互いに排他なので衝突しない）:
+  // ①式が空 → 入力モードを新しく始められる状態。②無次元の安全整数の結果があり、かつ表示単位が
+  // 空 → 表示モードでその結果を別の基数で読み替えられる状態。表示単位が付いていると画面の数値と
+  // siValueが食い違う（例: 200%は画面表示が200・siValueは2）ため、その場合はsiValueの基数表記を
+  // 出さない（screen上の数値と矛盾する表記を避ける）。
+  // 入力モード中は式が空でなくなる（FFなど）ため、モード中であることを条件に足さないと
+  // 最初の1文字を打った瞬間にチップが消え、今どの基数で打っているのかも分からなくなる。
+  const showBaseChips = baseInputMode !== null || !expression.trim() || (canRepresentInBase(result ?? undefined) && !targetUnit.trim());
+  // 大きい数値の基数表示も上と同じ条件（無次元の安全整数・表示単位が空）でだけ行う。この条件を
+  // 外すと、進数表示に切り替えた後に単位付きの式へ書き換えたときactiveBaseが10のまま残らず、
+  // 単位付きの値を誤って基数表記してしまう。
+  const resultBaseParts = useMemo(
+    () => (result && activeBase !== 10 && canRepresentInBase(result) && !targetUnit.trim() ? formatInBaseParts(result.siValue, activeBase) : null),
+    [activeBase, result, targetUnit],
+  );
 
   const rememberUnit = (symbol: string) => {
     const trimmed = symbol.trim();
@@ -674,6 +643,19 @@ export default function CalculatorScreen() {
   const pressKey = (key: string) => {
     markUserInteraction();
     if (key === "=") {
+      if (baseInputMode !== null) {
+        // 進数入力モードでは = は「計算の確定」ではなく「その基数の生の桁を10進の数値へ確定する」
+        // 操作。変換できないとき（空・不正な桁）は何もしない。=を押すまでエラーを出さない
+        // 通常の電卓の方針に合わせ、ここでもエラー表示はしない。
+        const parsed = parseBaseInput(expression, baseInputMode);
+        if (parsed.status === "ok") {
+          const decimalText = String(parsed.value);
+          setExpression(decimalText);
+          placeCaret(decimalText.length);
+          setBaseInputMode(null);
+        }
+        return;
+      }
       void calculate();
       return;
     }
@@ -682,13 +664,14 @@ export default function CalculatorScreen() {
     setError("");
     setNotice("");
     if (key === "AC") {
-      // 全消し：式・キャレット位置・表示単位の指定・計算結果・エラー表示・案内文をまとめて
-      // 初期状態に戻す。式に紐づかない履歴（history）はここでは消さない（履歴シート側に
+      // 全消し：式・キャレット位置・表示単位の指定・計算結果・エラー表示・案内文・進数入力モードを
+      // まとめて初期状態に戻す。式に紐づかない履歴（history）はここでは消さない（履歴シート側に
       // 別の「消去」ボタンがある）。
       setExpression("");
       placeCaret(0);
       setTargetUnit("cm");
       setFixSelection(null);
+      setBaseInputMode(null);
       void Haptics.selectionAsync();
       return;
     }
@@ -712,6 +695,28 @@ export default function CalculatorScreen() {
     setExpression(replaceExpressionRange(expression, start, end, inserted));
     placeCaret(start + inserted.length);
     setFixSelection(null);
+  };
+
+  /**
+   * 基数チップを押したときの効果。式が空なら「入力モードの切り替え」、そうでなければ
+   * 「結果カードの大きい数値を描く基数（表示モード）の切り替え」になる（この2つは
+   * 式が空かどうかで排他的に決まるので、同じチップ列を両方の用途に使い回せる）。
+   */
+  const pressBaseChip = (base: NumberBase) => {
+    // 入力モード中に基数を切り替えると、打ち込み済みの桁が新しい基数では使えない文字を
+    // 含みうる（FFのまま2進にするなど）。変換できない桁を残すと確定も解除もできない
+    // 状態で固まるので、切り替えのタイミングで消す。
+    if (baseInputMode !== null) {
+      setExpression("");
+      placeCaret(0);
+      setBaseInputMode(base === 10 ? null : base);
+      return;
+    }
+    if (!expression.trim()) {
+      setBaseInputMode(base === 10 ? null : base);
+      return;
+    }
+    setActiveBase(base);
   };
 
   const applyTargetUnit = (unit: string) => {
@@ -937,6 +942,25 @@ export default function CalculatorScreen() {
     </Pressable>
   );
 
+  // 進数入力モード中は式が空のときだけ選択できる（DEC以外を押すとモード開始、DEC/ACで解除）。
+  // それ以外（結果が無次元の安全整数かつ表示単位が空）は表示モードとして activeBase を切り替える。
+  // どちらの状態も選択中の基数はこの1つの値で表せる（両立しないため）。
+  const selectedBase = baseInputMode ?? activeBase;
+  const baseChipsRow = showBaseChips ? (
+    <View style={styles.baseChipRow}>
+      {NUMBER_BASES.map((base) => (
+        <Pressable
+          accessibilityLabel={BASE_META[base].label}
+          key={base}
+          onPress={() => { markUserInteraction(); pressBaseChip(base); }}
+          style={({ pressed }) => [styles.baseChip, selectedBase === base && styles.baseChipActive, pressed && styles.pressed]}
+        >
+          <Text style={[styles.baseChipText, selectedBase === base && styles.baseChipTextActive]}>{BASE_META[base].label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  ) : null;
+
   return (
     <ScreenContainer className="px-4" containerClassName="bg-background">
       <View style={styles.screen}>
@@ -979,7 +1003,14 @@ export default function CalculatorScreen() {
             </Pressable>
           </View>
 
-          {expression.trim() ? (
+          {baseInputMode !== null ? (
+            // 進数入力モード中は、16進の桁が単位・識別子として解析されて赤くなってしまうため、
+            // 既存のanalyzeExpressionによるハイライトは使わず「接頭辞＋生の桁」を単純に描く。
+            <View style={styles.previewRow}>
+              <Text style={styles.previewIdentifier}>{BASE_META[baseInputMode].prefix}</Text>
+              <Text style={styles.previewNumber}>{expression}</Text>
+            </View>
+          ) : expression.trim() ? (
             <View style={styles.previewRow}>
               {analysis.segments.map((segment, index) => {
                 const isUnresolved = segment.kind === "unknown-unit" || segment.kind === "unknown-identifier";
@@ -1096,7 +1127,7 @@ export default function CalculatorScreen() {
             <View style={styles.resultCard}>
               <View style={styles.resultHeader}>
                 <Text style={styles.cardLabel}>{t("result")}</Text>
-                {display ? (
+                {baseInputMode === null && display ? (
                   <View style={styles.resultActions}>
                     <Pressable accessibilityLabel={copy.saveTemplate} onPress={() => router.push({ pathname: "/constants", params: { notebookExpression: expression, notebookUnit: targetUnit } })} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
                       <IconSymbol name="bookmark.fill" size={14} color={colors.primary} />
@@ -1107,9 +1138,29 @@ export default function CalculatorScreen() {
                   </View>
                 ) : null}
               </View>
-              {display ? (
+              {baseInputParse && baseInputParse.status === "ok" ? (
+                // 進数入力モード中は通常の量（display）を経由しない。生の桁が偶然そのまま10進数として
+                // 解釈できてしまうケース（例: 2進の"1010"は10進としても妥当）があり、そちらを見せると
+                // 「今どの基数を打っているか」と画面表示が食い違うため、常にparseBaseInputの結果だけを見せる。
                 <>
-                  <Animated.Text numberOfLines={2} adjustsFontSizeToFit style={[styles.resultValue, resultAnimatedStyle]}>{display.value}</Animated.Text>
+                  <Animated.Text numberOfLines={2} adjustsFontSizeToFit style={[styles.resultValue, resultAnimatedStyle]}>
+                    {baseInputParse.value}
+                  </Animated.Text>
+                  {baseChipsRow}
+                </>
+              ) : baseInputMode === null && display ? (
+                <>
+                  <Animated.Text numberOfLines={2} adjustsFontSizeToFit style={[styles.resultValue, resultAnimatedStyle]}>
+                    {activeBase !== 10 && resultBaseParts ? (
+                      <>
+                        {resultBaseParts.sign}
+                        <Text style={{ color: colors.warning }}>{resultBaseParts.prefix}</Text>
+                        {resultBaseParts.digits}
+                      </>
+                    ) : (
+                      display.value
+                    )}
+                  </Animated.Text>
                   <View style={styles.conversionRow}>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.conversionRail} keyboardShouldPersistTaps="handled">
                       <Pressable accessibilityLabel={copy.noUnit} onPress={() => { markUserInteraction(); applyTargetUnit(""); }} style={({ pressed }) => [styles.convertChip, !targetUnit.trim() && styles.convertChipActive, pressed && styles.pressed]}>
@@ -1126,6 +1177,7 @@ export default function CalculatorScreen() {
                       <IconSymbol name="chevron.right" size={11} color={colors.primary} />
                     </Pressable>
                   </View>
+                  {baseChipsRow}
                   {comparisonRows.length > 1 ? (
                     <View style={styles.comparisonSection}>
                       <Pressable
@@ -1168,8 +1220,11 @@ export default function CalculatorScreen() {
                   {display.error ? <Text style={styles.errorText}>{display.error}</Text> : null}
                 </>
               ) : (
+                // 通常の空状態と「進数入力モードだが変換できる桁がまだ無い（空・不正な桁）」の
+                // どちらもここに来る。入力モード中はエラーを出さない方針なので文言は変えない。
                 <>
                   <Text style={styles.emptyResult}>{copy.emptyResult}</Text>
+                  {baseChipsRow}
                   <Pressable accessibilityLabel={copy.outputUnit} onPress={() => openUnitPicker("target")} style={({ pressed }) => [styles.presetOutputUnit, pressed && styles.pressed]}>
                     <Text style={styles.presetOutputUnitLabel}>{copy.outputUnit}</Text>
                     <View style={styles.presetOutputUnitValueWrap}>
@@ -1201,13 +1256,12 @@ export default function CalculatorScreen() {
         </View>
 
         {/* サンプルは式を丸ごと置き換える破壊的な操作なので、キーパッドの延長ではなく
-            「ここから始める」導線として控えめに独立させる（数学・進数とはデザインを分ける）。 */}
+            「ここから始める」導線として控えめに独立させる（数学とはデザインを分ける）。 */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.startRail} keyboardShouldPersistTaps="handled">
           <Pressable onPress={() => setShowSamples(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}>
             <IconSymbol name="book.fill" size={13} color={colors.primary} />
             <Text style={styles.toolButtonText}>{copy.samples}</Text>
           </Pressable>
-          <Pressable onPress={() => setShowNumberBase(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.numberBase}</Text></Pressable>
         </ScrollView>
 
         <CalculatorBannerAd />
@@ -1223,16 +1277,34 @@ export default function CalculatorScreen() {
           ) : null}
         </View>
 
+        {baseInputMode === 16 ? (
+          // 16進の入力モード中だけ、キーパッド本体の配置は変えずに直上へA〜Fの行を足す。
+          <View style={styles.hexKeyRow}>
+            {HEX_LETTER_KEYS.map((letter) => (
+              <Pressable accessibilityLabel={letter} key={letter} onPress={() => pressKey(letter)} style={({ pressed }) => [styles.hexKey, pressed && styles.pressed]}>
+                <Text style={styles.hexKeyText}>{letter}</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
         <View style={styles.keypad}>
           {KEYS.map((key, index) => {
             const isAction = key === "=";
             const isOperator = ["×", "÷", "+", "-"].includes(key);
+            const isDigit = /^[0-9]$/.test(key);
+            // 進数入力モード中は、演算子・小数点・括弧を全面的に無効化し（16進の桁のまま演算に
+            // 入ると評価器が解釈できないため。まず=で10進へ確定させる）、数字キーはその基数で
+            // 使えない桁だけを無効化する（例: 2進なら2〜9が押せない）。
+            const isDisabledForBaseInput = baseInputMode !== null
+              && (BASE_INPUT_DISABLED_KEYS.includes(key) || (isDigit && !isBaseDigitAllowed(key, baseInputMode)));
             return (
               <View key={`${key}-${index}`} style={styles.keyCell}>
                 <Pressable
                   accessibilityLabel={key === "⌫" ? copy.deleteKey : key === "AC" ? copy.clearAllKey : key}
+                  disabled={isDisabledForBaseInput}
                   onPress={() => pressKey(key)}
-                  style={({ pressed }) => [styles.key, isAction && styles.keyAction, isOperator && styles.keyOperator, pressed && styles.keyPressed]}
+                  style={({ pressed }) => [styles.key, isAction && styles.keyAction, isOperator && styles.keyOperator, isDisabledForBaseInput && styles.keyDisabled, pressed && styles.keyPressed]}
                 >
                   {key === "⌫" ? <IconSymbol name="delete.left" size={20} color={colors.muted} /> : <Text style={[styles.keyText, (isAction || isOperator) && styles.keyTextAccent, isAction && { color: colors.onPrimary }]}>{key}</Text>}
                 </Pressable>
@@ -1329,86 +1401,6 @@ export default function CalculatorScreen() {
 
       <Modal visible={showAdvancedKeys} transparent animationType="fade" onRequestClose={() => setShowAdvancedKeys(false)}>
         <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><View style={styles.sheetHeaderMain}><Text style={styles.sheetTitle}>{copy.advancedMath}</Text><Text style={styles.sheetSubtitle}>{copy.advancedMathHint}</Text></View><Pressable accessibilityLabel={copy.close} onPress={() => setShowAdvancedKeys(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.advancedKeyRow}>{ADVANCED_KEYS.map((key) => <Pressable accessibilityLabel={key} key={key} onPress={() => { pressKey(key); setShowAdvancedKeys(false); }} style={({ pressed }) => [styles.advancedKey, pressed && styles.pressed]}><Text style={styles.advancedKeyText}>{key}</Text></Pressable>)}</View></View></View>
-      </Modal>
-
-      <Modal visible={showNumberBase} transparent animationType="slide" onRequestClose={() => setShowNumberBase(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.compactSheet}>
-            <View style={styles.sheetHeader}>
-              <View style={styles.sheetHeaderMain}>
-                <Text style={styles.sheetTitle}>{copy.numberBase}</Text>
-                <Text style={styles.sheetSubtitle}>{copy.numberBaseHint}</Text>
-              </View>
-              <Pressable accessibilityLabel={copy.close} onPress={() => setShowNumberBase(false)} style={styles.closeHelp}>
-                <IconSymbol name="xmark" size={20} color={colors.muted} />
-              </Pressable>
-            </View>
-            {/* このシートはTextInputと押せる要素（基数チップ・挿入ボタン）が同居するので
-                keyboardShouldPersistTaps が要る。無いとキーボードが出ている間の1回目のタップが
-                キーボードを閉じるだけで消費され、「式に挿入」が反応しない。 */}
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
-              <Text style={styles.cardLabel}>{copy.numberBaseResultLabel}</Text>
-              {baseRows.length ? (
-                <View style={styles.comparisonTable}>
-                  {baseRows.map((row) => (
-                    // タップするとその基数の行をハイライトするだけ（activeBaseはこの一覧の表示にしか使わない）。
-                    // display.value（結果カードの大きい数値）は単位表示と競合するため、ここでは絶対に変更しない。
-                    <Pressable key={row.base} accessibilityLabel={`${row.label} ${row.text}`} onPress={() => setActiveBase(row.base)} style={({ pressed }) => [styles.comparisonRow, row.isActive && styles.comparisonRowActive, pressed && styles.pressed]}>
-                      <Text style={[styles.comparisonRowLabel, row.isActive && styles.comparisonRowLabelActive]}>{row.label}</Text>
-                      <Text selectable numberOfLines={1} style={[styles.comparisonRowValue, row.isActive && styles.comparisonRowValueActive]}>{row.text}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              ) : (
-                <Text style={styles.numberBaseEmptyText}>{copy.numberBaseUnavailable}</Text>
-              )}
-
-              <Text style={[styles.cardLabel, styles.numberBaseSectionGap]}>{copy.numberBaseInputLabel}</Text>
-              <View style={styles.conversionRail}>
-                {NUMBER_BASES.map((base) => (
-                  <Pressable
-                    accessibilityLabel={BASE_META[base].label}
-                    key={base}
-                    onPress={() => setInputBase(base)}
-                    style={({ pressed }) => [styles.convertChip, inputBase === base && styles.convertChipActive, pressed && styles.pressed]}
-                  >
-                    <Text style={[styles.convertChipText, inputBase === base && styles.convertChipTextActive]}>{BASE_META[base].label}</Text>
-                  </Pressable>
-                ))}
-              </View>
-              <View style={styles.numberBaseInputRow}>
-                <TextInput
-                  value={numberBaseInput}
-                  onChangeText={setNumberBaseInput}
-                  placeholder={`${BASE_META[inputBase].prefix}0`}
-                  placeholderTextColor={colors.placeholder}
-                  autoCapitalize="characters"
-                  autoCorrect={false}
-                  style={styles.numberBaseInput}
-                />
-                <Pressable
-                  accessibilityLabel={copy.numberBaseInsert}
-                  disabled={numberBaseParse.status !== "ok"}
-                  onPress={() => {
-                    if (numberBaseParse.status !== "ok") return;
-                    // 挿入は既存のキャレット挿入の経路（pressKey）をそのまま使う。markUserInteraction()も
-                    // pressKeyの中で呼ばれるので、ここで別途呼ぶ必要は無い。
-                    pressKey(String(numberBaseParse.value));
-                    setShowNumberBase(false);
-                  }}
-                  style={({ pressed }) => [styles.numberBaseInsertButton, numberBaseParse.status !== "ok" && styles.numberBaseInsertButtonDisabled, pressed && styles.pressed]}
-                >
-                  <Text style={styles.numberBaseInsertButtonText}>{copy.numberBaseInsert}</Text>
-                </Pressable>
-              </View>
-              {numberBaseParse.status === "ok" ? (
-                <Text selectable style={styles.numberBaseResultText}>{numberBaseParse.value}</Text>
-              ) : numberBaseErrorKey ? (
-                <Text style={styles.messageErrorText}>{copy[numberBaseErrorKey]}</Text>
-              ) : null}
-            </ScrollView>
-          </View>
-        </View>
       </Modal>
 
       <Modal visible={showHistory} transparent animationType="slide" onRequestClose={() => setShowHistory(false)}>
@@ -1601,14 +1593,13 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   comparisonRowValue: { color: colors.foreground, flexShrink: 1, fontFamily: mono, fontSize: 12, fontWeight: "600", textAlign: "right" },
   comparisonRowValueActive: { color: colors.onPrimary },
 
-  numberBaseEmptyText: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 4 },
-  numberBaseSectionGap: { marginTop: 18 },
-  numberBaseInputRow: { alignItems: "center", flexDirection: "row", gap: 8, marginTop: 10 },
-  numberBaseInput: { backgroundColor: colors.surfaceSecondary, borderRadius: 10, color: colors.foreground, flex: 1, fontFamily: mono, fontSize: 15, paddingHorizontal: 12, paddingVertical: 10 },
-  numberBaseInsertButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 10, justifyContent: "center", paddingHorizontal: 16, paddingVertical: 12 },
-  numberBaseInsertButtonDisabled: { opacity: 0.5 },
-  numberBaseInsertButtonText: { color: colors.onPrimary, fontSize: 13, fontWeight: "800" },
-  numberBaseResultText: { color: colors.foreground, fontFamily: mono, fontSize: 13, fontWeight: "700", marginTop: 8 },
+  // 基数チップは単位チップ（convertChip、primary系）とは別の色にして、単位換算ではなく
+  // 「表記の分類」であることを読ませる（previewIdentifierと同じくwarning系を分類の色として使う）。
+  baseChipRow: { flexDirection: "row", gap: 6, marginTop: 4 },
+  baseChip: { backgroundColor: colors.surface, borderColor: colors.warningBorder, borderRadius: 9, borderWidth: 1, justifyContent: "center", minHeight: 30, paddingHorizontal: 10 },
+  baseChipActive: { backgroundColor: colors.warningSurface, borderColor: colors.warning },
+  baseChipText: { color: colors.muted, fontFamily: mono, fontSize: 12, fontWeight: "800" },
+  baseChipTextActive: { color: colors.warning, fontWeight: "800" },
 
   siRow: { alignItems: "center", flexDirection: "row", gap: 8, justifyContent: "space-between", marginTop: 7 },
   siLabel: { color: colors.muted, fontSize: 11 },
@@ -1646,6 +1637,8 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   keyText: { color: colors.foreground, fontFamily: mono, fontSize: 18, fontWeight: "600" },
   keyTextAccent: { color: colors.primary },
   keyPressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
+  // 進数入力モードでその基数の桁として使えないキー・演算子キーを薄く見せる（押せないことを示す）。
+  keyDisabled: { opacity: 0.35 },
   pressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
   iconPressed: { opacity: 0.55 },
   cardPressed: { opacity: 0.7 },
@@ -1672,6 +1665,12 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   advancedKeyRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
   advancedKey: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 10, borderWidth: 1, justifyContent: "center", minHeight: 38, minWidth: 54, paddingHorizontal: 10 },
   advancedKeyText: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },
+
+  // advancedKeyの色使いを踏襲した、16進入力モード専用の小さめのA〜F行。キーパッド本体
+  // （styles.keypad/key）はここでは一切変えない。
+  hexKeyRow: { flexDirection: "row", gap: 6, marginTop: 6 },
+  hexKey: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, flex: 1, justifyContent: "center", minHeight: 32 },
+  hexKeyText: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },
 
   historyActions: { alignItems: "center", flexDirection: "row", gap: 10 },
   exportHistoryButton: { alignItems: "center", flexDirection: "row", gap: 3, padding: 4 },
