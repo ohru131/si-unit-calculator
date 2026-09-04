@@ -184,6 +184,11 @@ const config: ExpoConfig = {
     // （eas build, expo run:ios/android）には一切影響しない。
     ...(process.env.GITHUB_PAGES_BASE_PATH ? { baseUrl: process.env.GITHUB_PAGES_BASE_PATH } : {}),
   },
+  extra: {
+    eas: {
+      projectId: "5169bfd6-c7f3-4de9-8656-0c78bd3844a0",
+    },
+  },
 };
 
 export default config;
