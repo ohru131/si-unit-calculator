@@ -530,6 +530,18 @@ const DYNAMIC_VOLUME_ALIASES: Record<string, "cup" | "tbsp" | "tsp"> = {
   teaspoons: "tsp",
 };
 
+export type CustomUnitRegistration = { symbol: string; scale: number; offset?: number; dimension: Dimension };
+
+// ユーザー定義単位。組み込みと同じ UnitDefinition の形で持ち、resolveUnitSymbol の**最後**に引く。
+// 最後に引くことが最重要の不変条件で、これにより「今日すでに解決できている記号」の解決結果は
+// ユーザーが何を登録しても一切変わらない（完全一致 → SI接頭辞分解 の順序を保ったまま、
+// どちらでも解決できなかった場合の受け皿としてだけ働く）。
+//
+// 宣言をこの位置（別表記の自動登録ループより前）に置くのは意図的。あのループは中で
+// resolveUnitSymbol を呼ぶので、宣言が後ろにあると初期化前アクセス（TDZ）になり
+// ReferenceError がループの catch に飲まれて、別表記が黙って登録されなくなる。
+let customUnits: Record<string, UnitDefinition> = {};
+
 // UNIT_META の英字の別表記（sec, hour, millisecond など）を、計算にも使える表記として自動登録する。
 // ms のように接頭辞から導かれる単位も resolveUnitSymbol で解決してから登録する。
 // 日本語の読みなど計算式に入力できない別表記はここでは対象外にする。
@@ -548,7 +560,21 @@ Object.entries(UNIT_META).forEach(([symbol, meta]) => {
   });
 });
 
-function resolveUnitSymbol(symbol: string): UnitDefinition {
+export function setCustomUnits(definitions: CustomUnitRegistration[]) {
+  const next: Record<string, UnitDefinition> = {};
+  definitions.forEach((definition) => {
+    // offsetが0のときはundefinedにする。parseUnitはoffsetを持つ単位を「摂氏・華氏のように
+    // 単独でしか使えない単位」として扱うため、0を入れると倍率だけの単位まで複合単位に
+    // 使えなくなる（例: 自作の長さ単位を "shaku/s" と書けなくなる）。
+    next[definition.symbol] = unit(definition.scale, definition.dimension, definition.offset || undefined);
+  });
+  customUnits = next;
+}
+
+// 組み込みの解決順（動的な計量カップ → BASE_UNITSの完全一致 → SI接頭辞分解）だけで引く。
+// ユーザー定義単位は見ない。登録時の衝突判定（isBuiltInUnitSymbol）と実際の解決で
+// 同じ関数を通すことで、「登録できたのに解決されない」記号が生まれないようにしている。
+function resolveBuiltInUnitSymbol(symbol: string): UnitDefinition | undefined {
   const dynamicKey = DYNAMIC_VOLUME_ALIASES[symbol];
   if (dynamicKey) return unit(MEASURING_STANDARD_VALUES[measuringStandard][dynamicKey], [3, 0, 0, 0, 0, 0, 0]);
 
@@ -561,6 +587,23 @@ function resolveUnitSymbol(symbol: string): UnitDefinition {
       if (base && baseSymbol !== "kg" && base.offset === undefined) return unit(base.scale * scale, base.dimension);
     }
   }
+
+  return undefined;
+}
+
+// その記号が組み込みだけで解決できるか。ユーザー定義単位の登録時に「その記号は既に使われている」と
+// 弾くために使う。弾かずに上書きを許すと、例えば "dm"（デシメートル）を自作単位にした瞬間に
+// 既存の式の意味が変わる。
+export function isBuiltInUnitSymbol(symbol: string): boolean {
+  return resolveBuiltInUnitSymbol(symbol) !== undefined;
+}
+
+function resolveUnitSymbol(symbol: string): UnitDefinition {
+  const builtIn = resolveBuiltInUnitSymbol(symbol);
+  if (builtIn) return builtIn;
+
+  const custom = customUnits[symbol];
+  if (custom) return custom;
 
   throw new UnitError("unsupportedUnit", { symbol });
 }
@@ -854,12 +897,20 @@ export function evaluateExpression(
       // 円周率で上書きされてしまう）。定義が無いときだけ、ここで円周率として解決する。
       if (token.value === "pi" || token.value === "π") return quantity(Math.PI);
       if (token.value === "e") return quantity(Math.E);
+      let parsedIdentifierUnit: UnitDefinition;
       try {
-        const parsed = parseUnit(token.value);
-        return quantity(parsed.scale, parsed.dimension);
+        parsedIdentifierUnit = parseUnit(token.value);
       } catch {
         throw new UnitError("unknownIdentifier", { name: token.value });
       }
+      // オフセットを持つ単位は「その単位での値」としてしか意味を持たない。ここでscaleと
+      // dimensionだけ返すとoffsetが黙って落ち、例えば華氏相当の自作単位fahで "2*fah" が
+      // エラーにならず 1.111K になる（"32fah" は正しく273.15K）。同じ式の中で書き方によって
+      // 別の意味になるので、parseUnitの既存ルール（単独使用のみ）に合わせて弾く。
+      // 組み込みの°C・°Fは記号に°を含み識別子トークンにならないためこの経路に来ないが、
+      // 自作単位は英字のみなので到達しうる。
+      if (parsedIdentifierUnit.offset !== undefined) throw new UnitError("temperatureUnitStandalone");
+      return quantity(parsedIdentifierUnit.scale, parsedIdentifierUnit.dimension);
     }
     if (token.type === "leftParen") {
       position += 1;
