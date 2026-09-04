@@ -1207,12 +1207,13 @@ export default function CalculatorScreen() {
             <IconSymbol name="book.fill" size={13} color={colors.primary} />
             <Text style={styles.toolButtonText}>{copy.samples}</Text>
           </Pressable>
+          <Pressable onPress={() => setShowNumberBase(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}><Text style={styles.toolButtonText}>{copy.numberBase}</Text></Pressable>
         </ScrollView>
 
         <CalculatorBannerAd />
 
-        {/* 数学・進数はキャレット位置への挿入だけで書きかけの式を壊さないので、
-            キーパッドの一部に見えるデザインでキーパッド直上に置く。 */}
+        {/* 数学はキャレット位置への挿入だけで書きかけの式を壊さないので、キーパッドの一部に
+            見えるデザインでキーパッド直上に置く（式を丸ごと置き換えるサンプルとは分ける）。 */}
         <View style={styles.keypadTools}>
           {isAdvancedMode ? (
             <Pressable onPress={() => setShowAdvancedKeys(true)} style={({ pressed }) => [styles.keypadToolButton, pressed && styles.pressed]}>
@@ -1220,10 +1221,6 @@ export default function CalculatorScreen() {
               <Text style={styles.keypadToolButtonText}>{copy.math}</Text>
             </Pressable>
           ) : null}
-          <Pressable onPress={() => setShowNumberBase(true)} style={({ pressed }) => [styles.keypadToolButton, pressed && styles.pressed]}>
-            <IconSymbol name="chevron.left.forwardslash.chevron.right" size={14} color={colors.primary} />
-            <Text style={styles.keypadToolButtonText}>{copy.numberBase}</Text>
-          </Pressable>
         </View>
 
         <View style={styles.keypad}>
@@ -1637,7 +1634,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
 
   // 数学・進数はキーパッドの一部に見せたいので、advancedKeyと同じprimarySurface系の色使いにする。
   keypadTools: { flexDirection: "row", gap: 8 },
-  keypadToolButton: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 10, borderWidth: 1, flex: 1, flexDirection: "row", gap: 5, justifyContent: "center", minHeight: 38, paddingHorizontal: 10 },
+  keypadToolButton: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 10, borderWidth: 1, flexDirection: "row", gap: 5, justifyContent: "center", minHeight: 38, paddingHorizontal: 14 },
   keypadToolButtonText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
 
   // 画面幅に関係なく必ず4列で並ぶよう、25%幅のセルに収める。
