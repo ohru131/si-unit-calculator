@@ -18,6 +18,76 @@ export type CustomUnit = {
   dimension: Dimension;
 };
 
+// 壊れた保存データ（他端末からの古いバックアップ、手動編集された可能性のあるAsyncStorage・
+// バックアップファイルの中身など）が混ざっていても起動や取り込みを落とさないよう、
+// 他のisSavedXxxと同じ「怪しい要素はfilterで捨てる」防御にする。dimensionは7要素の数値配列で
+// あることまで見る（DimensionはTypeScript上はタプルだが、AsyncStorageやJSONファイルから
+// 読んだ値には型情報が付かないため実行時に長さと要素の型を検証する必要がある）。
+// 記号の形式チェックは isUsableCustomUnitSymbol に一本化する。以前は「空文字でなければOK」
+// しか見ておらず、保存データに symbol: "m" のような組み込み単位と衝突する記号や数字入りの
+// 記号が混ざっていても素通りしていた。組み込みが常に優先されるため、そういう記号は
+// 設定画面には並ぶのに式では絶対に解決されない「幽霊単位」になる。
+// 保存データ復元時（lib/calculator-store.tsx）とバックアップ復元時（notebooks-backup.ts /
+// constants-backup.ts）の両方から呼ぶので、判定を2箇所に分けないためここに一本化する。
+export function isCustomUnit(value: unknown): value is CustomUnit {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<CustomUnit>;
+  return typeof candidate.symbol === "string" && isUsableCustomUnitSymbol(candidate.symbol)
+    && typeof candidate.expression === "string"
+    // scaleが0の単位は convertQuantity の除算で Infinity になるので、壊れた保存データとして落とす
+    // （parseCustomUnitはzeroScaleで弾くが、ここは保存済みデータが壊れている場合の防御）。
+    && typeof candidate.scale === "number" && Number.isFinite(candidate.scale) && candidate.scale !== 0
+    && typeof candidate.offset === "number" && Number.isFinite(candidate.offset)
+    && Array.isArray(candidate.dimension) && candidate.dimension.length === 7
+    && candidate.dimension.every((component) => typeof component === "number" && Number.isFinite(component));
+}
+
+// customUnitsフィールド（バックアップファイル・AsyncStorageのどちらも同じ形）の検証＋重複排除を
+// 1箇所にまとめる。壊れた要素はその要素だけを黙って捨て、同じ記号が複数あれば先勝ちで1つに絞る
+// （setCustomUnitsRegistryは記号をキーに上書き登録するだけで重複を検出しないため、
+// 複数あると黙って後の要素が勝ってしまい、一覧と実際に解決される単位がズレる）。
+export function parseCustomUnitsField(value: unknown): CustomUnit[] {
+  if (!Array.isArray(value)) return [];
+  const seenSymbols = new Set<string>();
+  return value.filter(isCustomUnit).filter((unit) => {
+    if (seenSymbols.has(unit.symbol)) return false;
+    seenSymbols.add(unit.symbol);
+    return true;
+  });
+}
+
+// 2つのCustomUnitが「実質同じ定義」かどうか。バックアップ取り込みで、同じ記号でも定義式が
+// 違うものを黙って上書きしないための判定に使う。expressionだけでなく評価結果
+// （scale/offset/dimension）まで見るのは、見た目の式が違っても同じ値になるケース
+// （"0.303m" と "303mm" など）を無用に警告しないため。
+export function customUnitsAreEqual(a: CustomUnit, b: CustomUnit): boolean {
+  return a.expression === b.expression && a.scale === b.scale && a.offset === b.offset
+    && a.dimension.length === b.dimension.length && a.dimension.every((component, index) => component === b.dimension[index]);
+}
+
+// 取り込み時に「同じ記号が既にあり、かつ定義が異なる」件数を数える。確認ダイアログの
+// 「n件の自作単位が上書きされます」の件数はこれで出す。定義が完全に同じなら実質何も
+// 変わらないので数えない。
+export function countCustomUnitConflicts(existing: CustomUnit[], incoming: CustomUnit[]): number {
+  const existingBySymbol = new Map(existing.map((unit) => [unit.symbol, unit]));
+  return incoming.filter((unit) => {
+    const current = existingBySymbol.get(unit.symbol);
+    return current !== undefined && !customUnitsAreEqual(current, unit);
+  }).length;
+}
+
+// バックアップ取り込みの唯一のマージ規則: 追加と同名記号の置換だけを行い、絶対に削除しない。
+// 「すべての計算ノートを置換」の確認文は計算ノートについてしか言っていないため、そこに
+// 便乗して自作単位まで消すと、ユーザーが同意していない破壊になる（merge/replaceどちらの
+// モードでも同じ）。同じ記号が複数回incomingに現れた場合は後勝ち（バックアップ内の並び順を
+// そのまま反映する）。
+export function mergeCustomUnits(existing: CustomUnit[], incoming: CustomUnit[]): CustomUnit[] {
+  if (incoming.length === 0) return existing;
+  const bySymbol = new Map(existing.map((unit) => [unit.symbol, unit]));
+  for (const unit of incoming) bySymbol.set(unit.symbol, unit);
+  return Array.from(bySymbol.values());
+}
+
 export type CustomUnitErrorCode =
   | "emptySymbol"
   | "invalidSymbol"

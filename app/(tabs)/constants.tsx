@@ -118,6 +118,7 @@ export default function ConstantsScreen() {
   const { language, locale, unitSystem } = useGlobalSettings();
   const {
     constants,
+    customUnits,
     isLoading,
     notebooks,
     notebookCategories,
@@ -235,6 +236,13 @@ export default function ConstantsScreen() {
       await exportNotebooksBackup(
         notebooks.filter((notebook) => categoryIds.includes(notebook.categoryId)),
         notebookCategories.filter((category) => categoryIds.includes(category.id)),
+        // 書き出すノートが自作単位（例: "2shaku"）を参照していると、取り込み側にその単位が
+        // 無いとノートの計算が壊れる。どのノートがどの記号を使っているかを判定するには
+        // 単位サフィックスの走査規則（unitSuffixEnd）を再実装することになり、評価器と
+        // ズレる余地を作ってしまうので、ここは端末の自作単位を全部載せる。取り込み側は
+        // 記号をキーに「追加・同名は置換」するだけで既存の自作単位を消さない（mergeCustomUnits）
+        // ため、余分に含めても害が無い。
+        customUnits,
         language,
         fileLabel,
       );

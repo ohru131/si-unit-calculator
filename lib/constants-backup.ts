@@ -1,3 +1,4 @@
+import { parseCustomUnitsField, type CustomUnit } from "@/lib/custom-units";
 import { type AppLanguage } from "@/lib/i18n";
 import type { SavedConstant } from "@/lib/units";
 
@@ -60,6 +61,20 @@ export type ConstantsBackup = {
   version: typeof CONSTANTS_BACKUP_VERSION;
   exportedAt: string;
   constants: ImportedConstant[];
+  /**
+   * 任意フィールド。version は 1 のまま据え置いているので、これが無い古いバックアップファイルも
+   * 引き続き読める（version を上げると古いアプリがファイルごと弾いてしまうため、既存の
+   * バージョニングは変えない方針。lib/notebooks-backup.tsのpresetOverridesと同じ判断）。
+   * 定数の定義式が自作単位（例: "2shaku"）を参照している場合、この情報が無いと別端末で
+   * 取り込みが失敗する（記号が未定義になるため）。空配列のときはフィールド自体を出さない。
+   */
+  customUnits?: CustomUnit[];
+};
+
+export type ParsedConstantsBackup = {
+  constants: ImportedConstant[];
+  /** customUnitsが無い（この機能の導入前の）古いファイルでは常に空配列になる。 */
+  customUnits: CustomUnit[];
 };
 
 function isImportedConstant(value: unknown): value is ImportedConstant {
@@ -68,20 +83,23 @@ function isImportedConstant(value: unknown): value is ImportedConstant {
   return typeof candidate.symbol === "string" && /^[A-Za-z_][A-Za-z0-9_]*$/.test(candidate.symbol) && !/^a[1-9]\d*$/i.test(candidate.symbol) && typeof candidate.expression === "string" && candidate.expression.trim().length > 0 && typeof candidate.createdAt === "string";
 }
 
-export function createConstantsBackup(constants: SavedConstant[], exportedAt = new Date().toISOString()): ConstantsBackup {
+export function createConstantsBackup(constants: SavedConstant[], customUnits: CustomUnit[] = [], exportedAt = new Date().toISOString()): ConstantsBackup {
   return {
     format: CONSTANTS_BACKUP_FORMAT,
     version: CONSTANTS_BACKUP_VERSION,
     exportedAt,
     constants: constants.map(({ symbol, expression, createdAt }) => ({ symbol, expression, createdAt })),
+    // 空配列をわざわざ書き出さない（自作単位を使っていないユーザーのバックアップは
+    // 今までと同じ形にする）。
+    ...(customUnits.length > 0 ? { customUnits: customUnits.map(({ symbol, expression, scale, offset, dimension }) => ({ symbol, expression, scale, offset, dimension })) } : {}),
   };
 }
 
-export function serializeConstantsBackup(constants: SavedConstant[], exportedAt?: string) {
-  return JSON.stringify(createConstantsBackup(constants, exportedAt), null, 2);
+export function serializeConstantsBackup(constants: SavedConstant[], customUnits: CustomUnit[] = [], exportedAt?: string) {
+  return JSON.stringify(createConstantsBackup(constants, customUnits, exportedAt), null, 2);
 }
 
-export function parseConstantsBackup(raw: string, language: AppLanguage): ImportedConstant[] {
+export function parseConstantsBackup(raw: string, language: AppLanguage): ParsedConstantsBackup {
   const messages = BACKUP_MESSAGES[language];
   let parsed: unknown;
   try {
@@ -97,5 +115,8 @@ export function parseConstantsBackup(raw: string, language: AppLanguage): Import
   if (!backup.constants.every(isImportedConstant)) throw new Error(messages.invalidConstants);
   const symbols = backup.constants.map((item) => item.symbol);
   if (new Set(symbols).size !== symbols.length) throw new Error(messages.duplicateSymbols);
-  return backup.constants;
+  // customUnitsは任意フィールドなので無くても既存どおり読める。壊れた要素はファイル全体を
+  // 無効にせず、その要素だけを黙って捨てる（定数本体は取り込めるべきなので）。
+  const customUnits = parseCustomUnitsField(backup.customUnits);
+  return { constants: backup.constants, customUnits };
 }
