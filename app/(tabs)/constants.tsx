@@ -39,7 +39,6 @@ const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "mon
 
 // 英語のキー集合を正にして、言語を足したときにキー漏れがその言語のブロックで型エラーになるようにする。
 const EN_COPY = {
-  title: "Library",
   notebooksTab: "Notebooks", constantsTab: "Global constants",
   close: "Close", save: "Save", saving: "Saving…", delete: "Delete", cancel: "Cancel",
   constantEmpty: "No constants yet", constantEmptyHint: "Store a reusable value such as W = 3cm.",
@@ -54,8 +53,7 @@ const EN_COPY = {
 const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   en: EN_COPY,
   ja: {
-    title: "ライブラリ",
-    notebooksTab: "計算ノート", constantsTab: "グローバル定数",
+      notebooksTab: "計算ノート", constantsTab: "グローバル定数",
     close: "閉じる", save: "保存", saving: "保存中…", delete: "削除", cancel: "キャンセル",
     constantEmpty: "定数はまだありません", constantEmptyHint: "例：W = 3cm のように、よく使う値を保存できます。",
     titleLabel: "名前", descriptionLabel: "説明", expressionLabel: "式", symbolLabel: "記号",
@@ -65,8 +63,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     categoryExportDone: "計算ノートのバックアップを書き出しました。",
   },
   es: {
-    title: "Biblioteca",
-    notebooksTab: "Cuadernos", constantsTab: "Constantes globales",
+      notebooksTab: "Cuadernos", constantsTab: "Constantes globales",
     close: "Cerrar", save: "Guardar", saving: "Guardando…", delete: "Eliminar", cancel: "Cancelar",
     constantEmpty: "Aún no hay constantes", constantEmptyHint: "Guarda un valor reutilizable, por ejemplo W = 3cm.",
     titleLabel: "Nombre", descriptionLabel: "Descripción", expressionLabel: "Expresión", symbolLabel: "Símbolo",
@@ -76,8 +73,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     categoryExportDone: "Se exportó la copia de seguridad de los cuadernos.",
   },
   "pt-BR": {
-    title: "Biblioteca",
-    notebooksTab: "Cadernos", constantsTab: "Constantes globais",
+      notebooksTab: "Cadernos", constantsTab: "Constantes globais",
     close: "Fechar", save: "Salvar", saving: "Salvando…", delete: "Excluir", cancel: "Cancelar",
     constantEmpty: "Ainda não há constantes", constantEmptyHint: "Salve um valor reutilizável, por exemplo W = 3cm.",
     titleLabel: "Nome", descriptionLabel: "Descrição", expressionLabel: "Expressão", symbolLabel: "Símbolo",
@@ -87,8 +83,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     categoryExportDone: "Backup dos cadernos exportado.",
   },
   de: {
-    title: "Bibliothek",
-    notebooksTab: "Rechenhefte", constantsTab: "Globale Konstanten",
+      notebooksTab: "Rechenhefte", constantsTab: "Globale Konstanten",
     close: "Schließen", save: "Speichern", saving: "Speichert…", delete: "Löschen", cancel: "Abbrechen",
     constantEmpty: "Noch keine Konstanten", constantEmptyHint: "Speichere einen wiederverwendbaren Wert, zum Beispiel W = 3cm.",
     titleLabel: "Name", descriptionLabel: "Beschreibung", expressionLabel: "Ausdruck", symbolLabel: "Symbol",
@@ -98,8 +93,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     categoryExportDone: "Sicherung der Rechenhefte exportiert.",
   },
   fr: {
-    title: "Bibliothèque",
-    notebooksTab: "Carnets", constantsTab: "Constantes globales",
+      notebooksTab: "Carnets", constantsTab: "Constantes globales",
     close: "Fermer", save: "Enregistrer", saving: "Enregistrement…", delete: "Supprimer", cancel: "Annuler",
     constantEmpty: "Aucune constante pour le moment", constantEmptyHint: "Enregistrez une valeur réutilisable, par exemple W = 3cm.",
     titleLabel: "Nom", descriptionLabel: "Description", expressionLabel: "Expression", symbolLabel: "Symbole",
@@ -377,9 +371,8 @@ export default function ConstantsScreen() {
   const renderContent = () => (topSection === "notebooks" ? renderNotebooksSection() : renderConstantsSection());
 
   return <ScreenContainer className="px-5" containerClassName="bg-background">
-    <View style={styles.header}>
-      <Text style={styles.title}>{copy.title}</Text>
-    </View>
+    {/* 画面名の見出し(h1)はタブバー(app/(tabs)/_layout.tsx)のラベルと重複するため出さない。
+        代わりにsectionRail自体に上余白を持たせ、画面最上部に詰まりすぎないようにする。 */}
     <View style={styles.sectionRail}>
       {sectionItems.map((item) => (
         <Pressable key={item.id} onPress={() => { setTopSection(item.id); setSelectedCategoryId(null); setBrowsingParentCategoryId(null); }} style={({ pressed }) => [styles.sectionChip, topSection === item.id && styles.sectionChipActive, pressed && styles.buttonPressed]}>
@@ -448,11 +441,9 @@ export default function ConstantsScreen() {
 }
 
 const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
-  // タイトルを電卓画面（app/(tabs)/index.tsx）と同じfontSize/letterSpacingに揃えたので、
-  // 見出し部分の余白も文字が小さくなった分だけ詰める。
-  header: { paddingBottom: 4, paddingTop: 6 },
-  title: { color: colors.foreground, fontSize: 22, fontWeight: "700", letterSpacing: -0.5 },
-  sectionRail: { flexDirection: "row", flexWrap: "wrap", gap: 7, paddingBottom: 14 }, sectionChip: { backgroundColor: colors.surfaceSecondary, borderRadius: 14, paddingHorizontal: 11, paddingVertical: 8 }, sectionChipActive: { backgroundColor: colors.primaryFill }, sectionChipText: { color: colors.muted, fontSize: 12, fontWeight: "700" }, sectionChipTextActive: { color: colors.onPrimary },
+  // h1見出しを削除したので、sectionRailが画面の一番上に来る。SafeAreaの直後に
+  // チップが詰まりすぎないよう、旧headerが持っていたpaddingTopの一部をここに持たせる。
+  sectionRail: { flexDirection: "row", flexWrap: "wrap", gap: 7, paddingBottom: 14, paddingTop: 8 }, sectionChip: { backgroundColor: colors.surfaceSecondary, borderRadius: 14, paddingHorizontal: 11, paddingVertical: 8 }, sectionChipActive: { backgroundColor: colors.primaryFill }, sectionChipText: { color: colors.muted, fontSize: 12, fontWeight: "700" }, sectionChipTextActive: { color: colors.onPrimary },
   // 一覧（カテゴリグリッド／カテゴリ内ノート一覧）の直前に置く追加ボタン。sectionChipの見た目を流用しつつ、
   // 縦積みのViewの中では既定でstretchして横幅いっぱいに広がってしまうため、自身の内容幅に収める。
   addRow: { alignSelf: "flex-start", marginBottom: 12 },
