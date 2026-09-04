@@ -1293,7 +1293,10 @@ export default function CalculatorScreen() {
                 <IconSymbol name="xmark" size={20} color={colors.muted} />
               </Pressable>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>
+            {/* このシートはTextInputと押せる要素（基数チップ・挿入ボタン）が同居するので
+                keyboardShouldPersistTaps が要る。無いとキーボードが出ている間の1回目のタップが
+                キーボードを閉じるだけで消費され、「式に挿入」が反応しない。 */}
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
               <Text style={styles.cardLabel}>{copy.numberBaseResultLabel}</Text>
               {baseRows.length ? (
                 <View style={styles.comparisonTable}>
