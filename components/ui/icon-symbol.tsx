@@ -45,6 +45,16 @@ const MAPPING = {
   "chevron.left": "chevron-left",
   "pencil": "edit",
   "ellipsis": "more-horiz",
+  // 設定画面の各項目の見出しアイコン。iOS側(icon-symbol.ios.tsx)はSF Symbol名をそのまま
+  // SymbolViewに渡すため、iOS 14の時点から存在する枯れた名前だけを選んでいる（新しい名前を
+  // 使うと古いOSでアイコンだけ空白になり、型チェックでは検出できない）。
+  "globe": "language",
+  "paintbrush.fill": "palette",
+  "ruler.fill": "straighten",
+  "cup.and.saucer.fill": "local-cafe",
+  "wrench.and.screwdriver.fill": "build",
+  "externaldrive.fill": "save",
+  "arrow.counterclockwise": "refresh",
 } satisfies IconMapping;
 
 /**
