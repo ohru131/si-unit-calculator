@@ -72,9 +72,67 @@ function isAffine(f0: number, f1: number, f2: number): boolean {
 // 関数呼び出し（識別子の直後に開き括弧）。sin(x) のように x が非線形な関数の
 // 引数になっている定義を弾くために使う。
 const FUNCTION_CALL_PATTERN = new RegExp(`[${IDENTIFIER_START_CHAR_CLASS}][${IDENTIFIER_BODY_CHAR_CLASS}]*\\s*\\(`, "u");
-// べき乗。`^` に加えて上付き数字も見る（lib/units.ts の normalize が `^n` へ書き換える表記なので、
-// ユーザーが「x²」と入力してもここを素通りさせない）。
-const POWER_PATTERN = /[\^⁰¹²³⁴⁵⁶⁷⁸⁹]/u;
+// べき乗の記号。`^` に加えて上付き数字も見る（lib/units.ts の normalize が `^n` へ書き換える
+// 表記なので、ユーザーが「x²」と入力してもここを素通りさせない）。
+const POWER_CHARACTER_PATTERN = /[\^⁰¹²³⁴⁵⁶⁷⁸⁹]/u;
+
+// x から見て「意味のある直前の文字」を返す（空白と開き括弧は読み飛ばす）。
+// 除数判定（m/x）と、2^(x) のようなべき乗判定の両方で同じ走査を使う。
+function significantCharacterBefore(definition: string, index: number): string | undefined {
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    const character = definition[cursor];
+    if (character === " " || character === "(") continue;
+    return character;
+  }
+  return undefined;
+}
+
+function isPowerCharacterAt(definition: string, index: number): boolean {
+  const character = definition[index];
+  return character !== undefined && POWER_CHARACTER_PATTERN.test(character);
+}
+
+// x そのものが累乗されているか。x^2 / 2^x / (2*x+1)^2 の3通りを見る。
+//
+// 定義式全体に `^` があるかどうかで弾いてはいけない。単位側の指数（x*9.8m/s^2、
+// x*1000kg/m^3、x*2m² など）はごく普通の1次式で、それらまで「xの1次式にしてください」と
+// 拒否してしまう（実際に拒否していた）。単位サフィックスの中の `^` は演算子ですらないので、
+// x に掛かっている累乗だけを見る必要がある。
+function isXRaisedToPower(definition: string, xStart: number, xEnd: number): boolean {
+  let after = xEnd;
+  while (definition[after] === " ") after += 1;
+  if (isPowerCharacterAt(definition, after)) return true;
+
+  if (significantCharacterBefore(definition, xStart) === "^") return true;
+
+  // x を含む括弧グループが丸ごと累乗されている場合。x より後ろで、対応する開き括弧の無い
+  // 閉じ括弧（＝x を囲んでいたグループの終わり）を見つけ、その直後が累乗かを見る。
+  let depth = 0;
+  for (let cursor = xEnd; cursor < definition.length; cursor += 1) {
+    const character = definition[cursor];
+    if (character === "(") {
+      depth += 1;
+      continue;
+    }
+    if (character !== ")") continue;
+    if (depth > 0) {
+      depth -= 1;
+      continue;
+    }
+    let next = cursor + 1;
+    while (definition[next] === " ") next += 1;
+    if (isPowerCharacterAt(definition, next)) return true;
+  }
+  return false;
+}
+
+// 評価器が識別子として特別扱いする名前。これらを自作単位の記号にすると、
+// 数値直後（2e → 単位）と単独（2*e → 自然対数の底）で別物に解決され、どちらも
+// エラーにならないまま値だけが食い違う。記号として選べないようにしておく。
+const RESERVED_IDENTIFIERS = new Set([
+  "pi", "π", "e",
+  "sqrt", "sin", "cos", "tan", "asin", "acos", "atan", "ln", "log", "log2", "atan2",
+]);
 // 識別子をすべて拾うパターン。x の出現回数はこれで数える。
 // STANDALONE_X_PATTERN を g 付きで使い回さないのは、あのパターンが x の前後の1文字まで
 // 消費するため、"x*x" が1件しか取れず（2件目の x の直前の "*" が1件目に食われる）
@@ -89,27 +147,36 @@ const IDENTIFIER_GLOBAL_PATTERN = new RegExp(`[${IDENTIFIER_START_CHAR_CLASS}][$
 // 標本点を増やしても「その点を根に持つ多項式」で同じ手口が成立するため、点を足す方向では
 // 塞ぎきれない。そこで値ではなく「x の現れ方」そのものを制限する。
 //
-// 判定は保守的（疑わしきは拒否）にしてある。x*10^3*m のような本来は1次の式も弾くが、
-// x*1000*m と書き直せるので実害は小さい。逆に取りこぼすと、ユーザーの単位が黙って
-// 間違った値に換算される。
+// 判定は保守的（疑わしきは拒否）にしてある。取りこぼすとユーザーの単位が黙って
+// 間違った値に換算されるため、判断に迷う書き方は登録させない。ただし「定義式のどこかに
+// ^ があれば拒否」のような広すぎる条件にはしないこと。x*9.8m/s^2 のように単位側に指数を
+// 持つだけの1次式は普通に書かれるので、それを弾くと関数形式がほとんど使えなくなる。
 function isStructurallyAffineInX(definition: string): boolean {
   // x が2回以上出てくる式（x*x、x*(x-1) など）は1次になりようがない。
   // 「kx」「xy」のような別の識別子に含まれる x は数に入れない。
-  const identifiers = [...definition.matchAll(IDENTIFIER_GLOBAL_PATTERN)];
-  const xMatches = identifiers.filter((match) => match[0] === "x");
-  if (xMatches.length !== 1) return false;
-  if (POWER_PATTERN.test(definition)) return false;
+  // matchAllを使わずexecで回すのは、上のSTANDALONE_X_PATTERNと同じ理由。Hermesで確実に
+  // 動く書き方に寄せておく（このコードベースにmatchAllの前例が無い）。gフラグ付き正規表現を
+  // 使い回すとlastIndexが呼び出し間で残るので、走査前に明示的に0へ戻す。
+  const xIndexes: number[] = [];
+  IDENTIFIER_GLOBAL_PATTERN.lastIndex = 0;
+  let identifier = IDENTIFIER_GLOBAL_PATTERN.exec(definition);
+  while (identifier) {
+    if (identifier[0] === "x") xIndexes.push(identifier.index);
+    identifier = IDENTIFIER_GLOBAL_PATTERN.exec(definition);
+  }
+  if (xIndexes.length !== 1) return false;
   if (FUNCTION_CALL_PATTERN.test(definition)) return false;
 
-  // x が除数になっている（m/x のような反比例）と1次ではない。x の直前の文字を
-  // 空白と開き括弧を読み飛ばして見る（"1/(x)" も除数として拾う）。
-  const xIndex = xMatches[0].index;
-  for (let cursor = xIndex - 1; cursor >= 0; cursor -= 1) {
-    const character = definition[cursor];
-    if (character === " " || character === "(") continue;
-    if (character === "/" || character === "÷") return false;
-    break;
-  }
+  const xIndex = xIndexes[0];
+  if (isXRaisedToPower(definition, xIndex, xIndex + 1)) return false;
+
+  // x が除数になっている（m/x のような反比例）と1次ではない。"1/(x)" も除数として拾う。
+  const before = significantCharacterBefore(definition, xIndex);
+  if (before === "/" || before === "÷") return false;
+
+  // ここまでを満たせば x は「一度だけ、累乗されず、関数に渡されず、除数でもない」形で
+  // 現れる。この評価器で非線形になれるのは累乗・関数・xでの除算だけなので、
+  // 残る演算（加減乗算と定数倍）では必ず x の1次式になる。
   return true;
 }
 
@@ -126,6 +193,7 @@ export function isUsableCustomUnitSymbol(symbol: string): boolean {
   const trimmed = symbol.trim();
   if (!trimmed) return false;
   if (!CUSTOM_UNIT_SYMBOL_PATTERN.test(trimmed)) return false;
+  if (RESERVED_IDENTIFIERS.has(trimmed)) return false;
   return !isBuiltInUnitSymbol(trimmed);
 }
 
@@ -133,7 +201,9 @@ function validateSymbol(symbol: string, existingSymbols: string[]): CustomUnitEr
   const trimmed = symbol.trim();
   if (!trimmed) return "emptySymbol";
   if (!CUSTOM_UNIT_SYMBOL_PATTERN.test(trimmed)) return "invalidSymbol";
-  if (isBuiltInUnitSymbol(trimmed) || existingSymbols.includes(trimmed)) return "symbolTaken";
+  // 組み込み単位・予約識別子との衝突は isUsableCustomUnitSymbol に一本化する
+  // （復元時と同じ判定を通すため）。登録済みの自作単位との衝突だけここで追加で見る。
+  if (!isUsableCustomUnitSymbol(trimmed) || existingSymbols.includes(trimmed)) return "symbolTaken";
   return undefined;
 }
 

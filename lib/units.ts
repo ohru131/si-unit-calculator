@@ -571,10 +571,6 @@ export function setCustomUnits(definitions: CustomUnitRegistration[]) {
   customUnits = next;
 }
 
-export function getCustomUnitSymbols(): string[] {
-  return Object.keys(customUnits);
-}
-
 // 組み込みの解決順（動的な計量カップ → BASE_UNITSの完全一致 → SI接頭辞分解）だけで引く。
 // ユーザー定義単位は見ない。登録時の衝突判定（isBuiltInUnitSymbol）と実際の解決で
 // 同じ関数を通すことで、「登録できたのに解決されない」記号が生まれないようにしている。
@@ -901,12 +897,20 @@ export function evaluateExpression(
       // 円周率で上書きされてしまう）。定義が無いときだけ、ここで円周率として解決する。
       if (token.value === "pi" || token.value === "π") return quantity(Math.PI);
       if (token.value === "e") return quantity(Math.E);
+      let parsedIdentifierUnit: UnitDefinition;
       try {
-        const parsed = parseUnit(token.value);
-        return quantity(parsed.scale, parsed.dimension);
+        parsedIdentifierUnit = parseUnit(token.value);
       } catch {
         throw new UnitError("unknownIdentifier", { name: token.value });
       }
+      // オフセットを持つ単位は「その単位での値」としてしか意味を持たない。ここでscaleと
+      // dimensionだけ返すとoffsetが黙って落ち、例えば華氏相当の自作単位fahで "2*fah" が
+      // エラーにならず 1.111K になる（"32fah" は正しく273.15K）。同じ式の中で書き方によって
+      // 別の意味になるので、parseUnitの既存ルール（単独使用のみ）に合わせて弾く。
+      // 組み込みの°C・°Fは記号に°を含み識別子トークンにならないためこの経路に来ないが、
+      // 自作単位は英字のみなので到達しうる。
+      if (parsedIdentifierUnit.offset !== undefined) throw new UnitError("temperatureUnitStandalone");
+      return quantity(parsedIdentifierUnit.scale, parsedIdentifierUnit.dimension);
     }
     if (token.type === "leftParen") {
       position += 1;

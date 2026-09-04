@@ -231,3 +231,65 @@ describe("isUsableCustomUnitSymbol", () => {
     expect(isUsableCustomUnitSymbol("shaku")).toBe(true);
   });
 });
+
+// 独自レビューで見つけた不具合の回帰テスト（PR #34、CodeRabbitのレート制限中に実施）。
+describe("回帰テスト: 単位側の指数を含む1次式を弾かない", () => {
+  it("x*9.8m/s^2 のように単位に指数がある定義でも登録できる", () => {
+    // 定義式全体に "^" があるかで弾くと、m/s^2・kg/m^3・m² のようなごく普通の単位を
+    // 使った1次式まで「xの1次式にしてください」と拒否してしまう（実際に拒否していた）。
+    // 単位サフィックス中の "^" は演算子ですらないので、x に掛かる累乗だけを見る必要がある。
+    const accepted = ["x*9.8m/s^2", "x*1000kg/m^3", "x*2m²", "x*5N*m"];
+    accepted.forEach((definition) => {
+      const result = parseCustomUnit("zz", definition, { existingSymbols: [] });
+      expect(result.status, definition).toBe("ok");
+    });
+  });
+
+  it("x 自身が累乗されている場合は引き続き弾く", () => {
+    const rejected = ["x^2*m", "2^x*m", "(2*x+1)^2*m", "x²*m", "(x)^2*m"];
+    rejected.forEach((definition) => {
+      const result = parseCustomUnit("zz", definition, { existingSymbols: [] });
+      expect(result, definition).toEqual({ status: "error", code: "nonAffineDefinition" });
+    });
+  });
+
+  it("x*9.8m/s^2 の scale が実際に正しい", () => {
+    const result = parseCustomUnit("gee", "x*9.8m/s^2", { existingSymbols: [] });
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    expect(result.unit.scale).toBeCloseTo(9.8);
+    expect(result.unit.offset).toBe(0);
+    expect(result.unit.dimension).toEqual([1, 0, -2, 0, 0, 0, 0]);
+  });
+});
+
+describe("回帰テスト: 評価器の予約識別子を記号にできない", () => {
+  it("e / pi / sin などは symbolTaken になる", () => {
+    // 記号 e を許すと、2e（単位として4m）と 2*e（自然対数の底で5.4366）が
+    // どちらもエラーにならないまま別の値になる。
+    ["e", "pi", "sin", "cos", "log", "sqrt"].forEach((symbol) => {
+      const result = parseCustomUnit(symbol, "2m", { existingSymbols: [] });
+      expect(result, symbol).toEqual({ status: "error", code: "symbolTaken" });
+    });
+    expect(isUsableCustomUnitSymbol("e")).toBe(false);
+    // atan2 は数字を含むので、予約語の判定に到達する前に記号の形式で弾かれる。
+    expect(parseCustomUnit("atan2", "2m", { existingSymbols: [] })).toEqual({ status: "error", code: "invalidSymbol" });
+  });
+});
+
+describe("回帰テスト: オフセット付き自作単位は単独でしか使えない", () => {
+  it("裸の識別子として使うとoffsetを黙って落とさずエラーになる", () => {
+    // 華氏相当の自作単位。"32fah" は273.15Kだが、"2*fah" は識別子経路を通り、
+    // 以前はoffsetが落ちて1.111Kという誤った値を返していた。
+    setCustomUnits([{ symbol: "fah", scale: 5 / 9, offset: 255.3722222222222, dimension: [0, 0, 0, 0, 1, 0, 0] }]);
+    expect(evaluateExpression("32fah").siValue).toBeCloseTo(273.15);
+    expect(() => evaluateExpression("2*fah")).toThrow();
+    setCustomUnits([]);
+  });
+
+  it("オフセットの無い自作単位は従来どおり裸の識別子でも使える", () => {
+    setCustomUnits([{ symbol: "shaku", scale: 0.303, dimension: [1, 0, 0, 0, 0, 0, 0] }]);
+    expect(evaluateExpression("2*shaku").siValue).toBeCloseTo(0.606);
+    setCustomUnits([]);
+  });
+});

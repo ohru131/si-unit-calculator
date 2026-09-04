@@ -503,8 +503,23 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
   // state・レジストリを更新する。自作単位は保存に失敗すると「エンジンは新しい単位を
   // 解決できるのに次回起動では消えている」という食い違いになり、しかもレジストリまで
   // 書き換わっているぶん他のpersistXxx（stateだけが食い違う）より影響が大きいため。
+  //
+  // notebooksRefと同じ理由でrefも持つ。saveCustomUnit/deleteCustomUnitは直前の一覧を基準に
+  // 次の配列を組み立てるため、stateのクロージャだけを見ていると、保存中（awaitの間）に
+  // 2回目の操作が走ったときに古い一覧を基準にしてしまう（自作単位を2つ続けて削除すると
+  // 1つ目が復活する）。上のようにsetItemを先にawaitする分この窓が広いので、refは
+  // awaitより前に同期更新し、保存に失敗したときだけ巻き戻す。
+  const customUnitsRef = useRef<CustomUnit[]>(customUnits);
   const persistCustomUnits = useCallback(async (next: CustomUnit[]) => {
-    await AsyncStorage.setItem(CUSTOM_UNITS_STORAGE_KEY, JSON.stringify(next));
+    const previous = customUnitsRef.current;
+    customUnitsRef.current = next;
+    try {
+      await AsyncStorage.setItem(CUSTOM_UNITS_STORAGE_KEY, JSON.stringify(next));
+    } catch (error) {
+      // 後続の操作が既に別の値を入れている場合は巻き戻さない（その値のほうが新しい）。
+      if (customUnitsRef.current === next) customUnitsRef.current = previous;
+      throw error;
+    }
     setCustomUnitsState(next);
     setCustomUnitsRegistry(next.map(toCustomUnitRegistration));
   }, []);
@@ -682,6 +697,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
             seenCustomUnitSymbols.add(unit.symbol);
             return true;
           });
+          customUnitsRef.current = loadedCustomUnits;
           setCustomUnitsState(loadedCustomUnits);
           setCustomUnitsRegistry(loadedCustomUnits.map(toCustomUnitRegistration));
         }
@@ -706,6 +722,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         setConstants([]);
         setHistory([]);
         setFavoriteUnits([]);
+        customUnitsRef.current = [];
         setCustomUnitsState([]);
         setCustomUnitsRegistry([]);
         notebooksRef.current = [];
@@ -821,14 +838,15 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
   }, [favoriteUnits, persistFavoriteUnits]);
 
   // 同じ記号の自作単位が既にあれば置き換える（編集）。無ければ追加する。
+  // 直前の一覧はstateではなくrefから読む（連続操作で古い配列を基準にしないため）。
   const saveCustomUnit = useCallback(async (unit: CustomUnit) => {
-    const next = [...customUnits.filter((item) => item.symbol !== unit.symbol), unit];
+    const next = [...customUnitsRef.current.filter((item) => item.symbol !== unit.symbol), unit];
     await persistCustomUnits(next);
-  }, [customUnits, persistCustomUnits]);
+  }, [persistCustomUnits]);
 
   const deleteCustomUnit = useCallback(async (symbol: string) => {
-    await persistCustomUnits(customUnits.filter((item) => item.symbol !== symbol));
-  }, [customUnits, persistCustomUnits]);
+    await persistCustomUnits(customUnitsRef.current.filter((item) => item.symbol !== symbol));
+  }, [persistCustomUnits]);
 
   const upsertNotebook = useCallback(async (input: Omit<CalculationNotebook, "id" | "createdAt" | "updatedAt" | "pinned" | "isPreset"> & { id?: string }) => {
     const now = new Date().toISOString();
