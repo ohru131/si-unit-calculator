@@ -16,10 +16,11 @@ import { unitErrorMessage } from "@/lib/unit-errors";
 /**
  * 設定画面のバックアップ・復元カード（app/(tabs)/constants.tsxから移設）。
  *
- * 【なぜ計算ノートとグローバル定数でカードを2枚に分けるか】
+ * 【なぜ計算ノートとグローバル定数のボタン列を分けるか】
  * どちらも「端末全体が対象・稀にしか使わない・破壊的」という性質は同じだが、対象が異なる操作を
- * 1枚に詰め込むと押し間違えやすい。見出しで区切るだけでなくカード自体を分けて、
- * ボタン列を完全に独立させる。
+ * 1枚に詰め込むと押し間違えやすい。見出しで区切るだけでなく、ボタン列を完全に独立させる。
+ * 以前はカード自体を2枚に分けてこれを表現していたが、設定画面の折りたたみカード
+ * （SettingsSection）の中に入れた時点でカードの二重の枠になるため、区切り線に変えた。
  *
  * 【なぜ設定画面に集約するか】
  * カテゴリ別のエクスポート（NotebookCategoryGrid）は「今見ているカテゴリの文脈がある・無害」だが、
@@ -175,17 +176,20 @@ export function BackupCard() {
 
   return (
     <>
-      <View style={styles.card}>
+      <View>
         <Text style={styles.label}>{t("backupNotebooksTitle")}</Text>
+        {/* 実態はプリセット本体を含まない部分書き出し(createNotebooksBackup参照)なので、
+            ボタンの隣に何が書き出されるかを明記する。 */}
+        <Text style={styles.description}>{t("backupNotebooksExportOwnHint")}</Text>
         <View style={styles.actions}>
-          <Pressable onPress={() => void handleExportNotebooks()} style={({ pressed }) => [styles.button, pressed && styles.pressed]}><Text style={styles.buttonText}>{t("backupNotebooksExportAll")}</Text></Pressable>
+          <Pressable onPress={() => void handleExportNotebooks()} style={({ pressed }) => [styles.button, pressed && styles.pressed]}><Text style={styles.buttonText}>{t("backupNotebooksExportOwn")}</Text></Pressable>
           <Pressable onPress={() => void handleImportNotebooks("merge")} style={({ pressed }) => [styles.button, pressed && styles.pressed]}><Text style={styles.buttonText}>{t("backupNotebooksMerge")}</Text></Pressable>
           <Pressable onPress={() => void handleImportNotebooks("replace")} style={({ pressed }) => [styles.button, pressed && styles.pressed]}><Text style={styles.buttonText}>{t("backupNotebooksReplace")}</Text></Pressable>
         </View>
         {notebooksNotice ? <Text style={styles.notice}>{notebooksNotice}</Text> : null}
       </View>
 
-      <View style={styles.card}>
+      <View style={styles.cardDivided}>
         <Text style={styles.label}>{t("backupConstantsTitle")}</Text>
         <View style={styles.actions}>
           <Pressable onPress={() => void handleExportConstants()} style={({ pressed }) => [styles.button, pressed && styles.pressed]}><Text style={styles.buttonText}>{t("backupConstantsExport")}</Text></Pressable>
@@ -271,9 +275,16 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   actions: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 },
   button: { backgroundColor: colors.surfaceSecondary, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
   buttonText: { color: colors.foreground, fontSize: 13, fontWeight: "700" },
-  card: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 18, borderWidth: 1, padding: 16 },
+  // 設定画面の折りたたみカード(SettingsSection)の中に入るので、以前のような枠線付きカードには
+  // しない（カードの中にカードが入って二重の枠になる）。背景色での区別も使えない
+  // （ボタンが surfaceSecondary なので、グループを同じ色で塗るとボタンが背景に溶ける）。
+  // ただし「対象が異なる破壊的操作を1枚に詰め込むと押し間違えやすいのでボタン列を完全に
+  // 独立させる」という元の設計意図は保つ必要があるため、2つ目のグループに区切り線を引いて
+  // 見分けさせる。
+  cardDivided: { borderColor: colors.border, borderTopWidth: 1, paddingTop: 14 },
   clearButton: { backgroundColor: colors.errorSurface, borderColor: colors.errorBorder, borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
   clearButtonText: { color: colors.error, fontSize: 13, fontWeight: "700" },
+  description: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 7 },
   label: { color: colors.foreground, fontSize: 15, fontWeight: "800" },
   notice: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 10 },
   pressed: { opacity: 0.72, transform: [{ scale: 0.98 }] },

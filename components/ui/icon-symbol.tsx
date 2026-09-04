@@ -32,7 +32,6 @@ const MAPPING = {
   "crown.fill": "workspace-premium",
   "square.and.arrow.up": "ios-share",
   "gearshape.fill": "settings",
-  "accessibility": "accessibility",
   "doc.on.doc": "content-copy",
   "magnifyingglass": "search",
   "list.bullet": "list",
