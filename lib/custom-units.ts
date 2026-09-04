@@ -3,6 +3,7 @@ import {
   hasSameDimension,
   isBuiltInUnitSymbol,
   IDENTIFIER_BODY_CHAR_CLASS,
+  IDENTIFIER_START_CHAR_CLASS,
   type Dimension,
   type SavedConstant,
 } from "@/lib/units";
@@ -68,8 +69,64 @@ function isAffine(f0: number, f1: number, f2: number): boolean {
   return Math.abs(secondDifference) <= magnitude * AFFINE_RELATIVE_TOLERANCE;
 }
 
+// 関数呼び出し（識別子の直後に開き括弧）。sin(x) のように x が非線形な関数の
+// 引数になっている定義を弾くために使う。
+const FUNCTION_CALL_PATTERN = new RegExp(`[${IDENTIFIER_START_CHAR_CLASS}][${IDENTIFIER_BODY_CHAR_CLASS}]*\\s*\\(`, "u");
+// べき乗。`^` に加えて上付き数字も見る（lib/units.ts の normalize が `^n` へ書き換える表記なので、
+// ユーザーが「x²」と入力してもここを素通りさせない）。
+const POWER_PATTERN = /[\^⁰¹²³⁴⁵⁶⁷⁸⁹]/u;
+// 識別子をすべて拾うパターン。x の出現回数はこれで数える。
+// STANDALONE_X_PATTERN を g 付きで使い回さないのは、あのパターンが x の前後の1文字まで
+// 消費するため、"x*x" が1件しか取れず（2件目の x の直前の "*" が1件目に食われる）
+// 数え落とすから。識別子そのものを列挙して "x" と一致する個数を見るほうが正確。
+const IDENTIFIER_GLOBAL_PATTERN = new RegExp(`[${IDENTIFIER_START_CHAR_CLASS}][${IDENTIFIER_BODY_CHAR_CLASS}]*`, "gu");
+
+// 定義式が x について「構造的に」1次かどうかを見る。
+//
+// なぜ標本抽出だけでは不十分か: x=0,1,2 の3点で2階差分を取る検査は、その3点でたまたま
+// 一致してしまう高次式を通す。実例として `x*x*(x-1)*(x-2)*m + x*m` は 0m・1m・2m を返すので
+// アフィンと判定されるが、x=3 では 3m ではなく 21m になる（CodeRabbitの指摘。実際に再現した）。
+// 標本点を増やしても「その点を根に持つ多項式」で同じ手口が成立するため、点を足す方向では
+// 塞ぎきれない。そこで値ではなく「x の現れ方」そのものを制限する。
+//
+// 判定は保守的（疑わしきは拒否）にしてある。x*10^3*m のような本来は1次の式も弾くが、
+// x*1000*m と書き直せるので実害は小さい。逆に取りこぼすと、ユーザーの単位が黙って
+// 間違った値に換算される。
+function isStructurallyAffineInX(definition: string): boolean {
+  // x が2回以上出てくる式（x*x、x*(x-1) など）は1次になりようがない。
+  // 「kx」「xy」のような別の識別子に含まれる x は数に入れない。
+  const identifiers = [...definition.matchAll(IDENTIFIER_GLOBAL_PATTERN)];
+  const xMatches = identifiers.filter((match) => match[0] === "x");
+  if (xMatches.length !== 1) return false;
+  if (POWER_PATTERN.test(definition)) return false;
+  if (FUNCTION_CALL_PATTERN.test(definition)) return false;
+
+  // x が除数になっている（m/x のような反比例）と1次ではない。x の直前の文字を
+  // 空白と開き括弧を読み飛ばして見る（"1/(x)" も除数として拾う）。
+  const xIndex = xMatches[0].index;
+  for (let cursor = xIndex - 1; cursor >= 0; cursor -= 1) {
+    const character = definition[cursor];
+    if (character === " " || character === "(") continue;
+    if (character === "/" || character === "÷") return false;
+    break;
+  }
+  return true;
+}
+
 function xConstant(value: number): SavedConstant {
   return { symbol: "x", expression: String(value), quantity: { siValue: value, dimension: [0, 0, 0, 0, 0, 0, 0] }, createdAt: "" };
+}
+
+// 「その記号をユーザー定義単位として実際に引けるか」の唯一の判定。
+// 登録時（parseCustomUnit）と、保存済みデータの復元時（lib/calculator-store.tsx）の
+// 両方から呼ぶ。復元側が独自に「空文字でなければOK」で通していると、記号 "m" のような
+// 絶対に解決されない単位（組み込みが必ず勝つ）が設定画面に並び、ユーザーには
+// 「登録したのに効かない幽霊」に見える。判定を2箇所に分けないための関数。
+export function isUsableCustomUnitSymbol(symbol: string): boolean {
+  const trimmed = symbol.trim();
+  if (!trimmed) return false;
+  if (!CUSTOM_UNIT_SYMBOL_PATTERN.test(trimmed)) return false;
+  return !isBuiltInUnitSymbol(trimmed);
 }
 
 function validateSymbol(symbol: string, existingSymbols: string[]): CustomUnitErrorCode | undefined {
@@ -85,6 +142,8 @@ type ScaleOffset = { scale: number; offset: number; dimension: Dimension };
 // 関数形式（定義式が独立した x を含む場合）。x=0,1,2 の3点で評価し、
 // 一次関数（アフィン）かどうかを2階差分で検査してから scale/offset を求める。
 function parseFunctionForm(definition: string, constants: SavedConstant[]): ScaleOffset | { error: CustomUnitErrorCode } {
+  // 構造の検査を先に通す。標本抽出（isAffine）はここを抜けた式に対する二重の網として残す。
+  if (!isStructurallyAffineInX(definition)) return { error: "nonAffineDefinition" };
   let f0;
   let f1;
   let f2;

@@ -54,8 +54,9 @@ export default function SettingsScreen() {
   };
 
   // エラー時は入力を消さない: ユーザーが定義式を打ち間違えた場合に、直しやすいよう
-  // 入力内容をそのまま残す（symbolTaken等では記号だけ直せばよい）。
-  const handleAddCustomUnit = () => {
+  // 入力内容をそのまま残す（symbolTaken等では記号だけ直せばよい）。保存自体
+  // （AsyncStorageへの書き込み）が失敗したときも同じ方針で、入力を消さずにエラーを出す。
+  const handleAddCustomUnit = async () => {
     const result = parseCustomUnit(customUnitSymbol, customUnitDefinition, {
       existingSymbols: customUnits.map((unit) => unit.symbol),
       constants,
@@ -64,10 +65,26 @@ export default function SettingsScreen() {
       setCustomUnitError(customUnitErrorMessage(result.code, language));
       return;
     }
+    try {
+      await saveCustomUnit(result.unit);
+    } catch {
+      setCustomUnitError(t("customUnitSaveFailed"));
+      return;
+    }
     setCustomUnitError("");
     setCustomUnitSymbol("");
     setCustomUnitDefinition("");
-    void saveCustomUnit(result.unit);
+  };
+
+  // 削除も保存と同じくAsyncStorageへの書き込みを伴うため、失敗しうる。握りつぶすと
+  // 一覧からは消えて見えるのに次回起動で復活する、という食い違いになるのでエラーを出す。
+  const handleDeleteCustomUnit = async (symbol: string) => {
+    try {
+      await deleteCustomUnit(symbol);
+      setCustomUnitError("");
+    } catch {
+      setCustomUnitError(t("customUnitSaveFailed"));
+    }
   };
 
   return <ScreenContainer className="px-5" containerClassName="bg-background">
@@ -114,7 +131,7 @@ export default function SettingsScreen() {
         </View>
         <Pressable
           disabled={!customUnitSymbol.trim() || !customUnitDefinition.trim()}
-          onPress={handleAddCustomUnit}
+          onPress={() => void handleAddCustomUnit()}
           style={({ pressed }) => [styles.resetButton, styles.customUnitAddButton, (!customUnitSymbol.trim() || !customUnitDefinition.trim()) && styles.redeemButtonDisabled, pressed && styles.pressed]}
         >
           <Text style={styles.customUnitAddButtonText}>{t("customUnitAdd")}</Text>
@@ -127,7 +144,7 @@ export default function SettingsScreen() {
                 <Text style={styles.customUnitRowText}>{unit.symbol} = {unit.expression}</Text>
                 <Pressable
                   accessibilityLabel={`${t("customUnitDelete")}: ${unit.symbol}`}
-                  onPress={() => void deleteCustomUnit(unit.symbol)}
+                  onPress={() => void handleDeleteCustomUnit(unit.symbol)}
                   style={({ pressed }) => [styles.customUnitDeleteButton, pressed && styles.pressed]}
                 >
                   <Text style={styles.customUnitDeleteButtonText}>{t("customUnitDelete")}</Text>

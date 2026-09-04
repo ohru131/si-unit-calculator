@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { ImportedConstant } from "@/lib/constants-backup";
-import { type CustomUnit } from "@/lib/custom-units";
+import { isUsableCustomUnitSymbol, type CustomUnit } from "@/lib/custom-units";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { APP_LANGUAGES, AppLanguage, isAppLanguage, localizedText, LocalizedText } from "@/lib/i18n";
 import { PRESET_NOTEBOOK_CATEGORIES, PRESET_NOTEBOOK_SEEDS, PRESET_NOTEBOOK_SEEDS_AS_SEEDED } from "@/lib/notebook-formulas";
@@ -195,10 +195,15 @@ function isSavedConstant(value: unknown): value is SavedConstant {
 // 混ざっていても起動を落とさないよう、他のisSavedXxxと同じ「怪しい要素はfilterで捨てる」防御にする。
 // dimensionは7要素の数値配列であることまで見る（lib/units.tsのDimensionはタプルだが、
 // AsyncStorageから読んだ値には型情報が付かないため実行時に長さと要素の型を検証する必要がある）。
+// 記号の形式チェックは isUsableCustomUnitSymbol（lib/custom-units.ts）に一本化する。
+// 以前はここで「空文字でなければOK」しか見ておらず、保存データに symbol: "m" のような
+// 組み込み単位と衝突する記号や数字入りの記号が混ざっていても素通りしていた。組み込みが
+// 常に優先されるため、そういう記号は設定画面には並ぶのに式では絶対に解決されない
+// 「幽霊単位」になる。
 function isCustomUnit(value: unknown): value is CustomUnit {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<CustomUnit>;
-  return typeof candidate.symbol === "string" && candidate.symbol.length > 0
+  return typeof candidate.symbol === "string" && isUsableCustomUnitSymbol(candidate.symbol)
     && typeof candidate.expression === "string"
     // scaleが0の単位は convertQuantity の除算で Infinity になるので、壊れた保存データとして落とす
     // （parseCustomUnitはzeroScaleで弾くが、ここは保存済みデータが壊れている場合の防御）。
@@ -493,10 +498,15 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
   // レジストリ（BASE_UNITSに足すのではなく別枠で持つ解決テーブル）はモジュール読み込み時に
   // 空で始まるだけのメモリ上の状態でAsyncStorageには一切触れないため、保存・削除のたびに
   // ここから明示的にsetCustomUnitsRegistryを呼ばないと、次に式を評価したときに反映されない。
+  //
+  // 他のpersistXxxとは逆に、ここだけAsyncStorage.setItemを先にawaitしてから
+  // state・レジストリを更新する。自作単位は保存に失敗すると「エンジンは新しい単位を
+  // 解決できるのに次回起動では消えている」という食い違いになり、しかもレジストリまで
+  // 書き換わっているぶん他のpersistXxx（stateだけが食い違う）より影響が大きいため。
   const persistCustomUnits = useCallback(async (next: CustomUnit[]) => {
+    await AsyncStorage.setItem(CUSTOM_UNITS_STORAGE_KEY, JSON.stringify(next));
     setCustomUnitsState(next);
     setCustomUnitsRegistry(next.map(toCustomUnitRegistration));
-    await AsyncStorage.setItem(CUSTOM_UNITS_STORAGE_KEY, JSON.stringify(next));
   }, []);
 
   // toggleNotebookPinnedなど、直前の呼び出し結果を踏まえて計算する更新が連続で呼ばれても
@@ -663,7 +673,15 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           // エンジンのレジストリ（lib/units.tsのsetCustomUnits）はモジュール状態でAsyncStorageに
           // 永続化されないので、アプリ起動のたびにここで読み込んだ内容を必ず再登録し直す
           // （でないと再起動直後は自作単位が式の中で一切解決できない）。
-          const loadedCustomUnits = parseStoredArray(customUnitsRaw).filter(isCustomUnit);
+          // 記号が重複していた場合は先勝ちで1つに絞る。setCustomUnitsRegistryは記号をキーに
+          // 上書き登録するだけで重複を検出しないため、壊れた保存データに同じ記号が複数あると
+          // 黙って後の要素が勝ってしまい、設定画面の一覧と実際に解決される単位がズレる。
+          const seenCustomUnitSymbols = new Set<string>();
+          const loadedCustomUnits = parseStoredArray(customUnitsRaw).filter(isCustomUnit).filter((unit) => {
+            if (seenCustomUnitSymbols.has(unit.symbol)) return false;
+            seenCustomUnitSymbols.add(unit.symbol);
+            return true;
+          });
           setCustomUnitsState(loadedCustomUnits);
           setCustomUnitsRegistry(loadedCustomUnits.map(toCustomUnitRegistration));
         }

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { parseCustomUnit } from "../lib/custom-units";
+import { isUsableCustomUnitSymbol, parseCustomUnit } from "../lib/custom-units";
 import { convertQuantity, evaluateExpression, formatQuantity, setCustomUnits, type Dimension, type SavedConstant } from "../lib/units";
 
 const LENGTH_DIMENSION: Dimension = [1, 0, 0, 0, 0, 0, 0];
@@ -178,5 +178,56 @@ describe("回帰テスト: 自作単位は既存の解決順を壊さない", ()
 
     setCustomUnits([]);
     expect(() => evaluateExpression("1shaku")).toThrow();
+  });
+});
+
+// CodeRabbitがPR #34で指摘した実バグの回帰テスト。
+// x=0,1,2 の3点だけを見る2階差分の検査は、その3点を根に持つ高次式を素通しする。
+// 標本点を増やしても「増やした点を根に持つ多項式」で同じ手口が成立するため、
+// 値ではなく「xの現れ方」を構造的に検査する方針に変えた。その方針が効いていることを固定する。
+describe("回帰テスト: 3点だけ一致する非アフィン式を弾く", () => {
+  it("x*x*(x-1)*(x-2)*m+x*m は x=0,1,2 で 0m,1m,2m になるが登録できない", () => {
+    // まず前提（この式が3点ではアフィンに見えること）を明示しておく。ここが崩れると
+    // このテストは「たまたま通っている」状態になり、回帰テストの意味が無くなる。
+    const sample = (n: number) =>
+      evaluateExpression("x*x*(x-1)*(x-2)*m+x*m", [
+        { symbol: "x", expression: String(n), quantity: { siValue: n, dimension: [0, 0, 0, 0, 0, 0, 0] }, createdAt: "" },
+      ]).siValue;
+    expect(sample(0)).toBeCloseTo(0);
+    expect(sample(1)).toBeCloseTo(1);
+    expect(sample(2)).toBeCloseTo(2);
+    // 3点では一次関数と区別できないが、x=3 では 3 ではなく 21 になる。
+    expect(sample(3)).toBeCloseTo(21);
+
+    const result = parseCustomUnit("poly", "x*x*(x-1)*(x-2)*m+x*m", { existingSymbols: [] });
+    expect(result).toEqual({ status: "error", code: "nonAffineDefinition" });
+  });
+
+  it("xが非線形に現れる他の書き方も弾く", () => {
+    const rejected = ["x*x*m", "x^2*m", "sin(x)*m", "m/x", "1/(x)*m", "x²*m"];
+    rejected.forEach((definition) => {
+      const result = parseCustomUnit("zz", definition, { existingSymbols: [] });
+      expect(result, definition).toEqual({ status: "error", code: "nonAffineDefinition" });
+    });
+  });
+
+  it("1次の定義は引き続き登録できる（過剰に弾いていないことの確認）", () => {
+    const accepted = ["(x-32)*5/9*K + 273.15*K", "2*x+5", "x*0.303*m", "x/2*m", " x * 3 * m"];
+    accepted.forEach((definition) => {
+      const result = parseCustomUnit("zz", definition, { existingSymbols: [] });
+      expect(result.status, definition).toBe("ok");
+    });
+  });
+});
+
+describe("isUsableCustomUnitSymbol", () => {
+  it("組み込みで解決できる記号・不正な記号を弾き、使える記号だけ通す", () => {
+    // 復元時（lib/calculator-store.tsx）と登録時で同じ判定を使うための関数。
+    expect(isUsableCustomUnitSymbol("m")).toBe(false);
+    expect(isUsableCustomUnitSymbol("dm")).toBe(false);
+    expect(isUsableCustomUnitSymbol("m2")).toBe(false);
+    expect(isUsableCustomUnitSymbol("")).toBe(false);
+    expect(isUsableCustomUnitSymbol("  ")).toBe(false);
+    expect(isUsableCustomUnitSymbol("shaku")).toBe(true);
   });
 });
