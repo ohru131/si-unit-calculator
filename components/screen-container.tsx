@@ -22,6 +22,12 @@ export interface ScreenContainerProps extends ViewProps {
    * Additional className for the SafeAreaView (content layer).
    */
   safeAreaClassName?: string;
+  /**
+   * Overrides the outer container's background color (defaults to the current theme's
+   * background). Use this instead of a `bg-*` class in containerClassName: NativeWind's
+   * CSS variables don't reliably update on native when the color scheme changes.
+   */
+  backgroundColor?: string;
 }
 
 /**
@@ -45,6 +51,7 @@ export function ScreenContainer({
   className,
   containerClassName,
   safeAreaClassName,
+  backgroundColor,
   style,
   ...props
 }: ScreenContainerProps) {
@@ -53,12 +60,12 @@ export function ScreenContainer({
     <View
       className={cn(
         "flex-1",
-        "bg-background",
         containerClassName
       )}
       // NativeWindのCSS変数(bg-background)はネイティブでダークモード切替時に反映されない
-      // ことがあるため、確実に効くJSベースの色（useColors）で明示的に上書きする。
-      style={{ backgroundColor: colors.background }}
+      // ことがあるため、確実に効くJSベースの色（useColors）を既定値にする。呼び出し元は
+      // containerClassNameのbg-*ではなくbackgroundColorで上書きすること。
+      style={{ backgroundColor: backgroundColor ?? colors.background }}
       {...props}
     >
       <SafeAreaView
