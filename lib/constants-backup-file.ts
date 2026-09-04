@@ -3,7 +3,8 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { Platform } from "react-native";
 
-import { parseConstantsBackup, serializeConstantsBackup, type ImportedConstant } from "@/lib/constants-backup";
+import { parseConstantsBackup, serializeConstantsBackup, type ParsedConstantsBackup } from "@/lib/constants-backup";
+import { type CustomUnit } from "@/lib/custom-units";
 import { type AppLanguage } from "@/lib/i18n";
 import type { SavedConstant } from "@/lib/units";
 
@@ -40,8 +41,8 @@ const FILE_MESSAGES: Record<AppLanguage, typeof EN_FILE_MESSAGES> = {
   },
 };
 
-export async function exportConstantsBackup(constants: SavedConstant[], language: AppLanguage) {
-  const content = serializeConstantsBackup(constants);
+export async function exportConstantsBackup(constants: SavedConstant[], customUnits: CustomUnit[], language: AppLanguage) {
+  const content = serializeConstantsBackup(constants, customUnits);
   if (Platform.OS === "web") {
     const blob = new Blob([content], { type: "application/json;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -67,7 +68,7 @@ async function readPickedAsset(asset: DocumentPicker.DocumentPickerAsset) {
   return FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.UTF8 });
 }
 
-export async function pickConstantsBackup(language: AppLanguage): Promise<ImportedConstant[] | null> {
+export async function pickConstantsBackup(language: AppLanguage): Promise<ParsedConstantsBackup | null> {
   const result = await DocumentPicker.getDocumentAsync({
     type: ["application/json", "text/json", "text/plain"],
     copyToCacheDirectory: true,

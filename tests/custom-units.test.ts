@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { isUsableCustomUnitSymbol, parseCustomUnit } from "../lib/custom-units";
+import { countCustomUnitConflicts, customUnitsAreEqual, isCustomUnit, isUsableCustomUnitSymbol, mergeCustomUnits, parseCustomUnit, parseCustomUnitsField, type CustomUnit } from "../lib/custom-units";
 import { convertQuantity, evaluateExpression, formatQuantity, setCustomUnits, type Dimension, type SavedConstant } from "../lib/units";
 
 const LENGTH_DIMENSION: Dimension = [1, 0, 0, 0, 0, 0, 0];
@@ -291,5 +291,118 @@ describe("回帰テスト: オフセット付き自作単位は単独でしか�
     setCustomUnits([{ symbol: "shaku", scale: 0.303, dimension: [1, 0, 0, 0, 0, 0, 0] }]);
     expect(evaluateExpression("2*shaku").siValue).toBeCloseTo(0.606);
     setCustomUnits([]);
+  });
+});
+
+describe("isCustomUnit（保存データ・バックアップの復元検証）", () => {
+  const VALID: CustomUnit = { symbol: "shaku", expression: "0.303m", scale: 0.303, offset: 0, dimension: [1, 0, 0, 0, 0, 0, 0] };
+
+  it("有効な自作単位を受け入れる", () => {
+    expect(isCustomUnit(VALID)).toBe(true);
+  });
+
+  it("記号に数字を含む要素は拒否する（parseUnitが二度と引けなくなるため）", () => {
+    expect(isCustomUnit({ ...VALID, symbol: "s3" })).toBe(false);
+  });
+
+  it("組み込み単位と衝突する記号は拒否する（幽霊単位になるため）", () => {
+    expect(isCustomUnit({ ...VALID, symbol: "m" })).toBe(false);
+  });
+
+  it("scaleが0の要素は拒否する（convertQuantityがInfinityになるため）", () => {
+    expect(isCustomUnit({ ...VALID, scale: 0 })).toBe(false);
+  });
+
+  it("dimensionが7要素でない要素は拒否する", () => {
+    expect(isCustomUnit({ ...VALID, dimension: [1, 0, 0, 0, 0, 0] })).toBe(false);
+  });
+
+  // isUsableCustomUnitSymbol はtrimしてから検証するので、この検査が無いと " shaku " が通る。
+  // 通ると "shaku" とは別キーで登録され、式のトークナイザは空白込みの記号を作らないので
+  // 絶対に解決されない幽霊単位になる。登録時は必ず symbol.trim() が保存されるため、
+  // 空白付きは壊れた保存データか手で編集された外部ファイルからしか来ない。
+  it("前後に空白の付いた記号を弾く", () => {
+    expect(isCustomUnit({ ...VALID, symbol: " shaku " })).toBe(false);
+    expect(isCustomUnit({ ...VALID, symbol: "shaku " })).toBe(false);
+    expect(isCustomUnit({ ...VALID, symbol: " shaku" })).toBe(false);
+  });
+
+  it("空白付きの記号はparseCustomUnitsFieldでも捨てられ、trim済みの同名だけが残る", () => {
+    const parsed = parseCustomUnitsField([{ ...VALID, symbol: " shaku " }, VALID]);
+    expect(parsed).toEqual([VALID]);
+  });
+});
+
+describe("parseCustomUnitsField", () => {
+  const VALID: CustomUnit = { symbol: "shaku", expression: "0.303m", scale: 0.303, offset: 0, dimension: [1, 0, 0, 0, 0, 0, 0] };
+
+  it("配列でない値は空配列を返す", () => {
+    expect(parseCustomUnitsField(undefined)).toEqual([]);
+    expect(parseCustomUnitsField(null)).toEqual([]);
+    expect(parseCustomUnitsField("not an array")).toEqual([]);
+  });
+
+  it("壊れた要素だけを黙って捨てる", () => {
+    expect(parseCustomUnitsField([VALID, { ...VALID, symbol: "m" }, "not even an object"])).toEqual([VALID]);
+  });
+
+  it("同じ記号が複数あれば先勝ちで1つに絞る", () => {
+    const differentShaku = { ...VALID, expression: "0.3m", scale: 0.3 };
+    expect(parseCustomUnitsField([VALID, differentShaku])).toEqual([VALID]);
+  });
+});
+
+describe("customUnitsAreEqual / countCustomUnitConflicts", () => {
+  const SHAKU: CustomUnit = { symbol: "shaku", expression: "0.303m", scale: 0.303, offset: 0, dimension: [1, 0, 0, 0, 0, 0, 0] };
+
+  it("定義が完全に同じなら等しいと判定する", () => {
+    expect(customUnitsAreEqual(SHAKU, { ...SHAKU })).toBe(true);
+  });
+
+  it("scale・offset・dimensionのいずれかが違えば等しくないと判定する", () => {
+    expect(customUnitsAreEqual(SHAKU, { ...SHAKU, scale: 0.3 })).toBe(false);
+    expect(customUnitsAreEqual(SHAKU, { ...SHAKU, offset: 1 })).toBe(false);
+    expect(customUnitsAreEqual(SHAKU, { ...SHAKU, dimension: [0, 1, 0, 0, 0, 0, 0] })).toBe(false);
+  });
+
+  // 評価結果が同じでも expression が違えば「違う定義」として扱う（＝確認ダイアログを出す）。
+  // expression は再編集のために保存しているユーザーの入力そのもので、取り込みで置き換われば
+  // ユーザーから見て定義が書き換わるため。ここを評価結果だけの比較にすると、"303mm" に直した
+  // あと "0.303m" 時代の古いバックアップを取り込んだときに編集の巻き戻りが無言で起きる。
+  it("評価結果が同じでも定義式が違えば別の定義として扱う", () => {
+    const sameValue: CustomUnit = { ...SHAKU, expression: "303mm" };
+    expect(customUnitsAreEqual(SHAKU, sameValue)).toBe(false);
+    expect(countCustomUnitConflicts([SHAKU], [sameValue])).toBe(1);
+  });
+
+  it("記号が新規なら衝突として数えない", () => {
+    expect(countCustomUnitConflicts([], [SHAKU])).toBe(0);
+  });
+
+  it("同じ記号で定義も同じなら衝突として数えない", () => {
+    expect(countCustomUnitConflicts([SHAKU], [{ ...SHAKU }])).toBe(0);
+  });
+
+  it("同じ記号で定義が違えば衝突として数える", () => {
+    expect(countCustomUnitConflicts([SHAKU], [{ ...SHAKU, expression: "0.3m", scale: 0.3 }])).toBe(1);
+  });
+});
+
+describe("mergeCustomUnits（取り込みの唯一のマージ規則: 追加・同名記号の置換のみ、削除しない）", () => {
+  const SHAKU: CustomUnit = { symbol: "shaku", expression: "0.303m", scale: 0.303, offset: 0, dimension: [1, 0, 0, 0, 0, 0, 0] };
+  const SUN: CustomUnit = { symbol: "sun", expression: "0.0303m", scale: 0.0303, offset: 0, dimension: [1, 0, 0, 0, 0, 0, 0] };
+
+  it("既存に無い記号は追加される", () => {
+    expect(mergeCustomUnits([SHAKU], [SUN])).toEqual([SHAKU, SUN]);
+  });
+
+  it("同じ記号は置換される（既存の並び順は保つ）", () => {
+    const updatedShaku = { ...SHAKU, expression: "0.3m", scale: 0.3 };
+    expect(mergeCustomUnits([SHAKU, SUN], [updatedShaku])).toEqual([updatedShaku, SUN]);
+  });
+
+  it("incomingに含まれない既存の自作単位は絶対に削除されない", () => {
+    // 「すべての計算ノートを置換」であっても自作単位は消えない、という不変条件を直接検証する。
+    expect(mergeCustomUnits([SHAKU, SUN], [])).toEqual([SHAKU, SUN]);
   });
 });
