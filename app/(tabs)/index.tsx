@@ -29,6 +29,7 @@ import { historyToAutoConstants } from "@/lib/history-auto-constants";
 import { localizedText, type AppLanguage } from "@/lib/i18n";
 import { getCalculatorQuickShortcut } from "@/lib/quick-shortcuts";
 import { usePro } from "@/lib/revenuecat-provider";
+import { buildUnitComparisonRows } from "@/lib/unit-comparison";
 import { unitErrorMessage } from "@/lib/unit-errors";
 import { getUnitExplanation } from "@/lib/unit-explanations";
 import UnitCalculatorWidget from "@/widgets/UnitCalculatorWidget";
@@ -81,6 +82,8 @@ const EN_COPY = {
   historyRestored: "Restored the saved calculation.",
   historyExported: "Exported the calculation history as CSV.",
   csvExportFailed: "Could not export the CSV file.",
+  compareUnits: "Compare units",
+  compareUnitsHint: "Tap a row to show the result in that unit.",
 };
 const COPY: Record<AppLanguage, typeof EN_COPY> = {
   en: EN_COPY,
@@ -108,6 +111,8 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     historyRestored: "保存済みの計算結果を復元しました。",
     historyExported: "計算履歴をCSVとして出力しました。",
     csvExportFailed: "CSVを出力できませんでした。",
+    compareUnits: "単位を比較",
+    compareUnitsHint: "行をタップするとその単位で表示します。",
   },
   es: {
     definitionHint: "Definir una constante: W = 3cm", calculate: "=", siBase: "Base SI", emptyResult: "Escribe una expresión para ver el resultado. Toca = para guardarlo en el historial.", pickUnit: "Elige una unidad registrada", speedTitle: "Distancia, tiempo y velocidad", speedFormula: "Velocidad = distancia ÷ tiempo     Distancia = velocidad × tiempo", findSpeed: "Calcular velocidad", findDistance: "Calcular distancia", findTime: "Calcular tiempo", savedHistory: "Cálculos guardados", historyHint: "Los últimos resultados están disponibles como a1, a2, etc.", clear: "Borrar", helpTitle: "Ejemplos", helpDone: "Listo", unitSearch: "Buscar unidades, nombres o categorías", copied: "Cálculo copiado", copy: "Copiar", unitDetails: "Detalles de la unidad", siConversion: "Conversión SI", commonUse: "Uso común", close: "Cerrar", advancedMath: "Matemáticas avanzadas", advancedMathHint: "Los ángulos usan rad, deg o °. Incluye trigonometría inversa, logaritmos y atan2(y, x).", saveTemplate: "Guardar", samples: "Ejemplos", units: "Unidades", shortcuts: "Velocidad", math: "Matemáticas", outputUnit: "Unidad mostrada", insertUnit: "Insertar unidad", registered: "Registrada", supported: "Compatible, sin listar", unknown: "Unidad no válida", unknownHint: "Revisa el símbolo o elige un candidato abajo.", history: "Historial", use: "Usar", noUnit: "Base SI", compatible: "Compatible con este resultado", allCandidates: "Candidatos más cercanos", hintFix: "Corregir", hintComplete: "Completar", hintAttach: "Añadir", hintReplace: "Sustituir", hintInsert: "Insertar", more: "Más", showAs: "Mostrar como", fixTap: "Toca la unidad en rojo para corregirla.", noCandidates: "No se encontró ningún candidato. Revisa el símbolo.", aliasNote: "igual a", noSearchResults: "Ninguna unidad coincide con esta búsqueda.", noSearchResultsHint: "Prueba otro símbolo, nombre o categoría.", noHistory: "Aún no hay cálculos guardados.", noHistoryHint: "Cada resultado que calculas se guarda aquí automáticamente.", browseUnits: "Explorar categorías",
@@ -133,6 +138,8 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     historyRestored: "Se restauró el cálculo guardado.",
     historyExported: "Historial de cálculos exportado como CSV.",
     csvExportFailed: "No se pudo exportar el archivo CSV.",
+    compareUnits: "Comparar unidades",
+    compareUnitsHint: "Toca una fila para mostrar el resultado en esa unidad.",
   },
   "pt-BR": {
     definitionHint: "Definir uma constante: W = 3cm", calculate: "=", siBase: "Base SI", emptyResult: "Digite uma expressão para ver o resultado. Toque em = para salvá-lo no histórico.", pickUnit: "Escolha uma unidade registrada", speedTitle: "Distância, tempo e velocidade", speedFormula: "Velocidade = distância ÷ tempo     Distância = velocidade × tempo", findSpeed: "Calcular velocidade", findDistance: "Calcular distância", findTime: "Calcular tempo", savedHistory: "Cálculos salvos", historyHint: "Os últimos resultados ficam disponíveis como a1, a2 etc.", clear: "Limpar", helpTitle: "Exemplos", helpDone: "Concluído", unitSearch: "Buscar unidades, nomes ou categorias", copied: "Cálculo copiado", copy: "Copiar", unitDetails: "Detalhes da unidade", siConversion: "Conversão SI", commonUse: "Uso comum", close: "Fechar", advancedMath: "Matemática avançada", advancedMathHint: "Os ângulos usam rad, deg ou °. Inclui trigonometria inversa, logaritmos e atan2(y, x).", saveTemplate: "Salvar", samples: "Exemplos", units: "Unidades", shortcuts: "Velocidade", math: "Matemática", outputUnit: "Unidade de exibição", insertUnit: "Inserir unidade", registered: "Registrada", supported: "Compatível, não listada", unknown: "Unidade inválida", unknownHint: "Verifique o símbolo ou escolha um candidato abaixo.", history: "Histórico", use: "Usar", noUnit: "Base SI", compatible: "Compatível com este resultado", allCandidates: "Candidatos mais próximos", hintFix: "Corrigir", hintComplete: "Concluir", hintAttach: "Adicionar", hintReplace: "Substituir", hintInsert: "Inserir", more: "Mais", showAs: "Exibir como", fixTap: "Toque na unidade em vermelho para corrigi-la.", noCandidates: "Nenhum candidato encontrado. Verifique o símbolo.", aliasNote: "igual a", noSearchResults: "Nenhuma unidade corresponde a esta busca.", noSearchResultsHint: "Tente outro símbolo, nome ou categoria.", noHistory: "Ainda não há cálculos salvos.", noHistoryHint: "Cada resultado calculado é salvo aqui automaticamente.", browseUnits: "Explorar categorias",
@@ -158,6 +165,8 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     historyRestored: "O cálculo salvo foi restaurado.",
     historyExported: "O histórico de cálculos foi exportado como CSV.",
     csvExportFailed: "Não foi possível exportar o arquivo CSV.",
+    compareUnits: "Comparar unidades",
+    compareUnitsHint: "Toque em uma linha para exibir o resultado nessa unidade.",
   },
   de: {
     definitionHint: "Konstante definieren: W = 3cm", calculate: "=", siBase: "SI-Basis", emptyResult: "Gib einen Ausdruck ein, um das Ergebnis zu sehen. Tippe auf =, um es im Verlauf zu speichern.", pickUnit: "Registrierte Einheit wählen", speedTitle: "Strecke, Zeit & Geschwindigkeit", speedFormula: "Geschwindigkeit = Strecke ÷ Zeit     Strecke = Geschwindigkeit × Zeit", findSpeed: "Geschwindigkeit berechnen", findDistance: "Strecke berechnen", findTime: "Zeit berechnen", savedHistory: "Gespeicherte Berechnungen", historyHint: "Die letzten Ergebnisse stehen als a1, a2 usw. zur Verfügung.", clear: "Löschen", helpTitle: "Beispiele", helpDone: "Fertig", unitSearch: "Einheiten, Namen oder Kategorien suchen", copied: "Berechnung kopiert", copy: "Kopieren", unitDetails: "Details zur Einheit", siConversion: "SI-Umrechnung", commonUse: "Typische Verwendung", close: "Schließen", advancedMath: "Erweiterte Mathematik", advancedMathHint: "Winkel in rad, deg oder °. Enthält inverse Trigonometrie, Logarithmen und atan2(y, x).", saveTemplate: "Speichern", samples: "Beispiele", units: "Einheiten", shortcuts: "Geschwindigkeit", math: "Mathematik", outputUnit: "Anzeigeeinheit", insertUnit: "Einheit einfügen", registered: "Registriert", supported: "Unterstützt, nicht gelistet", unknown: "Keine gültige Einheit", unknownHint: "Prüfe das Symbol oder wähle unten einen Vorschlag.", history: "Verlauf", use: "Verwenden", noUnit: "SI-Basis", compatible: "Passt zu diesem Ergebnis", allCandidates: "Nächste Vorschläge", hintFix: "Beheben", hintComplete: "Fertig", hintAttach: "Anfügen", hintReplace: "Ersetzen", hintInsert: "Einfügen", more: "Mehr", showAs: "Anzeigen als", fixTap: "Tippe auf die rote Einheit, um sie zu korrigieren.", noCandidates: "Kein Vorschlag gefunden. Prüfe das Symbol.", aliasNote: "entspricht", noSearchResults: "Keine Einheit passt zu dieser Suche.", noSearchResultsHint: "Versuche ein anderes Symbol, einen anderen Namen oder eine andere Kategorie.", noHistory: "Noch keine gespeicherten Berechnungen.", noHistoryHint: "Jedes berechnete Ergebnis wird hier automatisch gespeichert.", browseUnits: "Kategorien durchsuchen",
@@ -183,6 +192,8 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     historyRestored: "Die gespeicherte Berechnung wurde wiederhergestellt.",
     historyExported: "Der Berechnungsverlauf wurde als CSV exportiert.",
     csvExportFailed: "Die CSV-Datei konnte nicht exportiert werden.",
+    compareUnits: "Einheiten vergleichen",
+    compareUnitsHint: "Tippe auf eine Zeile, um das Ergebnis in dieser Einheit anzuzeigen.",
   },
   fr: {
     definitionHint: "Définir une constante : W = 3cm", calculate: "=", siBase: "Base SI", emptyResult: "Saisissez une expression pour voir le résultat. Appuyez sur = pour l'enregistrer dans l'historique.", pickUnit: "Choisir une unité enregistrée", speedTitle: "Distance, temps et vitesse", speedFormula: "Vitesse = distance ÷ temps     Distance = vitesse × temps", findSpeed: "Calculer la vitesse", findDistance: "Calculer la distance", findTime: "Calculer le temps", savedHistory: "Calculs enregistrés", historyHint: "Les derniers résultats sont disponibles sous la forme a1, a2, etc.", clear: "Effacer", helpTitle: "Exemples", helpDone: "Terminé", unitSearch: "Rechercher des unités, des noms ou des catégories", copied: "Calcul copié", copy: "Copier", unitDetails: "Détails de l'unité", siConversion: "Conversion SI", commonUse: "Usage courant", close: "Fermer", advancedMath: "Mathématiques avancées", advancedMathHint: "Les angles utilisent rad, deg ou °. Comprend la trigonométrie inverse, les logarithmes et atan2(y, x).", saveTemplate: "Enregistrer", samples: "Exemples", units: "Unités", shortcuts: "Vitesse", math: "Maths", outputUnit: "Unité affichée", insertUnit: "Insérer une unité", registered: "Enregistrée", supported: "Prise en charge, non listée", unknown: "Unité non valide", unknownHint: "Vérifiez le symbole ou choisissez un candidat ci-dessous.", history: "Historique", use: "Utiliser", noUnit: "Base SI", compatible: "Compatible avec ce résultat", allCandidates: "Candidats les plus proches", hintFix: "Corriger", hintComplete: "Terminer", hintAttach: "Ajouter", hintReplace: "Remplacer", hintInsert: "Insérer", more: "Plus", showAs: "Afficher en", fixTap: "Touchez l'unité en rouge pour la corriger.", noCandidates: "Aucun candidat trouvé. Vérifiez le symbole.", aliasNote: "identique à", noSearchResults: "Aucune unité ne correspond à cette recherche.", noSearchResultsHint: "Essayez un autre symbole, nom ou catégorie.", noHistory: "Aucun calcul enregistré pour le moment.", noHistoryHint: "Chaque résultat calculé est enregistré ici automatiquement.", browseUnits: "Parcourir les catégories",
@@ -208,6 +219,8 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     historyRestored: "Le calcul enregistré a été restauré.",
     historyExported: "L'historique des calculs a été exporté au format CSV.",
     csvExportFailed: "Impossible d'exporter le fichier CSV.",
+    compareUnits: "Comparer les unités",
+    compareUnitsHint: "Touchez une ligne pour afficher le résultat dans cette unité.",
   },
 };
 
@@ -278,6 +291,8 @@ export default function CalculatorScreen() {
   const [showUnitPicker, setShowUnitPicker] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showAdvancedKeys, setShowAdvancedKeys] = useState(false);
+  // 単位比較表はデフォルト折りたたみ。永続化はしない（開閉状態は画面を開くたびリセットしてよい）。
+  const [showComparison, setShowComparison] = useState(false);
   const [unitPickerMode, setUnitPickerMode] = useState<"insert" | "target">("insert");
   const [unitInfoSymbol, setUnitInfoSymbol] = useState<string | null>(null);
   const [unitSearch, setUnitSearch] = useState("");
@@ -448,6 +463,17 @@ export default function CalculatorScreen() {
     }
     // measuringStandardが変わるとcup/tbsp/tspの換算値が変わるため、依存配列に含めて表示単位を再計算させる（値自体は使わない）。
   }, [copy, language, locale, measuringStandard, result, targetUnit]);
+
+  const comparisonRows = useMemo(() => {
+    // measuringStandardが変わるとcup/tbsp/tspの換算値が変わるため、依存配列に含めて表を再計算させる（値自体は使わない）。
+    void measuringStandard;
+    return buildUnitComparisonRows(result ?? undefined, {
+      unitSystem,
+      hints: [targetUnit, expression, display?.si],
+      activeUnit: targetUnit,
+      locale,
+    });
+  }, [display, expression, locale, measuringStandard, result, targetUnit, unitSystem]);
 
   const rememberUnit = (symbol: string) => {
     const trimmed = symbol.trim();
@@ -1000,6 +1026,38 @@ export default function CalculatorScreen() {
                       <IconSymbol name="chevron.right" size={11} color={colors.primary} />
                     </Pressable>
                   </View>
+                  {comparisonRows.length > 1 ? (
+                    <View style={styles.comparisonSection}>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={copy.compareUnits}
+                        accessibilityState={{ expanded: showComparison }}
+                        onPress={() => setShowComparison((prev) => !prev)}
+                        style={({ pressed }) => [styles.comparisonToggle, pressed && styles.pressed]}
+                      >
+                        <Text style={styles.comparisonToggleText}>{copy.compareUnits}</Text>
+                        <IconSymbol name={showComparison ? "chevron.up" : "chevron.right"} size={11} color={colors.primary} />
+                      </Pressable>
+                      {showComparison ? (
+                        <>
+                          <Text style={styles.comparisonHint}>{copy.compareUnitsHint}</Text>
+                          <View style={styles.comparisonTable}>
+                            {comparisonRows.map((row) => (
+                              <Pressable
+                                key={row.symbol}
+                                accessibilityLabel={`${row.label} ${row.value}`}
+                                onPress={() => { markUserInteraction(); applyTargetUnit(row.symbol); }}
+                                style={({ pressed }) => [styles.comparisonRow, row.isActive && styles.comparisonRowActive, pressed && styles.pressed]}
+                              >
+                                <Text style={[styles.comparisonRowLabel, row.isActive && styles.comparisonRowLabelActive]}>{row.label}</Text>
+                                <Text numberOfLines={1} style={[styles.comparisonRowValue, row.isActive && styles.comparisonRowValueActive]}>{row.value}</Text>
+                              </Pressable>
+                            ))}
+                          </View>
+                        </>
+                      ) : null}
+                    </View>
+                  ) : null}
                   <View style={styles.siRow}>
                     <Text style={styles.siLabel}>{copy.siBase}</Text>
                     <Text numberOfLines={1} selectable style={styles.siValue}>{display.si}</Text>
@@ -1318,6 +1376,19 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   convertChipTextActive: { color: colors.onPrimary },
   convertMore: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 9, borderWidth: 1, flexDirection: "row", gap: 2, minHeight: 30, paddingHorizontal: 8 },
   convertMoreText: { color: colors.primary, fontSize: 11, fontWeight: "800" },
+
+  // 単位比較表（チップ列を縦に開いたもの）。デフォルト折りたたみのトグルと、開いたときの行一覧。
+  comparisonSection: { marginTop: 7 },
+  comparisonToggle: { alignItems: "center", flexDirection: "row", gap: 6, justifyContent: "space-between", paddingVertical: 2 },
+  comparisonToggleText: { color: colors.primary, fontSize: 11, fontWeight: "800" },
+  comparisonHint: { color: colors.muted, fontSize: 10, marginTop: 2 },
+  comparisonTable: { gap: 1, marginTop: 4 },
+  comparisonRow: { alignItems: "center", borderRadius: 8, flexDirection: "row", gap: 8, justifyContent: "space-between", paddingHorizontal: 8, paddingVertical: 6 },
+  comparisonRowActive: { backgroundColor: colors.primaryFill },
+  comparisonRowLabel: { color: colors.foreground, fontSize: 12, fontWeight: "600" },
+  comparisonRowLabelActive: { color: colors.onPrimary },
+  comparisonRowValue: { color: colors.foreground, flexShrink: 1, fontFamily: mono, fontSize: 12, fontWeight: "600", textAlign: "right" },
+  comparisonRowValueActive: { color: colors.onPrimary },
 
   siRow: { alignItems: "center", flexDirection: "row", gap: 8, justifyContent: "space-between", marginTop: 7 },
   siLabel: { color: colors.muted, fontSize: 11 },
