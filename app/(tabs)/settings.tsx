@@ -41,6 +41,17 @@ export default function SettingsScreen() {
   const systems: { id: UnitSystem; label: string }[] = [{ id: "metric", label: t("systemMetric") }, { id: "us", label: t("systemUS") }, { id: "uk", label: t("systemUK") }];
   const themeOptions: { id: ThemePreference; label: string }[] = [{ id: "system", label: t("themeSystem") }, { id: "light", label: t("themeLight") }, { id: "dark", label: t("themeDark") }];
   const measuringStandards: { id: MeasuringStandard; label: string }[] = [{ id: "us", label: t("standardUS") }, { id: "jis", label: t("standardJIS") }];
+  // 折りたたみが閉じた行の右端に出す現在値。選択肢を作っている配列（上の4つ）から引く
+  // ことで、翻訳を直したときにここが食い違う心配をなくす。
+  const languageValue = languages.find((option) => option.id === language)?.label ?? "";
+  const themeValue = themeOptions.find((option) => option.id === themePreference)?.label ?? "";
+  const systemValue = systems.find((option) => option.id === unitSystem)?.label ?? "";
+  const measuringStandardValue = measuringStandards.find((option) => option.id === measuringStandard)?.label ?? "";
+  // 0件のときは行に値を出さない。customUnitEmptyは「まだ自作の単位はありません。」という
+  // 文章で、行の値の位置に置くと狭い端末幅で「まだ自作の単位はあ…」と切れて読めなくなる
+  // （仏語は42文字あり確実に切れる）。開けば同じ文章が空状態として出るので、閉じた行は
+  // 値なしにしておく方が「登録が無い」ことがかえって伝わる。
+  const customUnitsValue = customUnits.length ? t("customUnitCount").replace("{count}", String(customUnits.length)) : undefined;
 
   const confirmResetPresets = async () => {
     setPendingResetPresets(false);
@@ -90,28 +101,23 @@ export default function SettingsScreen() {
 
   return <ScreenContainer className="px-5" containerClassName="bg-background">
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.header}><Text style={styles.title}>{t("settings")}</Text><Text style={styles.subtitle}>{t("settingsSubtitle")}</Text></View>
-      {/* 毎日触る設定は常時展開（言語・テーマ・単位系・カップ規格）。折りたたむと毎回開く手間が
-          発生し、逆に触りにくくなるため。 */}
-      <View style={styles.card}>
-        <View style={styles.cardTitle}><IconSymbol name="globe" size={20} color={colors.primary} /><Text style={styles.label}>{t("language")}</Text></View>
+      {/* 全項目を折りたたみに統一。閉じた行の右端に現在値を出すので、開かなくても
+          「今何が選ばれているか」は分かる（iOS設定アプリの「ラベル … 現在値 ›」と同じ形）。 */}
+      <SettingsSection title={t("language")} icon="globe" value={languageValue}>
         <View style={styles.options}>{languages.map((option) => <Pressable accessibilityRole="radio" accessibilityState={{ checked: language === option.id }} accessibilityLabel={`${t("language")}: ${option.label}`} key={option.id} onPress={() => void setLanguage(option.id)} style={({ pressed }) => [styles.option, language === option.id && styles.optionActive, pressed && styles.pressed]}><Text style={[styles.optionText, language === option.id && styles.optionTextActive]}>{option.label}</Text></Pressable>)}</View>
-      </View>
-      <View style={styles.card}>
-        <View style={styles.cardTitle}><IconSymbol name="paintbrush.fill" size={20} color={colors.primary} /><Text style={styles.label}>{t("theme")}</Text></View>
+      </SettingsSection>
+      <SettingsSection title={t("theme")} icon="paintbrush.fill" value={themeValue}>
         <Text style={styles.description}>{t("themeHint")}</Text>
         <View style={styles.options}>{themeOptions.map((option) => <Pressable accessibilityRole="radio" accessibilityState={{ checked: themePreference === option.id }} accessibilityLabel={`${t("theme")}: ${option.label}`} key={option.id} onPress={() => setThemePreference(option.id)} style={({ pressed }) => [styles.option, themePreference === option.id && styles.optionActive, pressed && styles.pressed]}><Text style={[styles.optionText, themePreference === option.id && styles.optionTextActive]}>{option.label}</Text></Pressable>)}</View>
-      </View>
-      <View style={styles.card}>
-        <View style={styles.cardTitle}><IconSymbol name="ruler.fill" size={20} color={colors.primary} /><Text style={styles.label}>{t("units")}</Text></View>
+      </SettingsSection>
+      <SettingsSection title={t("units")} icon="ruler.fill" value={systemValue}>
         <Text style={styles.description}>{t("systemHint")}</Text>
         <View style={styles.systemList}>{systems.map((option) => <Pressable accessibilityRole="radio" accessibilityState={{ checked: unitSystem === option.id }} accessibilityLabel={`${t("units")}: ${option.label}`} key={option.id} onPress={() => void setUnitSystem(option.id)} style={({ pressed }) => [styles.systemRow, unitSystem === option.id && styles.systemRowActive, pressed && styles.pressed]}><View style={[styles.radio, unitSystem === option.id && styles.radioActive]}>{unitSystem === option.id ? <View style={styles.radioInner} /> : null}</View><Text style={styles.systemText}>{option.label}</Text></Pressable>)}</View>
-      </View>
-      <View style={styles.card}>
-        <View style={styles.cardTitle}><IconSymbol name="cup.and.saucer.fill" size={20} color={colors.primary} /><Text style={styles.label}>{t("measuringStandard")}</Text></View>
+      </SettingsSection>
+      <SettingsSection title={t("measuringStandard")} icon="cup.and.saucer.fill" value={measuringStandardValue}>
         <Text style={styles.description}>{t("measuringStandardHint")}</Text>
         <View style={styles.systemList}>{measuringStandards.map((option) => <Pressable accessibilityRole="radio" accessibilityState={{ checked: measuringStandard === option.id }} accessibilityLabel={`${t("measuringStandard")}: ${option.label}`} key={option.id} onPress={() => void setMeasuringStandard(option.id)} style={({ pressed }) => [styles.systemRow, measuringStandard === option.id && styles.systemRowActive, pressed && styles.pressed]}><View style={[styles.radio, measuringStandard === option.id && styles.radioActive]}>{measuringStandard === option.id ? <View style={styles.radioInner} /> : null}</View><Text style={styles.systemText}>{option.label}</Text></Pressable>)}</View>
-      </View>
+      </SettingsSection>
       {isAdsPlatformAvailable ? (
         <View style={styles.card}>
           <View style={styles.cardTitle}><IconSymbol name="crown.fill" size={20} color={colors.primary} /><Text style={styles.label}>{t("adsTitle")}</Text></View>
@@ -144,8 +150,7 @@ export default function SettingsScreen() {
           ) : null}
         </View>
       ) : null}
-      {/* ここから下はめったに使わない・破壊的な項目なので折りたたみ、初期状態は全部閉じておく。 */}
-      <SettingsSection title={t("customUnits")} icon="wrench.and.screwdriver.fill">
+      <SettingsSection title={t("customUnits")} icon="wrench.and.screwdriver.fill" value={customUnitsValue}>
         <Text style={styles.description}>{t("customUnitsHint")}</Text>
         <View style={styles.customUnitInputRow}>
           <TextInput
@@ -223,7 +228,6 @@ export default function SettingsScreen() {
 
 const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   content: { gap: 14, paddingBottom: 30, paddingTop: 8 },
-  header: { paddingBottom: 6 }, title: { color: colors.foreground, fontSize: 22, fontWeight: "700", letterSpacing: -0.5 }, subtitle: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 4 },
   card: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 18, borderWidth: 1, padding: 16 }, label: { color: colors.foreground, fontSize: 15, fontWeight: "800" }, description: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 7 },
   cardTitle: { alignItems: "center", flexDirection: "row", gap: 8 },
   // 言語が増えるとチップが横に溢れるため折り返す（6言語だと確実に溢れる）。

@@ -841,8 +841,9 @@ export default function CalculatorScreen() {
   return (
     <ScreenContainer className="px-4" containerClassName="bg-background">
       <View style={styles.screen}>
+        {/* 画面名の見出し(h1)はタブバー(app/(tabs)/_layout.tsx)のラベルと重複するため出さない。
+            タイトルが無くなった分、ヘルプボタンは右寄せのまま浮かせる。 */}
         <View style={styles.header}>
-          <Text style={styles.title}>{t("calculator")}</Text>
           <View style={styles.headerActions}>
             <Pressable accessibilityLabel={copy.helpTitle} onPress={() => setShowHelp(true)} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
               <IconSymbol name="questionmark.circle.fill" size={20} color={colors.primary} />
@@ -1305,8 +1306,9 @@ const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "mon
 const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   // 画面全体を一枚に収め、縦スクロールを起こさない構成にする。
   screen: { flex: 1, gap: 6, paddingBottom: 4, paddingTop: 2 },
-  header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
-  title: { color: colors.foreground, fontSize: 22, fontWeight: "700", letterSpacing: -0.5 },
+  // h1(title)を削除したので、右端のヘルプボタンだけが浮くようにflex-endへ変更
+  // （space-betweenのままだと子要素が1つだけになり左端に寄ってしまう）。
+  header: { alignItems: "center", flexDirection: "row", justifyContent: "flex-end" },
   headerActions: { alignItems: "center", flexDirection: "row", gap: 6 },
   headerButton: { alignItems: "center", backgroundColor: colors.primarySurface, borderRadius: 16, height: 32, justifyContent: "center", width: 32 },
 
