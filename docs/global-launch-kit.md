@@ -12,7 +12,7 @@
 
 差別化要素は次の3点（`docs/market-research-2026-09.md`第2節）:
 1. 単位付きの数式をそのまま計算し、次元不一致をエラーとして検出する
-2. 112件超のプリセット計算ノート（KaTeXによる本物のLaTeX数式表示）
+2. 112件のプリセット計算ノート（KaTeXによる本物のLaTeX数式表示）
 3. ユーザー定義単位・単位比較表・進数といった、単なる「単位換算」を超えた計算機能
 
 ## 英語ストア掲載ドラフト（詳細は `docs/store-listing-copy.md` を参照）
@@ -20,7 +20,7 @@
 | 項目 | 内容 |
 |---|---|
 | App name | Unit Calculator |
-| Short description | `docs/store-listing-copy.md`の短い説明（英語74字）を参照 |
+| Short description | `docs/store-listing-copy.md`の短い説明（英語73字）を参照 |
 | Full description | 同ドキュメントの詳しい説明（英語、6言語すべて掲載済み） |
 
 ## 国際化チェックリスト
@@ -29,7 +29,7 @@
 |---|---|---|
 | アプリ内言語 | **en/ja/es/pt-BR/de/fr の6言語対応済み**（UI・単位名・エラーメッセージ・プリセット計算ノート112件すべて翻訳済み） | さらに言語を増やすかは`CLAUDE.md`「次にやりそうなこと」を参照（`ko`/`zh-Hant`/`id`が次候補、未着手） |
 | 単位系プリセット | 設定画面に「メートル法／米国慣用単位／英・帝国単位」の切替がある（`lib/global-settings.tsx`の`systemMetric`/`systemUS`/`systemUK`）。主にレシピ系ノートのカップ・大さじ等の定義（`standardUS`等）に影響する小さめの機能 | ストア掲載文の主要訴求としては優先度を下げ、6言語対応・計算ノート・単位比較・ユーザー定義単位・進数を優先する（文字数上限もあるため） |
-| ストアメタデータ | 6言語の掲載文は`docs/store-listing-copy.md`に用意済み。スクリーンショットは日英2言語のみ撮影し、他4言語には英語版を流用 | `docs/screenshot-capture-plan.md`の指示に沿って撮影する |
+| ストアメタデータ | 6言語の掲載文は`docs/store-listing-copy.md`に用意済み。スクリーンショットは日英2言語のみ撮影し、他4言語には英語版を流用 | `docs/screenshot-capture-plan.md`の指示に沿って撮影する。Play Console側での多言語ストア掲載の登録手順はGoogle公式ヘルプ[1]を参照 |
 | サポート | 現状、実在の問い合わせ先が無い（旧版は`support@example.com`というダミー） | `docs/shipaton-submission-kit.md`の「提出前に差し替えが必要な箇所」を参照し、実在のメールアドレスを用意する |
 | プライバシー | 現状、公開URLでホストされたプライバシーポリシーが無い | 同上ドキュメントのプライバシーポリシー・ドラフトを、実在の情報で完成させて公開URLでホストする |
 | 価格設定 | **買い切り（非消費型）1本、サブスクなし**（`docs/market-research-2026-09.md`第4節。電卓ジャンルはサブスクへの反発が突出して強いという調査結果に基づく） | RevenueCatのローカライズ済み購入シート（`product.priceString`をそのまま表示、自前で通貨記号を組まない）と、Play Console側の地域別価格設定に任せる |

@@ -18,12 +18,12 @@ The previous version of this script assumed spoken English narration. **The narr
 | 0:08–0:16 | Result card appears in real time (before pressing `=`), showing SI base value and unit chips | **Every value is normalized to SI — automatically, as you type.** |
 | 0:16–0:24 | Replace the expression with `5m + 1kg`; the dimension-mismatch error appears | **Mix incompatible units, and it tells you — instead of a wrong answer.** |
 | 0:24–0:34 | Enter `100km / 2h`; tap "Compare units" to expand the comparison table | **See one result across every compatible unit, at a glance.** |
-| 0:34–0:44 | Open Settings → Custom units; add symbol `shaku` with definition `0.303m`; return to the calculator and use it in an expression | **Define your own units — even ones with an offset, like temperature scales.** |
+| 0:34–0:44 | Open Settings → Custom units; add symbol `shaku` with definition `0.303m`; return to the calculator and use it in an expression | **Define your own units — like shaku = 0.303m.** |
 | 0:44–0:52 | Clear the expression, tap the `0x` rail button, enter a hex value; show the DEC/BIN/OCT/HEX display chips | **Switch a number between decimal, binary, octal, and hex.** |
-| 0:52–1:04 | Library tab: scroll the category grid (Science, High-school physics, Electricity basics, Astronomy, Fitness, Chemistry, Cars & bikes, Cooking, Materials), then open a notebook with real typeset math | **112+ formula notebooks — from elementary science to engineering — with real, typeset math.** |
+| 0:52–1:04 | Library tab: scroll the category grid (Science, High-school physics, Electricity basics, Astronomy, Fitness, Chemistry, Cars & bikes, Cooking, Materials), then open a notebook with real typeset math | **112 formula notebooks — from elementary science to engineering — with real, typeset math.** |
 | 1:04–1:12 | Inside the notebook, scroll a step chain showing a result symbol equation (e.g. `F = m·a`) | **Steps chain together, so you can see the "why," not just the number.** |
 | 1:12–1:20 | Settings → Language: switch between English, Japanese, Spanish, Portuguese (Brazil), German, French quickly (fast cuts) | **Fully translated into six languages.** |
-| 1:20–1:28 | Settings → Backup & restore: export notebooks/constants/custom units | **Back up your notebooks, constants, and custom units — restore them anywhere.** |
+| 1:20–1:28 | Settings → Backup & restore: export notebooks/constants/custom units | **Back up your notebooks, constants, and custom units.** |
 | 1:28–1:40 | Pro screen: show the four feature cards (Ad-free, CSV export, My unit sets, Notebook sharing) and the one-time purchase button | **One purchase. No subscription, ever.** |
 | 1:40–1:48 | Calculator tab: show full, unbounded history list scrolling | **Full calculation history — free, for everyone, unlimited.** |
 | 1:48–1:56 | Closing title card on a plain background | **Unit Calculator — Calculate with confidence, in any compatible unit.** |

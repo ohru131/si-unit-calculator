@@ -14,7 +14,7 @@
 | Android提出チェックリスト（Play固有の必要素材・設定） | `docs/android-submission-checklist.md` | Google Play Console公式ヘルプ・AdMob公式ガイド・RevenueCat公式ドキュメントのWeb調査（2026年9月時点） |
 | スクリーンショット撮影指示 | `docs/screenshot-capture-plan.md` | アプリの実画面・実操作をコードから確認（`app/(tabs)/index.tsx`・`settings.tsx`・`notebook.tsx`・`constants.tsx`・`pro.tsx`） |
 | 無音デモ動画の台本 | `docs/shipaton-demo-script.md` | 同上。ナレーション音声が消失・TTS不可のため無音＋字幕に作り直した |
-| 審査員向けテスト手順（英語） | `docs/reviewer-testing-instructions.md` | `app/(tabs)/pro.tsx`のPro特典4点、`lib/pro-preview.ts`（Web版Proプレビューが実装中であることの確認のみ。発動方法はプレースホルダに留めた） |
+| 審査員向けテスト手順（英語） | `docs/reviewer-testing-instructions.md` | `app/(tabs)/pro.tsx`のPro特典4点、`lib/pro-preview.ts`・`lib/revenuecat-provider.tsx`・`app/(tabs)/settings.tsx`（Web版Proプレビューの発動方法・Web限定であることを実装から確認済み） |
 | 個別のアセット評価 | `docs/submission-assets-review.md` | 既存素材の再評価（Androidサイズへの読み替え含む） |
 
 ## アプリの現在地（今回追記した主要機能）
@@ -38,7 +38,7 @@ Pro機能は憶測ではなく `app/(tabs)/pro.tsx` の `EN_COPY.features`（読
 2. ストア掲載文は6言語すべて（en/ja/es/pt-BR/de/fr）
 3. スクリーンショットは日英2言語のみ撮影し、他4言語は英語版画像を流用
 4. デモ動画は無音の画面録画（前回のナレーション音声は消失、TTSも使えない）
-5. Web版に隠しのProプレビュー機能を実装中（別エージェント）。発動方法未確定のためプレースホルダを`docs/reviewer-testing-instructions.md`に置いた
+5. Web版に隠しのProプレビュー機能を実装済み（`lib/pro-preview.ts`）。発動方法（URLクエリ`?pro=preview`／設定画面「地域」行7回タップ）は`docs/reviewer-testing-instructions.md`に確定済みの手順として記載した
 
 ## プライバシーポリシーと問い合わせ先 — 提出前に差し替えが必要な箇所
 
@@ -51,7 +51,7 @@ Pro機能は憶測ではなく `app/(tabs)/pro.tsx` の `EN_COPY.features`（読
 | 問い合わせ先メールアドレス | ドキュメント中に実在のものが無い（旧版は`support@example.com`というダミーだった） | 実在の監視可能なメールアドレスに差し替える |
 | Play Consoleの開発者連絡先 | 未設定 | 上記メールアドレスを登録する |
 | 審査員向けPro解除の実際の値（`docs/reviewer-testing-instructions.md`のTODO） | プレースホルダのまま | Play Console/RevenueCatでプロモコードを発行し、実際のコード・手順に差し替える |
-| Web版Proプレビューの発動方法（同上） | プレースホルダのまま（`<!-- TODO -->`） | 別エージェントの実装確定後に、実際の手順を記入する |
+| Web版Proプレビューの発動方法（同上） | 確定済み・記入済み（URLクエリ`?pro=preview`／設定画面「地域」行7回タップ） | 提出前に、実際にホストしているWeb版のURLで`?pro=preview`が動作することを最終確認する |
 
 ### プライバシーポリシー・ドラフト（差し替え前提）
 
@@ -66,7 +66,7 @@ Pro機能は憶測ではなく `app/(tabs)/pro.tsx` の `EN_COPY.features`（読
 - [ ] RevenueCat SDKにAndroid本番SDKキーを設定し、`pro` entitlement・買い切り商品・Paywallを公開する
 - [ ] Google Playの本番リリースが申請され、実際にダウンロード可能な状態になっている（審査中ステータスのままでは審査員がテストできない）
 - [ ] プロモ/オファーコードで審査員がPro機能を購入無しで確認できる（買い切りにはトライアルが存在しないため）
-- [ ] Web版のProプレビュー（実装確定後）で審査員がWeb上でもPro機能を確認できる
+- [ ] Web版のProプレビュー（`?pro=preview`）で審査員がWeb上でもPro機能を確認できることを最終確認する
 - [ ] 無音デモ動画（`docs/shipaton-demo-script.md`）・6言語ストア掲載文（`docs/store-listing-copy.md`）・512×512アイコン・1024×500フィーチャーグラフィック・日英スクリーンショットが揃っている
 - [ ] プライバシーポリシー（実URL）と実在の問い合わせ先メールアドレスが公開されている（上記「提出前に差し替えが必要な箇所」を参照）
 - [ ] 購入・復元・Pro解放・CSVエクスポート・ノート共有（PDF書き出し）を実機のリリースビルドで確認済み

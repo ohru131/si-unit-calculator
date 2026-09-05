@@ -13,15 +13,20 @@
 | `demo/unit-calculator-demo-en-silent.webm` | デモ動画（無音・英語字幕を焼き込み済み・116秒） |
 | `demo/demo-captions-en.srt` | 同じ文言・同じ尺の字幕トラック。YouTubeに別途アップロードするとオン/オフ切替ができる |
 | `demo/caption-style-reference.png` | 字幕の位置・書式の確認用フレーム |
+| `store/play-store-icon-512.png` | Playのストアアイコン（512×512・不透明） |
+| `store/play-feature-graphic-1024x500.png` | Playのフィーチャーグラフィック（1024×500・不透明）。要素は中央712px以内の安全域に収めてある |
 
 ## 撮影方法と、その限界
 
 `docs/screenshot-capture-plan.md` はAndroid実機/エミュレータでの撮影を前提に書かれているが、
 **これらはWeb版（`npx expo export --platform web` の出力）をChromiumで自動操作して撮影した**。
 
+**この素材はあくまで暫定（provisional）であり、最終的にAndroid提出に使う素材ではない。**
 Web版とAndroidはアイコンの実装が同じ（どちらも `components/ui/icon-symbol.tsx` の
-MaterialIconsマッピングを通る）ので、iOSと違ってWebキャプチャはAndroidの妥当な代用になる。
-ただし以下の差異が残る:
+MaterialIconsマッピングを通る）が、これはアイコン表示が同じであることの根拠にしかならず、
+UI全体（レイアウト・フォントレンダリング・実際の価格表示など）がAndroid実機と同一である
+ことの根拠にはならない。**提出前に、必ずAndroid実機での撮り直しが必要。** 以下の差異も
+既に判明している:
 
 - **Pro画面の価格表示**: Webではofferingを取得できないため購入ボタンが「Unlock Pro」の
   ままで、実際の価格が出ない。Android実機では価格入りになる

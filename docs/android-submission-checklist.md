@@ -50,9 +50,9 @@
 
 ### 6. 買い切り課金（非消費型）のPlay Console側の設定
 
-**Google PlayにはApp Storeのような「非消費型（Non-Consumable）」という商品区分は無い。** Play Consoleの「アプリ内アイテム（in-app products / managed products）」は元々「消費（consume）」を呼ばない限り再購入不可の一回限りの商品として扱われる。以下の手順で設定する:
+**Google PlayにはApp Storeのような「非消費型（Non-Consumable）」という商品区分は無い。** Play Consoleの「アプリ内アイテム（in-app products）」は「一回限りの製品（One-time product）」として扱われ、「消費（consume）」を呼ばない限り再購入不可の一回限りの商品となる（旧称は「managed product」だが、現行のPlay Consoleの呼称は「One-time product」）。以下の手順で設定する:
 
-- [ ] Play Console → 収益化 → 商品 → アプリ内アイテム で新規の「マネージドプロダクト（managed product）」を作成（例: `pro_lifetime`）
+- [ ] Play Console → 収益化 → 商品 → アプリ内アイテム で新規の「一回限りの製品（One-time product）」を作成（例: `pro_lifetime`）
 - [ ] 価格を設定（`docs/market-research-2026-09.md`第4節の$24.99〜29.99案などを参考に、地域別価格はRevenueCat/Playの自動換算に任せる）
 - [ ] RevenueCatダッシュボード側で、この商品を**Non-Consumable**として登録し、`pro` entitlementにアタッチする（`lib/revenuecat-provider.tsx`・`lib/purchase-offering.ts`の実装が前提とする構成）
 - [ ] **アプリ側が誤って「消費（consume）」APIを呼んでいないこと**を確認（消費すると再購入可能になり、買い切りの意味が壊れる）。CLAUDE.mdに明記の通り、このアプリはRevenueCat SDK経由の標準的な購入フローのみを使っており、独自のconsume呼び出しは無い前提（`lib/revenuecat-provider.tsx`を参照して裏取り済みか、着手時に再確認すること）

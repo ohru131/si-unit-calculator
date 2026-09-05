@@ -14,7 +14,7 @@ Everything below is available with no purchase:
 - Enter a mixed-unit expression such as `5cm + 1mm` or `100N / 0.01m^2` on the Calculator tab and see the result normalize to SI units in real time.
 - Try an intentionally invalid expression such as `5m + 1kg` to see the dimension-mismatch error.
 - Tap "Compare units" under a result to expand the full unit-comparison table.
-- Open the Library tab to browse 112+ preset formula notebooks (elementary/middle-school science, high-school physics, everyday electricity/driving cost estimates, astronomy, fitness, chemistry, cars & bikes, cooking, and materials engineering), each rendered with real typeset math.
+- Open the Library tab to browse 112 preset formula notebooks (elementary/middle-school science, high-school physics, everyday electricity/driving cost estimates, astronomy, fitness, chemistry, cars & bikes, cooking, and materials engineering), each rendered with real typeset math.
 - Open Settings → Custom units to define your own unit, either as a multiple (e.g. `shaku` = `0.303m`) or as a formula (for units with an offset, like a temperature scale).
 - Enter a plain number (no unit) and use the `0x` button next to the input to switch between decimal, binary, octal, and hexadecimal.
 - Open Settings → Language to confirm the app is fully translated into English, Japanese, Spanish, Portuguese (Brazil), German, and French — including unit names, error messages, and every preset notebook.
@@ -39,16 +39,16 @@ There is no free trial for Pro (Google Play does not support trials on one-time,
 
 <!-- TODO: Insert the generated Google Play promo/offer code and the exact redemption steps once RevenueCat/Play Console configuration is finalized. -->
 
-### Web: hidden Pro preview (in progress)
+### Web: hidden Pro preview
 
-A separate, concurrent engineering effort is adding a hidden way to preview Pro features on the web build of the app, specifically so judges/reviewers can see Pro without needing an Android purchase flow. The activation mechanism is **not finalized yet** at the time of writing this document.
+The web build of the app has a hidden way to preview Pro features, so judges/reviewers can see Pro without needing an Android purchase flow.
 
-<!-- TODO: 発動方法を実装確定後に記入（Web版の隠しProプレビュー機能。別セッションが実装中で、有効化の具体的な手順は未確定）。 -->
-
-Once finalized, this section should state:
-- The exact URL/steps to enable the Pro preview on the web build.
-- Confirmation that the web preview never affects the Android/Play Store build's real entitlement checks (it is web-only by design).
-- A note that this is for judge/reviewer verification only, not a general public feature.
+- **Enable**: visit the web build with `?pro=preview` appended to the URL — for example `https://ohru131.github.io/si-unit-calculator/?pro=preview` (**提出前に人間が確認する作業**: replace this URL with the actual hosted web build URL used for this submission, if different). The preview state is persisted (AsyncStorage), so reloading afterward without the query parameter keeps the preview on.
+- **Disable**: visit the same URL with `?pro=off` appended.
+- **Alternate UI entry point**: on the Settings tab, tap the "Region" row 7 times within 2 seconds to toggle the preview on/off.
+- **Web-only, by design**: the preview mechanism is gated on `Platform.OS === "web"` in three places (the restore effect's early return, `setProPreviewEnabled`'s final guard, and `resolveInitialProPreview`'s return value), so it can never be enabled on the iOS/Android build. The Android build's Pro status always comes from the real RevenueCat entitlement check, unaffected by this mechanism.
+- While the preview is active, the Pro screen always shows a banner warning that this is not a real purchase ("Pro preview is on — this is not a real purchase.").
+- This is for judge/reviewer verification only, not a general public feature.
 
 ## 4. What NOT to expect
 
