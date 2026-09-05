@@ -29,6 +29,7 @@ import {
 import { useGlobalSettings } from "@/lib/global-settings";
 import { localizedText, type AppLanguage } from "@/lib/i18n";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
+import { searchNotebooks } from "@/lib/notebook-search";
 import { exportNotebooksBackup } from "@/lib/notebooks-backup-file";
 import { unitErrorMessage } from "@/lib/unit-errors";
 import { formatQuantity, SavedConstant } from "@/lib/units";
@@ -46,6 +47,7 @@ const EN_COPY = {
   constantEditor: "Constant", constantNew: "New constant",
   deleteConfirm: "Delete this item? This cannot be undone.", validation: "Please fill in the required fields.",
   notebookNew: "New notebook", uncategorized: "Uncategorized",
+  notebookSearch: "Search all notebooks", searchClear: "Clear search",
   // カテゴリカードからの書き出し（handleExportCategoryNotebooks）専用の通知文。
   // 統合バックアップは設定画面（lib/global-settings.tsxのbackupNotebooksExportDone）へ移設した。
   categoryExportDone: "Notebooks backup exported.",
@@ -60,6 +62,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     constantEditor: "定数", constantNew: "新しい定数",
     deleteConfirm: "この項目を削除しますか？元に戻せません。", validation: "必須項目を入力してください。",
     notebookNew: "新しい計算ノート", uncategorized: "未分類",
+    notebookSearch: "すべての計算ノートを検索", searchClear: "検索をクリア",
     categoryExportDone: "計算ノートのバックアップを書き出しました。",
   },
   es: {
@@ -70,6 +73,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     constantEditor: "Constante", constantNew: "Nueva constante",
     deleteConfirm: "¿Eliminar este elemento? Esta acción no se puede deshacer.", validation: "Completa los campos obligatorios.",
     notebookNew: "Nuevo cuaderno", uncategorized: "Sin categoría",
+    notebookSearch: "Buscar en todos los cuadernos", searchClear: "Borrar la búsqueda",
     categoryExportDone: "Se exportó la copia de seguridad de los cuadernos.",
   },
   "pt-BR": {
@@ -80,6 +84,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     constantEditor: "Constante", constantNew: "Nova constante",
     deleteConfirm: "Excluir este item? Isso não pode ser desfeito.", validation: "Preencha os campos obrigatórios.",
     notebookNew: "Novo caderno", uncategorized: "Sem categoria",
+    notebookSearch: "Buscar em todos os cadernos", searchClear: "Limpar a busca",
     categoryExportDone: "Backup dos cadernos exportado.",
   },
   de: {
@@ -90,6 +95,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     constantEditor: "Konstante", constantNew: "Neue Konstante",
     deleteConfirm: "Diesen Eintrag löschen? Das kann nicht rückgängig gemacht werden.", validation: "Bitte fülle die Pflichtfelder aus.",
     notebookNew: "Neues Rechenheft", uncategorized: "Ohne Kategorie",
+    notebookSearch: "Alle Rechenhefte durchsuchen", searchClear: "Suche löschen",
     categoryExportDone: "Sicherung der Rechenhefte exportiert.",
   },
   fr: {
@@ -100,6 +106,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     constantEditor: "Constante", constantNew: "Nouvelle constante",
     deleteConfirm: "Supprimer cet élément ? Cette action est irréversible.", validation: "Veuillez remplir les champs obligatoires.",
     notebookNew: "Nouveau carnet", uncategorized: "Sans catégorie",
+    notebookSearch: "Rechercher dans tous les carnets", searchClear: "Effacer la recherche",
     categoryExportDone: "Sauvegarde des carnets exportée.",
   },
 };
@@ -130,6 +137,10 @@ export default function ConstantsScreen() {
   const [topSection, setTopSection] = useState<TopSection>("notebooks");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [browsingParentCategoryId, setBrowsingParentCategoryId] = useState<string | null>(null);
+  // 計算ノートの検索語。**カテゴリ階層の状態（selectedCategoryId・browsingParentCategoryId）とは
+  // 独立に持つ**。検索中はそれらを見ずに検索結果を出し、検索欄を空にすればさっきまで見ていた
+  // 階層へそのまま戻る（検索のたびに階層を巻き戻すと、目当てが無かったときに辿り直しになる）。
+  const [notebookSearchQuery, setNotebookSearchQuery] = useState("");
 
   // グローバル定数の編集シート。
   const [constantEditorVisible, setConstantEditorVisible] = useState(false);
@@ -180,6 +191,25 @@ export default function ConstantsScreen() {
   ], [copy.uncategorized, language, notebookCategories, parentCategoryIds]);
 
   const categoryLabel = (categoryId: string) => categoryOptions.find((item) => item.id === categoryId)?.label ?? copy.uncategorized;
+
+  // 検索結果のカードに出すカテゴリ名。件数ぶんcategoryOptionsを線形探索しないよう
+  // Mapにしておく（184件×カテゴリ38件の総当たりになる）。
+  const categoryLabelById = useMemo(() => new Map(categoryOptions.map((item) => [item.id, item.label])), [categoryOptions]);
+
+  const isSearchingNotebooks = Boolean(notebookSearchQuery.trim());
+
+  // 絞り込みの判断そのものは lib/notebook-search.ts の純関数に置いてある。ここは
+  // 「ノート＋カテゴリ名」を渡して結果をノートへ戻すだけにして、この画面に検索の規則を持たせない。
+  const notebookSearchResults = useMemo(() => {
+    if (!isSearchingNotebooks) return [];
+    const entries = notebooks.map((notebook) => ({
+      notebook,
+      title: notebook.title,
+      description: notebook.description,
+      categoryLabel: categoryLabelById.get(notebook.categoryId) ?? "",
+    }));
+    return searchNotebooks(entries, notebookSearchQuery).map((entry) => entry.notebook);
+  }, [categoryLabelById, isSearchingNotebooks, notebookSearchQuery, notebooks]);
 
   const resetConstantEditor = () => {
     setEditingConstantSymbol(undefined); setConstantSymbolInput(""); setConstantExpressionInput(""); setConstantError("");
@@ -306,6 +336,23 @@ export default function ConstantsScreen() {
   };
 
   const renderNotebooksSection = () => {
+    // 検索はカテゴリ階層を横断するので、いま何階層目を見ていても検索結果が最優先で出る。
+    if (isSearchingNotebooks) {
+      return (
+        <NotebookList
+          language={language}
+          locale={locale}
+          categoryLabel=""
+          notebooks={notebookSearchResults}
+          globalConstants={constants}
+          searchResultCategoryLabels={categoryLabelById}
+          onBack={() => setNotebookSearchQuery("")}
+          onOpen={openNotebookInNotebookTab}
+          onDelete={(id) => void removeNotebook(id)}
+          onTogglePinned={(id) => void toggleNotebookPinned(id)}
+        />
+      );
+    }
     if (selectedCategoryId) {
       return (
         <NotebookList
@@ -375,7 +422,7 @@ export default function ConstantsScreen() {
         代わりにsectionRail自体に上余白を持たせ、画面最上部に詰まりすぎないようにする。 */}
     <View style={styles.sectionRail}>
       {sectionItems.map((item) => (
-        <Pressable key={item.id} onPress={() => { setTopSection(item.id); setSelectedCategoryId(null); setBrowsingParentCategoryId(null); }} style={({ pressed }) => [styles.sectionChip, topSection === item.id && styles.sectionChipActive, pressed && styles.buttonPressed]}>
+        <Pressable key={item.id} onPress={() => { setTopSection(item.id); setSelectedCategoryId(null); setBrowsingParentCategoryId(null); setNotebookSearchQuery(""); }} style={({ pressed }) => [styles.sectionChip, topSection === item.id && styles.sectionChipActive, pressed && styles.buttonPressed]}>
           <Text style={[styles.sectionChipText, topSection === item.id && styles.sectionChipTextActive]}>{item.label}</Text>
         </Pressable>
       ))}
@@ -390,6 +437,34 @@ export default function ConstantsScreen() {
     >
       <Text style={styles.sectionChipText}>＋ {topSection === "constants" ? copy.constantNew : copy.notebookNew}</Text>
     </Pressable>
+
+    {/* 計算ノートの検索欄。プリセットが184件・カテゴリが2階層になり、どのカテゴリに入れたかを
+        覚えていないと辿り着けなくなったため、階層を横断して探せるようにする。一覧の直前
+        （スクロール領域の外）に置いて、下までスクロールしても検索し直せるようにする。
+        グローバル定数タブでは出さない（数が少なく、1画面に収まるため）。 */}
+    {topSection === "notebooks" ? (
+      <View style={styles.searchRow}>
+        <IconSymbol name="magnifyingglass" size={16} color={colors.muted} />
+        <TextInput
+          value={notebookSearchQuery}
+          onChangeText={setNotebookSearchQuery}
+          placeholder={copy.notebookSearch}
+          placeholderTextColor={colors.placeholder}
+          style={styles.searchInput}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="search"
+          clearButtonMode="never"
+        />
+        {/* クリアボタンはiOSのclearButtonModeに任せず自前で出す。Android・Webには
+            clearButtonModeが無く、片方の環境だけ検索語を消せない状態になるため。 */}
+        {notebookSearchQuery ? (
+          <Pressable accessibilityLabel={copy.searchClear} onPress={() => setNotebookSearchQuery("")} style={({ pressed }) => [styles.searchClear, pressed && styles.iconPressed]}>
+            <IconSymbol name="xmark.circle.fill" size={17} color={colors.muted} />
+          </Pressable>
+        ) : null}
+      </View>
+    ) : null}
 
     {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /></View> : renderContent()}
 
@@ -443,6 +518,9 @@ export default function ConstantsScreen() {
 const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   // h1見出しを削除したので、sectionRailが画面の一番上に来る。SafeAreaの直後に
   // チップが詰まりすぎないよう、旧headerが持っていたpaddingTopの一部をここに持たせる。
+  searchRow: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 12, borderWidth: 1, flexDirection: "row", gap: 7, marginBottom: 12, paddingHorizontal: 11 },
+  searchInput: { color: colors.foreground, flex: 1, fontSize: 14, minHeight: 40, paddingVertical: 0 },
+  searchClear: { alignItems: "center", height: 34, justifyContent: "center", width: 26 },
   sectionRail: { flexDirection: "row", flexWrap: "wrap", gap: 7, paddingBottom: 14, paddingTop: 8 }, sectionChip: { backgroundColor: colors.surfaceSecondary, borderRadius: 14, paddingHorizontal: 11, paddingVertical: 8 }, sectionChipActive: { backgroundColor: colors.primaryFill }, sectionChipText: { color: colors.muted, fontSize: 12, fontWeight: "700" }, sectionChipTextActive: { color: colors.onPrimary },
   // 一覧（カテゴリグリッド／カテゴリ内ノート一覧）の直前に置く追加ボタン。sectionChipの見た目を流用しつつ、
   // 縦積みのViewの中では既定でstretchして横幅いっぱいに広がってしまうため、自身の内容幅に収める。
