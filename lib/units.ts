@@ -721,7 +721,7 @@ function applyMathFunction(name: string, input: Quantity): Quantity {
   return quantity(evaluator(input.siValue));
 }
 
-function isUnitStart(character: string | undefined) {
+export function isUnitStart(character: string | undefined) {
   return Boolean(character && /[A-Za-zΩµμ%°]/.test(character));
 }
 
@@ -748,7 +748,7 @@ export function unitSuffixEnd(source: string, start: number): number {
   return index;
 }
 
-function tokenize(input: string): Token[] {
+function tokenize(input: string, knownIdentifiers: ReadonlySet<string> = new Set()): Token[] {
   const tokens: Token[] = [];
   const source = normalize(input);
   let index = 0;
@@ -803,8 +803,17 @@ function tokenize(input: string): Token[] {
 
     const identifierMatch = source.slice(index).match(IDENTIFIER_PATTERN);
     if (identifierMatch) {
-      tokens.push({ type: "identifier", value: identifierMatch[0] });
-      index += identifierMatch[0].length;
+      // "πrad"のように円周率記号πへ単位が直接続くと、識別子文字クラスの都合でπと単位が
+      // 1つの識別子として貪欲にマッチしてしまい、どちらの単位・定数としても解決できない。
+      // πは1文字の記号として単体で使われるのがほとんどなので、πだけを切り出して残りは
+      // 通常どおり次のトークンとして解決し、上の暗黙の掛け算（parseMultiplyDivide）に委ねる。
+      // "pi"（ラテン文字表記）は他の識別子と区別しづらいため対象外にする。
+      // ただし"πrad"という名前の保存定数・自作関数が既にある場合は、それを優先して分割しない
+      // （分割すると保存値ではなくπ×radとして誤って解決されてしまう）。
+      const full = identifierMatch[0];
+      const value = full.length > 1 && full.startsWith("π") && !knownIdentifiers.has(full) ? "π" : full;
+      tokens.push({ type: "identifier", value });
+      index += value.length;
       continue;
     }
 
@@ -826,7 +835,8 @@ export function evaluateExpression(
   customFunctions: CustomFunctionDefinition[] = [],
   activeFunctionNames: string[] = [],
 ): Quantity {
-  const tokens = tokenize(input);
+  const knownIdentifiers = new Set<string>([...constants.map((item) => item.symbol), ...customFunctions.map((item) => item.name)]);
+  const tokens = tokenize(input, knownIdentifiers);
   if (!tokens.length) throw new UnitError("emptyExpression");
   const constantMap = new Map(constants.map((item) => [item.symbol, item.quantity]));
   let position = 0;
@@ -936,11 +946,21 @@ export function evaluateExpression(
     let left = parsePower();
     while (true) {
       const nextToken = tokens[position];
-      if (!nextToken || nextToken.type !== "operator" || !["*", "/"].includes(nextToken.value)) break;
-      const operator = nextToken.value;
-      position += 1;
-      const right = parsePower();
-      left = operator === "*" ? multiply(left, right) : divide(left, right);
+      if (nextToken?.type === "operator" && ["*", "/"].includes(nextToken.value)) {
+        const operator = nextToken.value;
+        position += 1;
+        const right = parsePower();
+        left = operator === "*" ? multiply(left, right) : divide(left, right);
+        continue;
+      }
+      // 演算子なしで識別子や"("が続く場合は暗黙の掛け算として扱う（例: "2π"、"πrad"→"π"*"rad"、
+      // "3(2+4)"）。数量どうしの並び（例: "2 3"）は演算子の書き忘れの誤りである可能性が高いため
+      // 対象外にし、従来どおりinvalidExpressionSyntaxで弾く。
+      if (nextToken?.type === "identifier" || nextToken?.type === "leftParen") {
+        left = multiply(left, parsePower());
+        continue;
+      }
+      break;
     }
     return left;
   };
