@@ -504,7 +504,14 @@ export default function CalculatorScreen() {
       // エンジンのエラー(UnitError)は現在の言語で表示する。UnitError以外は従来どおり
       // Error.message をそのまま出す（バックアップ処理など別系統のエラーもここを通るため）。
       const fallback = copy.cannotConvertUnit;
-      return { value: "—", si: formatQuantity(result, undefined, locale), error: cause instanceof Error ? (unitErrorMessage(cause, language) ?? cause.message) : fallback };
+      // 値そのものは出せているのに表示単位だけが合わないケース（例: cmを選んだまま
+      // 100km/2h のような速さの式に変えた）で「—」を出すと、比較表には各単位の値が
+      // 並んでいるのに肝心の結果だけ消えるという分かりにくい画面になる。値はSI表記へ
+      // フォールバックし、理由は警告として値の下に残す。計算ノート側
+      // （lib/notebook-export-model.ts の resolveNotebookStepDisplay）が既に同じ扱いなので、
+      // 画面ごとに挙動が違わないよう揃える。
+      const si = formatQuantity(result, undefined, locale);
+      return { value: si, si, error: cause instanceof Error ? (unitErrorMessage(cause, language) ?? cause.message) : fallback };
     }
     // measuringStandardが変わるとcup/tbsp/tspの換算値が変わるため、依存配列に含めて表示単位を再計算させる（値自体は使わない）。
   }, [copy, language, locale, measuringStandard, result, targetUnit]);
