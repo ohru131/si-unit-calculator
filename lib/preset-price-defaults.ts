@@ -8,11 +8,11 @@ import { AppLanguage } from "./i18n";
 // 言語基準だとドル建ての値が入ってしまうが、地域基準なら正しく円建てになる。
 // ドイツ語話者がスイスにいる場合も同様。そのため expo-localization の currencyCode を
 // 第一の手がかりにする。
-export type PresetPriceKind = "electricityPerKWh" | "fuelPerLiter";
+export type PresetPriceKind = "electricityPerKWh" | "fuelPerLiter" | "filamentPerKg";
 
 export type PresetPriceProfile = Record<PresetPriceKind, number>;
 
-// 単位は「その通貨の1単位 / kWh」と「その通貨の1単位 / リットル」。
+// 単位は「その通貨の1単位 / kWh」「その通貨の1単位 / リットル」「その通貨の1単位 / kg」。
 // 米国はガソリンがガロン建てなので 1 US gal = 3.785411784 L で換算した値を入れる
 // （ノートの計算式はリットル基準で、式そのものは地域非依存なので数値だけを合わせる）。
 //
@@ -30,13 +30,16 @@ export type PresetPriceProfile = Record<PresetPriceKind, number>;
 //   1.3〜1.5倍あるので、独語ユーザーには安く見える。
 // - ブラジル・メキシコは州や配電会社、階層制で数倍の幅がある（メキシコの
 //   基本ブロックは1ペソ前後、超過ブロックは4〜7ペソ）。
+// filamentPerKg は3Dプリンタ用フィラメント（PLA）1kgスプールの実勢価格。
+// 電気・燃料と違って為替に素直に連動しやすいが、日本円だけ桁が3つ違うので
+// 裸の数値で持つと必ず事故る（25円/kgのような値になる）。
 export const PRESET_PRICE_PROFILES: Record<string, PresetPriceProfile> = {
-  JPY: { electricityPerKWh: 31, fuelPerLiter: 170 },
-  USD: { electricityPerKWh: 0.18, fuelPerLiter: 0.95 },
-  EUR: { electricityPerKWh: 0.29, fuelPerLiter: 1.75 },
-  GBP: { electricityPerKWh: 0.26, fuelPerLiter: 1.5 },
-  BRL: { electricityPerKWh: 0.85, fuelPerLiter: 6.4 },
-  MXN: { electricityPerKWh: 2, fuelPerLiter: 23.5 },
+  JPY: { electricityPerKWh: 31, fuelPerLiter: 170, filamentPerKg: 3000 },
+  USD: { electricityPerKWh: 0.18, fuelPerLiter: 0.95, filamentPerKg: 22 },
+  EUR: { electricityPerKWh: 0.29, fuelPerLiter: 1.75, filamentPerKg: 22 },
+  GBP: { electricityPerKWh: 0.26, fuelPerLiter: 1.5, filamentPerKg: 20 },
+  BRL: { electricityPerKWh: 0.85, fuelPerLiter: 6.4, filamentPerKg: 130 },
+  MXN: { electricityPerKWh: 2, fuelPerLiter: 23.5, filamentPerKg: 450 },
 };
 
 export const DEFAULT_PRESET_PRICE_CURRENCY = "USD";
