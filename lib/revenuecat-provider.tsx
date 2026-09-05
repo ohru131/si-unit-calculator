@@ -176,6 +176,12 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
   // ネイティブでは絶対に有効にならない。
   const isProPreviewSupported = isProPreviewSupportedOn(Platform.OS);
   const [isProPreviewEnabled, setIsProPreviewEnabledState] = useState(false);
+  // 起動時のAsyncStorage読み出しは非同期なので、その待機中にユーザーが切り替える
+  // （設定画面の地域行を7回タップする）と、あとから解決した古い保存値が新しい状態を
+  // 上書きしてしまう。ユーザーが一度でも切り替えたらこのrefを立て、復元側はそれを見て
+  // 何もしない。stateではなくrefなのは、復元のthen節が張られた時点のクロージャからでも
+  // 最新の値を読む必要があるため（このリポジトリの既存の対処と同じ方式）。
+  const proPreviewUserChangedRef = useRef(false);
 
   // ネイティブ購入が使えない環境(Web)とSDKキーが未設定の環境では、そもそも初期化する余地が無い。
   // どちらもPlatformと環境変数だけで決まる=レンダー時に分かるので、エフェクトの中で
@@ -209,7 +215,8 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
     const queryAction = parseProPreviewQueryAction(window.location.search);
     AsyncStorage.getItem(PRO_PREVIEW_STORAGE_KEY)
       .then((stored) => {
-        if (!active) return;
+        // ユーザーが待機中に切り替えていたら、保存値での上書きはしない（新しい方が正しい）。
+        if (!active || proPreviewUserChangedRef.current) return;
         const nextEnabled = resolveInitialProPreview({
           platformOS: Platform.OS,
           queryAction,
@@ -231,6 +238,7 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
   const setProPreviewEnabled = useCallback((enabled: boolean) => {
     // ネイティブでは呼び出し元（設定画面等）を書き間違えても絶対に有効にしない最終ガード。
     if (!isProPreviewSupported) return;
+    proPreviewUserChangedRef.current = true;
     setIsProPreviewEnabledState(enabled);
     void AsyncStorage.setItem(PRO_PREVIEW_STORAGE_KEY, String(enabled));
   }, [isProPreviewSupported]);
