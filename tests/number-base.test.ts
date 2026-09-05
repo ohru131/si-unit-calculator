@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { baseDigits, canRepresentInBase, formatInBase, formatInBaseParts, isBaseDigitAllowed, parseBaseInput } from "../lib/number-base";
+import { baseDigits, canRepresentInBase, formatInBase, formatInBaseParts, isBaseDigitAllowed, parseBaseInput, sanitizeBaseInput } from "../lib/number-base";
 import { evaluateExpression } from "../lib/units";
 
 describe("formatInBaseParts", () => {
@@ -176,4 +176,16 @@ describe("往復（formatInBase → parseBaseInput）", () => {
       }
     },
   );
+});
+
+// 独自レビュー＋CodeRabbitの指摘で見つかった「入力経路がキーパッドだけではない」問題の回帰テスト。
+describe("sanitizeBaseInput", () => {
+  it("その基数で使えない文字を落とし、16進は大文字に揃える", () => {
+    expect(sanitizeBaseInput("ff", 16)).toBe("FF");
+    expect(sanitizeBaseInput("sin(FF)", 16)).toBe("FF");
+    expect(sanitizeBaseInput("1012", 2)).toBe("101");
+    expect(sanitizeBaseInput("789", 8)).toBe("7");
+    expect(sanitizeBaseInput("12.5", 10)).toBe("125");
+    expect(sanitizeBaseInput("", 16)).toBe("");
+  });
 });

@@ -28,7 +28,7 @@ import { exportCalculationHistory } from "@/lib/calculation-export";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { historyToAutoConstants } from "@/lib/history-auto-constants";
 import { localizedText, type AppLanguage } from "@/lib/i18n";
-import { BASE_META, canRepresentInBase, formatInBaseParts, isBaseDigitAllowed, NUMBER_BASES, parseBaseInput, type NumberBase } from "@/lib/number-base";
+import { BASE_META, canRepresentInBase, formatInBaseParts, isBaseDigitAllowed, NUMBER_BASES, parseBaseInput, sanitizeBaseInput, type NumberBase } from "@/lib/number-base";
 import { getCalculatorQuickShortcut } from "@/lib/quick-shortcuts";
 import { usePro } from "@/lib/revenuecat-provider";
 import { buildUnitComparisonRows } from "@/lib/unit-comparison";
@@ -640,25 +640,36 @@ export default function CalculatorScreen() {
     hasUserInteractedRef.current = true;
   };
 
+  // 確定は = キーだけでなく、入力欄の右の結果ボタンとキーボードの改行（onSubmitEditing）からも
+  // 起きる。経路ごとに書くと必ずどれかが漏れる（実際に = キー以外は進数の生の桁をそのまま
+  // 通常の式として評価しようとしていた）ので、確定は必ずこの1関数を通す。
+  const submitCalculation = () => {
+    if (baseInputMode !== null) {
+      // 進数入力モードでは確定は「計算」ではなく「その基数の生の桁を10進の数値へ変換する」操作。
+      // 変換できないとき（空・不正な桁）は何もしない。=を押すまでエラーを出さない通常の
+      // 電卓の方針に合わせ、ここでもエラー表示はしない。
+      const parsed = parseBaseInput(expression, baseInputMode);
+      if (parsed.status === "ok") {
+        const decimalText = String(parsed.value);
+        setExpression(decimalText);
+        placeCaret(decimalText.length);
+        setBaseInputMode(null);
+      }
+      return;
+    }
+    void calculate();
+  };
+
   const pressKey = (key: string) => {
     markUserInteraction();
     if (key === "=") {
-      if (baseInputMode !== null) {
-        // 進数入力モードでは = は「計算の確定」ではなく「その基数の生の桁を10進の数値へ確定する」
-        // 操作。変換できないとき（空・不正な桁）は何もしない。=を押すまでエラーを出さない
-        // 通常の電卓の方針に合わせ、ここでもエラー表示はしない。
-        const parsed = parseBaseInput(expression, baseInputMode);
-        if (parsed.status === "ok") {
-          const decimalText = String(parsed.value);
-          setExpression(decimalText);
-          placeCaret(decimalText.length);
-          setBaseInputMode(null);
-        }
-        return;
-      }
-      void calculate();
+      submitCalculation();
       return;
     }
+    // 進数入力モード中は、その基数の桁とAC・⌫以外を一切受け付けない。キーパッド側の disabled
+    // だけでは数学シート（ADVANCED_KEYS）が pressKey("sin(") を直接呼べてしまい、確定できない
+    // 桁が混ざる。入力の経路が複数あるので、ここでも弾く。
+    if (baseInputMode !== null && key !== "AC" && key !== "⌫" && !isBaseDigitAllowed(key, baseInputMode)) return;
     // 式が変わればリアルタイムの結果も変わるので、= を押して出したエラーは持ち越さない
     // （そのままだと、新しい結果が出ているのに古い赤いメッセージが上に残る）。
     setError("");
@@ -790,6 +801,9 @@ export default function CalculatorScreen() {
 
   const restoreHistory = (entry: (typeof history)[number]) => {
     markUserInteraction();
+    // 進数入力モードのまま通常の式を読み込むと、桁の制限が効いたまま計算もできない
+    // 宙ぶらりんの状態になる。式を丸ごと差し替える経路では必ずモードを解除する。
+    setBaseInputMode(null);
     setExpression(entry.expression);
     placeCaret(entry.expression.length);
     setTargetUnit(entry.targetUnit);
@@ -831,6 +845,7 @@ export default function CalculatorScreen() {
       latestHistoryEntry: history[0],
     });
     if (!restored) return;
+    setBaseInputMode(null);
     setExpression(restored.expression);
     placeCaret(restored.expression.length);
     setTargetUnit(restored.targetUnit);
@@ -845,6 +860,7 @@ export default function CalculatorScreen() {
     if (appliedQuickRef.current === action) return;
     appliedQuickRef.current = action ?? null;
     if (shortcut.expression && shortcut.targetUnit) {
+      setBaseInputMode(null);
       setExpression(shortcut.expression);
       placeCaret(shortcut.expression.length);
       setTargetUnit(shortcut.targetUnit);
@@ -870,6 +886,7 @@ export default function CalculatorScreen() {
     const presetToken = `${nextExpression}\u0000${nextUnit ?? ""}`;
     if (appliedPresetRef.current === presetToken) return;
     appliedPresetRef.current = presetToken;
+    setBaseInputMode(null);
     setExpression(nextExpression);
     placeCaret(nextExpression.length);
     setTargetUnit(nextUnit ?? "");
@@ -880,6 +897,8 @@ export default function CalculatorScreen() {
 
   const applySample = (sample: SampleCalculation) => {
     markUserInteraction();
+    // restoreHistoryと同じ理由で、通常の式を読み込む前に進数入力モードを解除する。
+    setBaseInputMode(null);
     const sampleTargetUnit = targetUnitForSample(sample);
     setExpression(sample.expression);
     placeCaret(sample.expression.length);
@@ -980,7 +999,9 @@ export default function CalculatorScreen() {
               value={expression}
               onChangeText={(text) => {
                 markUserInteraction();
-                setExpression(text);
+                // 進数入力モード中は入力欄への直接入力・貼り付けも桁だけに絞る。キーパッドと
+                // 数学シートを塞いでも、ここが素通りだと確定できない桁が混ざる。
+                setExpression(baseInputMode === null ? text : sanitizeBaseInput(text, baseInputMode));
                 setFixSelection(null);
                 setError("");
                 setNotice("");
@@ -989,7 +1010,7 @@ export default function CalculatorScreen() {
               // 挿入直後だけキャレットを強制する。それ以外は selection を渡さず、
               // ユーザー自身のカーソル操作（タップ・ドラッグ選択）と競合しないようにする。
               selection={pendingSelection ?? undefined}
-              onSubmitEditing={() => void calculate()}
+              onSubmitEditing={() => submitCalculation()}
               placeholder={copy.expressionPlaceholder}
               placeholderTextColor={colors.placeholder}
               autoCapitalize="none"
@@ -998,7 +1019,7 @@ export default function CalculatorScreen() {
               accessibilityLabel={t("expression")}
               style={styles.expressionInput}
             />
-            <Pressable accessibilityLabel={t("result")} onPress={() => void calculate()} style={({ pressed }) => [styles.calculateButton, pressed && styles.pressed]}>
+            <Pressable accessibilityLabel={t("result")} onPress={() => submitCalculation()} style={({ pressed }) => [styles.calculateButton, pressed && styles.pressed]}>
               <Text style={styles.calculateText}>{copy.calculate}</Text>
             </Pressable>
           </View>
@@ -1270,7 +1291,11 @@ export default function CalculatorScreen() {
             見えるデザインでキーパッド直上に置く（式を丸ごと置き換えるサンプルとは分ける）。 */}
         <View style={styles.keypadTools}>
           {isAdvancedMode ? (
-            <Pressable onPress={() => setShowAdvancedKeys(true)} style={({ pressed }) => [styles.keypadToolButton, pressed && styles.pressed]}>
+            <Pressable
+              disabled={baseInputMode !== null}
+              onPress={() => setShowAdvancedKeys(true)}
+              style={({ pressed }) => [styles.keypadToolButton, baseInputMode !== null && styles.keyDisabled, pressed && styles.pressed]}
+            >
               <IconSymbol name="function" size={14} color={colors.primary} />
               <Text style={styles.keypadToolButtonText}>{copy.math}</Text>
             </Pressable>
