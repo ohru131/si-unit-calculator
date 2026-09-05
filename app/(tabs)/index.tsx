@@ -54,6 +54,12 @@ import { formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, getReg
 // "="の隣に残すことで、誤爆したときの実害を最小にする配置にしている。
 const KEYS = ["(", ")", "÷", "AC", "7", "8", "9", "×", "4", "5", "6", "-", "1", "2", "3", "+", ".", "0", "⌫", "="];
 const ADVANCED_KEYS = ["sin(", "cos(", "tan(", "asin(", "acos(", "atan(", "atan2(", "ln(", "log(", "log2(", "sqrt(", "^", "π", "e"];
+// 表示単位の初期値・AC後の値。空文字は「表示単位を指定しない＝SI標準で出す」という意味。
+// 以前は "cm" を入れていたが、これだと 3 のような無次元の値を打った瞬間に「cm へ変換できません」
+// という的外れなエラーが出るうえ、進数チップの表示条件（表示単位が空）も満たせず、
+// 単位の付かない数値に対する機能が丸ごと到達不能になっていた。長さの単位が要るときは
+// 結果カードの単位チップから1タップで選べるので、初期状態では何も指定しない。
+const DEFAULT_TARGET_UNIT = "";
 // 16進の入力モード専用。キーパッド本体の配置は変えず、直上に小さな別の行として出す。
 const HEX_LETTER_KEYS = ["A", "B", "C", "D", "E", "F"];
 // 進数入力モード中に押せてはいけないキー（演算子・小数点・括弧）。16進の桁のまま演算に入ると
@@ -303,7 +309,7 @@ export default function CalculatorScreen() {
   // ユーザー自身のカーソル操作と競合しないようにする。
   const [selection, setSelection] = useState<{ start: number; end: number }>({ start: expression.length, end: expression.length });
   const [pendingSelection, setPendingSelection] = useState<{ start: number; end: number } | null>(null);
-  const [targetUnit, setTargetUnit] = useState("cm");
+  const [targetUnit, setTargetUnit] = useState(DEFAULT_TARGET_UNIT);
   // 計算結果は式から導出する（= を押さなくてもリアルタイムに出す）。stateで持つと、
   // 式を書き換えたのに前の結果が残る／= を押すまで何も出ない、という2つの状態を抱えることになる。
   // = は「履歴に残す・定数を保存する・エラーを出す」確定操作の方に専念させる。
@@ -680,7 +686,7 @@ export default function CalculatorScreen() {
       // 別の「消去」ボタンがある）。
       setExpression("");
       placeCaret(0);
-      setTargetUnit("cm");
+      setTargetUnit(DEFAULT_TARGET_UNIT);
       setFixSelection(null);
       setBaseInputMode(null);
       void Haptics.selectionAsync();
