@@ -125,8 +125,8 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
 
 export default function ProScreen() {
   const { favoriteUnits, toggleFavoriteUnit } = useCalculatorStore();
-  const { isPro, isReady, isNativePurchaseAvailable, purchaseMessage, priceLabel, isPurchasing, purchasePro, restorePurchases } = usePro();
-  const { language } = useGlobalSettings();
+  const { isPro, isReady, isNativePurchaseAvailable, purchaseMessage, priceLabel, isPurchasing, purchasePro, restorePurchases, isProPreviewEnabled } = usePro();
+  const { language, t } = useGlobalSettings();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const allUnits = UNIT_GROUPS.flatMap((group) => group.units);
@@ -141,6 +141,13 @@ export default function ProScreen() {
           <Text style={styles.heroTitle}>{isPro ? copy.heroTitleActive : copy.heroTitleUpgrade}</Text>
           <Text style={styles.heroText}>{isPro ? copy.heroTextActive : copy.heroTextUpgrade}</Text>
         </View>
+
+        {/* Web限定の隠しスイッチ（?pro=preview）でPro表示を有効にしている間、実購入と誤認しない
+            よう常時出す。isProがtrueだと下のactionCard（previewNoteを含む）は出ずactiveCardに
+            切り替わるため、previewNoteとは別にここで独立して出す。 */}
+        {isProPreviewEnabled ? (
+          <View style={styles.previewBanner}><Text style={styles.previewBannerText}>{t("proPreviewActive")}</Text></View>
+        ) : null}
 
         <View style={styles.featuresCard}>
           {copy.features.map(([title, detail]) => (
@@ -194,6 +201,8 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   heroEyebrow: { color: colors.primaryStrong, fontSize: 11, fontWeight: "800", letterSpacing: 1.1, marginTop: 12 },
   heroTitle: { color: colors.onPrimary, fontSize: 25, fontWeight: "800", letterSpacing: -0.4, marginTop: 7 },
   heroText: { color: colors.onPrimary, fontSize: 13, lineHeight: 20, marginTop: 7, opacity: 0.88, textAlign: "center" },
+  previewBanner: { backgroundColor: colors.warningSurface, borderColor: colors.warningBorder, borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10 },
+  previewBannerText: { color: colors.warning, fontSize: 12, fontWeight: "800", textAlign: "center" },
   featuresCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 18, borderWidth: 1, gap: 14, padding: 16 },
   featureRow: { flexDirection: "row" },
   featureMark: { alignItems: "center", backgroundColor: colors.successSurface, borderRadius: 11, height: 22, justifyContent: "center", marginRight: 10, width: 22 },
