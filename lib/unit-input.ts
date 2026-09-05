@@ -6,6 +6,7 @@ import {
   getRegionalUnits,
   IDENTIFIER_BODY_CHAR_CLASS,
   IDENTIFIER_START_CHAR_CLASS,
+  isUnitStart,
   parseUnit,
   UNIT_GROUPS,
   unitSuffixEnd,
@@ -65,7 +66,7 @@ export type UnitInputHint = {
   candidates: UnitSuggestion[];
 };
 
-const BUILT_IN_IDENTIFIERS = ["sin", "cos", "tan", "asin", "acos", "atan", "atan2", "sqrt", "ln", "log", "log2", "pi", "e"];
+const BUILT_IN_IDENTIFIERS = ["sin", "cos", "tan", "asin", "acos", "atan", "atan2", "sqrt", "ln", "log", "log2", "pi", "π", "e"];
 
 // lib/units.ts の識別子文字集合（下付き文字・ギリシャ文字）と揃える。ここでは単位専用の記号
 // （Ω・µ・μ・%・°）も同じ語の切り出しに使うため、識別子クラスへ追加で含めている。
@@ -155,7 +156,11 @@ export function analyzeExpression(input: string, identifiers: string[] = []): Ex
       // 読む区間なので、こちらも同じ規則で丸ごと1区間にする。ここで識別子集合を先に見て語を
       // 切っていたため、定数 m を持つノートの "3m/s^2" が m（識別子）・/・s^2 に割れ、
       // 単位チップの差し替え範囲が s^2 だけになって "3m/G" ができてしまっていた。
-      if (followsNumberAt(segments)) {
+      // followsNumberAt に加えてisUnitStartも見るのは、評価器（lib/units.ts）が
+      // 数値直後を単位サフィックスとして貪欲に読むのはisUnitStartを満たす文字（英字・Ω・µ・μ・%・°）
+      // のときだけだから。ここを揃えないと、πのように識別子文字クラスには入るが単位の先頭には
+      // ならない文字（例: "2π"）まで単位サフィックスとして読もうとして、空文字の区間ができてしまう。
+      if (followsNumberAt(segments) && isUnitStart(character)) {
         index = unitSuffixEnd(input, start);
         const text = input.slice(start, index);
         const registered = findRegisteredUnit(text);
@@ -166,7 +171,17 @@ export function analyzeExpression(input: string, identifiers: string[] = []): Ex
 
       index += 1;
       while (index < input.length && WORD_BODY_PATTERN.test(input[index])) index += 1;
-      const word = input.slice(start, index);
+      let word = input.slice(start, index);
+      // "πrad"のように円周率記号πへ単位が直接続くと、識別子文字クラスの都合でπと単位が1語として
+      // 貪欲にマッチしてしまう（詳細はlib/units.tsのtokenize()内の同趣旨コメントを参照）。
+      // πは単体で使われるのがほとんどなので、πだけを切り出して残りは次の区間として扱う。
+      // ただし"πrad"という名前の保存定数・自作関数が既にある場合は、それを優先して分割しない
+      // （knownIdentifiersに完全一致する語をπ+残りへ勝手に割ると、保存値ではなくπ×radとして
+      // 誤って解決されてしまう）。
+      if (character === "π" && word.length > 1 && !knownIdentifiers.has(word)) {
+        index = start + 1;
+        word = "π";
+      }
       // 「m/s」「N·m」のように、区切り記号を含む単位のまとまりも一区間として扱う。
       // 区切りの綴りは評価器の normalize() が受け付けるもの（* / × · ÷）に揃える。
       // 区切りの先が既知の識別子（定数名・手順の結果記号）のときは、単位側へ巻き込まない。
