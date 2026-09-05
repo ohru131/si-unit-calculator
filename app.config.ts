@@ -162,9 +162,12 @@ const config: ExpoConfig = {
       (() => {
         const androidAppId = process.env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID;
         const iosAppId = process.env.EXPO_PUBLIC_ADMOB_IOS_APP_ID;
-        if (process.env.EAS_BUILD_PROFILE === "production" && (!androidAppId || !iosAppId)) {
+        const buildPlatform = process.env.EAS_BUILD_PLATFORM;
+        const missingProductionAppId =
+          !androidAppId || (buildPlatform === "ios" && !iosAppId);
+        if (process.env.EAS_BUILD_PROFILE === "production" && missingProductionAppId) {
           throw new Error(
-            "本番ビルドにはEXPO_PUBLIC_ADMOB_ANDROID_APP_IDとEXPO_PUBLIC_ADMOB_IOS_APP_IDの設定が必須です（Googleのテスト広告IDのまま出荷させないため）。",
+            `本番${buildPlatform === "ios" ? "iOS" : "Android"}ビルドには対象プラットフォームのAdMob App ID設定が必須です（Googleのテスト広告IDのまま出荷させないため）。`,
           );
         }
         return {
