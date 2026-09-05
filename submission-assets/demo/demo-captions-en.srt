@@ -1,0 +1,52 @@
+1
+00:00:00,000 --> 00:00:08,000
+A calculator that checks your units.
+
+2
+00:00:08,000 --> 00:00:16,000
+Every value is normalized to SI — automatically, as you type.
+
+3
+00:00:16,000 --> 00:00:24,000
+Mix incompatible units, and it tells you — instead of a wrong answer.
+
+4
+00:00:24,000 --> 00:00:34,000
+See one result across every compatible unit, at a glance.
+
+5
+00:00:34,000 --> 00:00:44,000
+Define your own units — even ones with an offset, like temperature scales.
+
+6
+00:00:44,000 --> 00:00:52,000
+Switch a number between decimal, binary, octal, and hex.
+
+7
+00:00:52,000 --> 00:01:04,000
+112+ formula notebooks — from elementary science to engineering.
+
+8
+00:01:04,000 --> 00:01:12,000
+Steps chain together, so you can see the “why,” not just the number.
+
+9
+00:01:12,000 --> 00:01:20,000
+Fully translated into six languages.
+
+10
+00:01:20,000 --> 00:01:28,000
+Back up your notebooks, constants, and custom units.
+
+11
+00:01:28,000 --> 00:01:40,000
+One purchase. No subscription, ever.
+
+12
+00:01:40,000 --> 00:01:48,000
+Full calculation history — free, for everyone, unlimited.
+
+13
+00:01:48,000 --> 00:01:56,000
+Unit Calculator — Calculate with confidence, in any compatible unit.
+
