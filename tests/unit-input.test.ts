@@ -64,6 +64,10 @@ describe("πの識別子としてのハイライト", () => {
     expect(kinds("2πrad")).toEqual(["2:number", "π:identifier", "rad:unit"]);
     expect(analyzeExpression("2πrad").unresolved).toEqual([]);
   });
+
+  it("πradという名前の既知の識別子がある場合は、π×radへ分割せず1つの識別子として扱う", () => {
+    expect(kinds("πrad", ["πrad"])).toEqual(["πrad:identifier"]);
+  });
 });
 
 describe("単位の候補提示", () => {

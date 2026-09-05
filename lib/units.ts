@@ -748,7 +748,7 @@ export function unitSuffixEnd(source: string, start: number): number {
   return index;
 }
 
-function tokenize(input: string): Token[] {
+function tokenize(input: string, knownIdentifiers: ReadonlySet<string> = new Set()): Token[] {
   const tokens: Token[] = [];
   const source = normalize(input);
   let index = 0;
@@ -808,7 +808,10 @@ function tokenize(input: string): Token[] {
       // πは1文字の記号として単体で使われるのがほとんどなので、πだけを切り出して残りは
       // 通常どおり次のトークンとして解決し、上の暗黙の掛け算（parseMultiplyDivide）に委ねる。
       // "pi"（ラテン文字表記）は他の識別子と区別しづらいため対象外にする。
-      const value = identifierMatch[0].length > 1 && identifierMatch[0].startsWith("π") ? "π" : identifierMatch[0];
+      // ただし"πrad"という名前の保存定数・自作関数が既にある場合は、それを優先して分割しない
+      // （分割すると保存値ではなくπ×radとして誤って解決されてしまう）。
+      const full = identifierMatch[0];
+      const value = full.length > 1 && full.startsWith("π") && !knownIdentifiers.has(full) ? "π" : full;
       tokens.push({ type: "identifier", value });
       index += value.length;
       continue;
@@ -832,7 +835,8 @@ export function evaluateExpression(
   customFunctions: CustomFunctionDefinition[] = [],
   activeFunctionNames: string[] = [],
 ): Quantity {
-  const tokens = tokenize(input);
+  const knownIdentifiers = new Set<string>([...constants.map((item) => item.symbol), ...customFunctions.map((item) => item.name)]);
+  const tokens = tokenize(input, knownIdentifiers);
   if (!tokens.length) throw new UnitError("emptyExpression");
   const constantMap = new Map(constants.map((item) => [item.symbol, item.quantity]));
   let position = 0;

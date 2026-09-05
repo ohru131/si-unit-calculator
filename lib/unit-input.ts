@@ -175,7 +175,10 @@ export function analyzeExpression(input: string, identifiers: string[] = []): Ex
       // "πrad"のように円周率記号πへ単位が直接続くと、識別子文字クラスの都合でπと単位が1語として
       // 貪欲にマッチしてしまう（詳細はlib/units.tsのtokenize()内の同趣旨コメントを参照）。
       // πは単体で使われるのがほとんどなので、πだけを切り出して残りは次の区間として扱う。
-      if (character === "π" && word.length > 1) {
+      // ただし"πrad"という名前の保存定数・自作関数が既にある場合は、それを優先して分割しない
+      // （knownIdentifiersに完全一致する語をπ+残りへ勝手に割ると、保存値ではなくπ×radとして
+      // 誤って解決されてしまう）。
+      if (character === "π" && word.length > 1 && !knownIdentifiers.has(word)) {
         index = start + 1;
         word = "π";
       }

@@ -315,6 +315,11 @@ describe("πを含む暗黙の掛け算", () => {
     expect(evaluateExpression("2π", constants).siValue).toBe(6);
   });
 
+  it("πradという名前の保存定数がある場合は、π×radへ分割せず保存値を使う", () => {
+    const constants = [{ ...parseConstantDefinition("πrad = 3"), createdAt: "" }];
+    expect(evaluateExpression("πrad", constants).siValue).toBe(3);
+  });
+
   it("括弧が続く場合も暗黙の掛け算になる（数値の書き忘れ演算子の誤りとは区別する）", () => {
     expect(evaluateExpression("2(3+4)").siValue).toBe(14);
     expect(evaluateExpression("(2+3)m").siValue).toBeCloseTo(5);
