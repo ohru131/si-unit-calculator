@@ -598,6 +598,13 @@ export default function CalculatorScreen() {
     [baseInputMode, display],
   );
 
+  // 分数（\frac）は縦に2段積むので、小数と同じ文字サイズで組むと高さが倍以上になり、
+  // 小数から切り替えた瞬間に結果カードだけ別物のように見える。段数に応じて文字サイズを
+  // 落とし、ブロック全体の高さが小数1行（resultValueの28px）に近くなるよう揃える。
+  // 分数を含まない形（√3・2π など）は1段なので小数と同じ大きさのままでよい。
+  const isStackedExactValue = Boolean(exactValue?.latex.includes("\\frac"));
+  const exactFontSize = isStackedExactValue ? 20 : 28;
+
   // コピーには画面に出ているものと同じ表記を渡す。厳密値に切り替えているのに小数がコピーされると、
   // 画面と手元のメモが食い違う。
   const shownValueText = !display ? "" : valueForm === "exact" && exactValue
@@ -1342,8 +1349,8 @@ export default function CalculatorScreen() {
                       {/* \displaystyle を付けないと分数が本文サイズ（text style）で小さく組まれ、
                           隣の小数表示より明らかに小さく見える。displayMode自体は中央寄せ・上下の
                           余白が付いて結果カードの詰まった配置に合わないので false のままにする。 */}
-                      <LatexView latex={`\\displaystyle ${exactValue.latex}`} color={colors.primaryStrong} fontSize={30} displayMode={false} fitContent />
-                      {display.unitLabel ? <Text style={styles.exactValueUnit}>{display.unitLabel}</Text> : null}
+                      <LatexView latex={`\\displaystyle ${exactValue.latex}`} color={colors.primaryStrong} fontSize={exactFontSize} displayMode={false} fitContent />
+                      {display.unitLabel ? <Text style={[styles.exactValueUnit, { fontSize: isStackedExactValue ? 22 : 26 }]}>{display.unitLabel}</Text> : null}
                     </View>
                   ) : (
                     <Animated.Text numberOfLines={2} adjustsFontSizeToFit style={[styles.resultValue, resultAnimatedStyle]}>
@@ -1802,7 +1809,9 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   baseChipRow: { flexDirection: "row", gap: 6, marginTop: 4 },
   // 入力欄の直下に出す基数バー。チップ自体は結果カードと同じ見た目を使い、置き場所で役割を分ける。
   baseInputBar: { flexDirection: "row", gap: 6, marginTop: 6 },
-  exactValueRow: { alignItems: "center", flexDirection: "row", gap: 6, marginTop: 2, minHeight: 34 },
+  // 上下のpaddingは飾りではない。KaTeXのインライン描画は行ボックスより上下にはみ出すことがあり
+  // （分数の分子・根号の上線）、RNのViewは既定でoverflow:hiddenなので余白が無いと上が欠ける。
+  exactValueRow: { alignItems: "center", flexDirection: "row", gap: 6, marginTop: 2, minHeight: 34, paddingVertical: 4 },
   exactValueUnit: { color: colors.primaryStrong, fontFamily: mono, fontSize: 26, fontWeight: "700" },
   valueFormChip: { backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 9, borderWidth: 1, justifyContent: "center", minHeight: 30, paddingHorizontal: 10 },
   valueFormChipActive: { backgroundColor: colors.primarySurface, borderColor: colors.primary },
