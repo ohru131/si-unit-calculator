@@ -63,6 +63,16 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - **`B`（バイト）を BASE_UNITS に足してはいけない。** 完全一致→接頭辞分解の順なので、`B` を足した瞬間に `dB` が `d`（デシ）+`B` として解決され、**`3dB` が黙って 0.3 になる**（今は `Unsupported unit "dB"` と正直に落ちる）。デシベルは対数量で `siValue = value*scale + offset` では表現できない以上、この誤解決を防ぐ方が価値が高い。データ量のカテゴリを作るなら `bit`/`byte` と綴った記号（`Mbit`・`Gbyte` は接頭辞分解で通る）にすること。音響ノートのdBは無次元＋`log`で出している。
   - **ユーザー定義単位は解決順の一番最後**に引く（`resolveUnitSymbol`）。既存の解決（動的な計量カップ → `BASE_UNITS` の完全一致 → SI接頭辞分解）は `resolveBuiltInUnitSymbol` に切り出してあり、**それが解決できなかった場合にだけ**ユーザー定義を見る。この順序のおかげで「今日すでに解決できている記号」の意味はユーザーが何を登録しても変わらない。登録時にも `isBuiltInUnitSymbol` で衝突を弾くので、`dm` はデシメートルのまま。**この順序を入れ替えないこと。**
   - **オフセットを持つ単位は裸の識別子として使うとoffsetが落ちる**（`evaluateExpression` の識別子フォールバックが `scale`/`dimension` しか見ないため）。組み込みの `°C`/`°F` は記号に `°` を含み識別子トークンにならないので従来は到達不能だったが、**英字のみの単位（＝ユーザー定義単位）を足すと踏む**。現在は `temperatureUnitStandalone` を投げて塞いである（`32fah` は273.15Kだが `2*fah` は1.111Kになっていた）。
+- `lib/notebook-search.ts` — 計算ノートの絞り込み（`searchNotebooks`）。タイトル・説明文・**カテゴリ名**を横断で見る純関数。
+  - **並べ替えではなく絞り込み**。スコアは「タイトル先頭一致 → タイトル → 説明文 → カテゴリ名」の優先順を作るためだけに使い、同じ強さのものは渡された順（＝カテゴリの表示順）のまま返す。検索のたびに並びが変わると、一覧のどこを見ていたか分からなくなる。
+  - 空白区切りの語は**すべて**当たる必要がある（AND）。全角スペースも区切りとして扱う（日本語入力では混ざるのが普通で、区切れないと1件も当たらない）。
+  - 大文字小文字とダイアクリティカルマークを潰すが、**`String.prototype.normalize("NFD")` は使わない**（このコードベースに前例が無く、Hermesで落ちると「テストは通るのに実機だけ動かない」形になる）。対応6言語に出るラテン文字だけの置き換え表で足りる。
+  - 画面側（`app/(tabs)/constants.tsx`）は**検索語をカテゴリ階層の状態と独立に持つ**。検索中はどの階層を見ていても結果を優先して出し、検索欄を空にすればさっきまでの階層へそのまま戻る（検索のたびに階層を巻き戻すと、目当てが無かったときに辿り直しになる）。結果は`NotebookList`に`searchResultCategoryLabels`を渡して出す（戻る行を消し、カードにカテゴリ名を添えるモード）。
+- `lib/preset-regional-defaults.ts` — プリセットの「地域によって妥当な値が違う既定値」。シードの定数に`regionalDefault`を付けると投入時に差し替わる（旧`lib/preset-price-defaults.ts` / `localizedPrice`）。
+  - **金額は通貨、電気は地域で解決する**（`resolvePresetPriceProfile` と `resolvePresetElectricalProfile` を分けてある理由）。金額は通貨圏ごとに桁から違うので通貨が第一の手掛かりだが、電圧は通貨と無関係に国で決まる。
+  - **電気は地域が読めた時点で確定させ、通貨・言語へ落とさない。** 表に無い＝低電圧圏ではないということなので、既定の230V/16Aにする。ここを金額と同じ「通貨→言語」の連鎖にすると、**オーストラリアの英語UIが en→米国→120V に落ちて黙って誤る**（テストで固定してある）。
+  - 解決結果（`PresetRegionalDefaults`）は値ではなく**そのまま定数の式として使える文字列**。金額は裸の数値（`"0.29"`）、電気は単位付き（`"230V"`）と形が違うので、単位を付ける場所が呼び出し側に散らばらないようここで確定させる。
+  - **ノートの説明文に地域固有の言い回しを残さないこと。** ブレーカー容量ノートは「契約電圧」（日本のアンペア契約に固有）と書いていて、値だけ地域別にしても文面が他の地域で意味を成さなかった。
 - `lib/unit-comparison.ts` — 1つの値を複数単位で並べる比較表の行を組み立てる純関数（`buildUnitComparisonRows`）。換算は既存の `convertQuantity` / `formatNumberForLocale`、候補は既存の `compatibleUnitOptionsFromHints` に任せ、**新しい換算ロジックは持たない**。
   - 電卓の結果カードの単位チップ列のすぐ下に、折りたたみで出している（`app/(tabs)/index.tsx`）。**候補の集合・並び順・タップ時の挙動をチップ列と揃える**ことで「チップ列を縦に開いたもの」として読ませる設計なので、ここで並べ替えないこと（テストで固定してある）。
   - チップ列（`conversionUnits`）は `getCompatibleUnitGroups` だけで作るため合成次元（`N·m²/C²` など）では空になるが、比較表は手掛かり方式を通すので候補を出せる。
@@ -155,7 +165,7 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 7. **[完了・PR #21でマージ済み]** 多言語化の土台を整備（`lib/i18n.ts` / `LocalizedText` / UI文言のRecord化）。あわせて既存の穴を全部塞いだ: `pro.tsx` の全文日本語決め打ち、`units.ts` のエラー35箇所、`lib`配下の表示文言29件、課金・広告12件、`GROUP_NAMES` の `amount` 欠落、言語切替後もプリセット112件が投入時の言語のまま残る問題。**ユーザーに表示される日本語決め打ちは0件**になった（残るのは `useCalculatorStore()` 等をProvider外で呼んだときの開発者向け`throw` 3件のみ）。
 8. **[完了・PR #22でマージ済み]** `es` / `pt-BR` / `de` / `fr` を追加し、UI文言・単位名(100件)・エラーメッセージ(33コード)・iOSウィジェットを4言語分埋めた（約320キー×4）。`tests/unit-names-localization.test.ts` を追加し、全単位・全解説が全言語そろっているかを検証する。
 9. **[完了・PR #23でマージ済み]** プリセット計算ノートの457フィールド（science 178 / practical 99 / physics 91 / materials 23 / categories 23 / sample-calculations 43）を4言語に翻訳。**アプリ全体が6言語対応になった**。
-10. **[完了]** 「電気代」「走行コスト」のプリセットの単価が日本円前提だったのを地域別にした（`lib/preset-price-defaults.ts`）。**通貨は言語ではなく地域で決める**（日本在住で英語UIのユーザーは円建てになるべき）。`currencyCode` → `regionCode`から引いた通貨 → 言語からの推測 → USD の順に解決する。**Webでは `currencyCode` が常に null で返る**（expo-localizationのweb実装の制約）ので、`regionCode` の段が無いとWebでは地域を全く見られない。差し替えは投入時の1回だけで、`localConstants` は言語切替時にも触らない決まりを維持している。
+10. **[完了]** 「電気代」「走行コスト」のプリセットの単価が日本円前提だったのを地域別にした（現在の `lib/preset-regional-defaults.ts`）。**通貨は言語ではなく地域で決める**（日本在住で英語UIのユーザーは円建てになるべき）。`currencyCode` → `regionCode`から引いた通貨 → 言語からの推測 → USD の順に解決する。**Webでは `currencyCode` が常に null で返る**（expo-localizationのweb実装の制約）ので、`regionCode` の段が無いとWebでは地域を全く見られない。差し替えは投入時の1回だけで、`localConstants` は言語切替時にも触らない決まりを維持している。
 
 ### 多言語化で踏んだ、テストでは検出できない罠（次に言語を足すとき用）
 
@@ -235,19 +245,20 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - **コピーは画面に出ているのと同じ表記を渡す。** 厳密値に切り替えているのに小数がコピーされると、画面と手元のメモが食い違う（Unicode表記は `ExactValue.text`）。
 - **`.web.tsx` がある component を直したら、Webでの目視確認だけで済ませないこと。** `LatexView` はWebとネイティブで**別実装**なので、`fitContent` の幅計算のバグ（`document.body.scrollWidth` を混ぜていた）はWeb（`inline-block`）では表に出ず、`npx expo export --platform web` + Playwrightでの確認を通り抜けた。CodeRabbitに🟠Majorとして指摘されるまで気付けなかった。**両方の実装を別々に検証する**か、少なくとも「今の確認はどちらの実装を通ったのか」を意識する。
 
-### 現在の基準値（2026-09-05時点、PR #46マージ後）
+### 現在の基準値（2026-09-05時点、ノート検索・地域別の電気の既定値を入れた後）
 
 - `npx tsc --noEmit` → **エラー0**
-- `npx vitest run` → **701 passed / 2 failed / 1 skipped**。失敗2件は `tests/revenuecat.credentials.test.ts`（環境依存）。
+- `npx vitest run` → **719 passed / 2 failed / 1 skipped**。失敗2件は `tests/revenuecat.credentials.test.ts`（環境依存）。
 - プリセット計算ノートは **184件・カテゴリ38件（最上位9枚）**。`pnpm notebook:check <ファイル>` で全件が実エンジンを通り、`pnpm notebook:i18n <ファイル>` で6言語そろっていることを確認できる。
 - `npx expo lint` → **2エラー・0警告**。どちらも `app/(tabs)/index.tsx` の既存分（`react-hooks/purity` と `react-hooks/set-state-in-effect`）。
 - `npx expo export --platform web` が通る。**UIを実際に触れない環境では、この`dist`を`python3 -m http.server`で配ってPlaywright（`/opt/pw-browsers/chromium`）で叩くと画面を確認できる**（初回はオンボーディングのモーダルが被さるので "Skip" を先に押す）。
 
+21. **[完了]** 計算ノートの**検索**（`lib/notebook-search.ts`）と、商用電源の電圧・ブレーカー定格の**地域別解決**（`lib/preset-regional-defaults.ts`）を追加した。前者は184件・2階層でカテゴリを覚えていないと辿り着けなかった問題、後者は`100V`が3ノート・`30A`が1ノートに日本前提で残っていた問題への対応。
+
 ## 次にやりそうなこと（ユーザーから明示的な指示待ち）
 
-- **既存カテゴリの日本前提の既定値**。`100V`の商用電源が3ノート（`practical.ts`のブレーカー容量・力率、`science.ts`のP=VI）、`30A`のブレーカー（日本のアンペア契約の概念で米欧に対応物が無い）、`km/L`の燃費。`lib/preset-price-defaults.ts` に `mainsVoltage` を足して地域から解決するのが筋（JPY→100・USD→120・EUR/GBP→230）。**型名が金額前提（`PresetPriceKind`）なので改名が要る。**
+- **`km/L` の燃費が日本前提のまま**（`practical.ts` の走行コスト系）。米国は `mpg`、英国は英ガロンの `mpg`、欧州は `L/100km` と**単位そのものが違う**ので、`regionalDefault` のような値の差し替えでは足りず、手順の式と `targetUnit` ごと地域で変える必要がある。100Vの件（下の履歴21）より一段重い。
 - **既存6カテゴリのノート追加と重複整理**（約30件の案あり）。重複が実害になっているのは、`electricity-basics`の直列並列合成とブレーカー容量が`science-electricity`と同じ式、`chemistry`の質量パーセント濃度が`science-density`と重複、`vehicles`の制動距離が停止距離ノートの2手順目そのもの、`astronomy`の光の到達時間2件が同じ`t=d/c`。**ただしシードから消しても既存インストールには届かない**（投入はカテゴリID単位で1回きり）ので、消し方は別途要検討。
-- **ノートの検索**。184件・2階層になったので、どのカテゴリにあるか覚えていないと辿り着けない。`app/(tabs)/constants.tsx`・`notebook-category-grid.tsx`・`notebook-list.tsx` のどこにも検索が無い。タイトル・説明文の絞り込みを足すだけでも効果が大きく、階層の設計を後から変えやすくなる。
 - **投入済みプリセットの後追い更新**。シードを直しても既存インストールに届かないので、`applyPresetResultSymbols` と同じ仕組み（`PRESET_NOTEBOOK_SEEDS_AS_SEEDED` と突き合わせ、**ユーザーが編集していないものだけ**差し替える）を定数・式にも広げる案。#46 で作り直した「はり・柱」も、既存ユーザーには旧・材料力学のまま残っている。
 - **自作単位がバックアップに含まれていない**（`lib/constants-backup.ts` / `lib/notebooks-backup.ts`）。`2shaku` を参照するノートを別端末へ復元すると評価に失敗する。バックアップ形式の変更を伴うため #34 のスコープ外にした。**次にやるならここが最優先。**
 - 厳密値表示（分数・π・√）を**計算ノートの手順の結果にも広げるか**。今は電卓の結果カードだけ。広げるなら表示は `resolveNotebookStepDisplay`（`lib/notebook-export-model.ts`）に一本化してある経路へ足すこと（画面とPDFで値がズレないため）。
