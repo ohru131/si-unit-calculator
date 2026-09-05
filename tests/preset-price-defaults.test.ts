@@ -11,7 +11,10 @@ import { DEFAULT_PRESET_PRICE_CURRENCY, PRESET_PRICE_PROFILES, PresetPriceKind, 
 // 純関数（presetConstantExpression）だけを検証したいので、実体を読み込ませずにモックする。
 vi.mock("@/lib/global-settings", () => ({ useGlobalSettings: () => ({ language: "en", currencyCode: null, regionCode: null }) }));
 
-const KINDS: PresetPriceKind[] = ["electricityPerKWh", "fuelPerLiter"];
+// 手で並べると種類を足したときに更新し忘れ、その種類だけ検証されないまま通ってしまう。
+// PresetPriceProfile は Record<PresetPriceKind, number> なので、どのプロファイルのキーも
+// 常に全種類そろっている（型で保証される）。そこから引けば増減に自動で追従する。
+const KINDS = Object.keys(PRESET_PRICE_PROFILES[DEFAULT_PRESET_PRICE_CURRENCY]) as PresetPriceKind[];
 
 describe("プリセットの金額の既定値", () => {
   it("端末の通貨が分かればそれを使う（言語より地域が優先される）", () => {

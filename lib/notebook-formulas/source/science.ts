@@ -377,7 +377,9 @@ export const SCIENCE_ELECTRICITY_SEEDS: NotebookSeed[] = [
     localConstants: [
       { symbol: "P", expression: "1000W" },
       { symbol: "t", expression: "2h" },
-      { symbol: "rate", expression: "30" },
+      // 電力量単価は通貨圏ごとに桁から違うので、practical.ts の同種のノートと同じく
+      // 端末の地域から解決する（付け忘れると、日本円前提の30が全ユーザーに出る）。
+      { symbol: "rate", expression: "30", localizedPrice: "electricityPerKWh" },
     ],
     steps: [
       { title: { en: "Energy used E", ja: "使用電力量 E", es: "Energía utilizada E", "pt-BR": "Energia utilizada E", de: "Verbrauchte Energie E", fr: "Énergie utilisée E" }, expression: "P*t", targetUnit: "kWh", formulaLatex: "E = Pt" },

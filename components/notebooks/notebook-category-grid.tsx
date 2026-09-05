@@ -152,7 +152,8 @@ export function NotebookCategoryGrid({ language, notebooks, notebookCategories, 
             <View key={row.id} style={styles.card}>
               <Pressable onPress={() => (row.hasChildren ? onSelectParentCategory(row.id) : onSelectCategory(row.id))} style={({ pressed }) => [styles.cardMain, pressed && styles.pressed]}>
                 <IconSymbol name="folder.fill" size={22} color={colors.primary} />
-                <Text numberOfLines={1} style={styles.cardLabel}>{row.label}</Text>
+                {/* カード幅を47%に固定しているので、長いカテゴリ名は省略ではなく折り返して見せる。 */}
+                <Text numberOfLines={2} style={styles.cardLabel}>{row.label}</Text>
                 <Text style={styles.cardCount}>{copy.notebookCount(row.count)}</Text>
               </Pressable>
               {/* リネーム・削除はユーザー作成カテゴリだけ（プリセット・未分類は改名／削除できないため）。
@@ -231,7 +232,10 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   backLabel: { color: colors.primary, flexShrink: 1, fontSize: 14, fontWeight: "800" },
   scrollContent: { paddingBottom: 24 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  card: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, minWidth: "47%", overflow: "hidden" },
+  // minWidth だけだとカードが中身の幅まで伸びるので、ラベルが長いカテゴリ（「Mechanical &
+  // structural design」など）が1枚で1行を占め、その行の右半分が空いてしまう。
+  // 幅を47%に固定して、長いラベルは幅を広げるかわりに折り返させる。
+  card: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, flexBasis: "47%", maxWidth: "47%", overflow: "hidden" },
   cardMain: { gap: 6, padding: 14 },
   cardLabel: { color: colors.foreground, fontSize: 14, fontWeight: "800" },
   cardCount: { color: colors.muted, fontSize: 12 },
