@@ -2,7 +2,16 @@ import { describe, expect, it, vi } from "vitest";
 
 import { presetConstantExpression } from "../lib/calculator-store";
 import { APP_LANGUAGES, AppLanguage } from "../lib/i18n";
-import { DEFAULT_PRESET_PRICE_CURRENCY, PRESET_PRICE_PROFILES, PresetPriceKind, resolvePresetPriceProfile } from "../lib/preset-price-defaults";
+import { evaluateExpression, parseUnit } from "../lib/units";
+import {
+  DEFAULT_PRESET_ELECTRICAL_PROFILE,
+  DEFAULT_PRESET_PRICE_CURRENCY,
+  PRESET_PRICE_PROFILES,
+  PresetPriceKind,
+  resolvePresetElectricalProfile,
+  resolvePresetPriceProfile,
+  resolvePresetRegionalDefaults,
+} from "../lib/preset-regional-defaults";
 
 // vi.mock は vitest が import より上にホイストするため、importの後に書いてよい。
 // lib/calculator-store.tsx は useGlobalSettings（@/lib/global-settings）をimportしており、
@@ -55,6 +64,14 @@ describe("プリセットの金額の既定値", () => {
     expect(notEuro).toEqual([]);
   });
 
+  it("米ドルを自国通貨にしている地域がUSDに解決する", () => {
+    // ここが抜けると、その国の西語ユーザーだけが言語からの推測に落ちてユーロ建ての値になる
+    // （エクアドルはUSD圏なのに0.29ユーロ/kWhが入っていた）。
+    ["EC", "SV", "PA", "PR"].forEach((region) => {
+      expect(resolvePresetPriceProfile(null, region, "es"), region).toBe(PRESET_PRICE_PROFILES.USD);
+    });
+  });
+
   it("通貨も地域も分からないときだけ言語から推測する", () => {
     expect(resolvePresetPriceProfile(null, null, "ja")).toBe(PRESET_PRICE_PROFILES.JPY);
     expect(resolvePresetPriceProfile(undefined, undefined, "pt-BR")).toBe(PRESET_PRICE_PROFILES.BRL);
@@ -102,23 +119,87 @@ describe("プリセットの金額の既定値", () => {
 });
 
 describe("presetConstantExpression", () => {
-  it("localizedPrice が無い定数はシードの式をそのまま使う", () => {
+  const defaults = resolvePresetRegionalDefaults("EUR", "DE", "en");
+
+  it("regionalDefault が無い定数はシードの式をそのまま使う", () => {
     const constant = { symbol: "P", expression: "1200W" };
-    expect(presetConstantExpression(constant, PRESET_PRICE_PROFILES.EUR)).toBe("1200W");
+    expect(presetConstantExpression(constant, defaults)).toBe("1200W");
   });
 
-  it("localizedPrice が付いた定数は通貨に応じた値に差し替わる", () => {
-    // expression（円建てのフォールバック）ではなく、渡したプロファイルの値になること。
-    const constant = { symbol: "rate", expression: "31", localizedPrice: "electricityPerKWh" as const };
-    expect(presetConstantExpression(constant, PRESET_PRICE_PROFILES.EUR)).toBe(String(PRESET_PRICE_PROFILES.EUR.electricityPerKWh));
-    expect(presetConstantExpression(constant, PRESET_PRICE_PROFILES.JPY)).toBe("31");
+  it("regionalDefault が付いた金額の定数は地域に応じた値に差し替わる", () => {
+    // expression（円建てのフォールバック）ではなく、渡した既定値の方になること。
+    const constant = { symbol: "rate", expression: "31", regionalDefault: "electricityPerKWh" as const };
+    expect(presetConstantExpression(constant, defaults)).toBe(String(PRESET_PRICE_PROFILES.EUR.electricityPerKWh));
+    expect(presetConstantExpression(constant, resolvePresetRegionalDefaults("JPY", "JP", "en"))).toBe("31");
   });
 
-  it("差し替えた式がノートエンジンで扱える裸の数値になっている", () => {
+  it("金額の式はロケール非依存の裸の数値になっている", () => {
     // 式の小数点はASCIIドット固定なので、ロケール依存のコンマが混ざってはいけない。
-    const constant = { symbol: "price", expression: "170", localizedPrice: "fuelPerLiter" as const };
-    Object.values(PRESET_PRICE_PROFILES).forEach((profile) => {
-      expect(presetConstantExpression(constant, profile)).toMatch(/^\d+(\.\d+)?$/);
+    const constant = { symbol: "price", expression: "170", regionalDefault: "fuelPerLiter" as const };
+    Object.keys(PRESET_PRICE_PROFILES).forEach((currency) => {
+      expect(presetConstantExpression(constant, resolvePresetRegionalDefaults(currency, null, "en"))).toMatch(/^\d+(\.\d+)?$/);
+    });
+  });
+
+  it("電気の式は単位付きで、ノートエンジンがそのまま評価できる", () => {
+    // 金額は裸の数値・電気は単位付き（"230V"）と形が違う。単位を落とすと
+    // P=V*I が W ではなく無次元になり、targetUnit:"W" で表示できなくなる。
+    const voltage = { symbol: "V", expression: "100V", regionalDefault: "mainsVoltage" as const };
+    const current = { symbol: "I\u2098\u2090\u2093", expression: "30A", regionalDefault: "breakerCurrent" as const };
+    [null, "JP", "US", "DE", "GB", "BR", "AU"].forEach((region) => {
+      const resolved = resolvePresetRegionalDefaults(null, region, "en");
+      expect(presetConstantExpression(voltage, resolved)).toMatch(/^\d+(\.\d+)?V$/);
+      expect(presetConstantExpression(current, resolved)).toMatch(/^\d+(\.\d+)?A$/);
+      expect(evaluateExpression(`${presetConstantExpression(voltage, resolved)}*${presetConstantExpression(current, resolved)}`).dimension)
+        .toEqual(parseUnit("W").dimension);
+    });
+  });
+});
+
+describe("プリセットの電気の既定値", () => {
+  it("地域が分かれば地域から引く（通貨より地域が優先される）", () => {
+    // 電圧は通貨ではなく国で決まる。USDを使うエクアドルは120V、ユーロを使う
+    // ドイツは230V。通貨だけで決めると、この2つを区別できない。
+    expect(resolvePresetElectricalProfile("JPY", "JP", "en").mainsVoltage).toBe(100);
+    expect(resolvePresetElectricalProfile("USD", "US", "en").mainsVoltage).toBe(120);
+    expect(resolvePresetElectricalProfile("USD", "EC", "es").mainsVoltage).toBe(120);
+    expect(resolvePresetElectricalProfile("EUR", "DE", "de").mainsVoltage).toBe(230);
+  });
+
+  it("地域コードの大文字小文字と前後の空白を無視する", () => {
+    expect(resolvePresetElectricalProfile(null, " jp ", "en").mainsVoltage).toBe(100);
+  });
+
+  it("表に無い地域は230Vになる（未知を120Vへ倒さない）", () => {
+    // オーストラリア・インド・韓国・中国は通貨表にも無いので金額はUSDに落ちるが、
+    // 電圧まで北米式にすると明確な誤りになる。**この分岐が、電気を通貨から
+    // 切り離した理由そのもの**なので消さないこと。
+    ["AU", "IN", "KR", "CN", "ZA", "NZ"].forEach((region) => {
+      expect(resolvePresetElectricalProfile(null, region, "en")).toBe(DEFAULT_PRESET_ELECTRICAL_PROFILE);
+    });
+  });
+
+  it("地域が取れないときは通貨、それも無ければ言語から推測する", () => {
+    expect(resolvePresetElectricalProfile("JPY", null, "en").mainsVoltage).toBe(100);
+    expect(resolvePresetElectricalProfile("BRL", null, "en").mainsVoltage).toBe(127);
+    expect(resolvePresetElectricalProfile(null, null, "ja").mainsVoltage).toBe(100);
+    expect(resolvePresetElectricalProfile(null, null, "en").mainsVoltage).toBe(120);
+    expect(resolvePresetElectricalProfile(null, null, "fr")).toBe(DEFAULT_PRESET_ELECTRICAL_PROFILE);
+  });
+
+  it("英国・アイルランドはリングファイナル回路なので定格が32Aになる", () => {
+    expect(resolvePresetElectricalProfile(null, "GB", "en")).toEqual({ mainsVoltage: 230, breakerCurrent: 32 });
+    expect(resolvePresetElectricalProfile(null, "IE", "en")).toEqual({ mainsVoltage: 230, breakerCurrent: 32 });
+  });
+
+  it("どの地域でもブレーカー容量が家庭用として妥当な範囲に収まる", () => {
+    // 式（P=V*Iₘₐₓ）が正しくても、電圧と定格の組み合わせがちぐはぐだと
+    // 「計算は通るのに何も教えないノート」になる。1.5kW〜8kWを目安にする。
+    ["JP", "US", "CA", "MX", "BR", "DE", "GB", "AU", null].forEach((region) => {
+      const { mainsVoltage, breakerCurrent } = resolvePresetElectricalProfile(null, region, "en");
+      const watts = mainsVoltage * breakerCurrent;
+      expect(watts, `${region}: ${watts}W`).toBeGreaterThanOrEqual(1500);
+      expect(watts, `${region}: ${watts}W`).toBeLessThanOrEqual(8000);
     });
   });
 });

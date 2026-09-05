@@ -9,7 +9,7 @@ import { PRESET_NOTEBOOK_CATEGORIES, PRESET_NOTEBOOK_SEEDS, PRESET_NOTEBOOK_SEED
 import { presetResultSymbolPatch } from "@/lib/notebook-result-symbols";
 import type { NotebookSeedConstant } from "@/lib/notebook-formulas/types";
 import { pushNotebookHistoryEntry, removeNotebookHistoryEntry, type NotebookHistoryEntry } from "@/lib/notebook-history";
-import { PresetPriceProfile, resolvePresetPriceProfile } from "@/lib/preset-price-defaults";
+import { PresetRegionalDefaults, resolvePresetRegionalDefaults } from "@/lib/preset-regional-defaults";
 import { applyPresetNotebookOverrides, type ImportedNotebook, type PresetNotebookOverride } from "@/lib/notebooks-backup";
 import { parseConstantDefinition, Quantity, SavedConstant, setCustomUnits as setCustomUnitsRegistry, type CustomUnitRegistration } from "@/lib/units";
 
@@ -247,14 +247,14 @@ function parseStoredArray(raw: string | null): unknown[] {
   }
 }
 
-// プリセットのローカル定数の式を決める。localizedPrice が付いている定数（電気代の単価・
-// 燃料単価）は妥当な値が地域によって桁ごと違うので、端末の通貨に応じた値に差し替える。
-// それ以外はシードの expression をそのまま使う。
+// プリセットのローカル定数の式を決める。regionalDefault が付いている定数（電気代・燃料の単価、
+// 商用電源の電圧・ブレーカーの定格電流）は妥当な値が地域によって全く違うので、端末の地域から
+// 解決した式に差し替える。それ以外はシードの expression をそのまま使う。
 // 投入時に一度だけ適用する。localConstants はユーザーが編集する前提のフィールドで、
-// 言語切替時にも触らない決まりなので、あとから通貨が変わっても上書きしない。
-export function presetConstantExpression(constant: NotebookSeedConstant, priceProfile: PresetPriceProfile): string {
-  if (!constant.localizedPrice) return constant.expression;
-  return String(priceProfile[constant.localizedPrice]);
+// 言語切替時にも触らない決まりなので、あとから地域が変わっても上書きしない。
+export function presetConstantExpression(constant: NotebookSeedConstant, regionalDefaults: PresetRegionalDefaults): string {
+  if (!constant.regionalDefault) return constant.expression;
+  return regionalDefaults[constant.regionalDefault];
 }
 
 // プリセット投入時のIDの採番規則。投入する側・言語切替で逆引きする側・テストが
@@ -280,7 +280,7 @@ export function presetConstantId(categoryId: string, seedIndex: number, constant
 // カテゴリを穴埋めする処理）と「プリセットの計算ノートを初期状態に戻す」操作（resetPresetNotebooks）の
 // 両方がこれを呼ぶ。2箇所に同じ組み立てロジックを書くと必ずズレるため、シード→
 // CalculationNotebook[] への変換はここに1本化する。
-export function buildPresetNotebooksFromSeeds(categoryIds: string[], language: AppLanguage, priceProfile: PresetPriceProfile, now: string): CalculationNotebook[] {
+export function buildPresetNotebooksFromSeeds(categoryIds: string[], language: AppLanguage, regionalDefaults: PresetRegionalDefaults, now: string): CalculationNotebook[] {
   const result: CalculationNotebook[] = [];
   categoryIds.forEach((categoryId) => {
     const seeds = PRESET_NOTEBOOK_SEEDS[categoryId] ?? [];
@@ -298,7 +298,7 @@ export function buildPresetNotebooksFromSeeds(categoryIds: string[], language: A
         localConstants: seed.localConstants.map((constant, constantIndex) => ({
           id: presetConstantId(categoryId, seedIndex, constantIndex),
           symbol: constant.symbol,
-          expression: presetConstantExpression(constant, priceProfile),
+          expression: presetConstantExpression(constant, regionalDefaults),
         })),
         steps: seed.steps.map((step, stepIndex) => ({
           id: presetStepId(categoryId, seedIndex, stepIndex),
@@ -627,9 +627,9 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         // カテゴリ単位・冪等に投入するため、後から新カテゴリを追加しても既存データを壊さない。
         const missingPresetCategories = PRESET_NOTEBOOK_CATEGORIES.filter((category) => !seededPresetIds.includes(category.id));
         if (missingPresetCategories.length) {
-          const priceProfile = resolvePresetPriceProfile(currencyCode, regionCode, language);
+          const regionalDefaults = resolvePresetRegionalDefaults(currencyCode, regionCode, language);
           const now = new Date().toISOString();
-          nextNotebooks.push(...buildPresetNotebooksFromSeeds(missingPresetCategories.map((category) => category.id), language, priceProfile, now));
+          nextNotebooks.push(...buildPresetNotebooksFromSeeds(missingPresetCategories.map((category) => category.id), language, regionalDefaults, now));
           seededPresetIds = [...seededPresetIds, ...missingPresetCategories.map((category) => category.id)];
           notebooksDirty = true;
           // 新しく投入したプリセットの文言はこの時点のlanguageで焼き込んだので、保存言語もそれに
@@ -916,8 +916,8 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
   // このリセット後も同じノートを指し続けられ、nullに戻す必要はない。
   const resetPresetNotebooks = useCallback(async () => {
     const now = new Date().toISOString();
-    const priceProfile = resolvePresetPriceProfile(currencyCode, regionCode, language);
-    const freshPresets = buildPresetNotebooksFromSeeds(PRESET_NOTEBOOK_CATEGORIES.map((category) => category.id), language, priceProfile, now);
+    const regionalDefaults = resolvePresetRegionalDefaults(currencyCode, regionCode, language);
+    const freshPresets = buildPresetNotebooksFromSeeds(PRESET_NOTEBOOK_CATEGORIES.map((category) => category.id), language, regionalDefaults, now);
     // pinned（ピン留め）はノートの中身の編集ではなく、単なる整理のための状態なので、リセットは
     // 「中身をシードへ戻す」ことだけを目的とし、ピン留めの状態は引き継ぐ（せっかく整理した
     // 並びをリセットのたびに崩さないため）。

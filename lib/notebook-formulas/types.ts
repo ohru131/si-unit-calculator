@@ -1,5 +1,5 @@
 import type { LocalizedText } from "../i18n";
-import type { PresetPriceKind } from "../preset-price-defaults";
+import type { PresetRegionalDefaultKind } from "../preset-regional-defaults";
 
 export type PresetNotebookCategory = {
   id: string;
@@ -13,11 +13,11 @@ export type NotebookSeedConstant = {
   symbol: string;
   expression: string;
   /**
-   * 金額の既定値。妥当な値が地域（通貨）によって全く違うものだけ指定する。
-   * 指定すると投入時に端末の通貨に応じた値へ差し替わり、expression は
-   * 通貨が判別できなかったときのフォールバックとして使われる。
+   * 地域依存の既定値。妥当な値が地域によって全く違うもの（電気代・燃料単価のような金額、
+   * 商用電源の電圧・ブレーカーの定格電流）だけ指定する。指定すると投入時に端末の地域に
+   * 応じた式へ差し替わり、expression は地域が判別できなかったときのフォールバックになる。
    */
-  localizedPrice?: PresetPriceKind;
+  regionalDefault?: PresetRegionalDefaultKind;
 };
 export type NotebookSeedStep = {
   title: LocalizedText;
