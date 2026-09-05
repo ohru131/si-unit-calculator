@@ -28,7 +28,7 @@ import { exportCalculationHistory } from "@/lib/calculation-export";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { historyToAutoConstants } from "@/lib/history-auto-constants";
 import { localizedText, type AppLanguage } from "@/lib/i18n";
-import { BASE_META, canRepresentInBase, formatInBaseParts, isBaseDigitAllowed, NUMBER_BASES, parseBaseInput, sanitizeBaseInput, type NumberBase } from "@/lib/number-base";
+import { BASE_META, canRepresentInBase, canSwitchBaseInput, formatInBaseParts, isBaseDigitAllowed, NUMBER_BASES, parseBaseInput, reinterpretBaseInput, sanitizeBaseInput, type NumberBase } from "@/lib/number-base";
 import { getCalculatorQuickShortcut } from "@/lib/quick-shortcuts";
 import { usePro } from "@/lib/revenuecat-provider";
 import { buildUnitComparisonRows } from "@/lib/unit-comparison";
@@ -54,6 +54,12 @@ import { formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, getReg
 // "="の隣に残すことで、誤爆したときの実害を最小にする配置にしている。
 const KEYS = ["(", ")", "÷", "AC", "7", "8", "9", "×", "4", "5", "6", "-", "1", "2", "3", "+", ".", "0", "⌫", "="];
 const ADVANCED_KEYS = ["sin(", "cos(", "tan(", "asin(", "acos(", "atan(", "atan2(", "ln(", "log(", "log2(", "sqrt(", "^", "π", "e"];
+// 表示単位の初期値・AC後の値。空文字は「表示単位を指定しない＝SI標準で出す」という意味。
+// 以前は "cm" を入れていたが、これだと 3 のような無次元の値を打った瞬間に「cm へ変換できません」
+// という的外れなエラーが出るうえ、進数チップの表示条件（表示単位が空）も満たせず、
+// 単位の付かない数値に対する機能が丸ごと到達不能になっていた。長さの単位が要るときは
+// 結果カードの単位チップから1タップで選べるので、初期状態では何も指定しない。
+const DEFAULT_TARGET_UNIT = "";
 // 16進の入力モード専用。キーパッド本体の配置は変えず、直上に小さな別の行として出す。
 const HEX_LETTER_KEYS = ["A", "B", "C", "D", "E", "F"];
 // 進数入力モード中に押せてはいけないキー（演算子・小数点・括弧）。16進の桁のまま演算に入ると
@@ -91,6 +97,7 @@ const EN_COPY = {
   csvExportFailed: "Could not export the CSV file.",
   compareUnits: "Compare units",
   compareUnitsHint: "Tap a row to show the result in that unit.",
+  baseInput: "Base input",
   sampleConfirmTitle: "Load an example?",
   sampleConfirmMessage: "The expression you have typed will be replaced.",
   sampleConfirmButton: "Load",
@@ -123,6 +130,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     csvExportFailed: "CSVを出力できませんでした。",
     compareUnits: "単位を比較",
     compareUnitsHint: "行をタップするとその単位で表示します。",
+    baseInput: "進数入力",
     sampleConfirmTitle: "サンプルを読み込みますか？",
     sampleConfirmMessage: "入力中の式は置き換えられます。",
     sampleConfirmButton: "読み込む",
@@ -153,6 +161,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     csvExportFailed: "No se pudo exportar el archivo CSV.",
     compareUnits: "Comparar unidades",
     compareUnitsHint: "Toca una fila para mostrar el resultado en esa unidad.",
+    baseInput: "Introducir en otra base",
     sampleConfirmTitle: "¿Cargar un ejemplo?",
     sampleConfirmMessage: "Se reemplazará la expresión que has escrito.",
     sampleConfirmButton: "Cargar",
@@ -183,6 +192,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     csvExportFailed: "Não foi possível exportar o arquivo CSV.",
     compareUnits: "Comparar unidades",
     compareUnitsHint: "Toque em uma linha para exibir o resultado nessa unidade.",
+    baseInput: "Inserir em outra base",
     sampleConfirmTitle: "Carregar um exemplo?",
     sampleConfirmMessage: "A expressão que você digitou será substituída.",
     sampleConfirmButton: "Carregar",
@@ -213,6 +223,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     csvExportFailed: "Die CSV-Datei konnte nicht exportiert werden.",
     compareUnits: "Einheiten vergleichen",
     compareUnitsHint: "Tippe auf eine Zeile, um das Ergebnis in dieser Einheit anzuzeigen.",
+    baseInput: "Eingabe im Zahlensystem",
     sampleConfirmTitle: "Beispiel laden?",
     sampleConfirmMessage: "Der eingegebene Ausdruck wird ersetzt.",
     sampleConfirmButton: "Laden",
@@ -243,6 +254,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     csvExportFailed: "Impossible d'exporter le fichier CSV.",
     compareUnits: "Comparer les unités",
     compareUnitsHint: "Touchez une ligne pour afficher le résultat dans cette unité.",
+    baseInput: "Saisie dans une base",
     sampleConfirmTitle: "Charger un exemple ?",
     sampleConfirmMessage: "L'expression que vous avez saisie sera remplacée.",
     sampleConfirmButton: "Charger",
@@ -303,7 +315,7 @@ export default function CalculatorScreen() {
   // ユーザー自身のカーソル操作と競合しないようにする。
   const [selection, setSelection] = useState<{ start: number; end: number }>({ start: expression.length, end: expression.length });
   const [pendingSelection, setPendingSelection] = useState<{ start: number; end: number } | null>(null);
-  const [targetUnit, setTargetUnit] = useState("cm");
+  const [targetUnit, setTargetUnit] = useState(DEFAULT_TARGET_UNIT);
   // 計算結果は式から導出する（= を押さなくてもリアルタイムに出す）。stateで持つと、
   // 式を書き換えたのに前の結果が残る／= を押すまで何も出ない、という2つの状態を抱えることになる。
   // = は「履歴に残す・定数を保存する・エラーを出す」確定操作の方に専念させる。
@@ -514,14 +526,13 @@ export default function CalculatorScreen() {
     () => (baseInputMode !== null ? parseBaseInput(expression, baseInputMode) : null),
     [baseInputMode, expression],
   );
-  // 基数チップを出す条件は次の2つのどちらか（互いに排他なので衝突しない）:
-  // ①式が空 → 入力モードを新しく始められる状態。②無次元の安全整数の結果があり、かつ表示単位が
-  // 空 → 表示モードでその結果を別の基数で読み替えられる状態。表示単位が付いていると画面の数値と
-  // siValueが食い違う（例: 200%は画面表示が200・siValueは2）ため、その場合はsiValueの基数表記を
-  // 出さない（screen上の数値と矛盾する表記を避ける）。
-  // 入力モード中は式が空でなくなる（FFなど）ため、モード中であることを条件に足さないと
-  // 最初の1文字を打った瞬間にチップが消え、今どの基数で打っているのかも分からなくなる。
-  const showBaseChips = baseInputMode !== null || !expression.trim() || (canRepresentInBase(result ?? undefined) && !targetUnit.trim());
+  // 結果カードの基数チップは「出た答えをどの基数で読むか」だけを切り替える表示専用の列。
+  // 以前はここが入力モードの開始も兼ねていたが、同じ見た目で意味が2通りになり、
+  // 「押すと入力欄が変わる」のか「表示が変わるだけ」なのか区別できなかった。入力側の基数切り替えは
+  // 入力欄の直下の別バーに分けてある。
+  // 表示単位が付いていると画面の数値とsiValueが食い違う（例: 200%は画面表示が200・siValueは2）ので、
+  // 表示単位が空のときだけ出す。
+  const showBaseChips = canRepresentInBase(result ?? undefined) && !targetUnit.trim();
   // 大きい数値の基数表示も上と同じ条件（無次元の安全整数・表示単位が空）でだけ行う。この条件を
   // 外すと、進数表示に切り替えた後に単位付きの式へ書き換えたときactiveBaseが10のまま残らず、
   // 単位付きの値を誤って基数表記してしまう。
@@ -680,7 +691,7 @@ export default function CalculatorScreen() {
       // 別の「消去」ボタンがある）。
       setExpression("");
       placeCaret(0);
-      setTargetUnit("cm");
+      setTargetUnit(DEFAULT_TARGET_UNIT);
       setFixSelection(null);
       setBaseInputMode(null);
       void Haptics.selectionAsync();
@@ -708,26 +719,54 @@ export default function CalculatorScreen() {
     setFixSelection(null);
   };
 
-  /**
-   * 基数チップを押したときの効果。式が空なら「入力モードの切り替え」、そうでなければ
-   * 「結果カードの大きい数値を描く基数（表示モード）の切り替え」になる（この2つは
-   * 式が空かどうかで排他的に決まるので、同じチップ列を両方の用途に使い回せる）。
-   */
-  const pressBaseChip = (base: NumberBase) => {
-    // 入力モード中に基数を切り替えると、打ち込み済みの桁が新しい基数では使えない文字を
-    // 含みうる（FFのまま2進にするなど）。変換できない桁を残すと確定も解除もできない
-    // 状態で固まるので、切り替えのタイミングで消す。
+  // 進数入力を始められるのは、式が空か、そのまま別の基数へ読み替えられる10進の整数のときだけ。
+  // 途中式（3+4 など）や単位付きの式から始めても読み替えようがないため、入口自体を無効にする。
+  const canStartBaseInput = !expression.trim() || parseBaseInput(expression, 10).status === "ok";
+
+  // 入力欄の下のバーで基数を押したときの効果。打ち込み済みの値は捨てず、表記だけを新しい基数へ
+  // 書き換える（16進のFFで BIN を押すと 11111111、DEC を押すと 255）。以前は無条件にクリアして
+  // いたため、DECを押しただけで打った値が消えていた。
+  const pressBaseInputChip = (base: NumberBase) => {
+    if (baseInputMode === null || base === baseInputMode) return;
+    // 安全整数を超える桁が入っているときは基数を変えない。変換できないのに基数だけ変えると、
+    // 同じ桁の並びが新しい基数では妥当な別の値として通ってしまう（canSwitchBaseInputの説明を参照）。
+    if (!canSwitchBaseInput(expression, baseInputMode)) return;
+    setBaseInputMode(base);
+    const converted = reinterpretBaseInput(expression, baseInputMode, base);
+    // 空・不正な桁で変換できないときは、書き換えようが無いので入力をそのまま残す。
+    if (converted === null) return;
+    setExpression(converted);
+    placeCaret(converted.length);
+  };
+
+  // 進数入力モードの入口（「単位付け」レールの 0x ボタン）。モード中に押すと確定を兼ねる
+  // ＝ = キーと同じく10進の数値へ直してから通常入力に戻るので、押した値が消えない。
+  const toggleBaseInput = () => {
+    markUserInteraction();
     if (baseInputMode !== null) {
+      // 確定できる桁が入っていれば = と同じく10進の数値へ直して戻る。
+      if (parseBaseInput(expression, baseInputMode).status === "ok") {
+        submitCalculation();
+        return;
+      }
+      // 空のまま・確定できない桁（安全整数を超える長さ等）のときも必ず抜けられるようにする。
+      // submitCalculationは確定できないと何もせず戻るので、これが無いと入口を押し直しても
+      // モードから出られず、ACしか逃げ道が無くなる。式として評価できない桁は残さず消す。
       setExpression("");
       placeCaret(0);
-      setBaseInputMode(base === 10 ? null : base);
+      setBaseInputMode(null);
       return;
     }
-    if (!expression.trim()) {
-      setBaseInputMode(base === 10 ? null : base);
-      return;
-    }
-    setActiveBase(base);
+    if (!canStartBaseInput) return;
+    setError("");
+    setNotice("");
+    // ボタンの表記どおり16進で始める。10進の整数が入っていればその場でFFのような16進表記になり、
+    // 「10進→16進」もこのボタン1つで済む（戻したいときはバーのDECを押せばよい）。
+    setBaseInputMode(16);
+    const converted = reinterpretBaseInput(expression, 10, 16);
+    if (converted === null) return;
+    setExpression(converted);
+    placeCaret(converted.length);
   };
 
   const applyTargetUnit = (unit: string) => {
@@ -961,20 +1000,19 @@ export default function CalculatorScreen() {
     </Pressable>
   );
 
-  // 進数入力モード中は式が空のときだけ選択できる（DEC以外を押すとモード開始、DEC/ACで解除）。
-  // それ以外（結果が無次元の安全整数かつ表示単位が空）は表示モードとして activeBase を切り替える。
-  // どちらの状態も選択中の基数はこの1つの値で表せる（両立しないため）。
-  const selectedBase = baseInputMode ?? activeBase;
+  // 結果カードの基数チップ列（表示専用）。押しても入力欄は変わらず、大きい数値の読み方だけが変わる。
+  // ハイライトは常に「いま表示している基数」を指す。入力中の基数は別のバーが持つので、
+  // ここに baseInputMode を混ぜないこと（10進の値を出しながらHEXが光る、という食い違いになる）。
   const baseChipsRow = showBaseChips ? (
     <View style={styles.baseChipRow}>
       {NUMBER_BASES.map((base) => (
         <Pressable
           accessibilityLabel={BASE_META[base].label}
           key={base}
-          onPress={() => { markUserInteraction(); pressBaseChip(base); }}
-          style={({ pressed }) => [styles.baseChip, selectedBase === base && styles.baseChipActive, pressed && styles.pressed]}
+          onPress={() => { markUserInteraction(); setActiveBase(base); }}
+          style={({ pressed }) => [styles.baseChip, activeBase === base && styles.baseChipActive, pressed && styles.pressed]}
         >
-          <Text style={[styles.baseChipText, selectedBase === base && styles.baseChipTextActive]}>{BASE_META[base].label}</Text>
+          <Text style={[styles.baseChipText, activeBase === base && styles.baseChipTextActive]}>{BASE_META[base].label}</Text>
         </Pressable>
       ))}
     </View>
@@ -1066,6 +1104,32 @@ export default function CalculatorScreen() {
             </View>
           ) : null}
 
+          {baseInputMode !== null ? (
+            // 入力中の基数を切り替えるバー。入力欄の真下に置き、結果カードの表示用チップとは
+            // 役割ごと分けている（同じ見た目で「入力が変わる」「表示が変わる」の2通りの意味を
+            // 持たせていたのが混乱の原因だった）。押しても値は消えず表記だけ変わる。
+            <View style={styles.baseInputBar}>
+              {NUMBER_BASES.map((base) => (
+                <Pressable
+                  accessibilityLabel={BASE_META[base].label}
+                  key={base}
+                  onPress={() => { markUserInteraction(); pressBaseInputChip(base); }}
+                  style={({ pressed }) => [styles.baseChip, baseInputMode === base && styles.baseChipActive, pressed && styles.pressed]}
+                >
+                  <Text style={[styles.baseChipText, baseInputMode === base && styles.baseChipTextActive]}>{BASE_META[base].label}</Text>
+                </Pressable>
+              ))}
+              <View style={styles.hintSpacer} />
+              {/* 進数入力を抜ける唯一の明示的な出口。= キーと同じく10進の数値へ直してから戻る。 */}
+              <Pressable accessibilityLabel={copy.hintComplete} onPress={toggleBaseInput} style={({ pressed }) => [styles.baseDoneButton, pressed && styles.pressed]}>
+                <Text style={styles.baseDoneText}>{copy.hintComplete}</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {/* 進数入力中は単位の候補レールごと出さない。FFのような生の桁を式として解析するので、
+              「使えない単位」の赤い警告や見当違いの単位候補が並んでしまうため。 */}
+          {baseInputMode === null ? (
           <View style={styles.hintRow}>
             <Text numberOfLines={1} style={[styles.hintLabel, hint.kind === "fix" && styles.hintLabelAlert]}>{hintLabel}</Text>
             {hint.candidates.length ? (
@@ -1075,12 +1139,23 @@ export default function CalculatorScreen() {
             ) : (
               <Text style={styles.hintEmpty}>{copy.noCandidates}</Text>
             )}
+            {/* 進数入力の入口。横スクロールするレールの隣に置くので、使わない人には縦幅を増やさない。
+                式が空か10進の整数のときだけ押せる（途中式からは基数を読み替えようが無いため）。 */}
+            <Pressable
+              accessibilityLabel={copy.baseInput}
+              disabled={!canStartBaseInput}
+              onPress={toggleBaseInput}
+              style={({ pressed }) => [styles.hintSearchButton, !canStartBaseInput && styles.keyDisabled, pressed && styles.pressed]}
+            >
+              <Text style={styles.baseEntryText}>0x</Text>
+            </Pressable>
             <Pressable accessibilityLabel={copy.insertUnit} onPress={toggleInlineUnitSearch} style={({ pressed }) => [styles.hintSearchButton, showInlineUnitSearch && styles.hintSearchButtonActive, pressed && styles.pressed]}>
               <IconSymbol name={showInlineUnitSearch ? "chevron.up" : "magnifyingglass"} size={16} color={showInlineUnitSearch ? colors.onPrimary : colors.primary} />
             </Pressable>
           </View>
+          ) : null}
 
-          {showInlineUnitSearch ? (
+          {showInlineUnitSearch && baseInputMode === null ? (
             <View style={styles.inlineUnitPanel}>
               <View style={styles.unitSearchWrap}>
                 <IconSymbol name="magnifyingglass" size={16} color={colors.muted} />
@@ -1164,10 +1239,11 @@ export default function CalculatorScreen() {
                 // 解釈できてしまうケース（例: 2進の"1010"は10進としても妥当）があり、そちらを見せると
                 // 「今どの基数を打っているか」と画面表示が食い違うため、常にparseBaseInputの結果だけを見せる。
                 <>
+                  {/* 出すのは常に10進へ直した値。入力中の基数は入力欄の下のバーが示すので、
+                      ここに基数チップは出さない（10進の値を出しながらHEXが光る食い違いを避ける）。 */}
                   <Animated.Text numberOfLines={2} adjustsFontSizeToFit style={[styles.resultValue, resultAnimatedStyle]}>
                     {baseInputParse.value}
                   </Animated.Text>
-                  {baseChipsRow}
                 </>
               ) : baseInputMode === null && display ? (
                 <>
@@ -1245,7 +1321,6 @@ export default function CalculatorScreen() {
                 // どちらもここに来る。入力モード中はエラーを出さない方針なので文言は変えない。
                 <>
                   <Text style={styles.emptyResult}>{copy.emptyResult}</Text>
-                  {baseChipsRow}
                   <Pressable accessibilityLabel={copy.outputUnit} onPress={() => openUnitPicker("target")} style={({ pressed }) => [styles.presetOutputUnit, pressed && styles.pressed]}>
                     <Text style={styles.presetOutputUnitLabel}>{copy.outputUnit}</Text>
                     <View style={styles.presetOutputUnitValueWrap}>
@@ -1621,6 +1696,12 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   // 基数チップは単位チップ（convertChip、primary系）とは別の色にして、単位換算ではなく
   // 「表記の分類」であることを読ませる（previewIdentifierと同じくwarning系を分類の色として使う）。
   baseChipRow: { flexDirection: "row", gap: 6, marginTop: 4 },
+  // 入力欄の直下に出す基数バー。チップ自体は結果カードと同じ見た目を使い、置き場所で役割を分ける。
+  baseInputBar: { flexDirection: "row", gap: 6, marginTop: 6 },
+  baseEntryText: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },
+  baseDoneButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 9, height: 30, justifyContent: "center", paddingHorizontal: 12 },
+  baseDoneText: { color: colors.onPrimary, fontSize: 11, fontWeight: "800" },
+  hintSpacer: { flex: 1 },
   baseChip: { backgroundColor: colors.surface, borderColor: colors.warningBorder, borderRadius: 9, borderWidth: 1, justifyContent: "center", minHeight: 30, paddingHorizontal: 10 },
   baseChipActive: { backgroundColor: colors.warningSurface, borderColor: colors.warning },
   baseChipText: { color: colors.muted, fontFamily: mono, fontSize: 12, fontWeight: "800" },

@@ -73,17 +73,48 @@ export function baseDigits(base: NumberBase): string {
 // 入力欄に直接打たれた・貼り付けられた文字列を、その基数で使える桁だけに落とす。
 // キーパッド側だけを無効化しても、TextInputへの直接入力や貼り付けは素通りしてしまい、
 // 確定できない桁（sin( など）が混ざる。入力の経路が複数あるので、絞り込みはここに1つ置く。
+//
+// 先頭のマイナスだけは桁ではないが必ず残す。-255 から入った -FF を編集すると、符号が落ちて
+// 値が黙って正に反転してしまうため（parseBaseInputが先頭の符号を受け付ける以上、
+// 落としてよい文字ではない）。2文字目以降の符号は桁として不正なので従来どおり落とす。
+// プラスは落としても値が変わらないので、符号として持ち回らない。
 export function sanitizeBaseInput(text: string, base: NumberBase): string {
+  const sign = text.startsWith("-") ? "-" : "";
   let result = "";
   for (const character of text) {
     if (isBaseDigitAllowed(character, base)) result += character.toUpperCase();
   }
-  return result;
+  // 桁が1つも残らないなら符号だけを残さない（"-"だけが式に残ると読めない表示になる）。
+  if (!result) return "";
+  return sign + result;
 }
 
 /** 1文字がその基数の桁として使えるか（大文字小文字どちらも受け付ける）。 */
 export function isBaseDigitAllowed(character: string, base: NumberBase): boolean {
   return baseDigits(base).includes(character.toUpperCase());
+}
+
+// 入力中の桁を、値を保ったまま別の基数の桁へ書き換える（16進のFFを2進にすると11111111）。
+// 基数を切り替えるたびに入力を捨てると、打った値が黙って消えて使い物にならない。値さえ保てば
+// 「新しい基数では使えない桁が残って確定も解除もできなくなる」問題も同時に消える。
+// 接頭辞は表示側が別の色で描くので、ここでは付けない。
+// 変換できない（空・不正な桁・安全整数の範囲外）ときはnullを返し、呼び出し側は入力をそのまま残す。
+export function reinterpretBaseInput(text: string, from: NumberBase, to: NumberBase): string | null {
+  const parsed = parseBaseInput(text, from);
+  if (parsed.status !== "ok") return null;
+  const parts = formatInBaseParts(parsed.value, to);
+  if (!parts) return null;
+  return `${parts.sign}${parts.digits}`;
+}
+
+// 入力中の基数を切り替えてよいか。安全整数の範囲を超える桁が入っているときだけ切り替えを断る。
+// 変換できないまま基数だけ変えると、同じ桁の並びが新しい基数では「妥当な別の値」として通ってしまう。
+// 例: 16進の 1111111111111111 は範囲外で変換できないが、そのままDECにすると
+// 10進の 1111111111111111 という全く違う値として確定できてしまう（利用者は気付けない）。
+// 空・入力途中は切り替えてよい（読み替える値がまだ無いだけで、値が化ける余地が無いため）。
+export function canSwitchBaseInput(text: string, from: NumberBase): boolean {
+  const parsed = parseBaseInput(text, from);
+  return !(parsed.status === "error" && parsed.code === "outOfRange");
 }
 
 /**
