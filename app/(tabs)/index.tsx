@@ -497,17 +497,28 @@ export default function CalculatorScreen() {
     void measuringStandard;
     if (!result) return null;
     try {
-      return { value: formatQuantity(result, targetUnit, locale), si: formatQuantity(result, undefined, locale), error: "" };
+      return { value: formatQuantity(result, targetUnit, locale), si: formatQuantity(result, undefined, locale), error: "", isFallback: false };
     } catch (cause) {
       // 次元不一致だけでなく、不正な単位文字列（例: プリセットの presetUnit パラメータ）など
       // 実際の失敗理由をそのまま見せる。決め打ちの「次元が違う」で握りつぶさない。
       // エンジンのエラー(UnitError)は現在の言語で表示する。UnitError以外は従来どおり
       // Error.message をそのまま出す（バックアップ処理など別系統のエラーもここを通るため）。
       const fallback = copy.cannotConvertUnit;
-      return { value: "—", si: formatQuantity(result, undefined, locale), error: cause instanceof Error ? (unitErrorMessage(cause, language) ?? cause.message) : fallback };
+      // 値そのものは出せているのに表示単位だけが合わないケース（例: cmを選んだまま
+      // 100km/2h のような速さの式に変えた）で「—」を出すと、比較表には各単位の値が
+      // 並んでいるのに肝心の結果だけ消えるという分かりにくい画面になる。値はSI表記へ
+      // フォールバックし、理由は警告として値の下に残す。計算ノート側
+      // （lib/notebook-export-model.ts の resolveNotebookStepDisplay）が既に同じ扱いなので、
+      // 画面ごとに挙動が違わないよう揃える。
+      const si = formatQuantity(result, undefined, locale);
+      return { value: si, si, error: cause instanceof Error ? (unitErrorMessage(cause, language) ?? cause.message) : fallback, isFallback: true };
     }
     // measuringStandardが変わるとcup/tbsp/tspの換算値が変わるため、依存配列に含めて表示単位を再計算させる（値自体は使わない）。
   }, [copy, language, locale, measuringStandard, result, targetUnit]);
+
+  // SIチップの点灯条件。表示単位が未指定のときに加えて、次元が合わずSI表記へフォールバック
+  // しているときも点灯させる（そのとき実際に表示している値はSI表記そのものなので）。
+  const siChipActive = !targetUnit.trim() || Boolean(display?.isFallback);
 
   const comparisonRows = useMemo(() => {
     // measuringStandardが変わるとcup/tbsp/tspの換算値が変わるため、依存配列に含めて表を再計算させる（値自体は使わない）。
@@ -1258,14 +1269,17 @@ export default function CalculatorScreen() {
                       display.value
                     )}
                   </Animated.Text>
+                  {/* 表示単位の次元が合わずSI表記へフォールバックしているときは、選択中の単位チップ
+                      （例 cm）を光らせたままにすると、値がm/sなのにcmが選ばれているように見えて
+                      食い違う。フォールバック中はSIチップの方を点灯させる。 */}
                   <View style={styles.conversionRow}>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.conversionRail} keyboardShouldPersistTaps="handled">
-                      <Pressable accessibilityLabel={copy.noUnit} onPress={() => { markUserInteraction(); applyTargetUnit(""); }} style={({ pressed }) => [styles.convertChip, !targetUnit.trim() && styles.convertChipActive, pressed && styles.pressed]}>
-                        <Text style={[styles.convertChipText, !targetUnit.trim() && styles.convertChipTextActive]}>SI</Text>
+                      <Pressable accessibilityLabel={copy.noUnit} onPress={() => { markUserInteraction(); applyTargetUnit(""); }} style={({ pressed }) => [styles.convertChip, siChipActive && styles.convertChipActive, pressed && styles.pressed]}>
+                        <Text style={[styles.convertChipText, siChipActive && styles.convertChipTextActive]}>SI</Text>
                       </Pressable>
                       {conversionUnits.map((symbol) => (
-                        <Pressable accessibilityLabel={symbol} key={symbol} onPress={() => { markUserInteraction(); applyTargetUnit(symbol); }} style={({ pressed }) => [styles.convertChip, targetUnit.trim() === symbol && styles.convertChipActive, pressed && styles.pressed]}>
-                          <Text style={[styles.convertChipText, targetUnit.trim() === symbol && styles.convertChipTextActive]}>{symbol}</Text>
+                        <Pressable accessibilityLabel={symbol} key={symbol} onPress={() => { markUserInteraction(); applyTargetUnit(symbol); }} style={({ pressed }) => [styles.convertChip, targetUnit.trim() === symbol && !display.isFallback && styles.convertChipActive, pressed && styles.pressed]}>
+                          <Text style={[styles.convertChipText, targetUnit.trim() === symbol && !display.isFallback && styles.convertChipTextActive]}>{symbol}</Text>
                         </Pressable>
                       ))}
                     </ScrollView>

@@ -1,9 +1,17 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Platform } from "react-native";
 import Purchases, { CustomerInfo, LOG_LEVEL, type PurchasesPackage } from "react-native-purchases";
 
 import { useGlobalSettings } from "@/lib/global-settings";
 import { type AppLanguage } from "@/lib/i18n";
+import {
+  composePublicIsPro,
+  isProPreviewSupportedOn,
+  parseProPreviewQueryAction,
+  PRO_PREVIEW_STORAGE_KEY,
+  resolveInitialProPreview,
+} from "@/lib/pro-preview";
 import { resolvePurchaseMessageKey } from "@/lib/purchase-message";
 import { selectOneTimePackageFromOfferings } from "@/lib/purchase-offering";
 
@@ -107,6 +115,12 @@ type ProContextValue = {
   isPurchasing: boolean;
   purchasePro: () => Promise<void>;
   restorePurchases: () => Promise<void>;
+  // Web限定の隠しスイッチ（Shipaton提出用のスクリーンショット撮影・審査員向けプレビュー）。
+  // isProはこのフラグと本物のentitlementのORで合成済みなので、表示側は通常isProだけを見ればよい。
+  // 「今のisPro trueが本物の購入かプレビューか」を画面に出し分けたい場合のためにこちらも公開する。
+  isProPreviewEnabled: boolean;
+  isProPreviewSupported: boolean;
+  setProPreviewEnabled: (enabled: boolean) => void;
 };
 
 const ProContext = createContext<ProContextValue | null>(null);
@@ -157,6 +171,17 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
   const purchaseLockRef = useRef(false);
   const isNativePurchaseAvailable = Platform.OS === "ios" || Platform.OS === "android";
   const platformKey = getPlatformKey();
+  // Web版限定の隠しスイッチ。isProPreviewSupportedOnがPlatform.OSだけで決まる判定を1箇所に
+  // まとめているので、ここが false ならこの下の初期化・永続化は一切実行されず、
+  // ネイティブでは絶対に有効にならない。
+  const isProPreviewSupported = isProPreviewSupportedOn(Platform.OS);
+  const [isProPreviewEnabled, setIsProPreviewEnabledState] = useState(false);
+  // 起動時のAsyncStorage読み出しは非同期なので、その待機中にユーザーが切り替える
+  // （設定画面の地域行を7回タップする）と、あとから解決した古い保存値が新しい状態を
+  // 上書きしてしまう。ユーザーが一度でも切り替えたらこのrefを立て、復元側はそれを見て
+  // 何もしない。stateではなくrefなのは、復元のthen節が張られた時点のクロージャからでも
+  // 最新の値を読む必要があるため（このリポジトリの既存の対処と同じ方式）。
+  const proPreviewUserChangedRef = useRef(false);
 
   // ネイティブ購入が使えない環境(Web)とSDKキーが未設定の環境では、そもそも初期化する余地が無い。
   // どちらもPlatformと環境変数だけで決まる=レンダー時に分かるので、エフェクトの中で
@@ -169,13 +194,54 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
       : null;
   // 初期化する余地が無い環境では待つものが無いので、最初から準備完了として扱う。
   const isReady = blockedReasonKey !== null ? true : isNativeReady;
+  // 画面（isPro）と同じく、本物のentitlementとプレビューのORで判定する。そうしないと
+  // Webでプレビュー中に「購入できません」系の理由メッセージだけが矛盾して残ってしまう
+  // （Web自体は isPro を内部stateの方では常にfalseのままにしているため）。
+  const publicIsPro = composePublicIsPro(isPro, isProPreviewEnabled);
   // 購入操作などで設定されたメッセージを優先し、無ければ上記の「使えない理由」を出す。
   // Proが有効になった後に残ると矛盾するメッセージの除外も含めてlib/purchase-message.tsに
   // 切り出してある（判定をテストで固定するため）。
-  const messageKey = resolvePurchaseMessageKey(purchaseMessageKey, blockedReasonKey, isPro);
+  const messageKey = resolvePurchaseMessageKey(purchaseMessageKey, blockedReasonKey, publicIsPro);
   const purchaseMessage = messageKey ? copy[messageKey] : null;
   // ストアが返す表示用の価格文字列をそのまま出す（買い切りパッケージが未取得ならnull）。
   const priceLabel = oneTimePackage ? oneTimePackage.product.priceString : null;
+
+  // URLクエリ（?pro=preview / ?pro=off）と永続化済みの値からプレビュー状態を復元する。
+  // マウント時の1回だけでよい（Platform.OSはランタイム中に変わらず、クエリもページ遷移では
+  // 変わらないSPAではない=リロードのたびにこの効果が走る想定）。
+  useEffect(() => {
+    if (!isProPreviewSupported) return;
+    let active = true;
+    const queryAction = parseProPreviewQueryAction(window.location.search);
+    AsyncStorage.getItem(PRO_PREVIEW_STORAGE_KEY)
+      .then((stored) => {
+        // ユーザーが待機中に切り替えていたら、保存値での上書きはしない（新しい方が正しい）。
+        if (!active || proPreviewUserChangedRef.current) return;
+        const nextEnabled = resolveInitialProPreview({
+          platformOS: Platform.OS,
+          queryAction,
+          storedValue: stored === "true",
+        });
+        setIsProPreviewEnabledState(nextEnabled);
+        // クエリで明示された場合は、次回リロード後（クエリ無しでの再アクセス）も同じ状態を
+        // 保てるように書き戻しておく。スクリーンショット撮影中に別ページへ遷移してもプレビューが
+        // 消えないようにするため。
+        if (queryAction !== null) void AsyncStorage.setItem(PRO_PREVIEW_STORAGE_KEY, String(nextEnabled));
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- isProPreviewSupportedはPlatform.OSのみに依存しマウント後に変わらない
+  }, []);
+
+  const setProPreviewEnabled = useCallback((enabled: boolean) => {
+    // ネイティブでは呼び出し元（設定画面等）を書き間違えても絶対に有効にしない最終ガード。
+    if (!isProPreviewSupported) return;
+    proPreviewUserChangedRef.current = true;
+    setIsProPreviewEnabledState(enabled);
+    void AsyncStorage.setItem(PRO_PREVIEW_STORAGE_KEY, String(enabled));
+  }, [isProPreviewSupported]);
 
   useEffect(() => {
     // 初期化する余地が無い環境（Web・SDKキー未設定）は blockedReasonKey で判別済みなので、
@@ -322,8 +388,22 @@ export function RevenueCatProvider({ children }: { children: ReactNode }) {
   }, [blockedReasonKey, isNativePurchaseAvailable, isReady]);
 
   const value = useMemo(
-    () => ({ isPro, isReady, isNativePurchaseAvailable, purchaseMessage, priceLabel, isPurchasing, purchasePro, restorePurchases }),
-    [isPro, isReady, isNativePurchaseAvailable, purchaseMessage, priceLabel, isPurchasing, purchasePro, restorePurchases],
+    // 公開する isPro は publicIsPro（entitlementとプレビューのOR）。内部の isPro state
+    // （本物のentitlement判定）はここでは公開しない。
+    () => ({
+      isPro: publicIsPro,
+      isReady,
+      isNativePurchaseAvailable,
+      purchaseMessage,
+      priceLabel,
+      isPurchasing,
+      purchasePro,
+      restorePurchases,
+      isProPreviewEnabled,
+      isProPreviewSupported,
+      setProPreviewEnabled,
+    }),
+    [publicIsPro, isReady, isNativePurchaseAvailable, purchaseMessage, priceLabel, isPurchasing, purchasePro, restorePurchases, isProPreviewEnabled, isProPreviewSupported, setProPreviewEnabled],
   );
 
   return <ProContext.Provider value={value}>{children}</ProContext.Provider>;
