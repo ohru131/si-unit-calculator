@@ -1,10 +1,34 @@
-# Submission Asset Review
+# Submission Asset Review（Android向けに全面更新）
 
-## Checked assets
+**旧版は1179×2556px（iPhoneサイズ）を前提にしていたが、今回の提出はAndroid（Google Play）のみ。** Google Playの実際の要件（`docs/android-submission-checklist.md`参照）に合わせてサイズを読み替えた。加えて、旧版はProのスクリーンショットをCSVエクスポート中心の古い機能一覧のまま「差し替え不要」と評価していたが、Proの実際の特典は4点（`app/(tabs)/pro.tsx`の`EN_COPY.features`）であり、計算ノート・単位比較表・ユーザー定義単位・進数といった新機能のスクリーンショットも今回のスコープで新規に必要になったため、評価内容も全面的に見直した。
 
-| Asset | Finding | Decision |
+## 既存アセットの再評価
+
+| アセット | 所見 | 今回の判断 |
 |---|---|---|
-| Store icon | The dark navy calculator mark, ruler, superscript 2, and gold accent remain recognizable at a glance. It has no text or device frame and preserves a full square canvas. | Resize deterministically to 1024×1024px for store upload. |
-| Calculation screenshot | The sample expression `5 cm + 1 mm`, result `5.1 cm`, SI base value, compatible-unit chips, and unit categories are clearly readable. The layout is vertical, spacious, and uses a consistent navy/teal identity. | Resize and pad to the 1179×2556px Shipaton capture format without cropping content. |
-| Pro screenshot | The Pro value proposition, ad-free experience, CSV export, and personal unit set are all visible with high contrast. The 1179×2556px version retains legible English labels. | Stale: the on-screen feature list and the one-time-price buy button have changed since capture. Recapture before use as the monetization and repeat-work screenshot. |
-| Samples screenshot | Category chips and the mixed length, speed, and pressure examples are legible. The primary explanatory message correctly highlights SI normalization. | Include as the product-discovery screenshot. |
+| ストアアイコン（紺色の電卓マーク・定規・上付きの2・金のアクセント） | 図形自体は文字なし・端末フレームなし・正方形いっぱいで、Android向けにも流用できる意匠 | **512×512px, 32-bit PNGへ書き出し直す。** 1024×1024pxからのリサイズではなく、512×512pxのマスターを新規に用意し、安全余白（内側15〜18%目安）を守ること（`docs/android-submission-checklist.md`2番参照） |
+| 計算画面のスクリーンショット（`5cm + 1mm`→`5.1cm`） | 現在も再現できる基本カット。単位比較表・進数チップなど新機能は写っていない | **撮り直し。** `docs/screenshot-capture-plan.md`のカット1・2（基本計算＋次元検証エラー）で新規撮影する |
+| Proのスクリーンショット | **旧版がすでに「陳腐化（stale）」と判定していた**（画面上の特典一覧・買い切りボタンが撮影当時と変わっている）。現在の実装（広告非表示・CSVエクスポート・マイ単位セット・ノート共有の4点、買い切り1回のボタン文言）とはさらに乖離が大きい | **全面撮り直し。** `docs/screenshot-capture-plan.md`カット9。Web版はweb preview注記が出るため、**必ずAndroid実機/エミュレータで撮影すること** |
+| サンプル画面のスクリーンショット（カテゴリチップ・単位換算例） | カテゴリチップ自体は現存するが、「テンプレート/自作関数タブ」は計算ノート（notebooks）へ統合済みで画面構成が変わっている（CLAUDE.md「直近の作業履歴」2番） | **撮り直し。** 現行の「電卓」タブ・「ライブラリ」タブの実画面に置き換える |
+
+## 今回追加で必要になった撮影対象（旧版に存在しなかった機能）
+
+いずれも旧版のレビュー対象に無かった機能。裏取りは`CLAUDE.md`「直近の作業履歴」の該当番号と実装ファイル。
+
+- **計算ノートのカテゴリグリッド（幅を見せる）** — 23カテゴリ・親子2階層。裏取り: 直近の作業履歴3・6番、`lib/notebook-formulas/source/categories.ts`
+- **KaTeX数式表示** — 本物の組版された数式。裏取り: 同3番、`components/ui/latex-view.tsx`
+- **単位比較表** — チップ列を縦に開いた比較表。裏取り: 同16番、`lib/unit-comparison.ts`
+- **ユーザー定義単位の登録画面** — 倍率形式・関数形式。裏取り: 同17番、`lib/custom-units.ts`
+- **進数（2進・8進・16進）の入力・表示** — `0x`ボタンからの導線。裏取り: 同18番、`lib/number-base.ts`。**このアセットレビューは当初の調査で見落としており、コーディネーターからの追加指示を受けて撮影対象に加えた**
+- **バックアップ／復元画面**（余裕があれば） — 計算ノート・グローバル定数・自作単位。裏取り: `lib/constants-backup.ts` / `lib/notebooks-backup.ts` の実装（`customUnits`フィールドを含む）
+
+具体的な撮影手順は全て `docs/screenshot-capture-plan.md` に一本化した（本ドキュメントは評価・判断のみを扱う）。
+
+## フィーチャーグラフィック（新規必須アセット、iOSには無い項目）
+
+Google Playは**1024×500pxのフィーチャーグラフィック**をストア掲載の必須アセットとして要求する（App Storeには相当する項目が無いため、旧版では完全に抜けていた）。既存のアイコン素材（紺色の電卓マーク・定規・金のアクセント）の意匠を横長レイアウトに再構成して新規作成する必要がある。**アルファチャンネル不可**（透過PNGは使えない）。
+
+## Android提出で新たに必要になった評価軸
+
+- **アスペクト比・解像度**: スクリーンショットは最長辺:最短辺が最大2:1、各辺320〜3840px（要確認: Play Consoleの現行UIでの正確な下限/上限。`docs/android-submission-checklist.md`参照）
+- **タブレット向けスクリーンショット**: 今回は用意しない（電卓アプリでタブレット最適化していないため、Play側も必須ではない）

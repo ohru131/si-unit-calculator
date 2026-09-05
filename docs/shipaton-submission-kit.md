@@ -1,65 +1,73 @@
-# Unit Calculator Pro — Shipaton Submission Kit Draft
+# Unit Calculator — Shipaton 2026 Submission Kit（Android版）
 
-## App Store / Google Play short description
+**このドキュメントは全面更新版。** 旧版は計算ノート・単位比較表・ユーザー定義単位・進数・6言語対応・買い切り課金への移行・履歴無制限化のいずれも記載が無く、CSVエクスポート中心の古い機能一覧のまま（Pro機能一覧も実際は4点なのに3点しか無かった）iOS想定のサイズで書かれていたため、全面的に書き直した。
 
-**A dimensional calculator that converts every expression to SI before calculating.**
+**今回の提出対象は Android（Google Play）のみ。** iOSやApp Store向けの記述は削除した。
 
-## App Store / Google Play full description
+各節の詳細は専用ドキュメントに分けてあるので、ここはハブとして使う。
 
-Unit Calculator Pro helps students, engineers, makers, and practical problem-solvers calculate with confidence when units are mixed.
+## 目次と裏取り根拠
 
-Enter expressions such as `5cm + 1mm`, `1km ÷ 1min`, or `100N ÷ 0.01m²`. The app normalizes values to SI base units first, checks dimensions during the calculation, and then lets you display the result in the unit that fits your work.
-
-### Core capabilities
-
-- Calculate with mixed units and automatic SI normalization.
-- Multiply and divide quantities to derive speed, pressure, energy, power, and more.
-- Convert results only into compatible dimensions.
-- Define reusable constants such as `W = 3cm` and calculate with them later.
-- Start with example calculations for length, speed, pressure, energy, electricity, and ratios.
-
-### Unit Calculator Pro
-
-Pro is designed for repeated technical work. A single one-time purchase removes the ads and adds CSV export for documentation plus a personal unit set for faster entry of frequently used units. The full calculation history is available to everyone, free of charge.
-
-## Privacy policy draft
-
-**Data stored on your device.** Calculation history, constants, and saved unit preferences are stored locally on the device. Purchase status is handled by RevenueCat and the relevant app store. The app does not create an account or upload calculation content to our servers.
-
-Before store submission, replace this draft with a hosted privacy-policy URL that names the publisher, provides a support email, and reflects the final analytics, crash-reporting, and payment configuration.
-
-## Support information draft
-
-Support email: `support@example.com` *(replace before submission)*
-
-Please include your device model, operating system version, app version, entered expression, and a screenshot of the result when reporting an issue.
-
-## Two-minute demo outline
-
-| Time | Scene | Message |
+| 節 | 参照ドキュメント | 何を裏取りに使ったか |
 |---|---|---|
-| 0:00–0:15 | Enter `5cm + 1mm` | Mixed-unit calculations normalize to SI first. |
-| 0:15–0:35 | Change the result from `m` to `cm` | Compatible units are suggested by dimension. |
-| 0:35–0:55 | Save `W = 3cm`, `H = 20mm`, then calculate `W × H` | Constants make repeat calculations reliable. |
-| 0:55–1:20 | Use pressure, energy, and speed samples | Derived dimensions work without manual conversion. |
-| 1:20–1:40 | Open saved history and restore a calculation | The work stays on device for later reference. |
-| 1:40–2:00 | Open Pro, show CSV export and personal unit set | Pro supports repeat technical work without blocking core calculations. |
+| ストア掲載文（短い説明・詳しい説明、6言語） | `docs/store-listing-copy.md` | `CLAUDE.md`直近の作業履歴3・5〜9・14・16〜18番、`lib/notebook-formulas/`実測、`app/(tabs)/pro.tsx`の`EN_COPY.features` |
+| Android提出チェックリスト（Play固有の必要素材・設定） | `docs/android-submission-checklist.md` | Google Play Console公式ヘルプ・AdMob公式ガイド・RevenueCat公式ドキュメントのWeb調査（2026年9月時点） |
+| スクリーンショット撮影指示 | `docs/screenshot-capture-plan.md` | アプリの実画面・実操作をコードから確認（`app/(tabs)/index.tsx`・`settings.tsx`・`notebook.tsx`・`constants.tsx`・`pro.tsx`） |
+| 無音デモ動画の台本 | `docs/shipaton-demo-script.md` | 同上。ナレーション音声が消失・TTS不可のため無音＋字幕に作り直した |
+| 審査員向けテスト手順（英語） | `docs/reviewer-testing-instructions.md` | `app/(tabs)/pro.tsx`のPro特典4点、`lib/pro-preview.ts`（Web版Proプレビューが実装中であることの確認のみ。発動方法はプレースホルダに留めた） |
+| 個別のアセット評価 | `docs/submission-assets-review.md` | 既存素材の再評価（Androidサイズへの読み替え含む） |
 
-## Required capture list
+## アプリの現在地（今回追記した主要機能）
 
-- Store listing icon at 1024×1024px.
-- At least one 1179×2556px screenshot without a device frame.
-- A public YouTube or Vimeo demo shorter than two minutes.
-- Published store URL accessible in the United States.
-- English feature description and judge testing instructions.
+以下は旧版に一言も無かった機能で、今回すべて掲載文・撮影指示・審査員向け手順に反映した。
 
-## Final compliance checklist
+1. **計算ノート（notebooks）** — プリセット112件（`lib/notebook-formulas/`の`PRESET_NOTEBOOK_SEEDS`を実行して実測）、23カテゴリ（親子2階層ナビゲーション含む）、KaTeXによる本物のLaTeX数式表示。CLAUDE.md「直近の作業履歴」3・5・6番
+2. **単位比較表** — 1つの結果を単位チップと同じ候補・並び順で縦に開いて比較（`lib/unit-comparison.ts`）。同16番（PR #33）
+3. **ユーザー定義単位** — 倍率形式・関数形式（摂氏・華氏のようなオフセット対応）（`lib/custom-units.ts`）。同17番（PR #34）
+4. **進数（2進・8進・16進）** — 電卓の結果を10進以外でも表示・入力できる。単位ではなく「同じ値の表記」を変えるだけという設計上の区別に注意（`lib/number-base.ts`）。同18番（PR #37/#38/#39、#40で使える形に修正）。**このブリーフでは当初見落とされていた機能**で、コーディネーターからの追加指示を受けて掲載文・撮影指示に反映した
+5. **6言語対応** — en/ja/es/pt-BR/de/fr。UI・単位名・エラーメッセージ・プリセット計算ノートの中身まで翻訳済み。同7〜9番（PR #21〜#23）
+6. **バックアップ／復元** — 計算ノート・グローバル定数に加え、**自作単位も含む**（`lib/constants-backup.ts`・`lib/notebooks-backup.ts`の`customUnits`フィールドを実装コードで確認。関連コミット`5ccfa29`）。**注意**: `CLAUDE.md`末尾の「次にやりそうなこと」は自作単位のバックアップ対応を未着手のTODOとして書いているが、これは更新漏れ。本セッションでコミット履歴（ブランチの祖先であることを`git merge-base --is-ancestor`で確認済み）とソースコードの両方から、実際には対応済みであることを確認した
+7. **買い切り1本・サブスクなし** — CLAUDE.md「直近の作業履歴」14番、`docs/market-research-2026-09.md`第4節（電卓ジャンルはサブスクへの反発が突出して強いという調査結果）
+8. **無料版でも履歴無制限** — 同14番。旧版は「Proで無制限」という誤った特典設計のままだった
 
-- [ ] First public release is inside the Shipaton submission window.
-- [ ] RevenueCat SDK is configured with platform SDK keys.
-- [ ] `pro` entitlement, offering, products, and Paywall have been published.
-- [ ] App Store and/or Google Play listing is live and accessible in the United States.
-- [ ] Promo/offer code permits judges to test Pro (no trial exists for a one-time purchase).
-- [ ] Demo, English submission copy, 1024px icon, and screenshot are ready.
-- [ ] Privacy policy and real support email are publicly available.
-- [ ] Purchase, restore, Pro gating, and CSV sharing were tested in EAS development and store builds.
+Pro機能は憶測ではなく `app/(tabs)/pro.tsx` の `EN_COPY.features`（読み取りのみ、改変はしていない）から取った実際の4点: **広告非表示・CSVエクスポート・マイ単位セット・計算ノートの共有（PDF/印刷用の書き出し）**。
+
+## 前提条件（ユーザー確定済み・本セッションで踏まえたもの）
+
+1. 提出はAndroid（Google Play）のみ
+2. ストア掲載文は6言語すべて（en/ja/es/pt-BR/de/fr）
+3. スクリーンショットは日英2言語のみ撮影し、他4言語は英語版画像を流用
+4. デモ動画は無音の画面録画（前回のナレーション音声は消失、TTSも使えない）
+5. Web版に隠しのProプレビュー機能を実装中（別エージェント）。発動方法未確定のためプレースホルダを`docs/reviewer-testing-instructions.md`に置いた
+
+## プライバシーポリシーと問い合わせ先 — 提出前に差し替えが必要な箇所
+
+**現状、アプリ本体にもドキュメントにも実在のプライバシーポリシーURL・実在の問い合わせ先は無い。** 以下は全て提出前の人間の作業が必要。
+
+| 箇所 | 現状 | 必要な作業 |
+|---|---|---|
+| プライバシーポリシー本文 | 下記のドラフトのみ。公開URLでホストされていない | 実際の文書を作成し、公開URL（例: GitHub Pagesや自社サイト）でホストする |
+| Play Consoleのプライバシーポリシー欄 | 未設定 | 上記URLを登録する |
+| 問い合わせ先メールアドレス | ドキュメント中に実在のものが無い（旧版は`support@example.com`というダミーだった） | 実在の監視可能なメールアドレスに差し替える |
+| Play Consoleの開発者連絡先 | 未設定 | 上記メールアドレスを登録する |
+| 審査員向けPro解除の実際の値（`docs/reviewer-testing-instructions.md`のTODO） | プレースホルダのまま | Play Console/RevenueCatでプロモコードを発行し、実際のコード・手順に差し替える |
+| Web版Proプレビューの発動方法（同上） | プレースホルダのまま（`<!-- TODO -->`） | 別エージェントの実装確定後に、実際の手順を記入する |
+
+### プライバシーポリシー・ドラフト（差し替え前提）
+
+> Unit Calculator stores calculation history, saved constants, custom units, and preferences locally on the device. Purchase status is processed by RevenueCat and Google Play. Banner ads are served via Google AdMob, which may collect device/advertising identifiers as described in Google's own disclosures. The app does not require an account and does not upload your calculation content to our servers.
+>
+> **提出前に、上記ドラフトを実在の法人・個人情報（データ管理者の名称・所在地）、削除依頼の連絡先、最終的な広告・課金設定を反映した本物のプライバシーポリシーに差し替え、公開URLでホストすること。**
+
+## 最終コンプライアンスチェックリスト
+
+- [ ] 最終提出締切（Shipaton 2026: 2026年9月30日23:45 PDT。要確認: 現在から見て残り日数を都度確認）に間に合うスケジュールで動く
+- [ ] `docs/android-submission-checklist.md`の全項目を完了する
+- [ ] RevenueCat SDKにAndroid本番SDKキーを設定し、`pro` entitlement・買い切り商品・Paywallを公開する
+- [ ] Google Playの本番リリースが申請され、実際にダウンロード可能な状態になっている（審査中ステータスのままでは審査員がテストできない）
+- [ ] プロモ/オファーコードで審査員がPro機能を購入無しで確認できる（買い切りにはトライアルが存在しないため）
+- [ ] Web版のProプレビュー（実装確定後）で審査員がWeb上でもPro機能を確認できる
+- [ ] 無音デモ動画（`docs/shipaton-demo-script.md`）・6言語ストア掲載文（`docs/store-listing-copy.md`）・512×512アイコン・1024×500フィーチャーグラフィック・日英スクリーンショットが揃っている
+- [ ] プライバシーポリシー（実URL）と実在の問い合わせ先メールアドレスが公開されている（上記「提出前に差し替えが必要な箇所」を参照）
+- [ ] 購入・復元・Pro解放・CSVエクスポート・ノート共有（PDF書き出し）を実機のリリースビルドで確認済み
+- [ ] Data safetyフォーム・広告の申告・コンテンツレーティングをPlay Consoleで完了している
