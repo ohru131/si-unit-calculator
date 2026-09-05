@@ -188,12 +188,15 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 
 - **`targetUnit` の初期値・AC後は空文字（＝SI標準）にしてある**（`DEFAULT_TARGET_UNIT`）。以前は `"cm"` 固定で、`3` のような無次元の値を打つだけで「cmへ変換できません」という的外れなエラーが出るうえ、進数チップの表示条件（表示単位が空）も満たせず**機能が丸ごと到達不能**だった。長さの単位が要るときは結果カードの単位チップから1タップで選べる。`"cm"` に戻さないこと。
 
-### 進行管理で踏んだこと（#39・#40）
+### 進行管理で踏んだこと（#39・#40・#42）
 
 - **CodeRabbitのレビュー実行中にpushしない。** レビュー中に無関係のマージコミットを積んだら「Head commit changed」でレビューが中断し、レート制限枠を1回分無駄にした。
 - **GitHub MCPの `create_pull_request` が使えるかはセッションによって違う。** #39・#40のセッションでは利用できず、REST直叩き（＝作者が `claude[bot]` になり自動レビューが走らない）しか無かったため、人間のアカウントから `@coderabbitai review` を投げる運用に戻した。#42のセッションでは使えて作者が `ohru131` になった。**着手時に実際に使えるか確かめること。**
 - **PRを作る前に `git fetch origin main` すること。** #42では、このブランチの前半6コミットが先に #41 としてsquashマージされていたのに気付かずPRを作り、`mergeable_state: dirty`（同じ内容・別履歴の競合）になった。**squashマージ済みの履歴の上に積み増ししない**という既存の規約（このファイル冒頭）は、着手時だけでなく**PRを出す直前にも効く**。作り直しは `git branch backup/<日付> <HEAD>` で退避してから `git checkout -B <branch> origin/main` + `git cherry-pick <未マージのコミット>`。
-- **CodeRabbitの指摘件数をレビュー本文の "Actionable comments posted: N" だけで数えないこと。** この数字は**diff外のコメントしか数えていないことがある**。#40では本文が「1件」と言っていたが、実際にはインラインのreview commentに🟠Majorがもう1件付いていて、危うく見落とすところだった（実際に「1件」と誤って返信し、訂正した）。**`gh api .../pulls/N/comments`（インライン）と `.../pulls/N/reviews`（本文）の両方を必ず引く。**
+- **CodeRabbitの指摘件数をレビュー本文の "Actionable comments posted: N" だけで数えないこと。** この数字は**diff外のコメントしか数えていないことがある**。#40では本文が「1件」と言っていたが、実際にはインラインのreview commentに🟠Majorがもう1件付いていて、危うく見落とすところだった（実際に「1件」と誤って返信し、訂正した）。**インライン（review comments）と本文（reviews）の両方を必ず引く**（GitHub MCPなら `pull_request_read` の `get_review_comments` と `get_reviews`）。
+- **レビュー実行中のforce-pushは中断されるが、枠は消費されない。** #42では、レビュー開始直後にforce-pushしたため実行中コメントが本文ごと消えた（レビューは投稿されない）。ただし**約2分後に新しいheadで自動的に再開した**ので、手動で `@coderabbitai review` を投げる必要は無かった。慌てて手動依頼を出すとレート枠を無駄にする。**まず数分待って自動再開するか見る。**
+- **指摘を直してpushした差分レビューはレート制限（1時間に1回）にかかることがある。** それでも**元の指摘コメントには `✅ Addressed in commit <sha>` が付き、CodeRabbitが是認の返信もくれる**ので、差分レビューを待たなくても「その指摘が解消されたか」は確認できる。#42はこの状態でマージした。
+- **CodeRabbitが「I couldn't resolve this review thread ... Please resolve it manually」と言ってくることがあるが、こちらが既にresolve済みでも出る**（行き違い）。真に受けて操作し直す前に、`get_review_comments` の `is_resolved` を見る。
 
 19. **[完了]** 電卓の結果に**厳密値表示**（分数・π・√）を追加し、`小数 ⇔ 厳密値` のチップで切り替えられるようにした。表示はKaTeXで本物の分数・根号として描く。あわせて進数入力の入口（`0x`）を単位検索ボタンと同じ見た目・並びから外し、レールの一番右のwarning系の丸ピルに変えた（単位まわりの導線の仲間に見えていたため）。
 
@@ -204,8 +207,9 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - **単位はLaTeXの外にTextで並べる。** 単位記号には `²` や `°` や `µ` が混ざり、`\text{}` に入れると環境によって描けない文字が出る。
 - **`\displaystyle` を付けないと分数が本文サイズで小さく組まれる**（隣の小数表示より明らかに小さく見える）。`displayMode: true` の方は中央寄せと上下の余白が付いて結果カードの詰まった配置に合わないので使わない。
 - **コピーは画面に出ているのと同じ表記を渡す。** 厳密値に切り替えているのに小数がコピーされると、画面と手元のメモが食い違う（Unicode表記は `ExactValue.text`）。
+- **`.web.tsx` がある component を直したら、Webでの目視確認だけで済ませないこと。** `LatexView` はWebとネイティブで**別実装**なので、`fitContent` の幅計算のバグ（`document.body.scrollWidth` を混ぜていた）はWeb（`inline-block`）では表に出ず、`npx expo export --platform web` + Playwrightでの確認を通り抜けた。CodeRabbitに🟠Majorとして指摘されるまで気付けなかった。**両方の実装を別々に検証する**か、少なくとも「今の確認はどちらの実装を通ったのか」を意識する。
 
-### 現在の基準値（2026-09-05時点、`claude/shipaton-2026-prep-3b0tt7` の厳密値表示コミット時点）
+### 現在の基準値（2026-09-05時点、mainのコミット `2b031e6`＝PR #42マージ後）
 
 - `npx tsc --noEmit` → **エラー0**
 - `npx vitest run` → **618 passed / 2 failed / 1 skipped**。失敗2件は `tests/revenuecat.credentials.test.ts`（環境依存）。
@@ -215,6 +219,7 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 ## 次にやりそうなこと（ユーザーから明示的な指示待ち）
 
 - **自作単位がバックアップに含まれていない**（`lib/constants-backup.ts` / `lib/notebooks-backup.ts`）。`2shaku` を参照するノートを別端末へ復元すると評価に失敗する。バックアップ形式の変更を伴うため #34 のスコープ外にした。**次にやるならここが最優先。**
+- 厳密値表示（分数・π・√）を**計算ノートの手順の結果にも広げるか**。今は電卓の結果カードだけ。広げるなら表示は `resolveNotebookStepDisplay`（`lib/notebook-export-model.ts`）に一本化してある経路へ足すこと（画面とPDFで値がズレないため）。
 - 自作単位を単位チップ・比較表・単位ピッカーにも出すか（`UNIT_GROUPS` が次元1つ前提なので、次元ごとの合成グループを作るか `compatibleUnitOptions` 側に足すかの判断が要る）
 - 進数を**バイナリ演算**（AND/OR/XOR/シフト）まで広げるか。今は表示と入力だけで、桁のまま演算に入る経路は塞いである（まず `=` で10進へ確定させる運用）
 
