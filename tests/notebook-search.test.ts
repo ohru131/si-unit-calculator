@@ -41,6 +41,27 @@ describe("searchNotebooks", () => {
     expect(searchNotebooks([item("Straße")], "strasse")).toHaveLength(1);
   });
 
+  it("直径記号のØをoとして扱う", () => {
+    // 「Ø60×5 鋼管」のようにノートのタイトル・説明文に直径記号が出る。fold()は先に
+    // 小文字化するので、置き換え表に小文字のøが無いとASCIIの o60 で引けない。
+    expect(searchNotebooks([item("Euler buckling & slenderness (Ø60×5 steel tube)")], "o60")).toHaveLength(1);
+    expect(searchNotebooks([item("A Ø20 mm bar")], "o20")).toHaveLength(1);
+    // 記号のまま打っても当たること（元の綴りで探す人もいる）。
+    expect(searchNotebooks([item("A Ø20 mm bar")], "Ø20")).toHaveLength(1);
+  });
+
+  it("プリセットの実データで直径記号のノートが引ける", () => {
+    // 指摘の元になった実データ（engineering-stress / engineering-power / materials）に
+    // 対して、ASCIIだけで打った検索語が当たることを確かめる。
+    const items = Object.values(PRESET_NOTEBOOK_SEEDS).flat().map((seed) => ({
+      title: localizedText(seed.title, "en"),
+      description: localizedText(seed.description, "en"),
+      categoryLabel: "",
+    }));
+    expect(searchNotebooks(items, "o60").length).toBeGreaterThan(0);
+    expect(searchNotebooks(items, "o20").length).toBeGreaterThan(0);
+  });
+
   it("日本語は部分一致で当たる（分かち書きが無いため）", () => {
     expect(searchNotebooks([item("オームの法則")], "法則")).toHaveLength(1);
     expect(searchNotebooks([item("オームの法則")], "オーム")).toHaveLength(1);
