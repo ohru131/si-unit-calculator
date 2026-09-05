@@ -70,7 +70,16 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - `app/(tabs)/index.tsx`（電卓） — **計算結果は state ではなく式から導出する**（`previewCalculatorInput`）。`=` を押さなくてもリアルタイムに結果が出る。`=` は「履歴に残す・定数を保存する・エラーを出す」確定操作だけを担当する。リアルタイム表示と確定計算は `lib/calculator-input.ts` の同じ関数（`evaluateCalculatorInput`）を通すこと（定数定義 `W = 3cm` の扱いが2箇所に分かれると、片方だけ値を出せない食い違いになる）。
 - `lib/calculator-store.tsx` — アプリの状態管理本体。`CalculationNotebook`（`categoryId`, `localConstants`, `steps`, `pinned`, `isPreset`）。プリセットは`isPreset: true`で削除不可（UI・store両方でガード）。プリセットの投入はカテゴリID単位で冪等（新カテゴリを追加しても既存データは壊れない）。
 - `components/notebooks/notebook-category-grid.tsx` + `app/(tabs)/constants.tsx` — カテゴリグリッドは2階層ナビゲーション対応（大分類→サブカテゴリ→ノート一覧）。`parentCategoryId` propで表示階層を切替。ユーザー作成カテゴリ（`NotebookCategory`）は今のところ親子階層に非対応（あくまでプリセットの高校物理のみ階層化。スコープを広げすぎないための判断）。
-- `components/ui/latex-view.tsx` / `.web.tsx` — KaTeXによる本物のLaTeX描画。ネイティブはWebView（`react-native-webview`）+ `postMessage`で高さ自動調整、Webは`katex.renderToString`を直接DOMに挿入。フォント込みのKaTeXアセットは `scripts/generate-katex-assets.mjs` で `lib/katex-assets.generated.ts` に事前生成・コミット済み（`pnpm katex:generate`で再生成可能。中身は自動生成なので手編集しない）。
+- `components/ui/latex-view.tsx` / `.web.tsx` — KaTeXによる本物のLaTeX描画。ネイティブはWebView（`react-native-webview`）+ `postMessage`で高さ・幅の自動調整、Webは`katex.renderToString`を直接DOMに挿入。フォント込みのKaTeXアセットは `scripts/generate-katex-assets.mjs` で `lib/katex-assets.generated.ts` に事前生成・コミット済み（`pnpm katex:generate`で再生成可能。中身は自動生成なので手編集しない）。
+  - **`latex` が変わってもWebViewを読み直さない。** `source` に渡すHTMLは初回の1回だけ組み立てて固定し（初期値関数付きの`useState`）、以降は `injectJavaScript` で `renderLatex()` を呼び直す。`source` を差し替えると646KBのKaTeXアセットを毎回読み直すことになり、電卓の結果のように**数式が1文字ごとに変わる画面では描画が追いつかない**。読み込み完了前の変更を取りこぼさないよう `onLoadEnd` でも同じ関数を呼ぶ。
+  - `fitContent` を付けると数式の幅ぶんだけ場所を取る（右に単位ラベル等を並べたいとき）。幅は**折り返しを止めた（`white-space:nowrap`）うえで `#target` の `scrollWidth` を見る**。こうすると数式がビューポートより広くても狭くても内容幅そのものが取れる。**`document.body.scrollWidth` を混ぜないこと**（bodyはビューポート全幅なので、数式が短いと常にビューポート幅が返り、幅が永久に縮まらない。CodeRabbitが🟠Majorとして検出した）。実測できるまでは全幅で描く（最初から1pxにするとWebView内の描画自体が潰れて測り直しても正しい幅にならない）。
+  - **WebViewに`ref`を渡すと型が壊れる。** 宣言が `class WebView<P = undefined> extends Component<WebViewProps & P>` で、`WebViewProps & undefined` が `never` に潰れるため。`useRef<ComponentRef<typeof WebView>>(null)` にすると通る。
+- `lib/exact-value.ts` — 小数で出た結果を**分数・πの有理数倍・√の有理数倍**として言い当てる純関数（`findExactValue`）。電卓の結果カードで「小数 ⇔ 厳密値」を切り替えるために使う。
+  - **値そのものを有理数で持ち回る（記号計算にする）方向へは進めないこと。** `lib/units.ts` は7次元ベクトルと`number`の組で換算・べき乗・三角関数まで全部組み立てられていて、そこへ有理数型を混ぜると全面書き直しになる。**表示のときだけ推定する**なら影響範囲がこのファイルに閉じる。
+  - 判定順は **有理数 → π倍 → √倍** で固定。πや√を先に見ると `2.5` のような素直な分数まで「0.7957…π」に化ける。整数は`null`（小数表示のままで過不足がない）。
+  - 近似探索は**連分数**（`bestRational`）。総当たりにしないのは「分母N以下で最も近い分数」が漸化式で必ず現れるため。収束分数は必ず既約なので約分し直す必要も無い。
+  - √は**平方因子の抽出をしない**。`v²`を有理数化して素因数分解すると探索範囲が1e15規模になるので、代わりに**平方因子を持たない根号候補（2〜50）を列挙して `v/√r` が有理数か**を見る。この向きなら `√8` ではなく `2√2` の形が自動的に出る。
+  - 相対誤差 `1e-12`・分母上限1000。この幅に無関係な値が偶然入る確率は1e-6程度で実用上無視できる。**緩めると打ち込んだだけの小数（1234.5678）まで分数化して読みにくくなる。**
 - `components/notebooks/notebook-detail.tsx` — ルートは`View(flex:1)`で、**戻る/ピン留め/編集＋ノート名を固定ヘッダー**、値を編集したときの保存バーを**固定フッター**にしている（下までスクロールしても戻れる・保存できるようにするため）。狭い端末幅ではタイトルが潰れるので固定ヘッダーは上段（戻る＋ボタン）／下段（ノート名）の2段構成。`NotebookCategoryGrid`・`NotebookList`も戻る行をスクロール外に出し、中身だけをスクロールさせる（グリッドは以前`ScrollView`が無く、カテゴリが増えると画面外にはみ出して押せなかった）。
 - **数式の編集口は「数式の解説」（`formulas`）に一本化してある**。編集画面（`constants.tsx`）は手順ごとの`formulaLatex`を編集せず、保存時に`formulaLatex`を落として`formulas`へ寄せる。`formulas`が空のノート（プリセット112件中108件）は`notebookFormulaRows`（`lib/notebook-formula-rows.ts`）が手順の`formulaLatex`を**説明文なしの行**として拾い上げるので、数式だけのノートも同じ1箇所で編集できる。手順カードにLaTeX欄を復活させないこと（2箇所で設定できるうえ、表示側は`formulas`を優先するのでどちらが効くか分からなくなる）。
 - 表示側（`notebook-detail.tsx`）は`formulas`があればそれを、無ければ各手順の`formulaLatex`を数式カードに並べる。
@@ -182,14 +191,26 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 ### 進行管理で踏んだこと（#39・#40）
 
 - **CodeRabbitのレビュー実行中にpushしない。** レビュー中に無関係のマージコミットを積んだら「Head commit changed」でレビューが中断し、レート制限枠を1回分無駄にした。
-- **GitHub MCPの `create_pull_request` が使えるかはセッションによって違う。** このセッションでは利用できず、REST直叩き（＝作者が `claude[bot]` になり自動レビューが走らない）しか無かったため、人間のアカウントから `@coderabbitai review` を投げる運用に戻した。**着手時に実際に使えるか確かめること。**
+- **GitHub MCPの `create_pull_request` が使えるかはセッションによって違う。** #39・#40のセッションでは利用できず、REST直叩き（＝作者が `claude[bot]` になり自動レビューが走らない）しか無かったため、人間のアカウントから `@coderabbitai review` を投げる運用に戻した。#42のセッションでは使えて作者が `ohru131` になった。**着手時に実際に使えるか確かめること。**
+- **PRを作る前に `git fetch origin main` すること。** #42では、このブランチの前半6コミットが先に #41 としてsquashマージされていたのに気付かずPRを作り、`mergeable_state: dirty`（同じ内容・別履歴の競合）になった。**squashマージ済みの履歴の上に積み増ししない**という既存の規約（このファイル冒頭）は、着手時だけでなく**PRを出す直前にも効く**。作り直しは `git branch backup/<日付> <HEAD>` で退避してから `git checkout -B <branch> origin/main` + `git cherry-pick <未マージのコミット>`。
 - **CodeRabbitの指摘件数をレビュー本文の "Actionable comments posted: N" だけで数えないこと。** この数字は**diff外のコメントしか数えていないことがある**。#40では本文が「1件」と言っていたが、実際にはインラインのreview commentに🟠Majorがもう1件付いていて、危うく見落とすところだった（実際に「1件」と誤って返信し、訂正した）。**`gh api .../pulls/N/comments`（インライン）と `.../pulls/N/reviews`（本文）の両方を必ず引く。**
 
-### 現在の基準値（2026-09-05時点、mainのコミット `627ffe0`＝PR #40マージ後）
+19. **[完了]** 電卓の結果に**厳密値表示**（分数・π・√）を追加し、`小数 ⇔ 厳密値` のチップで切り替えられるようにした。表示はKaTeXで本物の分数・根号として描く。あわせて進数入力の入口（`0x`）を単位検索ボタンと同じ見た目・並びから外し、レールの一番右のwarning系の丸ピルに変えた（単位まわりの導線の仲間に見えていたため）。
+
+### 厳密値表示で判断したこと
+
+- **厳密値チップは「厳密な形が見つかったとき」だけ出す。** 常時出すと、押しても何も変わらないボタンが並ぶ。
+- **進数チップとは排他になる**（厳密な形が出るのは整数でない値だけ、進数表示は安全整数のときだけ）ので、両方が同時に光ることはない。
+- **単位はLaTeXの外にTextで並べる。** 単位記号には `²` や `°` や `µ` が混ざり、`\text{}` に入れると環境によって描けない文字が出る。
+- **`\displaystyle` を付けないと分数が本文サイズで小さく組まれる**（隣の小数表示より明らかに小さく見える）。`displayMode: true` の方は中央寄せと上下の余白が付いて結果カードの詰まった配置に合わないので使わない。
+- **コピーは画面に出ているのと同じ表記を渡す。** 厳密値に切り替えているのに小数がコピーされると、画面と手元のメモが食い違う（Unicode表記は `ExactValue.text`）。
+
+### 現在の基準値（2026-09-05時点、`claude/shipaton-2026-prep-3b0tt7` の厳密値表示コミット時点）
 
 - `npx tsc --noEmit` → **エラー0**
-- `npx vitest run` → **590 passed / 2 failed / 1 skipped**。失敗2件は `tests/revenuecat.credentials.test.ts`（環境依存）。
-- `npx expo lint` → **2エラー・0警告**。どちらも `app/(tabs)/index.tsx` の既存分。
+- `npx vitest run` → **618 passed / 2 failed / 1 skipped**。失敗2件は `tests/revenuecat.credentials.test.ts`（環境依存）。
+- `npx expo lint` → **2エラー・0警告**。どちらも `app/(tabs)/index.tsx` の既存分（`react-hooks/purity` と `react-hooks/set-state-in-effect`）。
+- `npx expo export --platform web` が通る。**UIを実際に触れない環境では、この`dist`を`python3 -m http.server`で配ってPlaywright（`/opt/pw-browsers/chromium`）で叩くと画面を確認できる**（初回はオンボーディングのモーダルが被さるので "Skip" を先に押す）。
 
 ## 次にやりそうなこと（ユーザーから明示的な指示待ち）
 

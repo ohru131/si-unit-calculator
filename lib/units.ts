@@ -347,7 +347,7 @@ const multiplyDimensions = (left: Dimension, right: Dimension): Dimension =>
 const divideDimensions = (left: Dimension, right: Dimension): Dimension =>
   left.map((value, index) => value - right[index]) as Dimension;
 
-const isDimensionless = (dimension: Dimension) => dimension.every((value) => value === 0);
+export const isDimensionless = (dimension: Dimension) => dimension.every((value) => value === 0);
 
 const powerDimension = (dimension: Dimension, power: number): Dimension =>
   dimension.map((value) => value * power) as Dimension;
