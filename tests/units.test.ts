@@ -297,3 +297,30 @@ describe("πの定数定義（normalizeでpiへ書き換えないこと）", () 
     expect(evaluateExpression("pi", constants).siValue).toBe(4);
   });
 });
+
+describe("πを含む暗黙の掛け算", () => {
+  it("数値に*なしでπが続いても円周率として解決される", () => {
+    expect(evaluateExpression("2π").siValue).toBeCloseTo(2 * Math.PI);
+    expect(evaluateExpression("sin(2π)").siValue).toBeCloseTo(Math.sin(2 * Math.PI));
+  });
+
+  it("πの直後に単位が続いても（πと単位の間に*が無くても）解決される", () => {
+    expect(evaluateExpression("πrad").siValue).toBeCloseTo(Math.PI);
+    expect(evaluateExpression("π rad").siValue).toBeCloseTo(Math.PI);
+    expect(evaluateExpression("2πrad").siValue).toBeCloseTo(2 * Math.PI);
+  });
+
+  it("πを再定義していても暗黙の掛け算はその値を使う", () => {
+    const constants = [{ ...parseConstantDefinition("π = 3"), createdAt: "" }];
+    expect(evaluateExpression("2π", constants).siValue).toBe(6);
+  });
+
+  it("括弧が続く場合も暗黙の掛け算になる（数値の書き忘れ演算子の誤りとは区別する）", () => {
+    expect(evaluateExpression("2(3+4)").siValue).toBe(14);
+    expect(evaluateExpression("(2+3)m").siValue).toBeCloseTo(5);
+  });
+
+  it("数量どうしが並んだだけの入力（演算子の書き忘れ）は従来どおりエラーにする", () => {
+    expect(() => evaluateExpression("2 3")).toThrow();
+  });
+});

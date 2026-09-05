@@ -49,6 +49,23 @@ describe("式の単位ハイライト", () => {
   });
 });
 
+describe("πの識別子としてのハイライト", () => {
+  it("単体のπを未解決ではなく識別子として扱う", () => {
+    expect(kinds("π")).toEqual(["π:identifier"]);
+    expect(kinds("2*π")).toEqual(["2:number", "*:operator", "π:identifier"]);
+  });
+
+  it("数値に*なしで続くπも識別子として扱う（単位サフィックスの空文字区間にしない）", () => {
+    expect(kinds("2π")).toEqual(["2:number", "π:identifier"]);
+  });
+
+  it("πの直後に単位が続いても、πと単位それぞれを識別子・単位として切り分ける", () => {
+    expect(kinds("πrad")).toEqual(["π:identifier", "rad:unit"]);
+    expect(kinds("2πrad")).toEqual(["2:number", "π:identifier", "rad:unit"]);
+    expect(analyzeExpression("2πrad").unresolved).toEqual([]);
+  });
+});
+
 describe("単位の候補提示", () => {
   it("記号の先頭一致で候補を返す", () => {
     const symbols = getUnitSuggestions("cm", { system: "metric" }).map((suggestion) => suggestion.unit.symbol);
