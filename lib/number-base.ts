@@ -70,7 +70,6 @@ export function baseDigits(base: NumberBase): string {
   return "0123456789ABCDEF".slice(0, base);
 }
 
-/** 1文字がその基数の桁として使えるか（大文字小文字どちらも受け付ける）。 */
 // 入力欄に直接打たれた・貼り付けられた文字列を、その基数で使える桁だけに落とす。
 // キーパッド側だけを無効化しても、TextInputへの直接入力や貼り付けは素通りしてしまい、
 // 確定できない桁（sin( など）が混ざる。入力の経路が複数あるので、絞り込みはここに1つ置く。
@@ -82,6 +81,7 @@ export function sanitizeBaseInput(text: string, base: NumberBase): string {
   return result;
 }
 
+/** 1文字がその基数の桁として使えるか（大文字小文字どちらも受け付ける）。 */
 export function isBaseDigitAllowed(character: string, base: NumberBase): boolean {
   return baseDigits(base).includes(character.toUpperCase());
 }
