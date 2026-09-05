@@ -16,6 +16,12 @@ type Props = {
   categoryLabel: string;
   notebooks: CalculationNotebook[];
   globalConstants: SavedConstant[];
+  /**
+   * 検索結果として表示するときに渡す、カテゴリID→表示名の対応。指定すると戻る行を出さず、
+   * 代わりに各カードへカテゴリ名を添える（検索はカテゴリ階層を横断するので、
+   * 「どのカテゴリのノートか」がカードにしか出せないため）。
+   */
+  searchResultCategoryLabels?: Map<string, string>;
   onBack: () => void;
   onOpen: (notebookId: string) => void;
   onDelete: (notebookId: string) => void;
@@ -26,6 +32,7 @@ type Props = {
 // キーの集合と各値のシグネチャを揃えるためtypeof EN_COPYで言語ごとの形を要求する。
 const EN_COPY = {
   empty: "No notebooks in this category yet", emptyHint: "Tap the + button above to add one.",
+  noResults: "No notebooks match your search", noResultsHint: "Try another word — the category name works too.",
   steps: (count: number) => `${count} step${count === 1 ? "" : "s"}`,
   delete: "Delete", deleteConfirm: "Delete this notebook? This cannot be undone.", cancel: "Cancel",
   pin: "Pin to calculator", unpin: "Unpin from calculator", builtIn: "Built-in",
@@ -34,37 +41,42 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
   en: EN_COPY,
   ja: {
     empty: "このカテゴリにはまだノートがありません", emptyHint: "上の＋ボタンから追加できます。",
+    noResults: "一致するノートがありません", noResultsHint: "別の語で試してください。カテゴリ名でも探せます。",
     steps: (count: number) => `${count}件の手順`,
     delete: "削除", deleteConfirm: "このノートを削除しますか？元に戻せません。", cancel: "キャンセル",
     pin: "電卓画面にピン留め", unpin: "ピン留めを解除", builtIn: "プリセット",
   },
   es: {
     empty: "Todavía no hay cuadernos en esta categoría", emptyHint: "Toca el botón + de arriba para añadir uno.",
+    noResults: "Ningún cuaderno coincide con la búsqueda", noResultsHint: "Prueba con otra palabra: el nombre de la categoría también sirve.",
     steps: (count: number) => `${count} paso${count === 1 ? "" : "s"}`,
     delete: "Eliminar", deleteConfirm: "¿Eliminar este cuaderno? Esta acción no se puede deshacer.", cancel: "Cancelar",
     pin: "Fijar en la calculadora", unpin: "Quitar de fijados", builtIn: "Integrado",
   },
   "pt-BR": {
     empty: "Ainda não há cadernos nesta categoria", emptyHint: "Toque no botão + acima para adicionar um.",
+    noResults: "Nenhum caderno corresponde à busca", noResultsHint: "Tente outra palavra: o nome da categoria também funciona.",
     steps: (count: number) => `${count} etapa${count === 1 ? "" : "s"}`,
     delete: "Excluir", deleteConfirm: "Excluir este caderno? Isso não pode ser desfeito.", cancel: "Cancelar",
     pin: "Fixar na calculadora", unpin: "Desafixar", builtIn: "Integrado",
   },
   de: {
     empty: "Noch keine Rechenhefte in dieser Kategorie", emptyHint: "Tippe oben auf das +, um eines hinzuzufügen.",
+    noResults: "Keine passenden Rechenhefte gefunden", noResultsHint: "Versuche ein anderes Wort — der Kategoriename funktioniert auch.",
     steps: (count: number) => (count === 1 ? "1 Schritt" : `${count} Schritte`),
     delete: "Löschen", deleteConfirm: "Dieses Rechenheft löschen? Das kann nicht rückgängig gemacht werden.", cancel: "Abbrechen",
     pin: "Im Rechner anheften", unpin: "Anheften lösen", builtIn: "Integriert",
   },
   fr: {
     empty: "Pas encore de carnet dans cette catégorie", emptyHint: "Touchez le bouton + ci-dessus pour en ajouter un.",
+    noResults: "Aucun carnet ne correspond à la recherche", noResultsHint: "Essayez un autre mot : le nom de la catégorie fonctionne aussi.",
     steps: (count: number) => `${count} étape${count === 1 ? "" : "s"}`,
     delete: "Supprimer", deleteConfirm: "Supprimer ce carnet ? Cette action est irréversible.", cancel: "Annuler",
     pin: "Épingler à la calculatrice", unpin: "Désépingler", builtIn: "Intégré",
   },
 };
 
-export function NotebookList({ language, locale, categoryLabel, notebooks, globalConstants, onBack, onOpen, onDelete, onTogglePinned }: Props) {
+export function NotebookList({ language, locale, categoryLabel, notebooks, globalConstants, searchResultCategoryLabels, onBack, onOpen, onDelete, onTogglePinned }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
@@ -87,16 +99,26 @@ export function NotebookList({ language, locale, categoryLabel, notebooks, globa
 
   return (
     <View style={styles.container}>
-      <Pressable onPress={onBack} style={({ pressed }) => [styles.backRow, pressed && styles.pressed]}>
-        <IconSymbol name="chevron.left" size={16} color={colors.primary} />
-        <Text numberOfLines={1} style={styles.backLabel}>{categoryLabel}</Text>
-      </Pressable>
+      {/* 検索結果はカテゴリを横断するので「どこへ戻るか」が無い（呼び出し側は検索欄を
+          消せば元の階層に戻る）。戻る行の代わりに、各カードにカテゴリ名を出す。 */}
+      {searchResultCategoryLabels ? null : (
+        <Pressable onPress={onBack} style={({ pressed }) => [styles.backRow, pressed && styles.pressed]}>
+          <IconSymbol name="chevron.left" size={16} color={colors.primary} />
+          <Text numberOfLines={1} style={styles.backLabel}>{categoryLabel}</Text>
+        </Pressable>
+      )}
       <FlatList
         style={styles.list}
         data={notebooks}
         keyExtractor={(item) => item.id}
         contentContainerStyle={notebooks.length ? styles.listContent : styles.emptyList}
-        ListEmptyComponent={<View style={styles.emptyCard}><IconSymbol name="book.fill" size={28} color={colors.primary} /><Text style={styles.emptyTitle}>{copy.empty}</Text><Text style={styles.emptyText}>{copy.emptyHint}</Text></View>}
+        ListEmptyComponent={
+          <View style={styles.emptyCard}>
+            <IconSymbol name={searchResultCategoryLabels ? "magnifyingglass" : "book.fill"} size={28} color={colors.primary} />
+            <Text style={styles.emptyTitle}>{searchResultCategoryLabels ? copy.noResults : copy.empty}</Text>
+            <Text style={styles.emptyText}>{searchResultCategoryLabels ? copy.noResultsHint : copy.emptyHint}</Text>
+          </View>
+        }
         renderItem={({ item }) => {
           const preview = previews.get(item.id) ?? "";
           return (
@@ -108,6 +130,9 @@ export function NotebookList({ language, locale, categoryLabel, notebooks, globa
                 </View>
                 {item.description ? <Text numberOfLines={1} style={styles.cardDescription}>{item.description}</Text> : null}
                 <View style={styles.cardMetaRow}>
+                  {/* 検索結果ではカテゴリ名を手順数より先に出す。「どのカテゴリにあるか」は
+                      探している当人が一番知りたい情報で、そのままカテゴリを覚え直す手掛かりになる。 */}
+                  {searchResultCategoryLabels ? <Text numberOfLines={1} style={styles.cardCategory}>{searchResultCategoryLabels.get(item.categoryId) ?? ""}</Text> : null}
                   <Text style={styles.cardMeta}>{copy.steps(item.steps.length)}</Text>
                   {preview ? <Text numberOfLines={1} style={styles.cardPreview}>→ {preview}</Text> : null}
                 </View>
@@ -160,6 +185,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   cardDescription: { color: colors.muted, fontSize: 12 },
   cardMetaRow: { alignItems: "center", flexDirection: "row", gap: 8, marginTop: 2 },
   cardMeta: { color: colors.placeholder, fontSize: 11 },
+  cardCategory: { color: colors.muted, flexShrink: 1, fontSize: 11, fontWeight: "700" },
   cardPreview: { color: colors.primary, flexShrink: 1, fontSize: 11, fontWeight: "700" },
   actionButton: { alignItems: "center", height: 38, justifyContent: "center", width: 34 },
   pressed: { opacity: 0.72 },

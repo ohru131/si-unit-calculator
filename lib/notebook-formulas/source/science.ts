@@ -366,7 +366,9 @@ export const SCIENCE_ELECTRICITY_SEEDS: NotebookSeed[] = [
     title: { en: "Electric power P=VI", ja: "電力 P=VI", es: "Potencia eléctrica P=VI", "pt-BR": "Potência elétrica P=VI", de: "Elektrische Leistung P=VI", fr: "Puissance électrique P=VI" },
     description: { en: "Compute the electric power consumed by an appliance from its voltage and current.", ja: "電圧と電流から、電気器具が消費する電力を求めます。", es: "Calcula la potencia eléctrica consumida por un aparato a partir de su voltaje y su corriente.", "pt-BR": "Calcule a potência elétrica consumida por um aparelho a partir de sua tensão e corrente.", de: "Berechne die von einem Gerät aufgenommene elektrische Leistung aus seiner Spannung und Stromstärke.", fr: "Calcule la puissance électrique consommée par un appareil à partir de sa tension et de son courant." },
     localConstants: [
-      { symbol: "V", expression: "100V" },
+      // 家庭のコンセントの電圧は地域で決まる（日本100V・北米120V・欧州ほか230V）ので、
+      // practical.ts の同種のノートと同じく投入時に端末の地域から解決する。
+      { symbol: "V", expression: "100V", regionalDefault: "mainsVoltage" },
       { symbol: "I", expression: "6A" },
     ],
     steps: [{ title: { en: "Power P", ja: "電力 P", es: "Potencia P", "pt-BR": "Potência P", de: "Leistung P", fr: "Puissance P" }, expression: "V*I", targetUnit: "W", formulaLatex: "P = VI" }],
@@ -379,7 +381,7 @@ export const SCIENCE_ELECTRICITY_SEEDS: NotebookSeed[] = [
       { symbol: "t", expression: "2h" },
       // 電力量単価は通貨圏ごとに桁から違うので、practical.ts の同種のノートと同じく
       // 端末の地域から解決する（付け忘れると、日本円前提の30が全ユーザーに出る）。
-      { symbol: "rate", expression: "30", localizedPrice: "electricityPerKWh" },
+      { symbol: "rate", expression: "30", regionalDefault: "electricityPerKWh" },
     ],
     steps: [
       { title: { en: "Energy used E", ja: "使用電力量 E", es: "Energía utilizada E", "pt-BR": "Energia utilizada E", de: "Verbrauchte Energie E", fr: "Énergie utilisée E" }, expression: "P*t", targetUnit: "kWh", formulaLatex: "E = Pt" },

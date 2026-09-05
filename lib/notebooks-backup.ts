@@ -165,7 +165,7 @@ function resolveExportedCategory(notebook: CalculationNotebook, categories: Note
  * 判定は updatedAt !== createdAt で行う（シードの値と比較する方式にはしない）。投入時
  * （calculator-store.tsxのシード処理）は createdAt と updatedAt に同じ now を入れており、
  * upsertNotebook を通ると updatedAt だけが新しくなるので、これが「編集済み」の正確な目印になる。
- * シード比較にすると、地域別の価格既定値（lib/preset-price-defaults.ts）が投入時に差し込まれる
+ * シード比較にすると、地域別の価格既定値（lib/preset-regional-defaults.ts）が投入時に差し込まれる
  * プリセット（電気代・走行コストなど）を、編集していないのに編集扱いしてしまう。
  */
 export function buildPresetNotebookOverrides(notebooks: CalculationNotebook[]): PresetNotebookOverride[] {
