@@ -83,6 +83,7 @@ const config: ExpoConfig = {
     favicon: "./assets/images/favicon.png",
   },
   plugins: [
+    "./plugins/withAdMobKotlinCompatibility",
     "expo-router",
     "expo-localization",
     "expo-asset",
