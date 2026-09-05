@@ -1,7 +1,56 @@
 import { describe, expect, it } from "vitest";
 
-import { buildBaseRows, canRepresentInBase, formatInBase, parseBaseInput } from "../lib/number-base";
+import { baseDigits, canRepresentInBase, formatInBase, formatInBaseParts, isBaseDigitAllowed, parseBaseInput, sanitizeBaseInput } from "../lib/number-base";
 import { evaluateExpression } from "../lib/units";
+
+describe("formatInBaseParts", () => {
+  it("255を各基数で符号・接頭辞・桁に分ける", () => {
+    expect(formatInBaseParts(255, 10)).toEqual({ sign: "", prefix: "", digits: "255" });
+    expect(formatInBaseParts(255, 2)).toEqual({ sign: "", prefix: "0b", digits: "11111111" });
+    expect(formatInBaseParts(255, 8)).toEqual({ sign: "", prefix: "0o", digits: "377" });
+    expect(formatInBaseParts(255, 16)).toEqual({ sign: "", prefix: "0x", digits: "FF" });
+  });
+
+  it("負数は符号を分けて持つ（2の補数にしない）", () => {
+    expect(formatInBaseParts(-255, 16)).toEqual({ sign: "-", prefix: "0x", digits: "FF" });
+    expect(formatInBaseParts(-255, 10)).toEqual({ sign: "-", prefix: "", digits: "255" });
+  });
+
+  it("非整数はnull", () => {
+    expect(formatInBaseParts(1.5, 10)).toBeNull();
+    expect(formatInBaseParts(1.5, 16)).toBeNull();
+  });
+
+  it("安全整数を超えるとnull", () => {
+    expect(formatInBaseParts(2 ** 53, 10)).toBeNull();
+  });
+});
+
+describe("baseDigits", () => {
+  it("基数ごとに使える桁文字（大文字）を返す", () => {
+    expect(baseDigits(2)).toBe("01");
+    expect(baseDigits(8)).toBe("01234567");
+    expect(baseDigits(10)).toBe("0123456789");
+    expect(baseDigits(16)).toBe("0123456789ABCDEF");
+  });
+});
+
+describe("isBaseDigitAllowed", () => {
+  it("大文字小文字どちらも受け付ける", () => {
+    expect(isBaseDigitAllowed("f", 16)).toBe(true);
+    expect(isBaseDigitAllowed("F", 16)).toBe(true);
+  });
+
+  it("基数ごとの境界を判定する", () => {
+    expect(isBaseDigitAllowed("1", 2)).toBe(true);
+    expect(isBaseDigitAllowed("2", 2)).toBe(false);
+    expect(isBaseDigitAllowed("7", 8)).toBe(true);
+    expect(isBaseDigitAllowed("8", 8)).toBe(false);
+    expect(isBaseDigitAllowed("9", 10)).toBe(true);
+    expect(isBaseDigitAllowed("a", 10)).toBe(false);
+    expect(isBaseDigitAllowed("g", 16)).toBe(false);
+  });
+});
 
 describe("formatInBase", () => {
   it("255を各基数で表記する", () => {
@@ -36,6 +85,16 @@ describe("formatInBase", () => {
 
   it("2**53（安全整数を超える）はnull", () => {
     expect(formatInBase(2 ** 53, 10)).toBeNull();
+  });
+
+  it("formatInBaseParts と整合する（sign+prefix+digitsの連結と一致）", () => {
+    for (const value of [0, 255, -255, 1024]) {
+      for (const base of [2, 8, 10, 16] as const) {
+        const parts = formatInBaseParts(value, base);
+        const text = formatInBase(value, base);
+        expect(text).toBe(parts ? `${parts.sign}${parts.prefix}${parts.digits}` : null);
+      }
+    }
   });
 });
 
@@ -85,37 +144,24 @@ describe("parseBaseInput", () => {
   });
 });
 
-describe("canRepresentInBase / buildBaseRows", () => {
-  it("単位の付かない整数は4行になる", () => {
+describe("canRepresentInBase", () => {
+  it("単位の付かない整数は対象になる", () => {
     const quantity = evaluateExpression("255");
     expect(canRepresentInBase(quantity)).toBe(true);
-    const rows = buildBaseRows(quantity, 10);
-    expect(rows).toHaveLength(4);
-    expect(rows.map((row) => row.base)).toEqual([10, 2, 8, 16]);
-    expect(rows.map((row) => row.text)).toEqual(["255", "0b11111111", "0o377", "0xFF"]);
   });
 
-  it("単位付きの量は対象外（0件）", () => {
+  it("単位付きの量は対象外", () => {
     const quantity = evaluateExpression("5kg");
     expect(canRepresentInBase(quantity)).toBe(false);
-    expect(buildBaseRows(quantity, 10)).toEqual([]);
   });
 
-  it("非整数は対象外（0件）", () => {
+  it("非整数は対象外", () => {
     const quantity = evaluateExpression("1.5");
     expect(canRepresentInBase(quantity)).toBe(false);
-    expect(buildBaseRows(quantity, 10)).toEqual([]);
   });
 
-  it("undefinedは対象外（0件）", () => {
+  it("undefinedは対象外", () => {
     expect(canRepresentInBase(undefined)).toBe(false);
-    expect(buildBaseRows(undefined, 10)).toEqual([]);
-  });
-
-  it("isActiveはactiveBaseと一致する行だけtrue", () => {
-    const quantity = evaluateExpression("255");
-    const rows = buildBaseRows(quantity, 16);
-    expect(rows.filter((row) => row.isActive).map((row) => row.base)).toEqual([16]);
   });
 });
 
@@ -130,4 +176,16 @@ describe("往復（formatInBase → parseBaseInput）", () => {
       }
     },
   );
+});
+
+// 独自レビュー＋CodeRabbitの指摘で見つかった「入力経路がキーパッドだけではない」問題の回帰テスト。
+describe("sanitizeBaseInput", () => {
+  it("その基数で使えない文字を落とし、16進は大文字に揃える", () => {
+    expect(sanitizeBaseInput("ff", 16)).toBe("FF");
+    expect(sanitizeBaseInput("sin(FF)", 16)).toBe("FF");
+    expect(sanitizeBaseInput("1012", 2)).toBe("101");
+    expect(sanitizeBaseInput("789", 8)).toBe("7");
+    expect(sanitizeBaseInput("12.5", 10)).toBe("125");
+    expect(sanitizeBaseInput("", 16)).toBe("");
+  });
 });
