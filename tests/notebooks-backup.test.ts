@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 // lib/notebooks-backup.ts は UNCATEGORIZED_CATEGORY_ID を値として lib/calculator-store.tsx から
 // importしており、その先の useGlobalSettings（@/lib/global-settings）経由で expo-localization →
 // react-native の内部実装（Flow構文を含む生の.js）まで読み込まれてしまい、このvitest環境では
-// パースできない（tests/preset-price-defaults.test.tsと同じ既知の制約）。ここではReactに
+// パースできない（tests/preset-regional-defaults.test.tsと同じ既知の制約）。ここではReactに
 // 依存しない純関数（sanitizeBackupFileLabel）だけを検証したいので、実体を読み込ませずにモックする。
 vi.mock("@/lib/global-settings", () => ({ useGlobalSettings: () => ({ language: "en", currencyCode: null, regionCode: null }) }));
 
@@ -101,7 +101,7 @@ describe("buildPresetNotebookOverrides", () => {
   });
 
   it("地域別の価格既定値のように、シードの値と異なっていてもupdatedAt===createdAtなら未編集扱いになる（シード比較にしない）", () => {
-    // lib/preset-price-defaults.ts が投入時に差し込む地域別の価格を模して、
+    // lib/preset-regional-defaults.ts が投入時に差し込む地域別の価格を模して、
     // シードのexpressionとは異なる値をlocalConstantsに入れておく。それでも
     // updatedAt===createdAtである限りoverrideには含まれないことを確認する。
     const priceAdjustedAtSeedTime = makeNotebook({

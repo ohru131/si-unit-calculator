@@ -20,7 +20,7 @@ export const ELECTRICITY_BASICS_SEEDS: NotebookSeed[] = [
       { symbol: "t", expression: "3h" },
       // 電力量単価。妥当な値が通貨圏ごとに桁から違うので、投入時に端末の通貨に応じた値へ差し替える
       // （expression は通貨が判別できなかったときのフォールバック）。
-      { symbol: "rate", expression: "31", localizedPrice: "electricityPerKWh" },
+      { symbol: "rate", expression: "31", regionalDefault: "electricityPerKWh" },
     ],
     steps: [
       { title: { en: "Energy used E", ja: "使用電力量 E", es: "Energía usada E", "pt-BR": "Energia usada E", de: "Verbrauchte Energie E", fr: "Énergie utilisée E" }, expression: "P*t", targetUnit: "kWh", formulaLatex: "E = Pt" },
@@ -29,10 +29,13 @@ export const ELECTRICITY_BASICS_SEEDS: NotebookSeed[] = [
   },
   {
     title: { en: "Circuit breaker capacity", ja: "ブレーカー容量", es: "Capacidad del disyuntor", "pt-BR": "Capacidade do disjuntor", de: "Nennstrom des Leitungsschutzschalters", fr: "Calibre du disjoncteur" },
-    description: { en: "Compute the maximum usable power from the contracted voltage and the breaker's rated current.", ja: "契約電圧とブレーカーの許容電流から、使用できる最大電力を求めます。", es: "Calcula la potencia máxima utilizable a partir de la tensión contratada y la corriente nominal del disyuntor.", "pt-BR": "Calcule a potência máxima utilizável a partir da tensão contratada e da corrente nominal do disjuntor.", de: "Berechnet die maximal nutzbare Leistung aus der vertraglich vereinbarten Spannung und dem Nennstrom des Leitungsschutzschalters.", fr: "Calculer la puissance maximale utilisable à partir de la tension du contrat et du courant nominal du disjoncteur." },
+    description: { en: "Compute the maximum power you can draw before the breaker trips, from the mains voltage and the breaker's rated current.", ja: "電源電圧とブレーカーの定格電流から、ブレーカーが落ちるまでに使える最大電力を求めます。", es: "Calcula la potencia máxima que puedes consumir antes de que salte el disyuntor, a partir del voltaje de la red y la corriente nominal del disyuntor.", "pt-BR": "Calcule a potência máxima que você pode consumir antes de o disjuntor desarmar, a partir da tensão da rede e da corrente nominal do disjuntor.", de: "Berechnet die maximale Leistung, die vor dem Auslösen des Leitungsschutzschalters entnommen werden kann, aus der Netzspannung und dessen Nennstrom.", fr: "Calculer la puissance maximale utilisable avant le déclenchement du disjoncteur, à partir de la tension du secteur et du courant nominal du disjoncteur." },
     localConstants: [
-      { symbol: "V", expression: "100V" },
-      { symbol: "Iₘₐₓ", expression: "30A" },
+      // 商用電源の電圧とブレーカーの定格は地域で決まる（100V/30A・120V/20A・230V/16A）ので、
+      // 投入時に端末の地域に応じた式へ差し替える。expression は地域が分からなかったときの
+      // フォールバックにしかならないので、ここの値だけを見て日本前提と読まないこと。
+      { symbol: "V", expression: "100V", regionalDefault: "mainsVoltage" },
+      { symbol: "Iₘₐₓ", expression: "30A", regionalDefault: "breakerCurrent" },
     ],
     steps: [{ title: { en: "Maximum power Pmax", ja: "最大電力 Pmax", es: "Potencia máxima Pmax", "pt-BR": "Potência máxima Pmax", de: "Maximale Leistung Pmax", fr: "Puissance maximale Pmax" }, expression: "V*Iₘₐₓ", targetUnit: "W", formulaLatex: "P_{max} = V \\cdot I_{max}" }],
   },
@@ -52,7 +55,8 @@ export const ELECTRICITY_BASICS_SEEDS: NotebookSeed[] = [
     title: { en: "Power with power factor (AC circuit)", ja: "力率つき消費電力（交流回路）", es: "Potencia con factor de potencia (circuito de CA)", "pt-BR": "Potência com fator de potência (circuito CA)", de: "Leistung mit Leistungsfaktor (Wechselstromkreis)", fr: "Puissance avec facteur de puissance (circuit CA)" },
     description: { en: "Compute the real power consumed in an AC circuit from voltage, current, and power factor.", ja: "電圧・電流・力率から、交流回路の実効消費電力を求めます。", es: "Calcula la potencia real consumida en un circuito de CA a partir de la tensión, la corriente y el factor de potencia.", "pt-BR": "Calcule a potência real consumida em um circuito CA a partir da tensão, da corrente e do fator de potência.", de: "Berechnet die im Wechselstromkreis verbrauchte Wirkleistung aus Spannung, Strom und Leistungsfaktor.", fr: "Calculer la puissance réelle consommée dans un circuit CA à partir de la tension, du courant et du facteur de puissance." },
     localConstants: [
-      { symbol: "V", expression: "100V" },
+      // 商用電源の電圧は地域で決まるので、投入時に端末の地域に応じた式へ差し替える。
+      { symbol: "V", expression: "100V", regionalDefault: "mainsVoltage" },
       { symbol: "I", expression: "5A" },
       { symbol: "cosφ", expression: "0.8" },
     ],
@@ -273,7 +277,7 @@ export const VEHICLES_SEEDS: NotebookSeed[] = [
       { symbol: "distance", expression: "300km" },
       { symbol: "fuelEconomy", expression: "15km/L" },
       // 燃料単価（1リットルあたり）。上の rate と同じ理由で通貨に応じて差し替える。
-      { symbol: "price", expression: "170", localizedPrice: "fuelPerLiter" },
+      { symbol: "price", expression: "170", regionalDefault: "fuelPerLiter" },
     ],
     steps: [
       { title: { en: "Fuel needed", ja: "必要な燃料", es: "Combustible necesario", "pt-BR": "Combustível necessário", de: "Benötigter Kraftstoff", fr: "Carburant nécessaire" }, expression: "distance/fuelEconomy", targetUnit: "L", formulaLatex: "\\text{fuel} = \\dfrac{\\text{distance}}{\\text{fuelEconomy}}" },

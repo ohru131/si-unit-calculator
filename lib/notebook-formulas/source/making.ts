@@ -178,7 +178,7 @@ export const DIY_SEEDS: NotebookSeed[] = [
       { symbol: "P", expression: "4kW" },
       // 電力量単価。妥当な値が通貨圏ごとに桁から違うので、投入時に端末の通貨に応じた値へ差し替える
       // （expression は通貨が判別できなかったときのフォールバック）。
-      { symbol: "rate", expression: "31", localizedPrice: "electricityPerKWh" },
+      { symbol: "rate", expression: "31", regionalDefault: "electricityPerKWh" },
     ],
     steps: [
       { title: { en: "Water volume V", ja: "水の体積 V", es: "Volumen de agua V", "pt-BR": "Volume de água V", de: "Wasservolumen V", fr: "Volume d'eau V" }, expression: "l*w*h", targetUnit: "L", formulaLatex: "V = l w h" },
@@ -232,7 +232,7 @@ export const PRINTING_SEEDS: NotebookSeed[] = [
       // 1kgスプールの価格。通貨単位は付けず、端末の地域から解決する
       // （日本円だけ桁が3つ違うので、裸の数値だと必ずどこかの通貨で事故る）。
       // expression は通貨が判別できなかったときのフォールバック。
-      { symbol: "price", expression: "3000", localizedPrice: "filamentPerKg" },
+      { symbol: "price", expression: "3000", regionalDefault: "filamentPerKg" },
     ],
     steps: [
       { title: { en: "Mass of that length m", ja: "その長さの質量 m", es: "Masa de esa longitud m", "pt-BR": "Massa desse comprimento m", de: "Masse dieser Länge m", fr: "Masse de cette longueur m" }, expression: "ρ*pi*d^2/4*L", targetUnit: "g", formulaLatex: "m = \\rho \\dfrac{\\pi d^2}{4} L" },
