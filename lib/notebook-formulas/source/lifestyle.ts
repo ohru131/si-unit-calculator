@@ -19,13 +19,13 @@ import type { NotebookSeed } from "../types";
  */
 export const BREWING_SEEDS: NotebookSeed[] = [
   {
-    title: { en: "Coffee brew ratio (grounds and water)", ja: "コーヒーの抽出比率（粉と湯の量）", es: "Ratio de extracción del café (café molido y agua)", "pt-BR": "Proporção café-água (café moído e água)", de: "Brührverhältnis für Kaffee (Kaffeemehl und Wasser)", fr: "Ratio d'extraction du café (café moulu et eau)" },
+    title: { en: "Coffee brew ratio (grounds and water)", ja: "コーヒーの抽出比率（粉と湯の量）", es: "Ratio de extracción del café (café molido y agua)", "pt-BR": "Proporção café-água (café moído e água)", de: "Brühverhältnis für Kaffee (Kaffeemehl und Wasser)", fr: "Ratio d'extraction du café (café moulu et eau)" },
     description: {
       en: "From the brew ratio (1 part grounds to R parts water by mass), compute the grounds needed for a given amount of water — and the water needed for a given amount of grounds. R = 16.7 corresponds to the widely used 60 g of coffee per litre of water.",
       ja: "抽出比率（粉1に対して湯R、いずれも質量）から、湯の量に必要な粉の量と、手持ちの粉に必要な湯の量を求めます。R = 16.7 は「湯1Lに粉60g」としてよく使われる比率です。",
       es: "A partir del ratio de extracción (1 parte de café molido por R partes de agua, en masa), calcula el café molido necesario para una cantidad de agua dada y el agua necesaria para una cantidad de café molido dada. R = 16,7 corresponde a los 60 g de café por litro de agua que se usan habitualmente.",
       "pt-BR": "A partir da proporção café-água (1 parte de café moído para R partes de água, em massa), calcule o café moído necessário para uma dada quantidade de água e a água necessária para uma dada quantidade de café moído. R = 16,7 corresponde aos 60 g de café por litro de água amplamente usados.",
-      de: "Aus dem Brührverhältnis (1 Teil Kaffeemehl auf R Teile Wasser, jeweils nach Masse) ergeben sich die Einwaage für eine bestimmte Wassermenge und die Wassermenge für eine bestimmte Einwaage. R = 16,7 entspricht den weit verbreiteten 60 g Kaffee je Liter Wasser.",
+      de: "Aus dem Brühverhältnis (1 Teil Kaffeemehl auf R Teile Wasser, jeweils nach Masse) ergeben sich die Einwaage für eine bestimmte Wassermenge und die Wassermenge für eine bestimmte Einwaage. R = 16,7 entspricht den weit verbreiteten 60 g Kaffee je Liter Wasser.",
       fr: "À partir du ratio d'extraction (1 part de café moulu pour R parts d'eau, en masse), calculer la dose de café moulu nécessaire pour une quantité d'eau donnée et l'eau nécessaire pour une dose donnée. R = 16,7 correspond aux 60 g de café par litre d'eau couramment utilisés.",
     },
     localConstants: [
@@ -50,13 +50,13 @@ export const BREWING_SEEDS: NotebookSeed[] = [
     ],
   },
   {
-    title: { en: "Espresso ratio and flow rate", ja: "エスプレッソの抽出比率と流量", es: "Ratio de extracción y caudal del espresso", "pt-BR": "Proporção de extração e vazão do espresso", de: "Brührverhältnis und Flussrate beim Espresso", fr: "Ratio d'extraction et débit de l'espresso" },
+    title: { en: "Espresso ratio and flow rate", ja: "エスプレッソの抽出比率と流量", es: "Ratio de extracción y caudal del espresso", "pt-BR": "Proporção de extração e vazão do espresso", de: "Brühverhältnis und Flussrate beim Espresso", fr: "Ratio d'extraction et débit de l'espresso" },
     description: {
       en: "From the dose in the basket, the mass of espresso in the cup, and the shot time, compute the brew ratio and the flow rate. A ratio near 1:2 in about 25–30 s is the usual starting point.",
       ja: "バスケットに詰めた粉の量・カップに出た液体の量・抽出時間から、抽出比率と流量を求めます。1:2 前後を25〜30秒で、が調整の出発点です。",
       es: "A partir de la dosis del portafiltro, la masa de espresso en la taza y el tiempo de extracción, calcula el ratio de extracción y el caudal. Un ratio cercano a 1:2 en unos 25–30 s es el punto de partida habitual.",
       "pt-BR": "A partir da dose no cesto, da massa de espresso na xícara e do tempo de extração, calcule a proporção de extração e a vazão. Uma proporção perto de 1:2 em cerca de 25–30 s é o ponto de partida usual.",
-      de: "Aus der Einwaage im Sieb, der Masse des Espresso in der Tasse und der Bezugszeit ergeben sich das Brührverhältnis und die Flussrate. Ein Verhältnis um 1:2 in etwa 25–30 s ist der übliche Ausgangspunkt.",
+      de: "Aus der Einwaage im Sieb, der Masse des Espresso in der Tasse und der Bezugszeit ergeben sich das Brühverhältnis und die Flussrate. Ein Verhältnis um 1:2 in etwa 25–30 s ist der übliche Ausgangspunkt.",
       fr: "À partir de la dose dans le panier, de la masse d'espresso dans la tasse et du temps d'extraction, calculer le ratio d'extraction et le débit. Un ratio proche de 1:2 en 25–30 s environ est le point de départ habituel.",
     },
     localConstants: [
@@ -66,7 +66,7 @@ export const BREWING_SEEDS: NotebookSeed[] = [
     ],
     steps: [
       {
-        title: { en: "Brew ratio", ja: "抽出比率", es: "Ratio de extracción", "pt-BR": "Proporção de extração", de: "Brührverhältnis", fr: "Ratio d'extraction" },
+        title: { en: "Brew ratio", ja: "抽出比率", es: "Ratio de extracción", "pt-BR": "Proporção de extração", de: "Brühverhältnis", fr: "Ratio d'extraction" },
         expression: "mₒ/mᵢ",
         targetUnit: "",
         formulaLatex: "R = \\dfrac{m_o}{m_i}",

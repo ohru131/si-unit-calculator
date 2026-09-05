@@ -328,7 +328,7 @@ G節は「型チェック・lint・テストが全部通るのに間違ってい
 
 | ja | en | es | pt-BR | de | fr |
 |---|---|---|---|---|---|
-| 抽出比率（粉と湯の比） | brew ratio | ratio de extracción (proporción café-agua) | proporção café-água (ratio) | Brührverhältnis (Kaffee-Wasser-Verhältnis) | ratio d'extraction (ratio café/eau) |
+| 抽出比率（粉と湯の比） | brew ratio | ratio de extracción (proporción café-agua) | proporção café-água (ratio) | Brühverhältnis (Kaffee-Wasser-Verhältnis) | ratio d'extraction (ratio café/eau) |
 | 粉（挽いた豆）・ドーズ | grounds / dose | café molido (dosis) | café moído (dose) | Kaffeemehl (Einwaage, Dosis) | café moulu (dose) |
 | 抽出収率 | extraction yield | rendimiento de extracción | rendimento de extração | Extraktionsausbeute (Extraktionsrate) | rendement d'extraction |
 | TDS（総溶解固形分・略語は残す） | total dissolved solids (TDS) | sólidos disueltos totales (TDS) | sólidos dissolvidos totais (TDS) | gelöste Feststoffe (TDS) | matières sèches dissoutes (TDS) |
@@ -749,7 +749,7 @@ A節のルール（単位付きの密度は必ず `masse volumique`）は今回�
 - **残す（4言語とも現地でそのまま通る）**: `TDS`, `espresso`, `cold brew`, `barista`, `ABV`, `OG`, `FG`。
 - **訳す（4言語とも定訳が実在した）**: 抽出比率・抽出収率・ドーズ・流量・原液・希釈・見かけの発酵度。
   fr は [Le Coffee Lab](https://lecoffeelab.fr/glossaire/rendement-extraction/) で `ratio d'extraction` / `rendement d'extraction`、
-  de は [19grams](https://19grams.coffee/blogs/kaffeelexikon/refraktometer) で `Brührverhältnis` / `Extraktionsausbeute`、
+  de は [19grams](https://19grams.coffee/blogs/kaffeelexikon/refraktometer) で `Brühverhältnis` / `Extraktionsausbeute`、
   pt-BR は `proporção café-água` / `rendimento de extração`（[Maltímetro](https://maltimetro.com/calculadoras/abv/)）。
 - **ドイツ語の最大の罠: OG を `Stammwürze`、FG を `Restextrakt` と訳さない。**
   ドイツの自家醸造では `Stammwürze` / `Restextrakt` は **°Plato（12.4 °P など）で表す量**で、
