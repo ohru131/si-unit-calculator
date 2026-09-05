@@ -17,10 +17,12 @@ import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, w
 import { CalculatorBannerAd } from "@/components/ads/calculator-banner-ad";
 import { ScreenContainer } from "@/components/screen-container";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { LatexView } from "@/components/ui/latex-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { isSampleCategoryVisible, isUnitGroupVisible, isUnitVisible, visibleUnits } from "@/lib/advanced-display";
+import { findExactValue } from "@/lib/exact-value";
 import { useCalculatorStore } from "@/lib/calculator-store";
 import { evaluateCalculatorInput, previewCalculatorInput } from "@/lib/calculator-input";
 import { resolveStartupExpression } from "@/lib/calculator-startup-expression";
@@ -46,7 +48,7 @@ import {
   type UnitInputHint,
   type UnitSuggestion,
 } from "@/lib/unit-input";
-import { formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, getRegionalUnits, getUnitRegistration, UNIT_GROUPS, type UnitGroup, type UnitOption } from "@/lib/units";
+import { convertQuantity, formatDimension, formatNumberForLocale, formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, getRegionalUnits, getUnitRegistration, isDimensionless, UNIT_GROUPS, type UnitGroup, type UnitOption } from "@/lib/units";
 
 // 「全消し」の要望に対応するため、従来は空セルのプレースホルダだった最下段（"0"と"="の間）に
 // ⌫（一文字削除）を動かし、空いた最上段の右端（従来⌫があった場所）にACを置く。
@@ -54,6 +56,9 @@ import { formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, getReg
 // "="の隣に残すことで、誤爆したときの実害を最小にする配置にしている。
 const KEYS = ["(", ")", "÷", "AC", "7", "8", "9", "×", "4", "5", "6", "-", "1", "2", "3", "+", ".", "0", "⌫", "="];
 const ADVANCED_KEYS = ["sin(", "cos(", "tan(", "asin(", "acos(", "atan(", "atan2(", "ln(", "log(", "log2(", "sqrt(", "^", "π", "e"];
+// 結果の見せ方。小数を先頭にする（分数・πで出せる値の方が少ないため、既定は常に小数）。
+const VALUE_FORMS = ["decimal", "exact"] as const;
+type ValueForm = (typeof VALUE_FORMS)[number];
 // 表示単位の初期値・AC後の値。空文字は「表示単位を指定しない＝SI標準で出す」という意味。
 // 以前は "cm" を入れていたが、これだと 3 のような無次元の値を打った瞬間に「cm へ変換できません」
 // という的外れなエラーが出るうえ、進数チップの表示条件（表示単位が空）も満たせず、
@@ -98,6 +103,7 @@ const EN_COPY = {
   compareUnits: "Compare units",
   compareUnitsHint: "Tap a row to show the result in that unit.",
   baseInput: "Base input",
+  decimalForm: "Decimal", exactForm: "Exact",
   sampleConfirmTitle: "Load an example?",
   sampleConfirmMessage: "The expression you have typed will be replaced.",
   sampleConfirmButton: "Load",
@@ -131,6 +137,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     compareUnits: "単位を比較",
     compareUnitsHint: "行をタップするとその単位で表示します。",
     baseInput: "進数入力",
+    decimalForm: "小数", exactForm: "分数・π",
     sampleConfirmTitle: "サンプルを読み込みますか？",
     sampleConfirmMessage: "入力中の式は置き換えられます。",
     sampleConfirmButton: "読み込む",
@@ -162,6 +169,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     compareUnits: "Comparar unidades",
     compareUnitsHint: "Toca una fila para mostrar el resultado en esa unidad.",
     baseInput: "Introducir en otra base",
+    decimalForm: "Decimal", exactForm: "Exacto",
     sampleConfirmTitle: "¿Cargar un ejemplo?",
     sampleConfirmMessage: "Se reemplazará la expresión que has escrito.",
     sampleConfirmButton: "Cargar",
@@ -193,6 +201,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     compareUnits: "Comparar unidades",
     compareUnitsHint: "Toque em uma linha para exibir o resultado nessa unidade.",
     baseInput: "Inserir em outra base",
+    decimalForm: "Decimal", exactForm: "Exato",
     sampleConfirmTitle: "Carregar um exemplo?",
     sampleConfirmMessage: "A expressão que você digitou será substituída.",
     sampleConfirmButton: "Carregar",
@@ -224,6 +233,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     compareUnits: "Einheiten vergleichen",
     compareUnitsHint: "Tippe auf eine Zeile, um das Ergebnis in dieser Einheit anzuzeigen.",
     baseInput: "Eingabe im Zahlensystem",
+    decimalForm: "Dezimal", exactForm: "Exakt",
     sampleConfirmTitle: "Beispiel laden?",
     sampleConfirmMessage: "Der eingegebene Ausdruck wird ersetzt.",
     sampleConfirmButton: "Laden",
@@ -255,6 +265,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     compareUnits: "Comparer les unités",
     compareUnitsHint: "Touchez une ligne pour afficher le résultat dans cette unité.",
     baseInput: "Saisie dans une base",
+    decimalForm: "Décimal", exactForm: "Exact",
     sampleConfirmTitle: "Charger un exemple ?",
     sampleConfirmMessage: "L'expression que vous avez saisie sera remplacée.",
     sampleConfirmButton: "Charger",
@@ -335,6 +346,10 @@ export default function CalculatorScreen() {
   const [showComparison, setShowComparison] = useState(false);
   // 結果カードの大きい数値をどの基数で描くか（表示モード）。showComparisonと同様、永続化しない。
   const [activeBase, setActiveBase] = useState<NumberBase>(10);
+  // 小数 ⇔ 厳密値（分数・π・√）の切り替え。厳密な形を出せない値のときは exactValue が null に
+  // なり、この state に関係なく小数を出す。state 自体は残しておく（同じ種類の計算を続けるとき、
+  // 途中で値が整数になっただけで設定が戻ってしまうのを避けるため。activeBase と同じ扱い）。
+  const [valueForm, setValueForm] = useState<ValueForm>("decimal");
   // 式が空のときだけ有効になる、進数の桁を直接打ち込むモード。nullなら通常の電卓。
   // showComparisonと同様、永続化しない（画面を開くたびリセットしてよい）。
   const [baseInputMode, setBaseInputMode] = useState<NumberBase | null>(null);
@@ -496,8 +511,25 @@ export default function CalculatorScreen() {
   const display = useMemo(() => {
     void measuringStandard;
     if (!result) return null;
+    // SI表記は成功・失敗どちらの経路でも使うので先に組み立てておく。
+    // numeric/unitLabel は「いま画面に出している値」を数値と単位に分けたもの。分数・π表示
+    // （lib/exact-value.ts）はこの数値の方だけを言い換えるので、valueの文字列から数値を
+    // 切り出し直すことはしない（ロケールの桁区切り・指数表記を再パースする羽目になるため）。
+    const si = formatQuantity(result, undefined, locale);
+    const siUnitLabel = isDimensionless(result.dimension) ? "" : formatDimension(result.dimension, locale);
     try {
-      return { value: formatQuantity(result, targetUnit, locale), si: formatQuantity(result, undefined, locale), error: "", isFallback: false };
+      if (!targetUnit.trim()) {
+        return { value: si, numeric: result.siValue, unitLabel: siUnitLabel, si, error: "", isFallback: false };
+      }
+      const converted = convertQuantity(result, targetUnit, locale);
+      return {
+        value: `${formatNumberForLocale(converted.value, locale)} ${converted.unit}`,
+        numeric: converted.value,
+        unitLabel: converted.unit,
+        si,
+        error: "",
+        isFallback: false,
+      };
     } catch (cause) {
       // 次元不一致だけでなく、不正な単位文字列（例: プリセットの presetUnit パラメータ）など
       // 実際の失敗理由をそのまま見せる。決め打ちの「次元が違う」で握りつぶさない。
@@ -510,8 +542,14 @@ export default function CalculatorScreen() {
       // フォールバックし、理由は警告として値の下に残す。計算ノート側
       // （lib/notebook-export-model.ts の resolveNotebookStepDisplay）が既に同じ扱いなので、
       // 画面ごとに挙動が違わないよう揃える。
-      const si = formatQuantity(result, undefined, locale);
-      return { value: si, si, error: cause instanceof Error ? (unitErrorMessage(cause, language) ?? cause.message) : fallback, isFallback: true };
+      return {
+        value: si,
+        numeric: result.siValue,
+        unitLabel: siUnitLabel,
+        si,
+        error: cause instanceof Error ? (unitErrorMessage(cause, language) ?? cause.message) : fallback,
+        isFallback: true,
+      };
     }
     // measuringStandardが変わるとcup/tbsp/tspの換算値が変わるため、依存配列に含めて表示単位を再計算させる（値自体は使わない）。
   }, [copy, language, locale, measuringStandard, result, targetUnit]);
@@ -551,6 +589,20 @@ export default function CalculatorScreen() {
     () => (result && activeBase !== 10 && canRepresentInBase(result) && !targetUnit.trim() ? formatInBaseParts(result.siValue, activeBase) : null),
     [activeBase, result, targetUnit],
   );
+
+  // 小数で出た結果を分数・πの倍数・√の倍数として言い当てられるか（lib/exact-value.ts）。
+  // 進数表示（resultBaseParts）とは排他になる。厳密な形が出るのは整数でない値だけで、進数表示は
+  // 安全整数のときだけ出すため、両方が同時に有効になることはない。
+  const exactValue = useMemo(
+    () => (display && baseInputMode === null ? findExactValue(display.numeric) : null),
+    [baseInputMode, display],
+  );
+
+  // コピーには画面に出ているものと同じ表記を渡す。厳密値に切り替えているのに小数がコピーされると、
+  // 画面と手元のメモが食い違う。
+  const shownValueText = !display ? "" : valueForm === "exact" && exactValue
+    ? `${exactValue.text}${display.unitLabel ? ` ${display.unitLabel}` : ""}`
+    : display.value;
 
   const rememberUnit = (symbol: string) => {
     const trimmed = symbol.trim();
@@ -990,7 +1042,7 @@ export default function CalculatorScreen() {
   const copyCalculation = async () => {
     if (!display) return;
     try {
-      await Clipboard.setStringAsync(`${expression} = ${display.value}\n${copy.siBase}: ${display.si}`);
+      await Clipboard.setStringAsync(`${expression} = ${shownValueText}\n${copy.siBase}: ${display.si}`);
       setNotice(copy.copied);
     } catch {
       setError(copy.couldNotCopyCalculation);
@@ -1024,6 +1076,26 @@ export default function CalculatorScreen() {
           style={({ pressed }) => [styles.baseChip, activeBase === base && styles.baseChipActive, pressed && styles.pressed]}
         >
           <Text style={[styles.baseChipText, activeBase === base && styles.baseChipTextActive]}>{BASE_META[base].label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  ) : null;
+
+  // 小数 ⇔ 厳密値の切り替え列。厳密な形が見つかったときだけ出す（常に出すと、押しても何も
+  // 変わらないボタンが並ぶことになる）。進数チップと同じ位置に置くが、色は単位まわりと同じ
+  // primary系にして「値そのものの読み替え」と「桁の読み替え」を見分けられるようにしている。
+  const valueFormRow = exactValue ? (
+    <View style={styles.baseChipRow}>
+      {VALUE_FORMS.map((form) => (
+        <Pressable
+          accessibilityLabel={form === "decimal" ? copy.decimalForm : copy.exactForm}
+          key={form}
+          onPress={() => { markUserInteraction(); setValueForm(form); }}
+          style={({ pressed }) => [styles.valueFormChip, valueForm === form && styles.valueFormChipActive, pressed && styles.pressed]}
+        >
+          <Text style={[styles.valueFormChipText, valueForm === form && styles.valueFormChipTextActive]}>
+            {form === "decimal" ? copy.decimalForm : copy.exactForm}
+          </Text>
         </Pressable>
       ))}
     </View>
@@ -1150,18 +1222,21 @@ export default function CalculatorScreen() {
             ) : (
               <Text style={styles.hintEmpty}>{copy.noCandidates}</Text>
             )}
+            <Pressable accessibilityLabel={copy.insertUnit} onPress={toggleInlineUnitSearch} style={({ pressed }) => [styles.hintSearchButton, showInlineUnitSearch && styles.hintSearchButtonActive, pressed && styles.pressed]}>
+              <IconSymbol name={showInlineUnitSearch ? "chevron.up" : "magnifyingglass"} size={16} color={showInlineUnitSearch ? colors.onPrimary : colors.primary} />
+            </Pressable>
             {/* 進数入力の入口。横スクロールするレールの隣に置くので、使わない人には縦幅を増やさない。
-                式が空か10進の整数のときだけ押せる（途中式からは基数を読み替えようが無いため）。 */}
+                式が空か10進の整数のときだけ押せる（途中式からは基数を読み替えようが無いため）。
+                単位まわりのボタン（primary色の角丸四角）と同じ見た目にすると「単位検索の仲間」に
+                見えてしまうため、進数チップ（DEC/BIN/OCT/HEX）と同じwarning系の丸ピルにして、
+                レールの一番右＝単位の導線の外側に置いている。 */}
             <Pressable
               accessibilityLabel={copy.baseInput}
               disabled={!canStartBaseInput}
               onPress={toggleBaseInput}
-              style={({ pressed }) => [styles.hintSearchButton, !canStartBaseInput && styles.keyDisabled, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.baseEntryButton, !canStartBaseInput && styles.keyDisabled, pressed && styles.pressed]}
             >
               <Text style={styles.baseEntryText}>0x</Text>
-            </Pressable>
-            <Pressable accessibilityLabel={copy.insertUnit} onPress={toggleInlineUnitSearch} style={({ pressed }) => [styles.hintSearchButton, showInlineUnitSearch && styles.hintSearchButtonActive, pressed && styles.pressed]}>
-              <IconSymbol name={showInlineUnitSearch ? "chevron.up" : "magnifyingglass"} size={16} color={showInlineUnitSearch ? colors.onPrimary : colors.primary} />
             </Pressable>
           </View>
           ) : null}
@@ -1258,17 +1333,31 @@ export default function CalculatorScreen() {
                 </>
               ) : baseInputMode === null && display ? (
                 <>
-                  <Animated.Text numberOfLines={2} adjustsFontSizeToFit style={[styles.resultValue, resultAnimatedStyle]}>
-                    {activeBase !== 10 && resultBaseParts ? (
-                      <>
-                        {resultBaseParts.sign}
-                        <Text style={{ color: colors.warning }}>{resultBaseParts.prefix}</Text>
-                        {resultBaseParts.digits}
-                      </>
-                    ) : (
-                      display.value
-                    )}
-                  </Animated.Text>
+                  {valueForm === "exact" && exactValue ? (
+                    // 厳密な形はKaTeXで描く。分数の横棒と根号は文字の並びでは表現できず、
+                    // 「√3/2」のような一列表記だと √(3/2) と読み違えられるため。
+                    // 単位は数式の外にTextで並べる（単位記号には ² や ° が混ざり、LaTeXの
+                    // text命令に入れると環境によって描けない文字が出るため）。
+                    <View style={styles.exactValueRow}>
+                      {/* \displaystyle を付けないと分数が本文サイズ（text style）で小さく組まれ、
+                          隣の小数表示より明らかに小さく見える。displayMode自体は中央寄せ・上下の
+                          余白が付いて結果カードの詰まった配置に合わないので false のままにする。 */}
+                      <LatexView latex={`\\displaystyle ${exactValue.latex}`} color={colors.primaryStrong} fontSize={30} displayMode={false} fitContent />
+                      {display.unitLabel ? <Text style={styles.exactValueUnit}>{display.unitLabel}</Text> : null}
+                    </View>
+                  ) : (
+                    <Animated.Text numberOfLines={2} adjustsFontSizeToFit style={[styles.resultValue, resultAnimatedStyle]}>
+                      {activeBase !== 10 && resultBaseParts ? (
+                        <>
+                          {resultBaseParts.sign}
+                          <Text style={{ color: colors.warning }}>{resultBaseParts.prefix}</Text>
+                          {resultBaseParts.digits}
+                        </>
+                      ) : (
+                        display.value
+                      )}
+                    </Animated.Text>
+                  )}
                   {/* 表示単位の次元が合わずSI表記へフォールバックしているときは、選択中の単位チップ
                       （例 cm）を光らせたままにすると、値がm/sなのにcmが選ばれているように見えて
                       食い違う。フォールバック中はSIチップの方を点灯させる。 */}
@@ -1289,6 +1378,7 @@ export default function CalculatorScreen() {
                     </Pressable>
                   </View>
                   {baseChipsRow}
+                  {valueFormRow}
                   {comparisonRows.length > 1 ? (
                     <View style={styles.comparisonSection}>
                       <Pressable
@@ -1712,7 +1802,14 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   baseChipRow: { flexDirection: "row", gap: 6, marginTop: 4 },
   // 入力欄の直下に出す基数バー。チップ自体は結果カードと同じ見た目を使い、置き場所で役割を分ける。
   baseInputBar: { flexDirection: "row", gap: 6, marginTop: 6 },
-  baseEntryText: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },
+  exactValueRow: { alignItems: "center", flexDirection: "row", gap: 6, marginTop: 2, minHeight: 34 },
+  exactValueUnit: { color: colors.primaryStrong, fontFamily: mono, fontSize: 26, fontWeight: "700" },
+  valueFormChip: { backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 9, borderWidth: 1, justifyContent: "center", minHeight: 30, paddingHorizontal: 10 },
+  valueFormChipActive: { backgroundColor: colors.primarySurface, borderColor: colors.primary },
+  valueFormChipText: { color: colors.muted, fontSize: 12, fontWeight: "800" },
+  valueFormChipTextActive: { color: colors.primary },
+  baseEntryButton: { alignItems: "center", backgroundColor: colors.warningSurface, borderColor: colors.warningBorder, borderRadius: 16, borderWidth: 1, height: 32, justifyContent: "center", paddingHorizontal: 11 },
+  baseEntryText: { color: colors.warning, fontFamily: mono, fontSize: 13, fontWeight: "800" },
   baseDoneButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 9, height: 30, justifyContent: "center", paddingHorizontal: 12 },
   baseDoneText: { color: colors.onPrimary, fontSize: 11, fontWeight: "800" },
   hintSpacer: { flex: 1 },

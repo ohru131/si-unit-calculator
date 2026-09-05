@@ -17,10 +17,12 @@ type Props = {
   color: string;
   fontSize?: number;
   displayMode?: boolean;
+  /** 数式の幅ぶんだけ場所を取る。単位ラベルなど、数式の右に何かを並べたいときに使う。 */
+  fitContent?: boolean;
 };
 
 /** Webでは実DOMがあるため、WebViewを使わずKaTeXのrenderToStringで直接HTMLを描画する。 */
-export function LatexView({ latex, color, fontSize = 16, displayMode = true }: Props) {
+export function LatexView({ latex, color, fontSize = 16, displayMode = true, fitContent = false }: Props) {
   useEffect(() => {
     ensureCss();
   }, []);
@@ -34,7 +36,7 @@ export function LatexView({ latex, color, fontSize = 16, displayMode = true }: P
   }, [latex, displayMode]);
 
   return createElement("div", {
-    style: { color, fontSize },
+    style: { color, fontSize, display: fitContent ? "inline-block" : "block" },
     dangerouslySetInnerHTML: { __html: html },
   });
 }
