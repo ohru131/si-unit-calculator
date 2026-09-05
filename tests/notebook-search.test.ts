@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { localizedText } from "../lib/i18n";
 import { PRESET_NOTEBOOK_CATEGORIES, PRESET_NOTEBOOK_SEEDS } from "../lib/notebook-formulas";
-import { searchNotebooks, tokenizeNotebookQuery } from "../lib/notebook-search";
+import { buildCategorySearchLabels, searchNotebooks, tokenizeNotebookQuery } from "../lib/notebook-search";
 
 const item = (title: string, description = "", categoryLabel = "") => ({ title, description, categoryLabel });
 
@@ -111,5 +111,54 @@ describe("searchNotebooks", () => {
     expect(searchNotebooks(items, "ブレーカー").length).toBeGreaterThan(0);
     // 1件も当たらない語では0件（何でも当ててしまう実装になっていないこと）。
     expect(searchNotebooks(items, "zzzzz")).toEqual([]);
+  });
+});
+
+describe("buildCategorySearchLabels", () => {
+  const categories = [
+    { id: "science" },
+    { id: "science-motion", parentId: "science" },
+    { id: "cooking" },
+  ];
+
+  it("子カテゴリの検索用の名前に親カテゴリの名前を足す", () => {
+    const labels = new Map([["science", "理科（小・中）"], ["science-motion", "速さ・運動"], ["cooking", "料理"]]);
+    const result = buildCategorySearchLabels(labels, categories);
+    expect(result.get("science-motion")).toBe("速さ・運動 / 理科（小・中）");
+    // 親を持たないカテゴリはそのまま。
+    expect(result.get("cooking")).toBe("料理");
+  });
+
+  it("大分類の名前でノートが引ける（葉の名前しか見ないと0件になる）", () => {
+    // ノートは必ず葉カテゴリに属するので、ユーザーがカテゴリカードで覚えている
+    // 「理科（小・中）」で検索しても当たらなくなる、という指摘への回帰テスト。
+    const labels = new Map([["science", "理科（小・中）"], ["science-motion", "速さ・運動"]]);
+    const searchLabels = buildCategorySearchLabels(labels, categories);
+    const items = [item("速さの公式", "距離と時間から速さを求めます。", searchLabels.get("science-motion") ?? "")];
+    expect(searchNotebooks(items, "理科")).toHaveLength(1);
+    // 葉の名前でも当たり続けること。
+    expect(searchNotebooks(items, "速さ")).toHaveLength(1);
+  });
+
+  it("つなぎ目をまたいだ偶然の一致を作らない", () => {
+    const labels = new Map([["science", "理科"], ["science-motion", "運動"]]);
+    const searchLabels = buildCategorySearchLabels(labels, categories);
+    const items = [item("x", "", searchLabels.get("science-motion") ?? "")];
+    expect(searchNotebooks(items, "運動")).toHaveLength(1);
+    expect(searchNotebooks(items, "理科")).toHaveLength(1);
+    expect(searchNotebooks(items, "動理")).toEqual([]);
+  });
+
+  it("プリセットの実データで、最上位カテゴリの名前から配下のノートが引ける", () => {
+    const labelById = new Map(PRESET_NOTEBOOK_CATEGORIES.map((category) => [category.id, localizedText(category.label, "ja")]));
+    const searchLabels = buildCategorySearchLabels(labelById, PRESET_NOTEBOOK_CATEGORIES);
+    const items = Object.entries(PRESET_NOTEBOOK_SEEDS).flatMap(([categoryId, seeds]) => seeds.map((seed) => ({
+      title: localizedText(seed.title, "ja"),
+      description: localizedText(seed.description, "ja"),
+      categoryLabel: searchLabels.get(categoryId) ?? "",
+    })));
+    // 「高校物理」「理科（小・中）」はどちらも親カテゴリで、ノートは配下のサブカテゴリにある。
+    expect(searchNotebooks(items, "高校物理").length).toBeGreaterThan(0);
+    expect(searchNotebooks(items, "理科").length).toBeGreaterThan(0);
   });
 });

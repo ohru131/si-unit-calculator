@@ -29,7 +29,7 @@ import {
 import { useGlobalSettings } from "@/lib/global-settings";
 import { localizedText, type AppLanguage } from "@/lib/i18n";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
-import { searchNotebooks } from "@/lib/notebook-search";
+import { buildCategorySearchLabels, searchNotebooks } from "@/lib/notebook-search";
 import { exportNotebooksBackup } from "@/lib/notebooks-backup-file";
 import { unitErrorMessage } from "@/lib/unit-errors";
 import { formatQuantity, SavedConstant } from "@/lib/units";
@@ -196,6 +196,18 @@ export default function ConstantsScreen() {
   // Mapにしておく（184件×カテゴリ38件の総当たりになる）。
   const categoryLabelById = useMemo(() => new Map(categoryOptions.map((item) => [item.id, item.label])), [categoryOptions]);
 
+  // 検索で見るカテゴリ名。表示用（categoryLabelById）には大分類が入らない
+  // （categoryOptionsが「ノートの所属先に選べるカテゴリ」＝葉だけに絞っているため）ので、
+  // ここで親カテゴリのラベルを足してから buildCategorySearchLabels に渡す。
+  // これが無いと、カテゴリカードで覚えている「理科（小・中）」「高校物理」で1件も当たらない。
+  const categorySearchLabelById = useMemo(() => {
+    const labelById = new Map(categoryLabelById);
+    PRESET_NOTEBOOK_CATEGORIES.forEach((category) => {
+      if (parentCategoryIds.has(category.id)) labelById.set(category.id, localizedText(category.label, language));
+    });
+    return buildCategorySearchLabels(labelById, PRESET_NOTEBOOK_CATEGORIES);
+  }, [categoryLabelById, language, parentCategoryIds]);
+
   const isSearchingNotebooks = Boolean(notebookSearchQuery.trim());
 
   // 絞り込みの判断そのものは lib/notebook-search.ts の純関数に置いてある。ここは
@@ -206,10 +218,10 @@ export default function ConstantsScreen() {
       notebook,
       title: notebook.title,
       description: notebook.description,
-      categoryLabel: categoryLabelById.get(notebook.categoryId) ?? "",
+      categoryLabel: categorySearchLabelById.get(notebook.categoryId) ?? "",
     }));
     return searchNotebooks(entries, notebookSearchQuery).map((entry) => entry.notebook);
-  }, [categoryLabelById, isSearchingNotebooks, notebookSearchQuery, notebooks]);
+  }, [categorySearchLabelById, isSearchingNotebooks, notebookSearchQuery, notebooks]);
 
   const resetConstantEditor = () => {
     setEditingConstantSymbol(undefined); setConstantSymbolInput(""); setConstantExpressionInput(""); setConstantError("");

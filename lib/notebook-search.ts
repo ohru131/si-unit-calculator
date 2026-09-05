@@ -47,6 +47,28 @@ export function tokenizeNotebookQuery(query: string): string[] {
   return fold(query).split(/[\s　]+/).filter(Boolean);
 }
 
+/**
+ * 検索で見るカテゴリ名を作る。カードに出す表示用の名前と違い、**親カテゴリの名前も混ぜる**。
+ * ノートは必ず葉カテゴリ（「速さ・運動」）に属するので、葉の名前しか見ないと、
+ * カテゴリカードで覚えている大分類の名前（「理科（小・中）」「高校物理」）では1件も当たらない。
+ * 表示側は葉の名前だけを出し続ける（カードに「速さ・運動 / 理科（小・中）」と出す必要は無い）ので、
+ * 表示用の対応表とは別に作る。
+ */
+export function buildCategorySearchLabels(
+  labelById: Map<string, string>,
+  categories: { id: string; parentId?: string }[],
+): Map<string, string> {
+  const parentIdById = new Map(categories.filter((category) => category.parentId).map((category) => [category.id, category.parentId as string]));
+  const result = new Map<string, string>();
+  labelById.forEach((label, id) => {
+    const parentLabel = labelById.get(parentIdById.get(id) ?? "");
+    // 区切りに " / " を使うのは、検索語がつなぎ目をまたいで偶然一致するのを防ぐため
+    // （空白1つでつなぐと「動理」が「速さ・運動 理科」に当たってしまう）。
+    result.set(id, parentLabel ? `${label} / ${parentLabel}` : label);
+  });
+  return result;
+}
+
 // トークン1つが1件のノートにどれだけ強く当たったか。0は不一致。
 // 全トークンぶんの最小値をそのノートの強さにする（＝一番弱い当たり方に引きずられる）ので、
 // 「タイトルに当たった語」と「カテゴリ名にしか当たらない語」を混ぜた検索は下の方に沈む。

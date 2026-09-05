@@ -64,6 +64,14 @@ describe("プリセットの金額の既定値", () => {
     expect(notEuro).toEqual([]);
   });
 
+  it("米ドルを自国通貨にしている地域がUSDに解決する", () => {
+    // ここが抜けると、その国の西語ユーザーだけが言語からの推測に落ちてユーロ建ての値になる
+    // （エクアドルはUSD圏なのに0.29ユーロ/kWhが入っていた）。
+    ["EC", "SV", "PA", "PR"].forEach((region) => {
+      expect(resolvePresetPriceProfile(null, region, "es"), region).toBe(PRESET_PRICE_PROFILES.USD);
+    });
+  });
+
   it("通貨も地域も分からないときだけ言語から推測する", () => {
     expect(resolvePresetPriceProfile(null, null, "ja")).toBe(PRESET_PRICE_PROFILES.JPY);
     expect(resolvePresetPriceProfile(undefined, undefined, "pt-BR")).toBe(PRESET_PRICE_PROFILES.BRL);
