@@ -86,6 +86,19 @@ export function isBaseDigitAllowed(character: string, base: NumberBase): boolean
   return baseDigits(base).includes(character.toUpperCase());
 }
 
+// 入力中の桁を、値を保ったまま別の基数の桁へ書き換える（16進のFFを2進にすると11111111）。
+// 基数を切り替えるたびに入力を捨てると、打った値が黙って消えて使い物にならない。値さえ保てば
+// 「新しい基数では使えない桁が残って確定も解除もできなくなる」問題も同時に消える。
+// 接頭辞は表示側が別の色で描くので、ここでは付けない。
+// 変換できない（空・不正な桁・安全整数の範囲外）ときはnullを返し、呼び出し側は入力をそのまま残す。
+export function reinterpretBaseInput(text: string, from: NumberBase, to: NumberBase): string | null {
+  const parsed = parseBaseInput(text, from);
+  if (parsed.status !== "ok") return null;
+  const parts = formatInBaseParts(parsed.value, to);
+  if (!parts) return null;
+  return `${parts.sign}${parts.digits}`;
+}
+
 /**
  * 入力文字列を指定した基数の数値としてパースする。例外は投げない。
  * parseInt自体は例えば parseInt("12G", 16) を18として返し、"G"以降を黙って打ち切ってしまうため、
