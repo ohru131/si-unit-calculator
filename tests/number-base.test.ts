@@ -188,6 +188,29 @@ describe("sanitizeBaseInput", () => {
     expect(sanitizeBaseInput("12.5", 10)).toBe("125");
     expect(sanitizeBaseInput("", 16)).toBe("");
   });
+
+  // CodeRabbitの指摘（PR #40）の回帰テスト。-255から入ると入力欄は -FF になるので、
+  // 符号を落とすと編集した瞬間に値が正へ反転する（-4090 が 4090 になっていた）。
+  it("先頭のマイナスは残し、値の符号が勝手に反転しないようにする", () => {
+    expect(sanitizeBaseInput("-FF", 16)).toBe("-FF");
+    expect(sanitizeBaseInput("-FFA", 16)).toBe("-FFA");
+    expect(parseBaseInput(sanitizeBaseInput("-FFA", 16), 16)).toEqual({ status: "ok", value: -4090 });
+    expect(sanitizeBaseInput("-1010", 2)).toBe("-1010");
+  });
+
+  it("2文字目以降の符号は桁ではないので落とす", () => {
+    expect(sanitizeBaseInput("F-F", 16)).toBe("FF");
+    expect(sanitizeBaseInput("1-0", 2)).toBe("10");
+  });
+
+  it("プラスは落とす（落としても値が変わらないため）", () => {
+    expect(sanitizeBaseInput("+FF", 16)).toBe("FF");
+  });
+
+  it("桁が1つも残らないときは符号だけを残さない", () => {
+    expect(sanitizeBaseInput("-", 16)).toBe("");
+    expect(sanitizeBaseInput("-xyz", 16)).toBe("");
+  });
 });
 
 // 基数を切り替えるたびに入力をクリアしていたのを「値を保ったまま表記だけ書き換える」に変えた回帰テスト。

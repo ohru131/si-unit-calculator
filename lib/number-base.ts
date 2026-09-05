@@ -73,12 +73,20 @@ export function baseDigits(base: NumberBase): string {
 // 入力欄に直接打たれた・貼り付けられた文字列を、その基数で使える桁だけに落とす。
 // キーパッド側だけを無効化しても、TextInputへの直接入力や貼り付けは素通りしてしまい、
 // 確定できない桁（sin( など）が混ざる。入力の経路が複数あるので、絞り込みはここに1つ置く。
+//
+// 先頭のマイナスだけは桁ではないが必ず残す。-255 から入った -FF を編集すると、符号が落ちて
+// 値が黙って正に反転してしまうため（parseBaseInputが先頭の符号を受け付ける以上、
+// 落としてよい文字ではない）。2文字目以降の符号は桁として不正なので従来どおり落とす。
+// プラスは落としても値が変わらないので、符号として持ち回らない。
 export function sanitizeBaseInput(text: string, base: NumberBase): string {
+  const sign = text.startsWith("-") ? "-" : "";
   let result = "";
   for (const character of text) {
     if (isBaseDigitAllowed(character, base)) result += character.toUpperCase();
   }
-  return result;
+  // 桁が1つも残らないなら符号だけを残さない（"-"だけが式に残ると読めない表示になる）。
+  if (!result) return "";
+  return sign + result;
 }
 
 /** 1文字がその基数の桁として使えるか（大文字小文字どちらも受け付ける）。 */
