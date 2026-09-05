@@ -15,6 +15,12 @@ import {
   FITNESS_SEEDS,
   VEHICLES_SEEDS,
 } from "./practical";
+import { ELECTRONICS_SEEDS, SOLAR_SEEDS } from "./electronics";
+import { ENG_POWER_SEEDS, ENG_ELEMENTS_SEEDS } from "./engineering-power";
+import { ENG_STRESS_SEEDS } from "./engineering-stress";
+import { BREWING_SEEDS, WEATHER_SEEDS } from "./lifestyle";
+import { DIY_SEEDS, PRINTING_SEEDS } from "./making";
+import { AUDIO_SEEDS, PHOTOGRAPHY_SEEDS } from "./media";
 import {
   SCIENCE_CHEMISTRY_SEEDS,
   SCIENCE_DENSITY_SEEDS,
@@ -28,6 +34,8 @@ import {
 } from "./science";
 
 export const PRESET_NOTEBOOK_CATEGORIES: PresetNotebookCategory[] = [
+  // 表示順はこの配列の順そのまま。親カテゴリとその子（parentId付き）は必ず隣接させる。
+  // 学習向けのまとまりを先に、専門色の強いものを後ろに置いている。
   { id: "science", label: { en: "School science", ja: "理科（小・中）", es: "Ciencias naturales", "pt-BR": "Ciências", de: "Naturwissenschaften", fr: "Sciences" } },
   { id: "science-motion", label: { en: "Speed & motion", ja: "速さ・運動", es: "Velocidad y movimiento", "pt-BR": "Velocidade e movimento", de: "Geschwindigkeit & Bewegung", fr: "Vitesse et mouvement" }, parentId: "science" },
   { id: "science-density", label: { en: "Density & concentration", ja: "密度・濃度", es: "Densidad y concentración", "pt-BR": "Densidade e concentração", de: "Dichte & Konzentration", fr: "Masse volumique et concentration" }, parentId: "science" },
@@ -44,13 +52,33 @@ export const PRESET_NOTEBOOK_CATEGORIES: PresetNotebookCategory[] = [
   { id: "physics-waves", label: { en: "Waves", ja: "波動", es: "Ondas", "pt-BR": "Ondas", de: "Wellen", fr: "Ondes" }, parentId: "high-school-physics" },
   { id: "physics-electricity", label: { en: "Electricity", ja: "電気", es: "Electricidad", "pt-BR": "Eletricidade", de: "Elektrizität", fr: "Électricité" }, parentId: "high-school-physics" },
   { id: "physics-atomic", label: { en: "Atomic physics", ja: "原子", es: "Física atómica", "pt-BR": "Física atômica", de: "Atomphysik", fr: "Physique atomique" }, parentId: "high-school-physics" },
-  { id: "electricity-basics", label: { en: "Practical electricity", ja: "電気の基礎計算", es: "Electricidad práctica", "pt-BR": "Eletricidade prática", de: "Praktische Elektrotechnik", fr: "Électricité pratique" } },
-  { id: "astronomy", label: { en: "Astronomy & space", ja: "天体・宇宙", es: "Astronomía y espacio", "pt-BR": "Astronomia e espaço", de: "Astronomie & Weltraum", fr: "Astronomie et espace" } },
-  { id: "fitness", label: { en: "Fitness & running", ja: "フィットネス・ランニング", es: "Fitness y running", "pt-BR": "Fitness e corrida", de: "Fitness & Laufen", fr: "Fitness et course à pied" } },
   { id: "chemistry", label: { en: "Chemistry stoichiometry", ja: "化学の量的関係", es: "Estequiometría química", "pt-BR": "Estequiometria química", de: "Stöchiometrie", fr: "Stœchiométrie" } },
+  { id: "astronomy", label: { en: "Astronomy & space", ja: "天体・宇宙", es: "Astronomía y espacio", "pt-BR": "Astronomia e espaço", de: "Astronomie & Weltraum", fr: "Astronomie et espace" } },
+
+  // ここから下は新設の親カテゴリ。子のIDは従来のまま変えていない（プリセットの投入は
+  // カテゴリID単位で冪等なので、IDを変えると既存ユーザーのノートが重複投入される）。
+  { id: "electricity-energy", label: { en: "Electricity & energy", ja: "電気・エネルギー" } },
+  { id: "electricity-basics", label: { en: "Practical electricity", ja: "電気の基礎計算", es: "Electricidad práctica", "pt-BR": "Eletricidade prática", de: "Praktische Elektrotechnik", fr: "Électricité pratique" }, parentId: "electricity-energy" },
+  { id: "electronics", label: { en: "Hobby electronics", ja: "電子工作" }, parentId: "electricity-energy" },
+  { id: "solar", label: { en: "Solar power & batteries", ja: "太陽光発電・蓄電" }, parentId: "electricity-energy" },
+  { id: "hobbies-making", label: { en: "Hobbies & making", ja: "趣味・ものづくり" } },
+  { id: "photography", label: { en: "Photography", ja: "写真・カメラ" }, parentId: "hobbies-making" },
+  { id: "audio", label: { en: "Sound & audio", ja: "音響・オーディオ" }, parentId: "hobbies-making" },
+  { id: "diy", label: { en: "DIY & home improvement", ja: "DIY・住まい" }, parentId: "hobbies-making" },
+  { id: "printing-3d", label: { en: "3D printing", ja: "3Dプリンタ" }, parentId: "hobbies-making" },
+  { id: "home-life", label: { en: "Home & everyday life", ja: "暮らし" } },
+  { id: "cooking", label: { en: "Cooking & baking conversions", ja: "料理・製菓の単位換算", es: "Cocina y repostería", "pt-BR": "Culinária e confeitaria", de: "Kochen & Backen", fr: "Cuisine et pâtisserie" }, parentId: "home-life" },
+  { id: "brewing", label: { en: "Coffee & home brewing", ja: "コーヒー・自家醸造" }, parentId: "home-life" },
+  { id: "fitness", label: { en: "Fitness & running", ja: "フィットネス・ランニング", es: "Fitness y running", "pt-BR": "Fitness e corrida", de: "Fitness & Laufen", fr: "Fitness et course à pied" }, parentId: "home-life" },
+  { id: "weather", label: { en: "Weather & atmosphere", ja: "天気・大気" }, parentId: "home-life" },
   { id: "vehicles", label: { en: "Physics of cars & bicycles", ja: "車・自転車の物理", es: "Física de los vehículos", "pt-BR": "Física dos veículos", de: "Physik von Autos & Fahrrädern", fr: "Physique des voitures et vélos" } },
-  { id: "cooking", label: { en: "Cooking & baking conversions", ja: "料理・製菓の単位換算", es: "Cocina y repostería", "pt-BR": "Culinária e confeitaria", de: "Kochen & Backen", fr: "Cuisine et pâtisserie" } },
-  { id: "mechanics-of-materials", label: { en: "Mechanics of materials", ja: "材料力学", es: "Resistencia de materiales", "pt-BR": "Resistência dos materiais", de: "Festigkeitslehre", fr: "Résistance des matériaux" } },
+
+  // 材料力学は「はり・柱」に絞り、機械設計の他分野と並べた（旧IDは維持）。
+  { id: "engineering-design", label: { en: "Mechanical & structural design", ja: "機械・構造設計" } },
+  { id: "eng-stress", label: { en: "Stress, strain & safety", ja: "応力・ひずみ・安全率" }, parentId: "engineering-design" },
+  { id: "mechanics-of-materials", label: { en: "Beams & columns", ja: "はり・柱" }, parentId: "engineering-design" },
+  { id: "eng-power", label: { en: "Shafts, torsion & power transmission", ja: "軸・ねじり・動力伝達" }, parentId: "engineering-design" },
+  { id: "eng-elements", label: { en: "Machine elements & joints", ja: "機械要素・締結" }, parentId: "engineering-design" },
 ];
 
 /**
@@ -81,4 +109,15 @@ export const PRESET_NOTEBOOK_SEEDS: Record<string, NotebookSeed[]> = {
   chemistry: CHEMISTRY_SEEDS,
   vehicles: VEHICLES_SEEDS,
   cooking: COOKING_SEEDS,
+  electronics: ELECTRONICS_SEEDS,
+  solar: SOLAR_SEEDS,
+  photography: PHOTOGRAPHY_SEEDS,
+  audio: AUDIO_SEEDS,
+  diy: DIY_SEEDS,
+  "printing-3d": PRINTING_SEEDS,
+  brewing: BREWING_SEEDS,
+  weather: WEATHER_SEEDS,
+  "eng-stress": ENG_STRESS_SEEDS,
+  "eng-power": ENG_POWER_SEEDS,
+  "eng-elements": ENG_ELEMENTS_SEEDS,
 };
