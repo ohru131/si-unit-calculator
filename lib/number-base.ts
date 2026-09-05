@@ -107,6 +107,16 @@ export function reinterpretBaseInput(text: string, from: NumberBase, to: NumberB
   return `${parts.sign}${parts.digits}`;
 }
 
+// 入力中の基数を切り替えてよいか。安全整数の範囲を超える桁が入っているときだけ切り替えを断る。
+// 変換できないまま基数だけ変えると、同じ桁の並びが新しい基数では「妥当な別の値」として通ってしまう。
+// 例: 16進の 1111111111111111 は範囲外で変換できないが、そのままDECにすると
+// 10進の 1111111111111111 という全く違う値として確定できてしまう（利用者は気付けない）。
+// 空・入力途中は切り替えてよい（読み替える値がまだ無いだけで、値が化ける余地が無いため）。
+export function canSwitchBaseInput(text: string, from: NumberBase): boolean {
+  const parsed = parseBaseInput(text, from);
+  return !(parsed.status === "error" && parsed.code === "outOfRange");
+}
+
 /**
  * 入力文字列を指定した基数の数値としてパースする。例外は投げない。
  * parseInt自体は例えば parseInt("12G", 16) を18として返し、"G"以降を黙って打ち切ってしまうため、

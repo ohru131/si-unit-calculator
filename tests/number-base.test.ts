@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { baseDigits, canRepresentInBase, formatInBase, formatInBaseParts, isBaseDigitAllowed, parseBaseInput, reinterpretBaseInput, sanitizeBaseInput } from "../lib/number-base";
+import { baseDigits, canRepresentInBase, canSwitchBaseInput, formatInBase, formatInBaseParts, isBaseDigitAllowed, parseBaseInput, reinterpretBaseInput, sanitizeBaseInput } from "../lib/number-base";
 import { evaluateExpression } from "../lib/units";
 
 describe("formatInBaseParts", () => {
@@ -253,6 +253,35 @@ describe("reinterpretBaseInput", () => {
           expect(parseBaseInput(converted as string, to)).toEqual({ status: "ok", value });
         }
       }
+    }
+  });
+});
+
+// CodeRabbitの指摘（PR #40）の回帰テスト。変換できない桁のまま基数だけ変えると、
+// 同じ桁の並びが新しい基数では妥当な別の値として確定できてしまう。
+describe("canSwitchBaseInput", () => {
+  it("安全整数を超える桁が入っているときは切り替えを断る", () => {
+    expect(canSwitchBaseInput("1111111111111111", 16)).toBe(false);
+    expect(canSwitchBaseInput("FFFFFFFFFFFFFFFFFF", 16)).toBe(false);
+  });
+
+  it("断らないと、16進で範囲外の桁が10進では別の値として通ってしまう", () => {
+    const text = "1111111111111111";
+    expect(reinterpretBaseInput(text, 16, 10)).toBeNull();
+    expect(parseBaseInput(text, 16)).toEqual({ status: "error", code: "outOfRange" });
+    expect(parseBaseInput(text, 10)).toEqual({ status: "ok", value: 1111111111111111 });
+  });
+
+  it("空・入力途中は切り替えてよい（値が化ける余地が無いため）", () => {
+    expect(canSwitchBaseInput("", 16)).toBe(true);
+    expect(canSwitchBaseInput("   ", 16)).toBe(true);
+    expect(canSwitchBaseInput("FF", 2)).toBe(true);
+  });
+
+  it("範囲内の値はどの基数からでも切り替えてよい", () => {
+    for (const base of [2, 8, 10, 16] as const) {
+      expect(canSwitchBaseInput(formatInBase(255, base) as string, base)).toBe(true);
+      expect(canSwitchBaseInput(formatInBase(Number.MAX_SAFE_INTEGER, base) as string, base)).toBe(true);
     }
   });
 });

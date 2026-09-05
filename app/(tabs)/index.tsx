@@ -28,7 +28,7 @@ import { exportCalculationHistory } from "@/lib/calculation-export";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { historyToAutoConstants } from "@/lib/history-auto-constants";
 import { localizedText, type AppLanguage } from "@/lib/i18n";
-import { BASE_META, canRepresentInBase, formatInBaseParts, isBaseDigitAllowed, NUMBER_BASES, parseBaseInput, reinterpretBaseInput, sanitizeBaseInput, type NumberBase } from "@/lib/number-base";
+import { BASE_META, canRepresentInBase, canSwitchBaseInput, formatInBaseParts, isBaseDigitAllowed, NUMBER_BASES, parseBaseInput, reinterpretBaseInput, sanitizeBaseInput, type NumberBase } from "@/lib/number-base";
 import { getCalculatorQuickShortcut } from "@/lib/quick-shortcuts";
 import { usePro } from "@/lib/revenuecat-provider";
 import { buildUnitComparisonRows } from "@/lib/unit-comparison";
@@ -728,6 +728,9 @@ export default function CalculatorScreen() {
   // いたため、DECを押しただけで打った値が消えていた。
   const pressBaseInputChip = (base: NumberBase) => {
     if (baseInputMode === null || base === baseInputMode) return;
+    // 安全整数を超える桁が入っているときは基数を変えない。変換できないのに基数だけ変えると、
+    // 同じ桁の並びが新しい基数では妥当な別の値として通ってしまう（canSwitchBaseInputの説明を参照）。
+    if (!canSwitchBaseInput(expression, baseInputMode)) return;
     setBaseInputMode(base);
     const converted = reinterpretBaseInput(expression, baseInputMode, base);
     // 空・不正な桁で変換できないときは、書き換えようが無いので入力をそのまま残す。
