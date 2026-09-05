@@ -718,8 +718,17 @@ function applyMathFunction(name: string, input: Quantity): Quantity {
   };
   const evaluator = functions[name];
   if (!evaluator) throw new UnitError("unsupportedFunction", { name });
-  return quantity(evaluator(input.siValue));
+  const result = evaluator(input.siValue);
+  // sin/cos/tanはMath.PIが円周率の近似値であることに起因して、本来0になるべき角度
+  // （2π・π/2の整数倍など）でも1e-16程度の浮動小数点誤差が残る（例: sin(2π)が
+  // -2.449...e-16と表示され、0に見えない）。値域[-1,1]に対して無視できるほど
+  // 小さい値は誤差とみなしてちょうど0にそろえる。
+  if (TRIG_FUNCTION_NAMES.has(name) && Math.abs(result) < TRIG_ZERO_EPSILON) return quantity(0);
+  return quantity(result);
 }
+
+const TRIG_FUNCTION_NAMES = new Set(["sin", "cos", "tan"]);
+const TRIG_ZERO_EPSILON = 1e-10;
 
 export function isUnitStart(character: string | undefined) {
   return Boolean(character && /[A-Za-zΩµμ%°]/.test(character));

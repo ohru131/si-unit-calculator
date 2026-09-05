@@ -97,6 +97,13 @@ describe("単位付き計算", () => {
     expect(evaluateExpression("tan(pi / 4)").siValue).toBeCloseTo(1);
   });
 
+  it("2πの整数倍・π/2の整数倍でのsin/cos/tanは浮動小数点誤差を消してちょうど0にする", () => {
+    expect(evaluateExpression("sin(2π)").siValue).toBe(0);
+    expect(evaluateExpression("sin(π)").siValue).toBe(0);
+    expect(evaluateExpression("cos(π/2)").siValue).toBe(0);
+    expect(evaluateExpression("tan(π)").siValue).toBe(0);
+  });
+
   it("べき乗と平方根を次元整合性を保って計算する", () => {
     expect(evaluateExpression("2^3^2").siValue).toBe(512);
     expect(formatQuantity(evaluateExpression("(3m)^2"), "m²")).toBe("9 m²");
