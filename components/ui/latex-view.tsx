@@ -33,11 +33,12 @@ html,body{margin:0;padding:0;background:transparent;overflow:hidden;}
 <script>${KATEX_JS}</script>
 <script>
   function postSize() {
-    // 幅は「はみ出したぶんを含む実際の内容幅」を返す。fitContentで一度幅を縮めたあとに長い数式へ
-    // 変わると、getBoundingClientRectだけでは縮んだビューポート幅しか返らず幅が戻らなくなるため、
-    // 折り返しを止めた(white-space:nowrap)うえでscrollWidthも見る。
+    // 幅は「はみ出したぶんを含む実際の内容幅」を返す。折り返しを止めてある(white-space:nowrap)ので、
+    // #targetはビューポートより狭くても広くても内容幅そのものになり、scrollWidthで正しく取れる。
+    // document.body.scrollWidth を混ぜてはいけない。bodyはビューポート全幅なので、数式が短いときに
+    // 常にビューポート幅を返してしまい、fitContentの幅が永久に縮まらなくなる。
     var target = document.getElementById("target");
-    var width = Math.max(target.scrollWidth, target.getBoundingClientRect().width, document.body.scrollWidth);
+    var width = Math.max(target.scrollWidth, target.getBoundingClientRect().width);
     window.ReactNativeWebView.postMessage(JSON.stringify({ height: document.body.scrollHeight, width: Math.ceil(width) + 1 }));
   }
   function renderLatex(payload) {
