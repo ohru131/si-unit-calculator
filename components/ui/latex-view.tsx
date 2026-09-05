@@ -39,7 +39,12 @@ html,body{margin:0;padding:0;background:transparent;overflow:hidden;}
     // 常にビューポート幅を返してしまい、fitContentの幅が永久に縮まらなくなる。
     var target = document.getElementById("target");
     var width = Math.max(target.scrollWidth, target.getBoundingClientRect().width);
-    window.ReactNativeWebView.postMessage(JSON.stringify({ height: document.body.scrollHeight, width: Math.ceil(width) + 1 }));
+    // 高さも同じくbodyだけを見ない。KaTeXのインライン描画（displayMode:false）は分数の分子や
+    // 根号の上線が行ボックスの外へはみ出すことがあり、body.scrollHeightだけだとそのぶん足りず、
+    // WebViewの高さを実測値ちょうどに合わせている都合で数式の上が欠ける。実際の内容高さと
+    // 突き合わせたうえで、小数点以下の切り捨てぶんを1px足す。
+    var height = Math.max(document.body.scrollHeight, target.scrollHeight, target.getBoundingClientRect().height);
+    window.ReactNativeWebView.postMessage(JSON.stringify({ height: Math.ceil(height) + 1, width: Math.ceil(width) + 1 }));
   }
   function renderLatex(payload) {
     var target = document.getElementById("target");
