@@ -147,6 +147,9 @@ const EN_COPY = {
   backupConstantsRestored: "Cleared constants restored.",
   backupConstantsReplaceConfirm: "Replace all saved constants with the ones in this file? This cannot be undone.",
   backupGenericError: "Something went wrong. Please try again.",
+  // Web限定の隠しスイッチ（?pro=preview）でPro表示を有効にしたときのバナー。lib/pro-preview.ts /
+  // lib/revenuecat-provider.tsx を参照。実購入と混同されないよう、Proカードの近くに常時出す。
+  proPreviewActive: "Pro preview is on — this is not a real purchase.",
 } as const;
 
 const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
@@ -237,6 +240,7 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     backupConstantsRestored: "消去した定数を復活しました。",
     backupConstantsReplaceConfirm: "保存済みの定数をすべて、このファイルの内容へ置き換えますか？元に戻せません。",
     backupGenericError: "エラーが発生しました。もう一度お試しください。",
+    proPreviewActive: "Proプレビューが有効です — 実際の購入ではありません。",
   },
   es: {
     calculator: "Calculadora de unidades",
@@ -324,6 +328,7 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     backupConstantsRestored: "Se restauraron las constantes borradas.",
     backupConstantsReplaceConfirm: "¿Reemplazar todas las constantes guardadas por las de este archivo? Esta acción no se puede deshacer.",
     backupGenericError: "Ocurrió un error. Inténtalo de nuevo.",
+    proPreviewActive: "El modo de vista previa de Pro está activado: no es una compra real.",
   },
   "pt-BR": {
     calculator: "Calculadora de unidades",
@@ -411,6 +416,7 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     backupConstantsRestored: "Constantes limpas restauradas.",
     backupConstantsReplaceConfirm: "Substituir todas as constantes salvas pelas deste arquivo? Isso não pode ser desfeito.",
     backupGenericError: "Ocorreu um erro. Tente novamente.",
+    proPreviewActive: "O modo de prévia do Pro está ativado — não é uma compra real.",
   },
   de: {
     calculator: "Einheitenrechner",
@@ -498,6 +504,7 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     backupConstantsRestored: "Gelöschte Konstanten wiederhergestellt.",
     backupConstantsReplaceConfirm: "Alle gespeicherten Konstanten durch die aus dieser Datei ersetzen? Das kann nicht rückgängig gemacht werden.",
     backupGenericError: "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+    proPreviewActive: "Der Pro-Vorschaumodus ist aktiviert — das ist kein echter Kauf.",
   },
   fr: {
     calculator: "Calculatrice d'unités",
@@ -585,6 +592,7 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     backupConstantsRestored: "Constantes effacées restaurées.",
     backupConstantsReplaceConfirm: "Remplacer toutes les constantes enregistrées par celles de ce fichier ? Cette action est irréversible.",
     backupGenericError: "Une erreur est survenue. Veuillez réessayer.",
+    proPreviewActive: "Le mode d'aperçu Pro est activé — ce n'est pas un véritable achat.",
   },
 };
 

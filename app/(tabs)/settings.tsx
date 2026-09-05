@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 
@@ -15,14 +15,25 @@ import { customUnitErrorMessage } from "@/lib/custom-unit-messages";
 import { parseCustomUnit } from "@/lib/custom-units";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { APP_LANGUAGES, LANGUAGE_META } from "@/lib/i18n";
+import { usePro } from "@/lib/revenuecat-provider";
 import { type ThemePreference, useThemeContext } from "@/lib/theme-provider";
 import { MeasuringStandard, UnitSystem } from "@/lib/units";
+
+// 地域行を連打するとProプレビュー（Web限定の隠しスイッチ）を切り替える。誤操作で
+// 踏まないよう、Android設定の「ビルド番号を7回タップ」に倣って7回・2秒以内に揃える。
+const PRO_PREVIEW_TAP_THRESHOLD = 7;
+const PRO_PREVIEW_TAP_WINDOW_MS = 2000;
 
 export default function SettingsScreen() {
   const { language, locale, measuringStandard, setLanguage, setMeasuringStandard, t, unitSystem, setUnitSystem } = useGlobalSettings();
   const { themePreference, setThemePreference } = useThemeContext();
   const { adFree, isAdsPlatformAvailable, redeemMessage, redeemCode } = useAds();
   const { resetPresetNotebooks, customUnits, saveCustomUnit, deleteCustomUnit, constants } = useCalculatorStore();
+  const { isProPreviewEnabled, isProPreviewSupported, setProPreviewEnabled } = usePro();
+  // タップ回数はレンダーに関わらない一時状態なのでrefで持つ（stateにすると連打のたびに
+  // 再レンダーが走る）。タイマーも同様にrefで持ち、ウィンドウ外の連打をリセットする。
+  const proPreviewTapCountRef = useRef(0);
+  const proPreviewTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [redeemInput, setRedeemInput] = useState("");
   const [customUnitSymbol, setCustomUnitSymbol] = useState("");
   const [customUnitDefinition, setCustomUnitDefinition] = useState("");
@@ -53,6 +64,19 @@ export default function SettingsScreen() {
   // （仏語は42文字あり確実に切れる）。開けば同じ文章が空状態として出るので、閉じた行は
   // 値なしにしておく方が「登録が無い」ことがかえって伝わる。
   const customUnitsValue = customUnits.length ? t("customUnitCount").replace("{count}", String(customUnits.length)) : undefined;
+
+  // isProPreviewSupportedがfalse（ネイティブ）ならsetProPreviewEnabled自体が最終ガードで
+  // 何もしないが、ここでも早期returnしてタイマー登録すら行わない（ネイティブで動く余地を残さない）。
+  const handleRegionTap = () => {
+    if (!isProPreviewSupported) return;
+    proPreviewTapCountRef.current += 1;
+    if (proPreviewTapTimerRef.current) clearTimeout(proPreviewTapTimerRef.current);
+    proPreviewTapTimerRef.current = setTimeout(() => { proPreviewTapCountRef.current = 0; }, PRO_PREVIEW_TAP_WINDOW_MS);
+    if (proPreviewTapCountRef.current >= PRO_PREVIEW_TAP_THRESHOLD) {
+      proPreviewTapCountRef.current = 0;
+      setProPreviewEnabled(!isProPreviewEnabled);
+    }
+  };
 
   const confirmResetPresets = async () => {
     setPendingResetPresets(false);
@@ -212,7 +236,9 @@ export default function SettingsScreen() {
         </Pressable>
         {resetPresetsNotice ? <Text style={styles.description}>{resetPresetsNotice}</Text> : null}
       </SettingsSection>
-      <View style={styles.regionCard}><Text style={styles.regionLabel}>{t("region")}</Text><Text selectable style={styles.regionValue}>{locale}</Text></View>
+      {/* Web限定の隠しスイッチ: この行を短時間に7回連打するとProプレビューを切り替える
+          （lib/pro-preview.ts）。見た目は変えない（連打で偶然踏むのを避けるため意図的に無反応）。 */}
+      <Pressable onPress={handleRegionTap} style={styles.regionCard}><Text style={styles.regionLabel}>{t("region")}</Text><Text selectable style={styles.regionValue}>{locale}</Text></Pressable>
     </ScrollView>
     <ConfirmDialog
       visible={pendingResetPresets}
