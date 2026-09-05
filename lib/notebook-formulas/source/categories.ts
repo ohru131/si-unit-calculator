@@ -57,28 +57,28 @@ export const PRESET_NOTEBOOK_CATEGORIES: PresetNotebookCategory[] = [
 
   // ここから下は新設の親カテゴリ。子のIDは従来のまま変えていない（プリセットの投入は
   // カテゴリID単位で冪等なので、IDを変えると既存ユーザーのノートが重複投入される）。
-  { id: "electricity-energy", label: { en: "Electricity & energy", ja: "電気・エネルギー" } },
+  { id: "electricity-energy", label: { en: "Electricity & energy", ja: "電気・エネルギー", es: "Electricidad y energía", "pt-BR": "Eletricidade e energia", de: "Elektrizität & Energie", fr: "Électricité et énergie" } },
   { id: "electricity-basics", label: { en: "Practical electricity", ja: "電気の基礎計算", es: "Electricidad práctica", "pt-BR": "Eletricidade prática", de: "Praktische Elektrotechnik", fr: "Électricité pratique" }, parentId: "electricity-energy" },
-  { id: "electronics", label: { en: "Hobby electronics", ja: "電子工作" }, parentId: "electricity-energy" },
-  { id: "solar", label: { en: "Solar power & batteries", ja: "太陽光発電・蓄電" }, parentId: "electricity-energy" },
-  { id: "hobbies-making", label: { en: "Hobbies & making", ja: "趣味・ものづくり" } },
-  { id: "photography", label: { en: "Photography", ja: "写真・カメラ" }, parentId: "hobbies-making" },
-  { id: "audio", label: { en: "Sound & audio", ja: "音響・オーディオ" }, parentId: "hobbies-making" },
-  { id: "diy", label: { en: "DIY & home improvement", ja: "DIY・住まい" }, parentId: "hobbies-making" },
-  { id: "printing-3d", label: { en: "3D printing", ja: "3Dプリンタ" }, parentId: "hobbies-making" },
-  { id: "home-life", label: { en: "Home & everyday life", ja: "暮らし" } },
+  { id: "electronics", label: { en: "Hobby electronics", ja: "電子工作", es: "Electrónica para aficionados", "pt-BR": "Eletrônica para hobby", de: "Hobby-Elektronik", fr: "Électronique de loisir" }, parentId: "electricity-energy" },
+  { id: "solar", label: { en: "Solar power & batteries", ja: "太陽光発電・蓄電", es: "Energía solar y baterías", "pt-BR": "Energia solar e baterias", de: "Solarstrom & Batterien", fr: "Énergie solaire et batteries" }, parentId: "electricity-energy" },
+  { id: "hobbies-making", label: { en: "Hobbies & making", ja: "趣味・ものづくり", es: "Aficiones y creación", "pt-BR": "Hobbies e criação", de: "Hobby & Selbermachen", fr: "Loisirs et fabrication" } },
+  { id: "photography", label: { en: "Photography", ja: "写真・カメラ", es: "Fotografía", "pt-BR": "Fotografia", de: "Fotografie", fr: "Photographie" }, parentId: "hobbies-making" },
+  { id: "audio", label: { en: "Sound & audio", ja: "音響・オーディオ", es: "Sonido y audio", "pt-BR": "Som e áudio", de: "Ton & Audio", fr: "Son et audio" }, parentId: "hobbies-making" },
+  { id: "diy", label: { en: "DIY & home improvement", ja: "DIY・住まい", es: "Bricolaje y reformas", "pt-BR": "Faça você mesmo e reformas", de: "Heimwerken & Renovieren", fr: "Bricolage et rénovation" }, parentId: "hobbies-making" },
+  { id: "printing-3d", label: { en: "3D printing", ja: "3Dプリンタ", es: "Impresión 3D", "pt-BR": "Impressão 3D", de: "3D-Druck", fr: "Impression 3D" }, parentId: "hobbies-making" },
+  { id: "home-life", label: { en: "Home & everyday life", ja: "暮らし", es: "Hogar y vida diaria", "pt-BR": "Casa e dia a dia", de: "Haushalt & Alltag", fr: "Maison et vie quotidienne" } },
   { id: "cooking", label: { en: "Cooking & baking conversions", ja: "料理・製菓の単位換算", es: "Cocina y repostería", "pt-BR": "Culinária e confeitaria", de: "Kochen & Backen", fr: "Cuisine et pâtisserie" }, parentId: "home-life" },
-  { id: "brewing", label: { en: "Coffee & home brewing", ja: "コーヒー・自家醸造" }, parentId: "home-life" },
+  { id: "brewing", label: { en: "Coffee & home brewing", ja: "コーヒー・自家醸造", es: "Café y elaboración casera", "pt-BR": "Café e produção caseira", de: "Kaffee & Hausbrauen", fr: "Café et brassage maison" }, parentId: "home-life" },
   { id: "fitness", label: { en: "Fitness & running", ja: "フィットネス・ランニング", es: "Fitness y running", "pt-BR": "Fitness e corrida", de: "Fitness & Laufen", fr: "Fitness et course à pied" }, parentId: "home-life" },
-  { id: "weather", label: { en: "Weather & atmosphere", ja: "天気・大気" }, parentId: "home-life" },
+  { id: "weather", label: { en: "Weather & atmosphere", ja: "天気・大気", es: "Tiempo y atmósfera", "pt-BR": "Tempo e atmosfera", de: "Wetter & Atmosphäre", fr: "Météo et atmosphère" }, parentId: "home-life" },
   { id: "vehicles", label: { en: "Physics of cars & bicycles", ja: "車・自転車の物理", es: "Física de los vehículos", "pt-BR": "Física dos veículos", de: "Physik von Autos & Fahrrädern", fr: "Physique des voitures et vélos" } },
 
   // 材料力学は「はり・柱」に絞り、機械設計の他分野と並べた（旧IDは維持）。
-  { id: "engineering-design", label: { en: "Mechanical & structural design", ja: "機械・構造設計" } },
-  { id: "eng-stress", label: { en: "Stress, strain & safety", ja: "応力・ひずみ・安全率" }, parentId: "engineering-design" },
-  { id: "mechanics-of-materials", label: { en: "Beams & columns", ja: "はり・柱" }, parentId: "engineering-design" },
-  { id: "eng-power", label: { en: "Shafts, torsion & power transmission", ja: "軸・ねじり・動力伝達" }, parentId: "engineering-design" },
-  { id: "eng-elements", label: { en: "Machine elements & joints", ja: "機械要素・締結" }, parentId: "engineering-design" },
+  { id: "engineering-design", label: { en: "Mechanical & structural design", ja: "機械・構造設計", es: "Diseño mecánico y estructural", "pt-BR": "Projeto mecânico e estrutural", de: "Maschinen- & Tragwerksentwurf", fr: "Conception mécanique et structurale" } },
+  { id: "eng-stress", label: { en: "Stress, strain & safety", ja: "応力・ひずみ・安全率", es: "Esfuerzo, deformación y seguridad", "pt-BR": "Tensão, deformação e segurança", de: "Spannung, Dehnung & Sicherheit", fr: "Contrainte, déformation et sécurité" }, parentId: "engineering-design" },
+  { id: "mechanics-of-materials", label: { en: "Beams & columns", ja: "はり・柱", es: "Vigas y columnas", "pt-BR": "Vigas e colunas", de: "Balken & Stützen", fr: "Poutres et poteaux" }, parentId: "engineering-design" },
+  { id: "eng-power", label: { en: "Shafts, torsion & power transmission", ja: "軸・ねじり・動力伝達", es: "Ejes, torsión y transmisión de potencia", "pt-BR": "Eixos, torção e transmissão de potência", de: "Wellen, Torsion & Antriebstechnik", fr: "Arbres, torsion et transmission de puissance" }, parentId: "engineering-design" },
+  { id: "eng-elements", label: { en: "Machine elements & joints", ja: "機械要素・締結", es: "Elementos de máquinas y uniones", "pt-BR": "Elementos de máquinas e uniões", de: "Maschinenelemente & Verbindungen", fr: "Éléments de machines et assemblages" }, parentId: "engineering-design" },
 ];
 
 /**
