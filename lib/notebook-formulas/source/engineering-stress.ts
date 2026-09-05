@@ -3,13 +3,13 @@ import type { NotebookSeed } from "../types";
 /**
  * 応力・ひずみ・安全率のカテゴリ。断面や支持条件に依らない「材料そのものの性質」を扱う
  * （はり・柱のように断面形状で決まる計算は source/materials.ts 側に置いている）。
- * 定数の既定値は実在の材料（ASTM A36 相当の炭素鋼: E=200GPa・f_y=250MPa）から取り、
+ * 定数の既定値は実在の材料（ASTM A36 相当の炭素鋼: E=200GPa・σ_y=250MPa）から取り、
  * 出てくる数値がそのまま設計の判断材料として読めるようにしてある。
  */
 export const ENG_STRESS_SEEDS: NotebookSeed[] = [
   {
     title: { en: "Axial stress & elongation of a tie rod", ja: "引張材の軸応力と伸び" },
-    description: { en: "A 200 mm² tie rod of ASTM A36 structural steel (E = 200 GPa, yield f_y = 250 MPa) carries 25 kN of tension. The stress comes out at 125 MPa, exactly half the yield strength, and the 2 m rod stretches 1.25 mm.", ja: "断面積200mm²の引張材（ASTM A36相当の構造用鋼: E=200GPa、降伏応力 f_y=250MPa）に25kNの引張力が働く場合を計算します。応力は125MPa＝降伏応力のちょうど半分、長さ2mの材の伸びは1.25mmになります。" },
+    description: { en: "A 200 mm² tie rod of ASTM A36 structural steel (E = 200 GPa, yield σ_y = 250 MPa) carries 25 kN of tension. The stress comes out at 125 MPa, exactly half the yield strength, and the 2 m rod stretches 1.25 mm.", ja: "断面積200mm²の引張材（ASTM A36相当の構造用鋼: E=200GPa、降伏応力 σ_y=250MPa）に25kNの引張力が働く場合を計算します。応力は125MPa＝降伏応力のちょうど半分、長さ2mの材の伸びは1.25mmになります。" },
     localConstants: [
       { symbol: "F", expression: "25kN" },
       { symbol: "A", expression: "200mm^2" },
@@ -23,7 +23,7 @@ export const ENG_STRESS_SEEDS: NotebookSeed[] = [
   },
   {
     title: { en: "Hooke's law for materials (σ = Eε) & microstrain", ja: "材料のフックの法則（σ = Eε）とマイクロストレイン" },
-    description: { en: "This is the material form of Hooke's law: stress and strain are linked by Young's modulus alone, so it describes the steel itself and not one particular part. The spring form F = kx in the school science notebooks is different — its stiffness k changes with every length and cross-section. Strain is dimensionless, so the strain at yield of A36 steel (f_y = 250 MPa, E = 200 GPa) reads naturally in ppm, which engineers call microstrain (µε).", ja: "こちらは「材料の」フックの法則です。応力とひずみを結ぶのは縦弾性係数（ヤング率）だけなので、部品の形に依らず鋼という材料そのものを表します。理科のノートにある「ばねの伸び」F = kx とは別物で、ばね定数kは長さや断面が変わるたびに変わります。ひずみは無次元なので、A36鋼（f_y=250MPa、E=200GPa）の降伏時のひずみはppm＝マイクロストレイン（µε）で読むと分かりやすくなります。" },
+    description: { en: "This is the material form of Hooke's law: stress and strain are linked by Young's modulus alone, so it describes the steel itself and not one particular part. The spring form F = kx in the school science notebooks is different — its stiffness k changes with every length and cross-section. Strain is dimensionless, so the strain at yield of A36 steel (σ_y = 250 MPa, E = 200 GPa) reads naturally in ppm, which engineers call microstrain (µε).", ja: "こちらは「材料の」フックの法則です。応力とひずみを結ぶのは縦弾性係数（ヤング率）だけなので、部品の形に依らず鋼という材料そのものを表します。理科のノートにある「ばねの伸び」F = kx とは別物で、ばね定数kは長さや断面が変わるたびに変わります。ひずみは無次元なので、A36鋼（σ_y=250MPa、E=200GPa）の降伏時のひずみはppm＝マイクロストレイン（µε）で読むと分かりやすくなります。" },
     localConstants: [
       { symbol: "E", expression: "200GPa" },
       { symbol: "ε", expression: "0.0012" },
@@ -49,7 +49,7 @@ export const ENG_STRESS_SEEDS: NotebookSeed[] = [
   },
   {
     title: { en: "Factor of safety & allowable stress", ja: "安全率と許容応力" },
-    description: { en: "Two ways of using the same number. Dividing the yield strength of A36 steel (f_y = 250 MPa) by the stress actually present gives the factor of safety of the part as built; dividing it by a required factor of safety instead gives the allowable stress you are permitted to design to.", ja: "同じ数字の2通りの使い方です。A36鋼の降伏応力（f_y=250MPa）を実際に生じている応力で割ると、その部材の安全率が出ます。逆に必要な安全率で割ると、設計で超えてはいけない許容応力が出ます。" },
+    description: { en: "Two ways of using the same number. Dividing the yield strength of A36 steel (σ_y = 250 MPa) by the stress actually present gives the factor of safety of the part as built; dividing it by a required factor of safety instead gives the allowable stress you are permitted to design to.", ja: "同じ数字の2通りの使い方です。A36鋼の降伏応力（σ_y=250MPa）を実際に生じている応力で割ると、その部材の安全率が出ます。逆に必要な安全率で割ると、設計で超えてはいけない許容応力が出ます。" },
     localConstants: [
       { symbol: "σ_y", expression: "250MPa" },
       { symbol: "σ", expression: "125MPa" },

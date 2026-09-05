@@ -162,7 +162,7 @@ export const ENG_ELEMENTS_SEEDS: NotebookSeed[] = [
   },
   {
     title: { en: "Helical compression spring: rate, deflection and stress", ja: "圧縮コイルばねのばね定数・たわみ・応力" },
-    description: { en: "Compute the rate of a helical compression spring from the wire diameter, the mean coil diameter and the number of active coils, then the deflection under a load and the torsional shear stress in the wire.", ja: "線径・コイル平均径・有効巻数から圧縮コイルばねのばね定数を求め、荷重によるたわみと、素線に生じるねじり応力を計算します。" },
+    description: { en: "Compute the rate of a helical compression spring from the wire diameter, the mean coil diameter and the number of active coils, then the deflection under a load and the torsional shear stress in the wire. The stress here is the uncorrected value: it does not include the Wahl curvature factor, which raises the peak stress at the inner surface of the coil by roughly 18% at the spring index D/d = 8 used here.", ja: "線径・コイル平均径・有効巻数から圧縮コイルばねのばね定数を求め、荷重によるたわみと、素線に生じるねじり応力を計算します。ここでの応力は修正前の値で、ワールの応力修正係数は掛けていません。この例のばね指数 D/d = 8 では、コイル内側の最大応力は修正後で約18%高くなります。" },
     localConstants: [
       { symbol: "G", expression: "79.3GPa" },
       { symbol: "d", expression: "2mm" },
@@ -193,8 +193,8 @@ export const ENG_ELEMENTS_SEEDS: NotebookSeed[] = [
     ],
   },
   {
-    title: { en: "Rolling bearing L10 life", ja: "転がり軸受のL10寿命" },
-    description: { en: "Compute the basic rating life of a ball bearing from its dynamic load rating and the equivalent load, first in millions of revolutions and then in hours. The /60 of the textbook formula disappears here, because rpm is a real unit: dividing a number of revolutions by a rotational speed already gives a time.", ja: "動定格荷重と等価荷重から、玉軸受の基本定格寿命を、まず百万回転で、続いて時間で求めます。ここではrpmを本物の単位として扱うため、教科書の式に出てくる/60は要りません。回転数を回転速度で割れば、そのまま時間の次元になります。" },
+    title: { en: "Ball bearing L10 life", ja: "玉軸受のL10寿命" },
+    description: { en: "Compute the basic rating life of a ball bearing from its dynamic load rating and the equivalent load, first in millions of revolutions and then in hours. The exponent 3 applies to ball bearings only — roller bearings use 10/3. The /60 of the textbook formula disappears here, because rpm is a real unit: dividing a number of revolutions by a rotational speed already gives a time.", ja: "動定格荷重と等価荷重から、玉軸受の基本定格寿命を、まず百万回転で、続いて時間で求めます。指数の3は玉軸受のもので、ころ軸受では10/3になります。ここではrpmを本物の単位として扱うため、教科書の式に出てくる/60は要りません。回転数を回転速度で割れば、そのまま時間の次元になります。" },
     localConstants: [
       { symbol: "C", expression: "25.5kN" },
       { symbol: "P_r", expression: "4kN" },

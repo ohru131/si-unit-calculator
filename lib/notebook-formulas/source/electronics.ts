@@ -105,7 +105,7 @@ export const ELECTRONICS_SEEDS: NotebookSeed[] = [
   },
   {
     title: { en: "Resistor power dissipation and derating", ja: "抵抗の消費電力とディレーティング" },
-    description: { en: "Compute the power a resistor dissipates from the current through it, how much of its rating that uses, and the largest current allowed if you keep it under a derating factor of the rating.", ja: "抵抗に流れる電流から消費電力を求め、定格に対する使用率と、定格の何割かに抑えて使う場合に流せる最大電流を計算します。" },
+    description: { en: "Compute the power a resistor dissipates from the current through it, how much of its rating that uses, and the largest current allowed if you limit it to a given fraction of the rating (δ = 0.5 means using at most half the rated power).", ja: "抵抗に流れる電流から消費電力を求め、定格に対する使用率と、定格の何割かに抑えて使う場合に流せる最大電流を計算します（δ=0.5なら定格電力の半分までで使う、という意味です）。" },
     localConstants: [
       { symbol: "I", expression: "30mA" },
       { symbol: "R", expression: "100Ohm" },

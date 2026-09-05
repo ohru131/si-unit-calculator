@@ -44,8 +44,8 @@ export const PHOTOGRAPHY_SEEDS: NotebookSeed[] = [
   {
     title: { en: "Exposure value (EV) from aperture and shutter speed", ja: "F値とシャッター速度から露出値（EV）" },
     description: {
-      en: "Compute the exposure value of a set of camera settings, and the scene brightness it corresponds to at ISO 100. f/8 at 1/125 s is EV 13; shooting it at ISO 400 means the scene itself is about EV 11 at ISO 100.",
-      ja: "撮影設定そのものの露出値と、それがISO100換算でどれくらいの明るさの被写体にあたるかを求めます。F8・1/125秒はEV13で、これをISO400で撮っているなら被写体の明るさはISO100換算で約EV11です。",
+      en: "Compute the exposure value of a set of camera settings, and the scene brightness it corresponds to at ISO 100. EV is defined against a shutter time of one second, so the expression divides t by 1 s to get the plain number the logarithm needs. f/8 at 1/125 s is EV 13; shooting it at ISO 400 means the scene itself is about EV 11 at ISO 100.",
+      ja: "撮影設定そのものの露出値と、それがISO100換算でどれくらいの明るさの被写体にあたるかを求めます。EVは1秒を基準に定義されるので、式では t を1sで割って対数に渡せる裸の数値にしています。F8・1/125秒はEV13で、これをISO400で撮っているなら被写体の明るさはISO100換算で約EV11です。",
     },
     localConstants: [
       { symbol: "N", expression: "8" },
@@ -97,8 +97,8 @@ export const PHOTOGRAPHY_SEEDS: NotebookSeed[] = [
   {
     title: { en: "Star trails: the 500 rule and the NPF rule", ja: "星が流れない露出時間（500ルールとNPFルール）" },
     description: {
-      en: "Compute the longest shutter time before stars visibly trail. The 500 rule divides 500 by the effective focal length; the stricter NPF rule also accounts for aperture and pixel pitch. The constants C, a, and b carry the units (mm·s) that make these empirical rules come out in seconds. At 24 mm on full frame the 500 rule gives about 21 s, while NPF at f/2.8 with a 5.9 µm pixel pitch gives about 11 s.",
-      ja: "星が線状に流れて写り始めるまでの、最長のシャッター速度を求めます。500ルールは500を実効焦点距離で割るだけ、より厳しいNPFルールはF値と画素ピッチも考慮します。定数C・a・bは、この経験則が秒で出るように単位（mm·s）を持たせたものです。フルサイズの24mmなら500ルールで約21秒、F2.8・画素ピッチ5.9µmのNPFルールでは約11秒になります。",
+      en: "Compute the longest shutter time before stars visibly trail. The 500 rule divides 500 by the effective focal length, where k is the crop factor of the sensor (1 on full frame, 1.5 on APS-C); the stricter NPF rule also accounts for aperture and pixel pitch. The constants C, a, and b carry the units (mm·s) that make these empirical rules come out in seconds. At 24 mm on full frame the 500 rule gives about 21 s, while NPF at f/2.8 with a 5.9 µm pixel pitch gives about 11 s.",
+      ja: "星が線状に流れて写り始めるまでの、最長のシャッター速度を求めます。500ルールは500を実効焦点距離で割るだけです（kはセンサーのクロップ係数で、フルサイズなら1、APS-Cなら1.5）。より厳しいNPFルールはF値と画素ピッチも考慮します。定数C・a・bは、この経験則が秒で出るように単位（mm·s）を持たせたものです。フルサイズの24mmなら500ルールで約21秒、F2.8・画素ピッチ5.9µmのNPFルールでは約11秒になります。",
     },
     localConstants: [
       { symbol: "f", expression: "24mm" },
@@ -209,10 +209,10 @@ export const AUDIO_SEEDS: NotebookSeed[] = [
     ],
   },
   {
-    title: { en: "Speaker sensitivity, amplifier power and SPL", ja: "スピーカーの能率とアンプ出力から音圧レベル" },
+    title: { en: "Speaker sensitivity, amplifier power and SPL", ja: "スピーカーの出力音圧レベルとアンプ出力から音圧レベル" },
     description: {
       en: "A speaker's sensitivity is the level it produces with 1 W at 1 m. Add 10 dB per tenfold power increase and subtract the distance loss to get the level at the listening position; the dB values are plain numbers. An 88 dB speaker driven with 50 W gives about 95 dB at 3 m, and reaching 105 dB there would need roughly 450 W.",
-      ja: "スピーカーの能率は、1Wを入れて1m離れた地点で出る音圧レベルです。出力が10倍になるごとに10dB足し、距離による減衰を引けば、リスニングポジションでのレベルが出ます（dBの値は単なる数値です）。能率88dBのスピーカーを50Wで鳴らすと3mで約95dB、そこで105dBを出すにはおよそ450W必要です。",
+      ja: "スピーカーの出力音圧レベル（カタログの「能率」表記）は、1Wを入れて1m離れた地点で出る音圧レベルです。出力が10倍になるごとに10dB足し、距離による減衰を引けば、リスニングポジションでのレベルが出ます（dBの値は単なる数値です）。出力音圧レベル88dBのスピーカーを50Wで鳴らすと3mで約95dB、そこで105dBを出すにはおよそ450W必要です。",
     },
     localConstants: [
       { symbol: "Sₑ", expression: "88" },
