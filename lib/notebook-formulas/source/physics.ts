@@ -87,8 +87,12 @@ export const PHYSICS_MECHANICS_SEEDS: NotebookSeed[] = [
     steps: [{ title: { en: "Period T", ja: "周期 T", es: "Periodo T", "pt-BR": "Período T", de: "Schwingungsdauer T", fr: "Période T" }, expression: "2*pi*sqrt(m/k)", targetUnit: "s", formulaLatex: "T = 2\\pi\\sqrt{\\dfrac{m}{k}}" }],
   },
   {
-    title: { en: "Friction force", ja: "摩擦力", es: "Fuerza de fricción", "pt-BR": "Força de atrito", de: "Reibungskraft", fr: "Force de frottement" },
-    description: { en: "Compute the normal force and friction force from mass and the coefficient of friction.", ja: "質量と摩擦係数から、垂直抗力と摩擦力を求めます。", es: "Calcula la fuerza normal y la fuerza de fricción a partir de la masa y el coeficiente de fricción.", "pt-BR": "Calcule a força normal e a força de atrito a partir da massa e do coeficiente de atrito.", de: "Berechnet die Normalkraft und die Reibungskraft aus der Masse und dem Reibungskoeffizienten.", fr: "Calculer la force normale et la force de frottement à partir de la masse et du coefficient de frottement." },
+    // 従来の汎用「摩擦力」を、動摩擦であることが分かるよう文言だけを差し替えたもの。
+    // 既存インストールのIDはシード配列の位置（seedIndex）から決まるため、新規シードは
+    // この配列の末尾に追加し、既存エントリの位置・expression・localConstantsは変えない
+    // （位置を変えると保存済みノートの言語同期・結果記号パッチが別のシードを指してしまう）。
+    title: { en: "Kinetic friction (sliding friction force)", ja: "動摩擦力", es: "Fricción cinética (fuerza de fricción por deslizamiento)", "pt-BR": "Atrito cinético (força de atrito de deslizamento)", de: "Gleitreibung (Gleitreibungskraft)", fr: "Frottement cinétique (force de frottement de glissement)" },
+    description: { en: "Compute the normal force and the kinetic friction force acting on an object that is already sliding on a horizontal surface, from its mass and the coefficient of kinetic friction (assuming no other vertical forces).", ja: "水平面を滑っている物体について、質量と動摩擦係数から、垂直抗力と動摩擦力を求めます（他の鉛直方向の力は働かないものとします）。", es: "Calcula, para un objeto que ya se está deslizando sobre una superficie horizontal, la fuerza normal y la fuerza de fricción cinética que actúa sobre él, a partir de su masa y el coeficiente de fricción cinética (sin otras fuerzas verticales).", "pt-BR": "Calcule, para um objeto que já está deslizando sobre uma superfície horizontal, a força normal e a força de atrito cinético que atua sobre ele, a partir de sua massa e do coeficiente de atrito cinético (sem outras forças verticais).", de: "Berechnet für einen bereits auf einer horizontalen Fläche rutschenden Körper die Normalkraft und die auf ihn wirkende Gleitreibungskraft, aus seiner Masse und dem Gleitreibungskoeffizienten (ohne weitere vertikale Kräfte).", fr: "Calculer, pour un objet déjà en train de glisser sur une surface horizontale, la force normale et la force de frottement cinétique s'exerçant sur lui, à partir de sa masse et du coefficient de frottement cinétique (en l'absence d'autre force verticale)." },
     localConstants: [
       { symbol: "m", expression: "5kg" },
       { symbol: "g", expression: "9.8m/s^2" },
@@ -96,8 +100,60 @@ export const PHYSICS_MECHANICS_SEEDS: NotebookSeed[] = [
     ],
     steps: [
       { title: { en: "Normal force N", ja: "垂直抗力 N", es: "Fuerza normal N", "pt-BR": "Força normal N", de: "Normalkraft N", fr: "Force normale N" }, expression: "m*g", targetUnit: "N", formulaLatex: "N = mg" },
-      { title: { en: "Friction force f", ja: "摩擦力 f", es: "Fuerza de fricción f", "pt-BR": "Força de atrito f", de: "Reibungskraft f", fr: "Force de frottement f" }, expression: "μ*s1", targetUnit: "N", formulaLatex: "f = \\mu N" },
+      { title: { en: "Kinetic friction force f", ja: "動摩擦力 f", es: "Fuerza de fricción cinética f", "pt-BR": "Força de atrito cinético f", de: "Gleitreibungskraft f", fr: "Force de frottement cinétique f" }, expression: "μ*s1", targetUnit: "N", formulaLatex: "f = \\mu N" },
     ],
+  },
+  // 以下はここまでの9件より後に追加した新規シード。既存インストールのIDが指すシードを
+  // ずらさないため、必ず配列の末尾に追加する（途中への挿入・既存シードの並べ替えは禁止）。
+  {
+    title: { en: "Centripetal force", ja: "向心力", es: "Fuerza centrípeta", "pt-BR": "Força centrípeta", de: "Zentripetalkraft", fr: "Force centripète" },
+    description: { en: "Compute the centripetal force required to keep an object moving in a circle from its mass, speed, and radius.", ja: "質量・速さ・半径から、物体を円運動させるために必要な向心力を求めます。", es: "Calcula la fuerza centrípeta necesaria para mantener un objeto en movimiento circular a partir de su masa, velocidad y radio.", "pt-BR": "Calcule a força centrípeta necessária para manter um objeto em movimento circular a partir de sua massa, velocidade e raio.", de: "Berechnet die Zentripetalkraft, die nötig ist, um einen Körper auf einer Kreisbahn zu halten, aus seiner Masse, Geschwindigkeit und dem Radius.", fr: "Calculer la force centripète nécessaire pour maintenir un objet en mouvement circulaire à partir de sa masse, de sa vitesse et du rayon." },
+    localConstants: [
+      { symbol: "m", expression: "2kg" },
+      { symbol: "v", expression: "3m/s" },
+      { symbol: "r", expression: "0.5m" },
+    ],
+    steps: [{ title: { en: "Centripetal force F", ja: "向心力 F", es: "Fuerza centrípeta F", "pt-BR": "Força centrípeta F", de: "Zentripetalkraft F", fr: "Force centripète F" }, expression: "m*v^2/r", targetUnit: "N", formulaLatex: "F = \\dfrac{mv^2}{r}" }],
+  },
+  {
+    title: { en: "Elastic potential energy (spring)", ja: "弾性エネルギー（ばね）", es: "Energía potencial elástica (resorte)", "pt-BR": "Energia potencial elástica (mola)", de: "Elastische potenzielle Energie (Feder)", fr: "Énergie potentielle élastique (ressort)" },
+    description: { en: "Compute the elastic potential energy stored in a spring from its spring constant and displacement from natural length.", ja: "ばね定数と自然長からの伸び（縮み）から、ばねに蓄えられる弾性エネルギーを求めます。", es: "Calcula la energía potencial elástica almacenada en un resorte a partir de su constante elástica y el desplazamiento respecto a su longitud natural.", "pt-BR": "Calcule a energia potencial elástica armazenada em uma mola a partir de sua constante elástica e do deslocamento em relação ao comprimento natural.", de: "Berechnet die in einer Feder gespeicherte elastische potenzielle Energie aus ihrer Federkonstante und der Auslenkung aus der natürlichen Länge.", fr: "Calculer l'énergie potentielle élastique emmagasinée dans un ressort à partir de sa constante de raideur et de son déplacement par rapport à la longueur naturelle." },
+    localConstants: [
+      { symbol: "k", expression: "20N/m" },
+      { symbol: "x", expression: "0.1m" },
+    ],
+    steps: [{ title: { en: "Elastic potential energy U", ja: "弾性エネルギー U", es: "Energía potencial elástica U", "pt-BR": "Energia potencial elástica U", de: "Elastische potenzielle Energie U", fr: "Énergie potentielle élastique U" }, expression: "0.5*k*x^2", targetUnit: "J", formulaLatex: "U = \\dfrac{1}{2}kx^2" }],
+  },
+  {
+    title: { en: "Period of a simple pendulum", ja: "単振り子の周期", es: "Periodo de un péndulo simple", "pt-BR": "Período de um pêndulo simples", de: "Schwingungsdauer eines Fadenpendels", fr: "Période d'un pendule simple" },
+    description: { en: "Compute the period of a simple pendulum from its length and gravitational acceleration (valid for small swing angles).", ja: "振り子の長さと重力加速度から、単振り子の周期を求めます（振れ角が小さい場合に成り立ちます）。", es: "Calcula el periodo de un péndulo simple a partir de su longitud y la aceleración de la gravedad (válido para ángulos de oscilación pequeños).", "pt-BR": "Calcule o período de um pêndulo simples a partir de seu comprimento e da aceleração da gravidade (válido para pequenos ângulos de oscilação).", de: "Berechnet die Schwingungsdauer eines Fadenpendels aus seiner Länge und der Fallbeschleunigung (gültig für kleine Auslenkwinkel).", fr: "Calculer la période d'un pendule simple à partir de sa longueur et de l'accélération de la pesanteur (valable pour de petits angles d'oscillation)." },
+    localConstants: [
+      { symbol: "L", expression: "1m" },
+      { symbol: "g", expression: "9.8m/s^2" },
+    ],
+    steps: [{ title: { en: "Period T", ja: "周期 T", es: "Periodo T", "pt-BR": "Período T", de: "Schwingungsdauer T", fr: "Période T" }, expression: "2*pi*sqrt(L/g)", targetUnit: "s", formulaLatex: "T = 2\\pi\\sqrt{\\dfrac{L}{g}}" }],
+  },
+  {
+    title: { en: "Static friction (maximum static friction force)", ja: "静止摩擦力（最大摩擦力）", es: "Fricción estática (fuerza de fricción estática máxima)", "pt-BR": "Atrito estático (força de atrito estático máxima)", de: "Haftreibung (maximale Haftreibungskraft)", fr: "Frottement statique (force de frottement statique maximale)" },
+    description: { en: "Compute the normal force and the maximum static friction force that must be overcome before an object at rest on a horizontal surface starts to slide, from its mass and the coefficient of static friction (assuming no other vertical forces).", ja: "水平面に置かれた物体について、質量と静止摩擦係数から、滑り出す直前の垂直抗力と最大摩擦力を求めます（他の鉛直方向の力は働かないものとします）。", es: "Calcula, para un objeto en reposo sobre una superficie horizontal, la fuerza normal y la fuerza de fricción estática máxima que hay que superar para que comience a deslizarse, a partir de su masa y el coeficiente de fricción estática (sin otras fuerzas verticales).", "pt-BR": "Calcule, para um objeto em repouso sobre uma superfície horizontal, a força normal e a força de atrito estático máxima que deve ser superada para que ele comece a deslizar, a partir de sua massa e do coeficiente de atrito estático (sem outras forças verticais).", de: "Berechnet für einen auf einer horizontalen Fläche ruhenden Körper die Normalkraft und die maximale Haftreibungskraft, die überwunden werden muss, damit er zu rutschen beginnt, aus seiner Masse und dem Haftreibungskoeffizienten (ohne weitere vertikale Kräfte).", fr: "Calculer, pour un objet au repos sur une surface horizontale, la force normale et la force de frottement statique maximale à surmonter avant qu'il commence à glisser, à partir de sa masse et du coefficient de frottement statique (en l'absence d'autre force verticale)." },
+    localConstants: [
+      { symbol: "m", expression: "5kg" },
+      { symbol: "g", expression: "9.8m/s^2" },
+      { symbol: "μ₀", expression: "0.5" },
+    ],
+    steps: [
+      { title: { en: "Normal force N", ja: "垂直抗力 N", es: "Fuerza normal N", "pt-BR": "Força normal N", de: "Normalkraft N", fr: "Force normale N" }, expression: "m*g", targetUnit: "N", formulaLatex: "N = mg" },
+      { title: { en: "Maximum static friction force fmax", ja: "最大摩擦力 fmax", es: "Fuerza de fricción estática máxima fmax", "pt-BR": "Força de atrito estático máxima fmax", de: "Maximale Haftreibungskraft fmax", fr: "Force de frottement statique maximale fmax" }, expression: "μ₀*s1", targetUnit: "N", formulaLatex: "f_{max} = \\mu_0 N" },
+    ],
+  },
+  {
+    title: { en: "Coefficient of restitution (bouncing ball)", ja: "反発係数（ボールの跳ね返り）", es: "Coeficiente de restitución (rebote de una pelota)", "pt-BR": "Coeficiente de restituição (quique de uma bola)", de: "Stoßzahl (Aufprall eines Balls)", fr: "Coefficient de restitution (rebond d'une balle)" },
+    description: { en: "Compute the coefficient of restitution of a ball dropped onto the floor from the drop height and the bounce height.", ja: "落下高さと跳ね返った高さから、床に落としたボールの反発係数を求めます。", es: "Calcula el coeficiente de restitución de una pelota que cae al suelo a partir de la altura de caída y la altura del rebote.", "pt-BR": "Calcule o coeficiente de restituição de uma bola que cai no chão a partir da altura de queda e da altura do quique.", de: "Berechnet die Stoßzahl eines auf den Boden fallenden Balls aus der Fallhöhe und der Rückprallhöhe.", fr: "Calculer le coefficient de restitution d'une balle tombant au sol à partir de la hauteur de chute et de la hauteur de rebond." },
+    localConstants: [
+      { symbol: "dropHeight", expression: "1m" },
+      { symbol: "bounceHeight", expression: "0.64m" },
+    ],
+    steps: [{ title: { en: "Coefficient of restitution e", ja: "反発係数 e", es: "Coeficiente de restitución e", "pt-BR": "Coeficiente de restituição e", de: "Stoßzahl e", fr: "Coefficient de restitution e" }, expression: "sqrt(bounceHeight/dropHeight)", targetUnit: "", formulaLatex: "e = \\sqrt{\\dfrac{\\text{bounceHeight}}{\\text{dropHeight}}}" }],
   },
 ];
 
@@ -152,6 +208,17 @@ export const PHYSICS_THERMAL_SEEDS: NotebookSeed[] = [
       { symbol: "T₂", expression: "450K" },
     ],
     steps: [{ title: { en: "Volume after change V2", ja: "変化後の体積 V2", es: "Volumen después del cambio V2", "pt-BR": "Volume após a variação V2", de: "Volumen nach der Änderung V2", fr: "Volume après variation V2" }, expression: "V₁*T₂/T₁", targetUnit: "L", formulaLatex: "V_2 = V_1\\dfrac{T_2}{T_1}" }],
+  },
+  // physics-thermal の既存4件のあと、シードの位置を変えないよう末尾に追加。
+  {
+    title: { en: "Isothermal process (Boyle's law)", ja: "気体の等温変化（ボイルの法則）", es: "Proceso isotérmico (ley de Boyle)", "pt-BR": "Processo isotérmico (lei de Boyle)", de: "Isotherme Zustandsänderung (Boyle-Mariotte-Gesetz)", fr: "Transformation isotherme (loi de Boyle-Mariotte)" },
+    description: { en: "Compute the pressure after a volume change at constant temperature using Boyle's law.", ja: "温度一定のもとで、体積変化後の圧力をボイルの法則から求めます。", es: "Calcula la presión después de un cambio de volumen a temperatura constante mediante la ley de Boyle.", "pt-BR": "Calcule a pressão após uma variação de volume a temperatura constante usando a lei de Boyle.", de: "Berechnet den Druck nach einer Volumenänderung bei konstanter Temperatur mithilfe des Boyle-Mariotte-Gesetzes.", fr: "Calculer la pression après une variation de volume à température constante à l'aide de la loi de Boyle-Mariotte." },
+    localConstants: [
+      { symbol: "P₁", expression: "1e5Pa" },
+      { symbol: "V₁", expression: "2L" },
+      { symbol: "V₂", expression: "1L" },
+    ],
+    steps: [{ title: { en: "Pressure after change P2", ja: "変化後の圧力 P2", es: "Presión después del cambio P2", "pt-BR": "Pressão após a variação P2", de: "Druck nach der Änderung P2", fr: "Pression après variation P2" }, expression: "P₁*V₁/V₂", targetUnit: "Pa", formulaLatex: "P_2 = P_1\\dfrac{V_1}{V_2}" }],
   },
 ];
 
