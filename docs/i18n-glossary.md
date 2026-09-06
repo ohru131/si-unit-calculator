@@ -61,7 +61,13 @@ G節は「型チェック・lint・テストが全部通るのに間違ってい
 | ばね定数 | spring constant | constante elástica / constante del resorte | constante elástica da mola | Federkonstante | constante de raideur |
 | 摩擦力 | friction force | fuerza de fricción / rozamiento | força de atrito | Reibungskraft | force de frottement |
 | 摩擦係数 | coefficient of friction | coeficiente de fricción / rozamiento | coeficiente de atrito | Reibungskoeffizient | coefficient de frottement |
+| 静止摩擦（係数・力） | static friction (coefficient / force) | fricción estática (coeficiente / fuerza) | atrito estático (coeficiente / força) | Haftreibung(skoeffizient/-kraft) | frottement statique (coefficient / force) |
+| 動摩擦（係数・力） | kinetic friction (coefficient / force) | fricción cinética (coeficiente / fuerza) | atrito cinético (coeficiente / força) | Gleitreibung(skoeffizient/-kraft) | frottement cinétique (coefficient / force) |
 | 垂直抗力 | normal force | fuerza normal | força normal | Normalkraft | réaction normale / force normale |
+| 弾性エネルギー | elastic potential energy | energía potencial elástica | energia potencial elástica | elastische potenzielle Energie | énergie potentielle élastique |
+| 単振り子 | simple pendulum | péndulo simple | pêndulo simples | Fadenpendel | pendule simple |
+| 反発係数 | coefficient of restitution | coeficiente de restitución | coeficiente de restituição | Stoßzahl | coefficient de restitution |
+| 向心力 | centripetal force | fuerza centrípeta | força centrípeta | Zentripetalkraft | force centripète |
 | 仕事 | work | trabajo | trabalho | Arbeit | travail |
 | 仕事率 | power | potencia | potência | Leistung | puissance |
 | てこのつり合い | lever equilibrium | equilibrio de la palanca | equilíbrio da alavanca | Hebelgesetz | équilibre du levier |
@@ -87,6 +93,7 @@ G節は「型チェック・lint・テストが全部通るのに間違ってい
 | 熱膨張 | thermal expansion | dilatación térmica | dilatação térmica | Wärmeausdehnung | dilatation thermique |
 | 線膨張率 | coefficient of linear expansion | coeficiente de dilatación lineal | coeficiente de dilatação linear | linearer Ausdehnungskoeffizient | coefficient de dilatation linéaire |
 | 理想気体の状態方程式 | ideal gas law | ecuación de estado del gas ideal | equação de estado dos gases ideais | ideale Gasgleichung | loi des gaz parfaits |
+| 気体の等温変化（ボイルの法則） | isothermal process (Boyle's law) | proceso isotérmico (ley de Boyle) | processo isotérmico (lei de Boyle) | isotherme Zustandsänderung (Boyle-Mariotte-Gesetz) | transformation isotherme (loi de Boyle-Mariotte) |
 | 絶対温度 | absolute temperature | temperatura absoluta | temperatura absoluta | absolute Temperatur | température absolue |
 | 熱量保存（混合後の温度） | conservation of heat | conservación del calor / equilibrio térmico | conservação do calor / equilíbrio térmico | Wärmeausgleich (Kalorimetrie) | conservation de la chaleur (équilibre thermique) |
 
