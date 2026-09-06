@@ -41,3 +41,16 @@ export type NotebookSeed = {
   localConstants: NotebookSeedConstant[];
   steps: NotebookSeedStep[];
 };
+
+/**
+ * シードの英語タイトルから導く安定的な識別子。プリセットの投入ID（lib/calculator-store.tsxの
+ * presetNotebookIdなど）はカテゴリ内の配列位置ではなくこの値から組み立てるため、新しいシードを
+ * 配列の途中に挿入したり既存シードの前後を入れ替えたりしても、既存シードのIDは変わらない
+ * （配列位置に依存すると、挿入のたびに後続シードのIDがずれて既存インストールの保存済みノートが
+ * 別のシードの内容に誤って結び付く）。英語タイトルを変更するとIDも変わる＝別シード扱いになる点は
+ * 許容している（タイトル変更は実質的に別内容への改名であり、追加・並べ替えとは別の操作のため）。
+ * カテゴリ内で一意であることを`tests/notebook-formulas.test.ts`が全プリセットに対して検証する。
+ */
+export function seedSlug(seed: NotebookSeed): string {
+  return seed.title.en.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}

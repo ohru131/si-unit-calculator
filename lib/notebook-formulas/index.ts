@@ -1,4 +1,5 @@
 export type { NotebookSeed, NotebookSeedConstant, NotebookSeedFormula, NotebookSeedStep, PresetNotebookCategory } from "./types";
+export { seedSlug } from "./types";
 
 import { withDerivedResultSymbols } from "@/lib/notebook-result-symbols";
 

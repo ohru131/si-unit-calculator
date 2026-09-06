@@ -5,7 +5,7 @@ import { ImportedConstant } from "@/lib/constants-backup";
 import { mergeCustomUnits, parseCustomUnitsField, type CustomUnit } from "@/lib/custom-units";
 import { useGlobalSettings } from "@/lib/global-settings";
 import { APP_LANGUAGES, AppLanguage, isAppLanguage, localizedText, LocalizedText } from "@/lib/i18n";
-import { PRESET_NOTEBOOK_CATEGORIES, PRESET_NOTEBOOK_SEEDS, PRESET_NOTEBOOK_SEEDS_AS_SEEDED } from "@/lib/notebook-formulas";
+import { PRESET_NOTEBOOK_CATEGORIES, PRESET_NOTEBOOK_SEEDS, PRESET_NOTEBOOK_SEEDS_AS_SEEDED, seedSlug } from "@/lib/notebook-formulas";
 import { presetResultSymbolPatch } from "@/lib/notebook-result-symbols";
 import type { NotebookSeedConstant } from "@/lib/notebook-formulas/types";
 import { pushNotebookHistoryEntry, removeNotebookHistoryEntry, type NotebookHistoryEntry } from "@/lib/notebook-history";
@@ -260,20 +260,25 @@ export function presetConstantExpression(constant: NotebookSeedConstant, regiona
 // プリセット投入時のIDの採番規則。投入する側・言語切替で逆引きする側・テストが
 // それぞれ別々に文字列を組み立てていると、採番がズレたまま誰も気付かない状態になるため、
 // この4つの関数だけを通す。
-export function presetNotebookId(categoryId: string, seedIndex: number): string {
-  return `notebook-preset-${categoryId}-${seedIndex}`;
+//
+// seedId には配列の位置（index）ではなく、シードの英語タイトルから導く安定的な識別子
+// （lib/notebook-formulas/types.ts の seedSlug）を渡す。配列位置で採番すると、新しいシードを
+// 途中に挿入しただけで後続シードのIDがずれ、既存インストールの保存済みノートが別のシードの
+// 内容に誤って結び付いてしまう（CodeRabbitが指摘した実際のバグ）。
+export function presetNotebookId(categoryId: string, seedId: string): string {
+  return `notebook-preset-${categoryId}::${seedId}`;
 }
 
-export function presetStepId(categoryId: string, seedIndex: number, stepIndex: number): string {
-  return `preset-${categoryId}-${seedIndex}-step-${stepIndex}`;
+export function presetStepId(categoryId: string, seedId: string, stepIndex: number): string {
+  return `preset-${categoryId}::${seedId}-step-${stepIndex}`;
 }
 
-export function presetFormulaId(categoryId: string, seedIndex: number, formulaIndex: number): string {
-  return `preset-${categoryId}-${seedIndex}-formula-${formulaIndex}`;
+export function presetFormulaId(categoryId: string, seedId: string, formulaIndex: number): string {
+  return `preset-${categoryId}::${seedId}-formula-${formulaIndex}`;
 }
 
-export function presetConstantId(categoryId: string, seedIndex: number, constantIndex: number): string {
-  return `preset-${categoryId}-${seedIndex}-constant-${constantIndex}`;
+export function presetConstantId(categoryId: string, seedId: string, constantIndex: number): string {
+  return `preset-${categoryId}::${seedId}-constant-${constantIndex}`;
 }
 
 // プリセットの計算ノートをシードから組み立てる、唯一の場所。初回投入（読み込み時に未投入の
@@ -284,24 +289,25 @@ export function buildPresetNotebooksFromSeeds(categoryIds: string[], language: A
   const result: CalculationNotebook[] = [];
   categoryIds.forEach((categoryId) => {
     const seeds = PRESET_NOTEBOOK_SEEDS[categoryId] ?? [];
-    seeds.forEach((seed, seedIndex) => {
+    seeds.forEach((seed) => {
+      const seedId = seedSlug(seed);
       result.push({
-        id: presetNotebookId(categoryId, seedIndex),
+        id: presetNotebookId(categoryId, seedId),
         title: localizedText(seed.title, language),
         description: localizedText(seed.description, language),
         categoryId,
         formulas: (seed.formulas ?? []).map((formula, formulaIndex) => ({
-          id: presetFormulaId(categoryId, seedIndex, formulaIndex),
+          id: presetFormulaId(categoryId, seedId, formulaIndex),
           explanation: localizedText(formula.explanation, language),
           latex: formula.latex,
         })),
         localConstants: seed.localConstants.map((constant, constantIndex) => ({
-          id: presetConstantId(categoryId, seedIndex, constantIndex),
+          id: presetConstantId(categoryId, seedId, constantIndex),
           symbol: constant.symbol,
           expression: presetConstantExpression(constant, regionalDefaults),
         })),
         steps: seed.steps.map((step, stepIndex) => ({
-          id: presetStepId(categoryId, seedIndex, stepIndex),
+          id: presetStepId(categoryId, seedId, stepIndex),
           title: localizedText(step.title, language),
           expression: step.expression,
           targetUnit: step.targetUnit,
@@ -324,17 +330,25 @@ function presetIdPrefix(idWithZeroIndex: string): string {
   return idWithZeroIndex.slice(0, -1);
 }
 
-// プリセット投入時に振ったIDから、そのノート／手順／数式がどのシード（seedIndex）に対応するかを
-// 逆引きする。IDは `notebook-preset-${categoryId}-${seedIndex}` のように categoryId をそのまま
-// 埋め込んでいるが、categoryId 自体が "science-motion" や "high-school-physics" のように
-// ハイフンを含むため、素朴に id.split("-") すると categoryId の切れ目を誤検出する。
-// ここでは呼び出し側が既に確定させている categoryId（notebook.categoryId）をプレフィックスとして
-// 丸ごと使い、残った末尾の数字だけを取り出すことで、ハイフンの曖昧さを一切気にせずに済ませる。
+// プリセット投入時に振ったIDから、そのノートの手順／数式がどのseedIndex（シード内の配列位置）に
+// 対応するかを逆引きする。IDは `preset-${categoryId}::${seedId}-step-${stepIndex}` のように
+// seedId をそのまま埋め込んでいるが、既に呼び出し側でnotebook.categoryIdとseedIdの両方が
+// 確定しているため、その2つを丸ごとプレフィックスとして使い、残った末尾の数字だけを取り出せば
+// seedId自体にハイフンが含まれていても曖昧さは生じない。
 function extractTrailingIndex(id: string, prefix: string): number | undefined {
   if (!id.startsWith(prefix)) return undefined;
   const suffix = id.slice(prefix.length);
   if (!/^\d+$/.test(suffix)) return undefined;
   return Number(suffix);
+}
+
+// プリセット投入時に振ったノートIDから、そのノートがどのシードに対応するか（seedId）を逆引きする。
+// categoryIdをそのまま埋め込んだプレフィックス（"notebook-preset-<categoryId>::"）を丸ごと使うので、
+// categoryId・seedId のどちらにハイフンが含まれていても曖昧さは生じない
+// （区切りに"::"を使うのは、categoryId・seedIdのどちらも"::"を含み得ないため）。
+function seedIdFromNotebookId(id: string, categoryId: string): string | undefined {
+  const prefix = presetNotebookId(categoryId, "");
+  return id.startsWith(prefix) ? id.slice(prefix.length) : undefined;
 }
 
 // 現在保存されている文言が「最後にプリセットの文言を解決した言語（previousLanguage）」の
@@ -370,11 +384,9 @@ export function localizePresetNotebooks(notebooks: CalculationNotebook[], langua
     const seeds = PRESET_NOTEBOOK_SEEDS[notebook.categoryId];
     if (!seeds) return notebook;
 
-    const seedIndex = extractTrailingIndex(notebook.id, presetIdPrefix(presetNotebookId(notebook.categoryId, 0)));
-    if (seedIndex === undefined) return notebook;
-
-    const seed = seeds[seedIndex];
-    if (!seed) return notebook;
+    const seedId = seedIdFromNotebookId(notebook.id, notebook.categoryId);
+    const seed = seedId === undefined ? undefined : seeds.find((candidate) => seedSlug(candidate) === seedId);
+    if (!seed || seedId === undefined) return notebook;
 
     let notebookChanged = false;
 
@@ -384,7 +396,7 @@ export function localizePresetNotebooks(notebooks: CalculationNotebook[], langua
     const nextDescription = resolveLocalizedField(notebook.description, seed.description, language, previousLanguage);
     if (nextDescription !== notebook.description) notebookChanged = true;
 
-    const stepIdPrefix = presetIdPrefix(presetStepId(notebook.categoryId, seedIndex, 0));
+    const stepIdPrefix = presetIdPrefix(presetStepId(notebook.categoryId, seedId, 0));
     const nextSteps = notebook.steps.map((step) => {
       const stepIndex = extractTrailingIndex(step.id, stepIdPrefix);
       const seedStep = stepIndex === undefined ? undefined : seed.steps[stepIndex];
@@ -395,7 +407,7 @@ export function localizePresetNotebooks(notebooks: CalculationNotebook[], langua
       return { ...step, title: nextStepTitle };
     });
 
-    const formulaIdPrefix = presetIdPrefix(presetFormulaId(notebook.categoryId, seedIndex, 0));
+    const formulaIdPrefix = presetIdPrefix(presetFormulaId(notebook.categoryId, seedId, 0));
     const nextFormulas = notebook.formulas.map((formula) => {
       const formulaIndex = extractTrailingIndex(formula.id, formulaIdPrefix);
       const seedFormula = formulaIndex === undefined ? undefined : seed.formulas?.[formulaIndex];
@@ -431,11 +443,9 @@ export function applyPresetResultSymbols(notebooks: CalculationNotebook[]): { no
     const rawSeeds = PRESET_NOTEBOOK_SEEDS_AS_SEEDED[notebook.categoryId];
     if (!seeds || !rawSeeds) return notebook;
 
-    const seedIndex = extractTrailingIndex(notebook.id, presetIdPrefix(presetNotebookId(notebook.categoryId, 0)));
-    if (seedIndex === undefined) return notebook;
-
-    const seed = seeds[seedIndex];
-    const rawSeed = rawSeeds[seedIndex];
+    const seedId = seedIdFromNotebookId(notebook.id, notebook.categoryId);
+    const seed = seedId === undefined ? undefined : seeds.find((candidate) => seedSlug(candidate) === seedId);
+    const rawSeed = seedId === undefined ? undefined : rawSeeds.find((candidate) => seedSlug(candidate) === seedId);
     if (!seed || !rawSeed) return notebook;
 
     const nextSteps = presetResultSymbolPatch(notebook.steps, rawSeed.steps, seed.steps);
@@ -910,7 +920,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
   // プリセットの計算ノートを現在のシードから作り直し、ユーザーの編集（値の書き換え・
   // タイトル変更など）を破棄する。ユーザー作成ノート（!isPreset）・ユーザー作成カテゴリには
   // 一切触れない（破壊的な操作なので、呼び出し側でConfirmDialogによる確認を挟むこと）。
-  // activeNotebookIdには触れない: プリセットのIDは presetNotebookId(categoryId, seedIndex) で
+  // activeNotebookIdには触れない: プリセットのIDは presetNotebookId(categoryId, seedId) で
   // 決定的に採番され、このリセットでも同じ規則で作り直すのでIDは変わらない
   // （中身だけがシードへ戻る）。したがって「ノート」タブがプリセットを表示中でも、
   // このリセット後も同じノートを指し続けられ、nullに戻す必要はない。
