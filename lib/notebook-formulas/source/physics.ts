@@ -88,9 +88,8 @@ export const PHYSICS_MECHANICS_SEEDS: NotebookSeed[] = [
   },
   {
     // 従来の汎用「摩擦力」を、動摩擦であることが分かるよう文言だけを差し替えたもの。
-    // 既存インストールのIDはシード配列の位置（seedIndex）から決まるため、新規シードは
-    // この配列の末尾に追加し、既存エントリの位置・expression・localConstantsは変えない
-    // （位置を変えると保存済みノートの言語同期・結果記号パッチが別のシードを指してしまう）。
+    // プリセットIDは英語タイトルから導く（lib/notebook-formulas/types.tsのseedSlug）ため、
+    // 配列内の位置は自由に変えてよいが、英語タイトル（title.en）を変えると別シード扱いになる。
     title: { en: "Kinetic friction (sliding friction force)", ja: "動摩擦力", es: "Fricción cinética (fuerza de fricción por deslizamiento)", "pt-BR": "Atrito cinético (força de atrito de deslizamento)", de: "Gleitreibung (Gleitreibungskraft)", fr: "Frottement cinétique (force de frottement de glissement)" },
     description: { en: "Compute the normal force and the kinetic friction force acting on an object that is already sliding on a horizontal surface, from its mass and the coefficient of kinetic friction (assuming no other vertical forces).", ja: "水平面を滑っている物体について、質量と動摩擦係数から、垂直抗力と動摩擦力を求めます（他の鉛直方向の力は働かないものとします）。", es: "Calcula, para un objeto que ya se está deslizando sobre una superficie horizontal, la fuerza normal y la fuerza de fricción cinética que actúa sobre él, a partir de su masa y el coeficiente de fricción cinética (sin otras fuerzas verticales).", "pt-BR": "Calcule, para um objeto que já está deslizando sobre uma superfície horizontal, a força normal e a força de atrito cinético que atua sobre ele, a partir de sua massa e do coeficiente de atrito cinético (sem outras forças verticais).", de: "Berechnet für einen bereits auf einer horizontalen Fläche rutschenden Körper die Normalkraft und die auf ihn wirkende Gleitreibungskraft, aus seiner Masse und dem Gleitreibungskoeffizienten (ohne weitere vertikale Kräfte).", fr: "Calculer, pour un objet déjà en train de glisser sur une surface horizontale, la force normale et la force de frottement cinétique s'exerçant sur lui, à partir de sa masse et du coefficient de frottement cinétique (en l'absence d'autre force verticale)." },
     localConstants: [
@@ -103,8 +102,7 @@ export const PHYSICS_MECHANICS_SEEDS: NotebookSeed[] = [
       { title: { en: "Kinetic friction force f", ja: "動摩擦力 f", es: "Fuerza de fricción cinética f", "pt-BR": "Força de atrito cinético f", de: "Gleitreibungskraft f", fr: "Force de frottement cinétique f" }, expression: "μ*s1", targetUnit: "N", formulaLatex: "f = \\mu N" },
     ],
   },
-  // 以下はここまでの9件より後に追加した新規シード。既存インストールのIDが指すシードを
-  // ずらさないため、必ず配列の末尾に追加する（途中への挿入・既存シードの並べ替えは禁止）。
+  // 以下はここまでの9件より後に追加した新規シード（配列内の位置は自由。上のコメント参照）。
   {
     title: { en: "Centripetal force", ja: "向心力", es: "Fuerza centrípeta", "pt-BR": "Força centrípeta", de: "Zentripetalkraft", fr: "Force centripète" },
     description: { en: "Compute the centripetal force required to keep an object moving in a circle from its mass, speed, and radius.", ja: "質量・速さ・半径から、物体を円運動させるために必要な向心力を求めます。", es: "Calcula la fuerza centrípeta necesaria para mantener un objeto en movimiento circular a partir de su masa, velocidad y radio.", "pt-BR": "Calcule a força centrípeta necessária para manter um objeto em movimento circular a partir de sua massa, velocidade e raio.", de: "Berechnet die Zentripetalkraft, die nötig ist, um einen Körper auf einer Kreisbahn zu halten, aus seiner Masse, Geschwindigkeit und dem Radius.", fr: "Calculer la force centripète nécessaire pour maintenir un objet en mouvement circulaire à partir de sa masse, de sa vitesse et du rayon." },
@@ -209,7 +207,7 @@ export const PHYSICS_THERMAL_SEEDS: NotebookSeed[] = [
     ],
     steps: [{ title: { en: "Volume after change V2", ja: "変化後の体積 V2", es: "Volumen después del cambio V2", "pt-BR": "Volume após a variação V2", de: "Volumen nach der Änderung V2", fr: "Volume après variation V2" }, expression: "V₁*T₂/T₁", targetUnit: "L", formulaLatex: "V_2 = V_1\\dfrac{T_2}{T_1}" }],
   },
-  // physics-thermal の既存4件のあと、シードの位置を変えないよう末尾に追加。
+  // physics-thermal の既存4件のあと末尾に追加（プリセットIDは英語タイトルから導くため、配列内の位置は自由）。
   {
     title: { en: "Isothermal process (Boyle's law)", ja: "気体の等温変化（ボイルの法則）", es: "Proceso isotérmico (ley de Boyle)", "pt-BR": "Processo isotérmico (lei de Boyle)", de: "Isotherme Zustandsänderung (Boyle-Mariotte-Gesetz)", fr: "Transformation isotherme (loi de Boyle-Mariotte)" },
     description: { en: "Compute the pressure after a volume change at constant temperature using Boyle's law.", ja: "温度一定のもとで、体積変化後の圧力をボイルの法則から求めます。", es: "Calcula la presión después de un cambio de volumen a temperatura constante mediante la ley de Boyle.", "pt-BR": "Calcule a pressão após uma variação de volume a temperatura constante usando a lei de Boyle.", de: "Berechnet den Druck nach einer Volumenänderung bei konstanter Temperatur mithilfe des Boyle-Mariotte-Gesetzes.", fr: "Calculer la pression après une variation de volume à température constante à l'aide de la loi de Boyle-Mariotte." },
