@@ -14,9 +14,22 @@ Everything below is available with no purchase:
 - Enter a mixed-unit expression such as `5cm + 1mm` or `100N / 0.01m^2` on the Calculator tab and see the result normalize to SI units in real time.
 - Try an intentionally invalid expression such as `5m + 1kg` to see the dimension-mismatch error.
 - Tap "Compare units" under a result to expand the full unit-comparison table.
-- Open the Library tab to browse 112 preset formula notebooks (elementary/middle-school science, high-school physics, everyday electricity/driving cost estimates, astronomy, fitness, chemistry, cars & bikes, cooking, and materials engineering), each rendered with real typeset math.
-- Open Settings → Custom units to define your own unit, either as a multiple (e.g. `shaku` = `0.303m`) or as a formula (for units with an offset, like a temperature scale).
-- Enter a plain number (no unit) and use the `0x` button next to the input to switch between decimal, binary, octal, and hexadecimal.
+- **Exact values (fractions, π, √).** Type an expression whose answer is not a whole number and look just under the unit chips on the result card: when an exact form exists, a `Decimal` / `Exact` chip pair appears. Tap `Exact` to see the answer typeset by KaTeX (a real fraction bar, a real radical sign). Expressions that are guaranteed to show it:
+  - `1/3` → 1/3, and `10/4` → 5/2 (fractions are reduced)
+  - `2*pi*50` → 100π
+  - `sqrt(8)` → 2√2 (square factors are pulled out)
+  - `atan(1)` → π/4
+  - By design the chips **do not appear** when the answer is already a whole number — try `3+5` to confirm nothing is added (the app never shows a toggle that would do nothing).
+  - Copying the result while `Exact` is selected copies the same notation you see on screen, not the decimal.
+- Open the Library tab to browse **184 preset formula notebooks** in nine top-level categories — School science, High school physics, Chemistry stoichiometry, Astronomy & space, Electricity & energy, Hobbies & making, Home & everyday life, Physics of cars & bicycles, and Mechanical & structural design (38 categories in total, counting sub-categories) — each rendered with real typeset math. Tapping a notebook opens it on the Notebooks tab.
+- **Searching the notebooks.** The Library tab has a search field ("Search all notebooks") above the list. It matches titles, descriptions **and category names** across the whole two-level hierarchy, so you do not have to remember where a notebook lives. Things to try:
+  - `photography` — returns the 7 notebooks of the Photography category even though none of them has that word in its title (category-name matching).
+  - `torque`, `coffee`, `solar` — each returns matches pulled from several different categories at once.
+  - `photography depth` — space-separated words are ANDed, narrowing to a single notebook.
+  - Clearing the search field returns you to exactly the category level you were browsing before, so searching never loses your place.
+- Open Settings → Custom units (the settings tab is labelled **Preferences** in English) to define your own unit, either as a multiple (e.g. `shaku` = `0.303m`) or as a formula (for units with an offset, like a temperature scale).
+- Enter a plain number (no unit) and tap the round `0x` pill at the **right-hand end of the unit-suggestion rail** (below the input field) to type in binary, octal, or hexadecimal; the `DEC`/`BIN`/`OCT`/`HEX` bar that appears switches base without discarding what you typed (`FF` in hex becomes `255` in decimal). For a decimal whole-number result, the same four chips appear under the result card to re-read the answer in another base.
+- Some presets open with defaults chosen for your region: mains voltage and breaker ratings are resolved from the device region (100V in Japan, 120V in North America, 230V/16A elsewhere) and prices from the device currency, so a notebook starts from a value that is plausible where the reviewer is (`lib/preset-regional-defaults.ts`).
 - Open Settings → Language to confirm the app is fully translated into English, Japanese, Spanish, Portuguese (Brazil), German, and French — including unit names, error messages, and every preset notebook.
 - Your calculation history is unlimited for free users; it is never trimmed or gated.
 - Settings → Backup & restore lets you export your notebooks, global constants, and custom units to a file and re-import them (useful to confirm nothing is silently paywalled).

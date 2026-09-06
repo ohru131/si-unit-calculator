@@ -28,6 +28,11 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
+        # playwrightは提出素材の撮影・録画スクリプト専用のdevDependencyで、
+        # このジョブはブラウザを起動しない。postinstallのブラウザDL（数百MB）を
+        # 抑止しないとWebビルドの度に無駄な待ち時間が乗る。
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
         run: pnpm install --frozen-lockfile
 
       # react-native-css-interopは初回ビルド時にnode_modules内へCSSキャッシュファイルを
