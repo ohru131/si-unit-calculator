@@ -23,7 +23,7 @@
 // Node 側のスケジューラが SRT のタイムコードちょうどで差し替える方式を採る。
 // ffmpeg は「頭のセットアップ部分を切り落として尺を SRT に合わせる」再エンコードだけに使う。
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -417,6 +417,7 @@ async function record({ keepRaw }) {
 
   // --- 本編
   const drift = [];
+  let sceneError = null;
   for (const scene of buildTimeline(cues)) {
     const cue = cues[scene.cue - 1];
     await at(cue.start);
@@ -426,7 +427,12 @@ async function record({ keepRaw }) {
     try {
       await scene.run(page, at);
     } catch (error) {
+      // 失敗したシーンをログだけ出して先へ進むと、そのシーンが空白のまま
+      // 「成功」として書き出されてしまう。撮り直しの必要な動画を成功扱いに
+      // しないため、録画資源を閉じてから投げ直す（ffmpeg には進ませない）。
+      sceneError = error;
       console.error(`  ! scene ${cue.index} failed: ${error.message.split("\n")[0]}`);
+      break;
     }
     await at(cue.end);
     console.log(`  cue ${String(cue.index).padStart(2)} ${cue.start.toFixed(0)}s → ok`);
@@ -439,6 +445,11 @@ async function record({ keepRaw }) {
   const rawPath = await video.path();
   await browser.close();
   await server.close();
+
+  if (sceneError) {
+    rmSync(rawDir, { recursive: true, force: true });
+    throw sceneError;
+  }
 
   console.table(drift);
 
@@ -455,16 +466,18 @@ async function record({ keepRaw }) {
     "-r", String(FPS),
     tmpOut,
   ], { stdio: "inherit" });
-  renameSync(tmpOut, OUT_PATH);
+  // rawDir は tmpdir() の下にあり、/tmp がリポジトリと別ファイルシステムだと
+  // renameSync が EXDEV で落ちる。録画も再エンコードも終わった後に落ちるので
+  // 損失が大きい。コピーしてから消す。
+  copyFileSync(tmpOut, OUT_PATH);
   console.log(`wrote ${OUT_PATH}`);
 
   if (keepRaw) {
     const kept = join(DEMO_DIR, "raw-take.webm");
-    renameSync(rawPath, kept);
+    copyFileSync(rawPath, kept);
     console.log(`kept raw take at ${kept}`);
-  } else {
-    rmSync(rawDir, { recursive: true, force: true });
   }
+  rmSync(rawDir, { recursive: true, force: true });
   return { total };
 }
 

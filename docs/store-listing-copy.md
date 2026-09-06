@@ -33,9 +33,9 @@ Google Play Console の文字数上限（短い説明 80字・詳しい説明 4,
 | es | 65 | Calcula con unidades, valida dimensiones y explora 184 cuadernos. |
 | pt-BR | 62 | Calcule com unidades, valide dimensões e explore 184 cadernos. |
 | de | 66 | Rechne mit Einheiten, prüfe Dimensionen und nutze 184 Rechenhefte. |
-| fr | 71 | Calculez avec unités, vérifiez les dimensions, 184 carnets de formules. |
+| fr | 75 | Calculez avec des unités, vérifiez les dimensions, 184 carnets de formules. |
 
-短い説明には**厳密値表示を入れていない**。en/fr は既に73字・71字で、`exact fractions` 相当の語（+15字前後）を足すと80字を超える。ja だけ足すと6言語で訴求点が揃わなくなるため、厳密値は詳しい説明の機能ブロック先頭に置いた。
+短い説明には**厳密値表示を入れていない**。en/fr は既に73字・75字で、`exact fractions` 相当の語（+15字前後）を足すと80字を超える。ja だけ足すと6言語で訴求点が揃わなくなるため、厳密値は詳しい説明の機能ブロック先頭に置いた。
 
 ## 詳しい説明（Full description、上限4,000字）
 

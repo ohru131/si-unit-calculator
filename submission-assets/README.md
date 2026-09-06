@@ -76,8 +76,11 @@ node scripts/capture-submission-assets.mjs --headed         # 目視デバッグ
 
 `dist/` を配信する簡易HTTPサーバ（拡張子なしのパスを `.html` へフォールバックさせる。
 `/pro` のようなパスを直接開くと expo-router がURLと一致せず404画面になるため）を内蔵している。
-Chromium は `/opt/pw-browsers/chromium` を `executablePath` で明示して使う（playwright
-パッケージが期待するリビジョン番号と、この環境に置かれているブラウザの番号が違うため）。
+Chromium は `/opt/pw-browsers/chromium`（`CHROMIUM_PATH` で上書き可）が**存在すれば**
+`executablePath` で明示して使う（playwrightパッケージが期待するリビジョン番号と、この環境に
+置かれているブラウザの番号が違うため）。**そのパスが無い環境ではPlaywrightの既定のブラウザに
+フォールバックする**ので、素の開発機では先に `npx playwright install chromium` を実行するか、
+`CHROMIUM_PATH` で自前のChromiumを指すこと。録画スクリプトも同じ規則。
 
 ### デモ動画
 
