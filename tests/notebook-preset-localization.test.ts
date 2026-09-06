@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { CalculationNotebook, localizePresetNotebooks, presetConstantId, presetFormulaId, presetNotebookId, presetStepId } from "../lib/calculator-store";
 import { localizedText } from "../lib/i18n";
-import { PRESET_NOTEBOOK_SEEDS } from "../lib/notebook-formulas";
+import { PRESET_NOTEBOOK_SEEDS, seedSlug } from "../lib/notebook-formulas";
+import type { NotebookSeed } from "../lib/notebook-formulas/types";
 
 // vi.mock は vitest が import より上にホイストするため、importの後に書いてよい。
 // lib/calculator-store.tsx は useGlobalSettings（@/lib/global-settings）をimportしており、
@@ -17,27 +18,26 @@ vi.mock("@/lib/global-settings", () => ({ useGlobalSettings: () => ({ language: 
 // 実際のプリセット投入処理と同じID採番でノートを組み立てる。IDの文字列をここで組み立て直すと
 // 本番の採番が変わってもテストだけ通り続けてしまうため、必ず calculator-store が公開している
 // 採番関数（presetNotebookId など）を使う。
-function buildSeededNotebook(categoryId: string, seedIndex: number, language: "en" | "ja"): CalculationNotebook {
-  const seed = PRESET_NOTEBOOK_SEEDS[categoryId]?.[seedIndex];
-  if (!seed) throw new Error(`seed not found: ${categoryId}[${seedIndex}]`);
+function buildSeededNotebook(categoryId: string, seed: NotebookSeed, language: "en" | "ja"): CalculationNotebook {
+  const seedId = seedSlug(seed);
   const now = "2026-01-01T00:00:00.000Z";
   return {
-    id: presetNotebookId(categoryId, seedIndex),
+    id: presetNotebookId(categoryId, seedId),
     title: localizedText(seed.title, language),
     description: localizedText(seed.description, language),
     categoryId,
     formulas: (seed.formulas ?? []).map((formula, formulaIndex) => ({
-      id: presetFormulaId(categoryId, seedIndex, formulaIndex),
+      id: presetFormulaId(categoryId, seedId, formulaIndex),
       explanation: localizedText(formula.explanation, language),
       latex: formula.latex,
     })),
     localConstants: seed.localConstants.map((constant, constantIndex) => ({
-      id: presetConstantId(categoryId, seedIndex, constantIndex),
+      id: presetConstantId(categoryId, seedId, constantIndex),
       symbol: constant.symbol,
       expression: constant.expression,
     })),
     steps: seed.steps.map((step, stepIndex) => ({
-      id: presetStepId(categoryId, seedIndex, stepIndex),
+      id: presetStepId(categoryId, seedId, stepIndex),
       title: localizedText(step.title, language),
       expression: step.expression,
       targetUnit: step.targetUnit,
@@ -52,9 +52,10 @@ function buildSeededNotebook(categoryId: string, seedIndex: number, language: "e
 }
 
 // categoryId自体に"-"を含む代表例として electricity-basics を使う。
-// （素朴なid.split("-")でパースすると、この手のcategoryIdでseedIndexの逆引きが壊れる。）
+// （IDの区切りに"::"を使うので、categoryId・seedIdのどちらにハイフンが含まれていても
+// この手のcategoryIdでseedIdの逆引きが壊れない。）
 const CATEGORY_ID = "electricity-basics";
-const SEED_INDEX = PRESET_NOTEBOOK_SEEDS[CATEGORY_ID]?.findIndex((seed) => seed.title.ja === "抵抗の直列・並列合成") ?? -1;
+const SEED = PRESET_NOTEBOOK_SEEDS[CATEGORY_ID]?.find((seed) => seed.title.ja === "抵抗の直列・並列合成");
 
 function userNotebook(): CalculationNotebook {
   return {
@@ -74,14 +75,14 @@ function userNotebook(): CalculationNotebook {
 
 describe("localizePresetNotebooks", () => {
   it("categoryIdにハイフンを含む実在のシード（electricity-basics）を正しく引き当てられる", () => {
-    expect(SEED_INDEX).toBeGreaterThanOrEqual(0);
+    expect(SEED).toBeDefined();
   });
 
   it("未編集のプリセットは言語切替で文言が新しい言語に差し替わる", () => {
-    const notebook = buildSeededNotebook(CATEGORY_ID, SEED_INDEX, "ja");
+    const notebook = buildSeededNotebook(CATEGORY_ID, SEED!, "ja");
     const { notebooks: result, changed } = localizePresetNotebooks([notebook], "en", "ja");
     expect(changed).toBe(true);
-    const seed = PRESET_NOTEBOOK_SEEDS[CATEGORY_ID]![SEED_INDEX]!;
+    const seed = SEED!;
     expect(result[0].title).toBe(localizedText(seed.title, "en"));
     expect(result[0].description).toBe(localizedText(seed.description, "en"));
     result[0].steps.forEach((step, index) => {
@@ -90,7 +91,7 @@ describe("localizePresetNotebooks", () => {
   });
 
   it("再度同じ言語で解決してもchangedがfalseになる（無駄な書き込みをしない）", () => {
-    const notebook = buildSeededNotebook(CATEGORY_ID, SEED_INDEX, "ja");
+    const notebook = buildSeededNotebook(CATEGORY_ID, SEED!, "ja");
     const { notebooks: onceLocalized } = localizePresetNotebooks([notebook], "en", "ja");
     const { notebooks: twiceLocalized, changed } = localizePresetNotebooks(onceLocalized, "en", "en");
     expect(changed).toBe(false);
@@ -98,17 +99,17 @@ describe("localizePresetNotebooks", () => {
   });
 
   it("タイトルをユーザーが独自にリネームしたプリセットは、言語切替後もその名前が保持される", () => {
-    const notebook: CalculationNotebook = { ...buildSeededNotebook(CATEGORY_ID, SEED_INDEX, "ja"), title: "自分用の合成抵抗メモ" };
+    const notebook: CalculationNotebook = { ...buildSeededNotebook(CATEGORY_ID, SEED!, "ja"), title: "自分用の合成抵抗メモ" };
     const { notebooks: result } = localizePresetNotebooks([notebook], "en", "ja");
     expect(result[0].title).toBe("自分用の合成抵抗メモ");
     // タイトルだけリネームした場合でも、未編集の説明文は言語切替に追従してよい。
-    const seed = PRESET_NOTEBOOK_SEEDS[CATEGORY_ID]![SEED_INDEX]!;
+    const seed = SEED!;
     expect(result[0].description).toBe(localizedText(seed.description, "en"));
   });
 
   it("localConstantsの値（ユーザーが編集しうるフィールド）は言語切替で一切書き換わらない", () => {
     const notebook: CalculationNotebook = {
-      ...buildSeededNotebook(CATEGORY_ID, SEED_INDEX, "ja"),
+      ...buildSeededNotebook(CATEGORY_ID, SEED!, "ja"),
       localConstants: [{ id: "preset-electricity-basics-0-constant-0", symbol: "R₁", expression: "999Ohm" }],
     };
     const { notebooks: result } = localizePresetNotebooks([notebook], "en", "ja");
@@ -123,13 +124,13 @@ describe("localizePresetNotebooks", () => {
   });
 
   it("ノートより下位（formulas/steps）だけをリネームしても、他のフィールドは影響を受けない", () => {
-    const notebook = buildSeededNotebook(CATEGORY_ID, SEED_INDEX, "ja");
+    const notebook = buildSeededNotebook(CATEGORY_ID, SEED!, "ja");
     const renamedStep: CalculationNotebook = {
       ...notebook,
       steps: notebook.steps.map((step, index) => (index === 0 ? { ...step, title: "自分用の手順名" } : step)),
     };
     const { notebooks: result } = localizePresetNotebooks([renamedStep], "en", "ja");
-    const seed = PRESET_NOTEBOOK_SEEDS[CATEGORY_ID]![SEED_INDEX]!;
+    const seed = SEED!;
     expect(result[0].steps[0].title).toBe("自分用の手順名");
     if (result[0].steps.length > 1) {
       expect(result[0].steps[1].title).toBe(localizedText(seed.steps[1].title, "en"));
@@ -150,10 +151,10 @@ describe("localizePresetNotebooks", () => {
   // targetのlanguageが同じ"en"であるにも関わらず、旧実装は対応言語全部（en/ja）と比較してしまい
   // ユーザーが書き込んだseed.ja文字列がseed.jaと一致するというだけで「未編集」と誤判定する。
   it("ユーザーが意図的に別言語のシード文言に書き換えた場合、UI言語が変わらないまま再解決されてもその入力が保持される（全言語比較だと誤って上書きされるバグの再現）", () => {
-    const seed = PRESET_NOTEBOOK_SEEDS[CATEGORY_ID]![SEED_INDEX]!;
+    const seed = SEED!;
 
     // ja で投入 → en に切替（追随する）。保存言語は "en" になる。
-    const seededJa = buildSeededNotebook(CATEGORY_ID, SEED_INDEX, "ja");
+    const seededJa = buildSeededNotebook(CATEGORY_ID, SEED!, "ja");
     const { notebooks: afterSwitchToEn } = localizePresetNotebooks([seededJa], "en", "ja");
     expect(afterSwitchToEn[0].title).toBe(localizedText(seed.title, "en"));
 
@@ -176,10 +177,10 @@ describe("localizePresetNotebooks", () => {
   // 比較にフォールバックする。これにより、この仕組みを導入する前からプリセットを使っている
   // ユーザーでも、初回の言語切替は引き続き文言が追従する。
   it("previousLanguageがnull（保存言語が無い移行前の端末）のときは、従来どおり対応言語全部と比較して追従する", () => {
-    const notebook = buildSeededNotebook(CATEGORY_ID, SEED_INDEX, "ja");
+    const notebook = buildSeededNotebook(CATEGORY_ID, SEED!, "ja");
     const { notebooks: result, changed } = localizePresetNotebooks([notebook], "en", null);
     expect(changed).toBe(true);
-    const seed = PRESET_NOTEBOOK_SEEDS[CATEGORY_ID]![SEED_INDEX]!;
+    const seed = SEED!;
     expect(result[0].title).toBe(localizedText(seed.title, "en"));
   });
 });

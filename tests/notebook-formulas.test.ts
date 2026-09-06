@@ -2,10 +2,28 @@ import { describe, expect, it } from "vitest";
 
 import { localizedText } from "../lib/i18n";
 import { evaluateNotebookSteps, resolveNotebookLocalConstants } from "../lib/notebook-engine";
-import { PRESET_NOTEBOOK_CATEGORIES, PRESET_NOTEBOOK_SEEDS } from "../lib/notebook-formulas";
+import { PRESET_NOTEBOOK_CATEGORIES, PRESET_NOTEBOOK_SEEDS, seedSlug } from "../lib/notebook-formulas";
 
 // テスト名・比較用の文字列はこのリポジトリの慣習に合わせて日本語（ja）を使う。
 const ja = (text: { en: string; ja?: string }) => localizedText(text, "ja");
+
+// プリセットの投入IDはseedSlug（シードの英語タイトルから導く識別子。lib/calculator-store.tsx）を
+// 使って組み立てるため、同じカテゴリ内でスラグが衝突・空文字になると、複数のシードが
+// 同じプリセットIDに解決されてしまう（既存インストールで一方のノートがもう一方の内容で
+// 上書きされる）。新しいプリセットを追加するたびにここで機械的に検出する。
+describe("プリセットIDの元になる英語タイトルのスラグがカテゴリ内で一意である", () => {
+  for (const category of PRESET_NOTEBOOK_CATEGORIES) {
+    const seeds = PRESET_NOTEBOOK_SEEDS[category.id];
+    if (!seeds) continue;
+    it(`${ja(category.label)}`, () => {
+      const slugs = seeds.map((seed) => seedSlug(seed));
+      slugs.forEach((slug, index) => {
+        expect(slug, `empty slug for "${seeds[index].title.en}"`).not.toBe("");
+      });
+      expect(new Set(slugs).size, `duplicate slug in category "${category.id}": ${JSON.stringify(slugs)}`).toBe(slugs.length);
+    });
+  }
+});
 
 describe("プリセット計算ノートの全ステップがエラーなく計算できる", () => {
   for (const category of PRESET_NOTEBOOK_CATEGORIES) {

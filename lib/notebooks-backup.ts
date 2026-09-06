@@ -79,7 +79,7 @@ export type ImportedNotebook = {
  * 変更しない（内容だけを差し替える）ため。
  */
 export type PresetNotebookOverride = {
-  /** 端末をまたいで同一の決定的なID（notebook-preset-<categoryId>-<seedIndex>）。 */
+  /** 端末をまたいで同一の決定的なID（notebook-preset-<categoryId>::<seedId>）。 */
   presetId: string;
   title: string;
   description: string;
