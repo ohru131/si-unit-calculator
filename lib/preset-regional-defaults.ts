@@ -248,6 +248,27 @@ export function resolvePresetFuelEconomy(regionCode: string | null | undefined):
 // 「投入時に端末の地域へ合わせて差し替えるもの」という同じ1つの概念だから。
 export type PresetRegionalDefaultKind = PresetPriceKind | PresetElectricalKind | "fuelEconomy";
 
+// 保存データの検証に使うので、種類の一覧を実行時に引ける形でも持つ。**型と一覧がずれると
+// 「保存されているのに解決できない目印」が生まれる**（`regionalDefaults[kind]` が undefined になり、
+// 定数の式が空になってノートが動かなくなる）。`Record<PresetRegionalDefaultKind, true>` にしておくと
+// 種類を足したときの入れ忘れ（キー不足）と綴り違い（未知のキー）の**両方**が型エラーになる
+// （`Record<AppLanguage, ...>` を翻訳漏れのチェックリストにしているのと同じ手）。
+const PRESET_REGIONAL_DEFAULT_KIND_SET: Record<PresetRegionalDefaultKind, true> = {
+  electricityPerKWh: true,
+  fuelPerLiter: true,
+  filamentPerKg: true,
+  mainsVoltage: true,
+  breakerCurrent: true,
+  fuelEconomy: true,
+};
+
+export const PRESET_REGIONAL_DEFAULT_KINDS = Object.keys(PRESET_REGIONAL_DEFAULT_KIND_SET) as PresetRegionalDefaultKind[];
+
+export function isPresetRegionalDefaultKind(value: unknown): value is PresetRegionalDefaultKind {
+  // hasOwnProperty で引くこと。`in` や添字だと "constructor" のようなプロトタイプのキーが通る。
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(PRESET_REGIONAL_DEFAULT_KIND_SET, value);
+}
+
 // 解決済みの既定値。**値ではなく「そのまま定数の式として使える文字列」**で持つ。
 // 金額は裸の数値（"0.29"。通貨記号はノート側で扱わない）、電気は単位付き（"230V"・"16A"）と
 // 種類ごとに形が違うので、単位を付ける場所が呼び出し側に散らばらないようここで確定させる。
