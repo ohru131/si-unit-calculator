@@ -66,7 +66,10 @@ export const SAMPLE_RELEVANCE: Record<AppLanguage, readonly string[]> = {
   // 米国・英国のユーザーはヤード・ポンド法の値をSIに直すところから始まる。
   en: ["imperial-to-si", "psi-to-kpa", "prefix-chain", "energy-kwh", "coulomb-force", "gravity-field", "density-si"],
   // PS（メートル馬力）は hp と1.4%違う。独語圏で最初に確かめたい値。
-  de: ["prefix-chain", "megohm-microamp", "ohm-law-current", "wire-resistance", "joule-heat", "voltage-drop", "three-phase-current", "capacitive-reactance", "micro-prefix-charge", "metric-horsepower", "kmh-to-ms", "power-minutes", "energy-kwh", "electric-power"],
+  // gravity-field・coulomb-force は Klausur の定番だが、独語のタブ順では mechanics が最後の方に来る。
+  // タブ順は電気を先に出す方針なので動かさず、代わりにこの列でタブの中の先頭へ上げて拾わせる
+  // （どちらも説明文が Zehnerpotenzen の桁ミスを名指しした独語向けの書き下ろしなので、埋めてしまうと書いた意味が無い）。
+  de: ["prefix-chain", "megohm-microamp", "ohm-law-current", "wire-resistance", "joule-heat", "voltage-drop", "three-phase-current", "capacitive-reactance", "micro-prefix-charge", "metric-horsepower", "kmh-to-ms", "gravity-field", "coulomb-force", "power-minutes", "energy-kwh", "electric-power"],
   fr: ["molar-concentration", "kmh-to-ms", "metric-horsepower", "coulomb-force", "gravity-field", "density-si"],
   es: ["kmh-to-ms", "gravity-field", "coulomb-force", "prefix-chain", "molar-concentration", "density-si"],
   "pt-BR": ["energy-kwh", "kmh-to-ms", "gravity-field", "coulomb-force", "voltage-drop", "electric-power"],
