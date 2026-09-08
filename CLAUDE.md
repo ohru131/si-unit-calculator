@@ -82,6 +82,7 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - これで3つの問題が同時に消えた: (1) 投入はカテゴリID単位で1回きりなので**シードを直しても既存インストールに届かない**、(2) 引っ越し・端末のロケール変更に追従しない、(3) 後追いで直すには「投入時のシード値と一致するか」で編集を推測するしかなく、**単位ごと変わる燃費（`15km/L`→`35mpg`）では過去に入りえた全地域の値と比べる必要が出る**（#54でCodeRabbitが🟠Majorとして指摘した穴）。
   - **所有権を外すのは保存の入口（`upsertNotebook`）だけ。** 画面側に目印を意識させると詳細画面・編集シート・取り込みのそれぞれで外し忘れる。両方の編集画面が定数を `{ ...item }` で持ち回るので、**画面側のコードは1行も変えていない**。
   - 後追い反映は読み込み時に `applyPresetRegionalDefaults` で当てる（`applyPresetResultSymbols` と同じ形・同じ場所）。**未知の種類は式を空にせず放置する**（空にするとその定数が解決できずノート全体が止まる）。
+  - **読み込み時だけでは足りない。** 初回ロードのeffectは `[isGlobalSettingsReady]` だけを依存にしているので、**アプリが起動したまま端末の地域設定が変わるとロード処理が再実行されず追従できない**（`Localization.useLocales()` は再起動を待たずに更新される。CodeRabbitが#54で検出）。`[currencyCode, regionCode, language, ...]` を依存にした専用のeffectを別に置いてある（言語の追従を `localizePresetNotebooks` のeffectが個別に担当しているのと同じ形）。**そのeffectで旧データの付け直しを呼ばないこと**（1回きりの縛りが壊れて利用者の編集を上書きする）。
   - **バックアップからの復元では目印が付かない**（`lib/notebooks-backup.ts` は `{ symbol, expression }` だけを持ち運ぶ）。意図的で、復元は利用者の値を明示的に写す操作なので、別の地域の端末で黙って書き換わる方が驚きが大きい。
   - **目印を保存する前に投入された旧データには、シードから目印を付け直す**（`stampLegacyPresetRegionalDefaults`）。**突き合わせは定数のid（`presetConstantId`）で行い、値は一切比較しない。**
   - **付け直しは `REGIONAL_DEFAULTS_STAMPED_STORAGE_KEY` で1回きりに縛ること。** **データの形からは旧・新を判定できない**のがポイントで、「一部の定数に目印が無い」状態は正常でもあり得る（シードで `regionalDefault` を付けていない定数＝走行コストの `distance`、そして**利用者が編集して目印が外れた定数**）。毎回走らせると後者を旧データと誤認して付け直し、直後の後追い反映が**利用者の編集を上書きする**（編集した `18km/L` が `35mpg` に戻る。CodeRabbitが#54で検出）。当初 `localConstants.every((c) => c.regionalDefault)` で「全部付いていれば新形式」と判定しようとしたが、`distance` のように**シードから目印が付かない定数がある時点でこの判定は常に false** になり機能しない。
@@ -335,7 +336,7 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 ### 現在の基準値（2026-09-08時点、各言語版ターゲット施策のP0・P1を入れた後）
 
 - `npx tsc --noEmit` → **エラー0**（`app/(tabs)/constants.tsx` の `"/notebook"` ルート型で2件出るのは `.expo/types/router.d.ts` が古い環境依存。`npx expo export` で型が再生成されれば消える）
-- `npx vitest run` → **838 passed / 2 failed / 1 skipped**。失敗2件は従来どおり `tests/revenuecat.credentials.test.ts`（環境依存）。新規: `tests/locale-defaults.test.ts`（10件）・`tests/sample-calculations.test.ts`（7件）・`tests/preset-regional-sync.test.ts`（18件）、`tests/preset-regional-defaults.test.ts` に7件、`tests/units.test.ts` に PS/CV と燃費のブロック。
+- `npx vitest run` → **840 passed / 2 failed / 1 skipped**。失敗2件は従来どおり `tests/revenuecat.credentials.test.ts`（環境依存）。新規: `tests/locale-defaults.test.ts`（10件）・`tests/sample-calculations.test.ts`（7件）・`tests/preset-regional-sync.test.ts`（20件）、`tests/preset-regional-defaults.test.ts` に7件、`tests/units.test.ts` に PS/CV と燃費のブロック。
 - `npx expo lint` → **2エラー・0警告**（`app/(tabs)/index.tsx` の既存分のまま）。
 - **`vitest.config.ts` を追加してある。** `@/lib/units` のような `@/` の**実行時import**（型だけのimportと違う）を解決するため。これが無いとテストから `lib/locale-defaults.ts` を読めない。
 

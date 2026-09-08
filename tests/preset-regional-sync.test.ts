@@ -180,6 +180,33 @@ describe("投入したプリセットとの結び付き", () => {
   });
 });
 
+describe("端末の地域が変わったときの追従", () => {
+  // 起動したまま端末の地域設定が変わる経路（`lib/calculator-store.tsx` の
+  // [currencyCode, regionCode, ...] を依存にした useEffect）が呼ぶのはこの関数。
+  // 初回ロードだけでは追従しないという指摘（CodeRabbitが#54で検出）への回帰テスト。
+  // effect の配線そのものはこのリポジトリにReactのテスト環境が無いので、ここでは
+  // effect が呼ぶ関数の振る舞いを地域の変化の順に固定する。
+  const region = (code: string, language: "en" | "ja") => resolvePresetRegionalDefaults(null, code, language);
+
+  it("日本 → 米国 → 英国 → 日本 と地域が変わるたびに燃費の単位ごと追従する", () => {
+    let notebooks = buildPresetNotebooksFromSeeds(["vehicles"], "ja", region("JP", "ja"), "2026-01-01T00:00:00.000Z");
+    const fuel = () => notebooks.flatMap((item) => item.localConstants).find((item) => item.symbol === "fuelEconomy")?.expression;
+    expect(fuel()).toBe("15km/L");
+
+    for (const [code, language, expected] of [["US", "en", "35mpg"], ["GB", "en", "42mpgUK"], ["JP", "ja", "15km/L"]] as const) {
+      const applied = applyPresetRegionalDefaults(notebooks, region(code, language));
+      expect(applied.changed, code).toBe(true);
+      notebooks = applied.notebooks;
+      expect(fuel(), code).toBe(expected);
+    }
+  });
+
+  it("同じ地域のまま再実行しても書き込みが起きない（地域変更のたびに走らせて安全）", () => {
+    const notebooks = buildPresetNotebooksFromSeeds(["vehicles"], "en", region("US", "en"), "2026-01-01T00:00:00.000Z");
+    expect(applyPresetRegionalDefaults(notebooks, region("US", "en")).changed).toBe(false);
+  });
+});
+
 describe("回帰: 利用者の編集が次回起動で消えないこと", () => {
   it("編集で目印を外した定数が、再読み込みで再スタンプされない", () => {
     const seeded = buildPresetNotebooksFromSeeds(["vehicles"], "ja", JP, "2026-01-01T00:00:00.000Z");

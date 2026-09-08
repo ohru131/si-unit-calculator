@@ -886,6 +886,25 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language, isGlobalSettingsReady, isLoading]);
 
+  // 端末の地域（currencyCode / regionCode）が変わったら、目印が残っているローカル定数を
+  // 新しい地域の既定値へ揃える。上の初回ロードは [isGlobalSettingsReady] だけを依存にして
+  // いるので、**アプリが起動したまま端末の地域設定が変わった場合はロード処理が再実行されず、
+  // 追従できない**（`Localization.useLocales()` は再起動を待たずに更新される。CodeRabbitが
+  // #54で検出）。言語の追従を上のuseEffectが個別に担当しているのと同じ形に揃えてある。
+  //
+  // **ここでは旧データへの目印の付け直し（stampLegacyPresetRegionalDefaults）を呼ばないこと。**
+  // あれは移行フラグで1回きりに縛る必要があるもので、地域が変わるたびに走らせると
+  // 利用者が編集して目印を外した定数を上書きしてしまう。
+  useEffect(() => {
+    if (!isGlobalSettingsReady || isLoading) return;
+    const regionalDefaults = resolvePresetRegionalDefaults(currencyCode, regionCode, language);
+    const { notebooks: nextNotebooks, changed } = applyPresetRegionalDefaults(notebooksRef.current, regionalDefaults);
+    if (changed) void persistNotebooks(nextNotebooks);
+    // language は「表に無い地域のときの最後の手掛かり」として resolvePresetRegionalDefaults が
+    // 使うだけなので、言語切替でここが走っても地域が読めている端末では何も変わらない。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currencyCode, regionCode, language, isGlobalSettingsReady, isLoading]);
+
   const upsertConstant = useCallback(
     async (symbolInput: string, expressionInput: string) => {
       const symbol = symbolInput.trim();
