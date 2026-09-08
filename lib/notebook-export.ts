@@ -27,7 +27,7 @@ const EN_EXPORT_MESSAGES = {
   formulasHeading: "Formula",
   inputsHeading: "Inputs",
   stepsHeading: "Results",
-  footer: "Created with Unit Calculator",
+  footer: "Created with UnitCalc",
 };
 const EXPORT_MESSAGES: Record<AppLanguage, typeof EN_EXPORT_MESSAGES> = {
   en: EN_EXPORT_MESSAGES,
@@ -38,7 +38,7 @@ const EXPORT_MESSAGES: Record<AppLanguage, typeof EN_EXPORT_MESSAGES> = {
     formulasHeading: "数式",
     inputsHeading: "定数（入力値）",
     stepsHeading: "結果",
-    footer: "単位付き電卓で作成",
+    footer: "UnitCalc で作成",
   },
   es: {
     dialogTitle: "Compartir cuaderno (imprimible, guardar como PDF)",
@@ -47,7 +47,7 @@ const EXPORT_MESSAGES: Record<AppLanguage, typeof EN_EXPORT_MESSAGES> = {
     formulasHeading: "Fórmula",
     inputsHeading: "Entradas",
     stepsHeading: "Resultados",
-    footer: "Creado con Unit Calculator",
+    footer: "Creado con UnitCalc",
   },
   "pt-BR": {
     dialogTitle: "Compartilhar caderno (imprimível, salvar como PDF)",
@@ -56,7 +56,7 @@ const EXPORT_MESSAGES: Record<AppLanguage, typeof EN_EXPORT_MESSAGES> = {
     formulasHeading: "Fórmula",
     inputsHeading: "Entradas",
     stepsHeading: "Resultados",
-    footer: "Criado com o Unit Calculator",
+    footer: "Criado com o UnitCalc",
   },
   de: {
     dialogTitle: "Rechenheft teilen (druckbar, als PDF speicherbar)",
@@ -65,7 +65,7 @@ const EXPORT_MESSAGES: Record<AppLanguage, typeof EN_EXPORT_MESSAGES> = {
     formulasHeading: "Formel",
     inputsHeading: "Eingaben",
     stepsHeading: "Ergebnisse",
-    footer: "Erstellt mit Unit Calculator",
+    footer: "Erstellt mit UnitCalc",
   },
   fr: {
     dialogTitle: "Partager le carnet (imprimable, à enregistrer en PDF)",
@@ -74,7 +74,7 @@ const EXPORT_MESSAGES: Record<AppLanguage, typeof EN_EXPORT_MESSAGES> = {
     formulasHeading: "Formule",
     inputsHeading: "Entrées",
     stepsHeading: "Résultats",
-    footer: "Créé avec Unit Calculator",
+    footer: "Créé avec UnitCalc",
   },
 };
 

@@ -4,7 +4,7 @@ This document is written for Shipaton judges and Google Play reviewers who need 
 
 ## 1. Getting the app
 
-- Install Unit Calculator from the Google Play Store listing link provided in the submission.
+- Install UnitCalc from the Google Play Store listing link provided in the submission.
 - The app works fully offline after install; no account or sign-in is required.
 
 ## 2. Trying the free experience
@@ -21,7 +21,7 @@ Everything below is available with no purchase:
   - `atan(1)` → π/4
   - By design the chips **do not appear** when the answer is already a whole number — try `3+5` to confirm nothing is added (the app never shows a toggle that would do nothing).
   - Copying the result while `Exact` is selected copies the same notation you see on screen, not the decimal.
-- Open the Library tab to browse **184 preset formula notebooks** in nine top-level categories — School science, High school physics, Chemistry stoichiometry, Astronomy & space, Electricity & energy, Hobbies & making, Home & everyday life, Physics of cars & bicycles, and Mechanical & structural design (38 categories in total, counting sub-categories) — each rendered with real typeset math. Tapping a notebook opens it on the Notebooks tab.
+- Open the Library tab to browse **194 preset formula notebooks** in nine top-level categories — School science, High school physics, Chemistry stoichiometry, Astronomy & space, Electricity & energy, Hobbies & making, Home & everyday life, Physics of cars & bicycles, and Mechanical & structural design (38 categories in total, counting sub-categories) — each rendered with real typeset math. Tapping a notebook opens it on the Notebooks tab.
 - **Searching the notebooks.** The Library tab has a search field ("Search all notebooks") above the list. It matches titles, descriptions **and category names** across the whole two-level hierarchy, so you do not have to remember where a notebook lives. Things to try:
   - `photography` — returns the 7 notebooks of the Photography category even though none of them has that word in its title (category-name matching).
   - `torque`, `coffee`, `solar` — each returns matches pulled from several different categories at once.
@@ -36,7 +36,7 @@ Everything below is available with no purchase:
 
 ## 3. Verifying Pro (one-time purchase, no subscription)
 
-Unit Calculator Pro unlocks four things (see `app/(tabs)/pro.tsx`):
+UnitCalc Pro unlocks four things (see `app/(tabs)/pro.tsx`):
 
 1. An ad-free experience (the free version shows banner ads only — never full-screen ads).
 2. CSV export of your calculation history.

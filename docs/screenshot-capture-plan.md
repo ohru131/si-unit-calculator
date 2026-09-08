@@ -1,7 +1,24 @@
 # スクリーンショット撮影指示
 
 **別エージェントが自動撮影する前提。** 画面遷移・タップ対象・入力する式を具体的に書く。
-**対象は日本語・英語の2言語のみ。** es/pt-BR/de/fr の掲載ページには英語版の画像をそのまま流用する（`docs/store-listing-copy.md`参照）。
+**対象は6言語すべて（en / ja / es / pt-BR / de / fr）。** 以前は日英だけ撮って他4言語には英語版を流用していたが、
+掲載文だけ言語ごとに書き分けても、一覧に出る画像が英語のままではその言語のユーザーには「英語のアプリ」に見える。
+
+**画像は翻訳ではなく、言語ごとに写す中身を変える。** どのノート・どのサンプルを開くかは
+`docs/target-users-by-locale-2026-09.md` 第1節のターゲットに合わせてあり、
+`scripts/capture-submission-assets.mjs` の `NOTEBOOK_TARGETS` と `LABELS[].examCategory` / `searchQuery` が情報源:
+
+| 言語 | ノート系カット（06・07）で開くノート | サンプルのタブ（14） | 検索語（13） |
+|---|---|---|---|
+| en | High school physics → Mechanics → Uniformly accelerated motion | Exam prep | solar |
+| ja | 電気・エネルギー → 電気の基礎計算 → 電圧降下と必要な電線の太さ | 試験対策（電験・電工） | 太陽光 |
+| de | Elektrizität & Energie → Praktische Elektrotechnik → Spannungsfall und der nötige Leiterquerschnitt | Klausur & Prüfung | Spannung |
+| es | Física (bachillerato) → Electricidad → Campo eléctrico y potencial de una carga puntual | Preparación (EBAU) | campo |
+| pt-BR | Física (Ensino Médio) → Eletricidade → Campo elétrico e potencial de uma carga pontual | Preparação (ENEM) | tensão |
+| fr | Physique (lycée) → Mécanique → Mouvement uniformément accéléré | Révisions (physique-chimie) | masse volumique |
+
+カテゴリカードの並び自体も `lib/locale-relevance.ts` で言語ごとに変わるので、カット5（カテゴリグリッド）と
+カット14（サンプル）は**操作が同じでも言語ごとに違う絵になる**。
 
 ## 共通の準備
 
@@ -48,7 +65,7 @@
 ### 5. 計算ノート — カテゴリグリッド（幅を見せる）
 
 - 画面: 「ライブラリ」タブ（タブバー3番目、しおりアイコン。`t("constants")`="Library"）
-- 期待する見え方: カテゴリグリッド一覧（理科（小・中）・高校物理・化学の量的関係・天体宇宙・電気・エネルギー・趣味/ものづくり・暮らし・車/自転車の物理・機械/構造設計の最上位9枚、38カテゴリ・184件）。初期状態のまま追加操作不要
+- 期待する見え方: カテゴリグリッド一覧（理科（小・中）・高校物理・化学の量的関係・天体宇宙・電気・エネルギー・趣味/ものづくり・暮らし・車/自転車の物理・機械/構造設計の最上位9枚、38カテゴリ・194件）。初期状態のまま追加操作不要
 - 補足カット: 「高校物理」のような親カテゴリをタップし、サブカテゴリ（力学/熱/波動/電気/原子）に降りた2階層目の画面も1枚
 
 ### 5a. 計算ノート — 検索
@@ -87,11 +104,23 @@
 - 画面: 「設定」タブ → 「バックアップと復元」セクション
 - 期待する見え方: 計算ノート・グローバル定数のバックアップ書き出し／取り込みのUIが見える状態
 
+### 11. サンプルシート — その国の試験名で出るカテゴリタブ
+
+- 画面: 電卓タブ → 「サンプル」（`copy.samples`）
+- 操作: 先頭のタブ（言語ごとに Klausur & Prüfung / Preparación (EBAU) / Preparação (ENEM) / 試験対策（電験・電工） …）を選ぶ
+- 期待する見え方: タブの並びが言語ごとに違い、その国で実際に受ける試験の名前が先頭に出ている状態
+- **言語ごとの差が1枚で一番よく伝わるカット。** 掲載時は上位に置くこと
+
+### 12. 電卓画面 — 接頭語の打ち消し
+
+- 操作: `4.7kΩ × 2mA` を入力して `=`
+- 期待する見え方: `9.4 V`。k と m が打ち消えて V になることが読み取れる状態
+
 ## 各カットの言語別セット
 
-上記12カット（1〜10＋4a・5a）を英語・日本語それぞれで撮影する（同一操作・同一データで良い。数式やノート内容も翻訳済みなので言語ごとに文字が変わる）。
+上記14カット（1〜12＋4a・5a）を6言語すべてで撮影する（操作は共通、開くノートと検索語だけ上の表のとおり言語ごとに変える）。
 
-**カットの見出し数と書き出されるファイル名は1対1ではない。** `submission-assets/screenshots/` に入るのは**1言語あたり14枚**（＝計28枚）で、対応は次のとおり:
+**カットの見出し数と書き出されるファイル名は1対1ではない。** `submission-assets/screenshots/` に入るのは**1言語あたり16枚**（＝計96枚）で、対応は次のとおり:
 
 | このドキュメントのカット | 書き出されるファイル |
 |---|---|
@@ -101,9 +130,10 @@
 | 5 / 5a | `05-library-grid` / `13-notebook-search` |
 | 6 / 7 / 9 | `06-notebook-list` / `07-notebooks-tab` / `09-pro` |
 | （見出し無し） | `08-settings`（設定画面の言語一覧。対応6言語が見える状態） |
+| 11 / 12 | `14-exam-samples` / `15-prefix-cancel` |
 | 8（自作単位）・10（バックアップ／復元） | **未撮影**（旧素材にも無く、必要になったら足す） |
 
-ファイル名の情報源は `scripts/capture-submission-assets.mjs` の `SHOTS` 配列で、`submission-assets/README.md` の一覧もこの14枚に合わせてある。**番号はファイル名の識別子であり、このドキュメントのカット番号とは独立**（既存素材の命名を保つため振り直していない）。
+ファイル名の情報源は `scripts/capture-submission-assets.mjs` の `SHOTS` 配列で、`submission-assets/README.md` の一覧もこの16枚に合わせてある。**番号はファイル名の識別子であり、このドキュメントのカット番号とは独立**（既存素材の命名を保つため振り直していない）。
 
 ## 注意点
 

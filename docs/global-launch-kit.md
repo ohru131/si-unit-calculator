@@ -1,4 +1,4 @@
-# Unit Calculator — Global Launch Kit（Android向けに更新）
+# UnitCalc — Global Launch Kit（Android向けに更新）
 
 **旧版は「初回リリースはen/ja 2言語」「App Store and/or Google Play」「Pro=ad-free/CSV/personal unit set」という前提だったが、いずれも現状と食い違っていた。** 6言語対応は既に実装済み、今回の提出対象はGoogle Playのみ、Proの特典は4点（ノート共有／PDF書き出しが抜けていた）。本節はその前提で更新した。詳しいストア掲載文・チェックリストは以下を参照:
 
@@ -8,18 +8,18 @@
 
 ## 製品ポジショニング
 
-**Unit Calculator** は、学生・エンジニア・メーカー・現場スタッフ向けのオフラインファーストな次元計算アプリ。式をまずSI単位に正規化してから計算し、次元を検証したうえで、ユーザーが選んだ互換単位で結果を表示する。**6言語（en/ja/es/pt-BR/de/fr）に対応済み**（`lib/i18n.ts`の`APP_LANGUAGES`が唯一の情報源。CLAUDE.md「直近の作業履歴」7〜9番で実装・PR #21〜#23でマージ済み）。
+**UnitCalc** は、学生・エンジニア・メーカー・現場スタッフ向けのオフラインファーストな次元計算アプリ。式をまずSI単位に正規化してから計算し、次元を検証したうえで、ユーザーが選んだ互換単位で結果を表示する。**6言語（en/ja/es/pt-BR/de/fr）に対応済み**（`lib/i18n.ts`の`APP_LANGUAGES`が唯一の情報源。CLAUDE.md「直近の作業履歴」7〜9番で実装・PR #21〜#23でマージ済み）。
 
 差別化要素は次の3点（`docs/market-research-2026-09.md`第2節）:
 1. 単位付きの数式をそのまま計算し、次元不一致をエラーとして検出する
-2. 184件のプリセット計算ノート（KaTeXによる本物のLaTeX数式表示。検索で横断的に探せる）
+2. 194件のプリセット計算ノート（KaTeXによる本物のLaTeX数式表示。検索で横断的に探せる）
 3. ユーザー定義単位・単位比較表・進数・厳密値表示（分数・π・√）といった、単なる「単位換算」を超えた計算機能
 
 ## 英語ストア掲載ドラフト（詳細は `docs/store-listing-copy.md` を参照）
 
 | 項目 | 内容 |
 |---|---|
-| App name | Unit Calculator |
+| App name | UnitCalc |
 | Short description | `docs/store-listing-copy.md`の短い説明（英語71字）を参照。**6言語で同じ文の訳ではなく、言語ごとにフックが違う** |
 | Full description | 同ドキュメントの詳しい説明（英語、6言語すべて掲載済み） |
 
@@ -27,7 +27,7 @@
 
 | 領域 | 現状 | 次のアクション |
 |---|---|---|
-| アプリ内言語 | **en/ja/es/pt-BR/de/fr の6言語対応済み**（UI・単位名・エラーメッセージ・プリセット計算ノート184件すべて翻訳済み） | さらに言語を増やすかは`CLAUDE.md`「次にやりそうなこと」を参照（`ko`/`zh-Hant`/`id`が次候補、未着手） |
+| アプリ内言語 | **en/ja/es/pt-BR/de/fr の6言語対応済み**（UI・単位名・エラーメッセージ・プリセット計算ノート194件すべて翻訳済み） | さらに言語を増やすかは`CLAUDE.md`「次にやりそうなこと」を参照（`ko`/`zh-Hant`/`id`が次候補、未着手） |
 | 地域別の既定値 | 商用電源の電圧・ブレーカー定格を端末の地域から解決する（例: 日本100V、北米120V、それ以外は230V/16A。`lib/preset-regional-defaults.ts`、PR #48）。金額は通貨から解決 | **インストールした国に合った値でノートが開く**、という国際展開の訴求として掲載文・ストア説明に反映する。中南米の一部通貨・台湾は金額側が言語推測止まりで未対応（`CLAUDE.md`「次にやりそうなこと」参照） |
 | 単位系プリセット | 設定画面に「メートル法／米国慣用単位／英・帝国単位」の切替がある（`lib/global-settings.tsx`の`systemMetric`/`systemUS`/`systemUK`）。主にレシピ系ノートのカップ・大さじ等の定義（`standardUS`等）に影響する小さめの機能 | ストア掲載文の主要訴求としては優先度を下げ、6言語対応・計算ノート・単位比較・ユーザー定義単位・進数を優先する（文字数上限もあるため） |
 | ストアメタデータ | 6言語の掲載文は`docs/store-listing-copy.md`に用意済み。スクリーンショットは日英2言語のみ撮影し、他4言語には英語版を流用 | `docs/screenshot-capture-plan.md`の指示に沿って撮影する。Play Console側での多言語ストア掲載の登録手順はGoogle公式ヘルプ[1]を参照 |
@@ -37,7 +37,7 @@
 
 ## プライバシーと問い合わせ先のドラフト
 
-> Unit Calculator stores saved constants, custom units, notebooks, and calculation history locally on the device. Purchase status is processed by RevenueCat and Google Play. Banner ads are served via Google AdMob. The app does not require an account and does not upload your calculation content to our servers.
+> UnitCalc stores saved constants, custom units, notebooks, and calculation history locally on the device. Purchase status is processed by RevenueCat and Google Play. Banner ads are served via Google AdMob. The app does not require an account and does not upload your calculation content to our servers.
 >
 > **公開前に、実在の法人・個人情報、削除依頼の連絡先を反映した本物のプライバシーポリシーに差し替え、公開URLでホストすること。** 詳細は `docs/shipaton-submission-kit.md` の「提出前に差し替えが必要な箇所」を参照。
 

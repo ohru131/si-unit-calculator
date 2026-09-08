@@ -49,9 +49,13 @@ const MEASURING_STANDARD_KEY = "si-unit-calculator.measuring-standard.v1";
 // COPY 全体を satisfies Record<AppLanguage, Record<string, string>> とするとキー漏れをその場で検出できず、
 // t() の定義行で「どの言語の何のキーが足りないのか分からないエラー」になってしまう。
 const EN_COPY = {
-  calculator: "Unit Calculator",
+  calculator: "UnitCalc",
   calculatorSubtitle: "Calculate in SI. Display in compatible units.",
   // タブラベル。「計算ノート」だとタブ幅に収まらないため、components/notebooks/notebook-history-sheet.tsx の
+  // 電卓タブの表示名 = アプリ名。**固有名詞なので全言語で "UnitCalc" のまま翻訳しない**
+  // （以前は言語ごとに「単位付き電卓」「Einheitenrechner」等へ訳していたが、ストアの
+  // タイトルが UnitCalc になったのでアプリ内と食い違っていた）。ストアのタイトルに付く
+  // 副題（"UnitCalc - 電験・電工の単位計算" など）は言語ごとに違うので docs/store-listing-copy.md 側で持つ。
   // notebooksButton（ノート履歴シートの呼び出しボタン）と同じ短い語に揃える。
   notebook: "Notebooks",
   constants: "Library",
@@ -161,7 +165,7 @@ const EN_COPY = {
 const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
   en: EN_COPY,
   ja: {
-    calculator: "単位付き電卓",
+    calculator: "UnitCalc",
     calculatorSubtitle: "SIで計算し、互換性のある単位で表示します。",
     notebook: "ノート",
     constants: "ライブラリ",
@@ -253,7 +257,7 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     proPreviewActive: "Proプレビューが有効です — 実際の購入ではありません。",
   },
   es: {
-    calculator: "Calculadora de unidades",
+    calculator: "UnitCalc",
     calculatorSubtitle: "Calcula en unidades del SI. Se muestra en unidades compatibles.",
     notebook: "Cuadernos",
     constants: "Biblioteca",
@@ -345,7 +349,7 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     proPreviewActive: "El modo de vista previa de Pro está activado: no es una compra real.",
   },
   "pt-BR": {
-    calculator: "Calculadora de unidades",
+    calculator: "UnitCalc",
     calculatorSubtitle: "Calcula no SI. Exibe em unidades compatíveis.",
     notebook: "Cadernos",
     constants: "Biblioteca",
@@ -437,7 +441,7 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     proPreviewActive: "O modo de prévia do Pro está ativado — não é uma compra real.",
   },
   de: {
-    calculator: "Einheitenrechner",
+    calculator: "UnitCalc",
     calculatorSubtitle: "Berechnung im SI-System. Anzeige in kompatiblen Einheiten.",
     notebook: "Rechenhefte",
     constants: "Bibliothek",
@@ -529,7 +533,7 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     proPreviewActive: "Der Pro-Vorschaumodus ist aktiviert — das ist kein echter Kauf.",
   },
   fr: {
-    calculator: "Calculatrice d'unités",
+    calculator: "UnitCalc",
     calculatorSubtitle: "Calcule en unités SI. Affiche dans des unités compatibles.",
     notebook: "Carnets",
     constants: "Bibliothèque",

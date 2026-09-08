@@ -28,7 +28,7 @@ const schemeFromBundleId = `manus${timestamp}`;
 
 const env = {
   // App branding - update these values directly (do not use env vars)
-  appName: "Unit Calculator",
+  appName: "UnitCalc",
   appSlug: "si-unit-calculator",
   // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
   // Leave empty to use the default icon from assets/images/icon.png
@@ -101,7 +101,7 @@ const config: ExpoConfig = {
         widgets: [
           {
             name: "UnitCalculatorWidget",
-            displayName: "Unit Calculator",
+            displayName: "UnitCalc",
             description: "Shows your latest unit calculation.",
             supportedFamilies: ["systemSmall", "systemMedium"],
           },

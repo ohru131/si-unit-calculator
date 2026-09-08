@@ -1,4 +1,4 @@
-# Unit Calculator — Shipaton 2026 Submission Kit（Android版）
+# UnitCalc — Shipaton 2026 Submission Kit（Android版）
 
 **このドキュメントは全面更新版。** 旧版は計算ノート・単位比較表・ユーザー定義単位・進数・6言語対応・買い切り課金への移行・履歴無制限化のいずれも記載が無く、CSVエクスポート中心の古い機能一覧のまま（Pro機能一覧も実際は4点なのに3点しか無かった）iOS想定のサイズで書かれていたため、全面的に書き直した。
 
@@ -21,7 +21,7 @@
 
 以下は旧版に一言も無かった機能で、今回すべて掲載文・撮影指示・審査員向け手順に反映した。
 
-1. **計算ノート（notebooks）** — プリセット184件（`lib/notebook-formulas/`の`PRESET_NOTEBOOK_SEEDS`を実行して実測）、38カテゴリ（最上位9枚＋親子2階層ナビゲーション）、KaTeXによる本物のLaTeX数式表示。CLAUDE.md「直近の作業履歴」3・5・6・20番
+1. **計算ノート（notebooks）** — プリセット194件（`lib/notebook-formulas/`の`PRESET_NOTEBOOK_SEEDS`を実行して実測）、38カテゴリ（最上位9枚＋親子2階層ナビゲーション）、KaTeXによる本物のLaTeX数式表示。CLAUDE.md「直近の作業履歴」3・5・6・20番
 2. **単位比較表** — 1つの結果を単位チップと同じ候補・並び順で縦に開いて比較（`lib/unit-comparison.ts`）。同16番（PR #33）
 3. **ユーザー定義単位** — 倍率形式・関数形式（摂氏・華氏のようなオフセット対応）（`lib/custom-units.ts`）。同17番（PR #34）
 4. **進数（2進・8進・16進）** — 電卓の結果を10進以外でも表示・入力できる。単位ではなく「同じ値の表記」を変えるだけという設計上の区別に注意（`lib/number-base.ts`）。同18番（PR #37/#38/#39、#40で使える形に修正）。**このブリーフでは当初見落とされていた機能**で、コーディネーターからの追加指示を受けて掲載文・撮影指示に反映した
@@ -38,7 +38,7 @@ Pro機能は憶測ではなく `app/(tabs)/pro.tsx` の `EN_COPY.features`（読
 
 1. 提出はAndroid（Google Play）のみ
 2. ストア掲載文は6言語すべて（en/ja/es/pt-BR/de/fr）
-3. スクリーンショットは日英2言語のみ撮影し、他4言語は英語版画像を流用
+3. スクリーンショット・フィーチャーグラフィックは6言語すべて用意し、言語ごとに写すノート・サンプルを変える（`docs/screenshot-capture-plan.md`）
 4. デモ動画は無音の画面録画（前回のナレーション音声は消失、TTSも使えない）
 5. Web版に隠しのProプレビュー機能を実装済み（`lib/pro-preview.ts`）。発動方法（URLクエリ`?pro=preview`／設定画面「地域」行7回タップ）は`docs/reviewer-testing-instructions.md`に確定済みの手順として記載した
 
@@ -57,7 +57,7 @@ Pro機能は憶測ではなく `app/(tabs)/pro.tsx` の `EN_COPY.features`（読
 
 ### プライバシーポリシー・ドラフト（差し替え前提）
 
-> Unit Calculator stores calculation history, saved constants, custom units, and preferences locally on the device. Purchase status is processed by RevenueCat and Google Play. Banner ads are served via Google AdMob, which may collect device/advertising identifiers as described in Google's own disclosures. The app does not require an account and does not upload your calculation content to our servers.
+> UnitCalc stores calculation history, saved constants, custom units, and preferences locally on the device. Purchase status is processed by RevenueCat and Google Play. Banner ads are served via Google AdMob, which may collect device/advertising identifiers as described in Google's own disclosures. The app does not require an account and does not upload your calculation content to our servers.
 >
 > **提出前に、上記ドラフトを実在の法人・個人情報（データ管理者の名称・所在地）、削除依頼の連絡先、最終的な広告・課金設定を反映した本物のプライバシーポリシーに差し替え、公開URLでホストすること。**
 
@@ -69,7 +69,7 @@ Pro機能は憶測ではなく `app/(tabs)/pro.tsx` の `EN_COPY.features`（読
 - [ ] Google Playの本番リリースが申請され、実際にダウンロード可能な状態になっている（審査中ステータスのままでは審査員がテストできない）
 - [ ] プロモ/オファーコードで審査員がPro機能を購入無しで確認できる（買い切りにはトライアルが存在しないため）
 - [ ] Web版のProプレビュー（`?pro=preview`）で審査員がWeb上でもPro機能を確認できることを最終確認する
-- [ ] 無音デモ動画（`docs/shipaton-demo-script.md`）・6言語ストア掲載文（`docs/store-listing-copy.md`）・512×512アイコン・1024×500フィーチャーグラフィック・日英スクリーンショットが揃っている
+- [ ] 無音デモ動画（`docs/shipaton-demo-script.md`）・6言語ストア掲載文（`docs/store-listing-copy.md`）・512×512アイコン・1024×500フィーチャーグラフィック（6言語）・6言語ぶんのスクリーンショットが揃っている
 - [ ] プライバシーポリシー（実URL）と実在の問い合わせ先メールアドレスが公開されている（上記「提出前に差し替えが必要な箇所」を参照）
 - [ ] 購入・復元・Pro解放・CSVエクスポート・ノート共有（PDF書き出し）を実機のリリースビルドで確認済み
 - [ ] Data safetyフォーム・広告の申告・コンテンツレーティングをPlay Consoleで完了している

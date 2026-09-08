@@ -39,6 +39,7 @@ import { UnitError, unitErrorMessage } from "@/lib/unit-errors";
 import { getUnitExplanation } from "@/lib/unit-explanations";
 import UnitCalculatorWidget from "@/widgets/UnitCalculatorWidget";
 import { SAMPLE_CALCULATIONS, SAMPLE_CATEGORIES, type SampleCalculation } from "@/lib/sample-calculations";
+import { orderSampleCategoriesForLanguage, orderSamplesForLanguage } from "@/lib/locale-relevance";
 import {
   analyzeExpression,
   getUnitInputHint,
@@ -374,7 +375,9 @@ export default function CalculatorScreen() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [inputGroupId, setInputGroupId] = useState("length");
-  const [sampleCategory, setSampleCategory] = useState("basic");
+  // null は「まだ自分で選んでいない」。既定のタブは言語ごとの関連度順（lib/locale-relevance.ts）の
+  // 先頭にするので、"basic" のような固定値を初期値に持たせない。
+  const [sampleCategory, setSampleCategory] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [showSamples, setShowSamples] = useState(false);
   // サンプルは式を丸ごと置き換える破壊的な操作なので、入力中の式があるときだけ確認する。
@@ -479,8 +482,18 @@ export default function CalculatorScreen() {
     [includeUnit, inlineUnitQuery, selectedInputGroup, selectedInputUnits, unitSystem],
   );
   const inlineUnitRegistration = useMemo(() => getUnitRegistration(inlineUnitQuery), [inlineUnitQuery]);
-  const visibleSampleCategories = useMemo(() => SAMPLE_CATEGORIES.filter((category) => isSampleCategoryVisible(category.id, isAdvancedMode)), [isAdvancedMode]);
-  const visibleSamples = useMemo(() => SAMPLE_CALCULATIONS.filter((sample) => sample.category === sampleCategory && isSampleCategoryVisible(sample.category, isAdvancedMode)), [isAdvancedMode, sampleCategory]);
+  // サンプルの並びは言語ごとのターゲット層に合わせて関連度順にする
+  // （docs/target-users-by-locale-2026-09.md 第1節。判断は lib/locale-relevance.ts の純関数側）。
+  // 元の SAMPLE_CATEGORIES / SAMPLE_CALCULATIONS の配列順は言語に依らない正順のまま保つ。
+  const visibleSampleCategories = useMemo(
+    () => orderSampleCategoriesForLanguage(SAMPLE_CATEGORIES.filter((category) => isSampleCategoryVisible(category.id, isAdvancedMode)), language),
+    [isAdvancedMode, language],
+  );
+  const activeSampleCategory = sampleCategory ?? visibleSampleCategories[0]?.id ?? "basic";
+  const visibleSamples = useMemo(
+    () => orderSamplesForLanguage(SAMPLE_CALCULATIONS.filter((sample) => sample.category === activeSampleCategory && isSampleCategoryVisible(sample.category, isAdvancedMode)), language),
+    [activeSampleCategory, isAdvancedMode, language],
+  );
   // 履歴の表示件数はProでも無料でも同じにしている（以前は無料5件で打ち切っていた）。
   // 打ち切りは a1・a2… の自動定数と食い違うのが致命的で、autoConstantsは常に全履歴から作るため、
   // 無料ユーザーは見えない a12 を式から参照できてしまっていた。加えて「計算のたびに履歴が消える」は
@@ -1638,7 +1651,7 @@ export default function CalculatorScreen() {
       </View>
 
       <Modal visible={showSamples} transparent animationType="slide" onRequestClose={() => setShowSamples(false)}>
-        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><Text style={styles.sheetTitle}>{copy.samples}</Text><Pressable accessibilityLabel={copy.close} onPress={() => setShowSamples(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRail}>{visibleSampleCategories.map((category) => <Pressable key={category.id} onPress={() => setSampleCategory(category.id)} style={({ pressed }) => [styles.categoryChip, sampleCategory === category.id && styles.categoryChipActive, pressed && styles.pressed]}><Text style={[styles.categoryChipText, sampleCategory === category.id && styles.categoryChipTextActive]}>{localizedText(category.label, language)}</Text></Pressable>)}</ScrollView><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleSamples.map((sample) => <Pressable key={sample.id} onPress={() => selectSample(sample)} style={({ pressed }) => [styles.sampleRow, pressed && styles.cardPressed]}><View style={styles.sampleCopy}><Text style={styles.sampleTitle}>{localizedText(sample.title, language)}</Text><Text style={styles.sampleDescription}>{localizedText(sample.description, language)}</Text></View><View style={styles.sampleExpressionWrap}><Text numberOfLines={1} style={styles.sampleExpression}>{sample.expression}</Text><Text style={styles.sampleTarget}>→ {targetUnitForSample(sample)}</Text></View></Pressable>)}</ScrollView></View></View>
+        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><Text style={styles.sheetTitle}>{copy.samples}</Text><Pressable accessibilityLabel={copy.close} onPress={() => setShowSamples(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRail}>{visibleSampleCategories.map((category) => <Pressable key={category.id} onPress={() => setSampleCategory(category.id)} style={({ pressed }) => [styles.categoryChip, activeSampleCategory === category.id && styles.categoryChipActive, pressed && styles.pressed]}><Text style={[styles.categoryChipText, activeSampleCategory === category.id && styles.categoryChipTextActive]}>{localizedText(category.label, language)}</Text></Pressable>)}</ScrollView><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleSamples.map((sample) => <Pressable key={sample.id} onPress={() => selectSample(sample)} style={({ pressed }) => [styles.sampleRow, pressed && styles.cardPressed]}><View style={styles.sampleCopy}><Text style={styles.sampleTitle}>{localizedText(sample.title, language)}</Text><Text style={styles.sampleDescription}>{localizedText(sample.description, language)}</Text></View><View style={styles.sampleExpressionWrap}><Text numberOfLines={1} style={styles.sampleExpression}>{sample.expression}</Text><Text style={styles.sampleTarget}>→ {targetUnitForSample(sample)}</Text></View></Pressable>)}</ScrollView></View></View>
       </Modal>
 
       <Modal visible={showUnitPicker} transparent animationType="slide" onRequestClose={() => setShowUnitPicker(false)}>
