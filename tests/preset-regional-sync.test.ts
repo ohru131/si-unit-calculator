@@ -112,6 +112,51 @@ describe("投入したプリセットとの結び付き", () => {
     expect(applyPresetRegionalDefaults(seeded, JP).changed).toBe(false);
   });
 
+  it("目印を保存する前に投入された旧データにも、シードから目印を付け直して追従させる", () => {
+    // #54でCodeRabbitが2周目に指摘したケース。`presetRegionalDefaultPatch` は目印がある定数しか
+    // 触らないので、目印を保存するようになる前の保存データ（目印なし）はこれが無いと永遠に追従しない。
+    // **突き合わせは定数のidで行い、値は一切比較しない**（単位ごと変わる燃費では値の比較が破綻する）。
+    const legacy = notebooksFor("JP", "ja").map((notebook) => ({
+      ...notebook,
+      // 旧形式の再現: 目印だけを落とす（式はその端末で解決された当時の値のまま）。
+      localConstants: notebook.localConstants.map(({ regionalDefault: _dropped, ...rest }) => rest),
+    }));
+    expect(fuelConstant(legacy)?.regionalDefault).toBeUndefined();
+    expect(fuelConstant(legacy)?.expression).toBe("15km/L");
+
+    const { notebooks, changed } = applyPresetRegionalDefaults(legacy, US);
+    expect(changed).toBe(true);
+    expect(fuelConstant(notebooks)?.expression).toBe("35mpg");
+    // 付け直した目印は残るので、次に地域が変わってもまた追従する。
+    expect(fuelConstant(notebooks)?.regionalDefault).toBe("fuelEconomy");
+  });
+
+  it("旧データを同じ地域で開いたときは目印だけ付け直す（値は変えない）", () => {
+    const legacy = notebooksFor("JP", "ja").map((notebook) => ({
+      ...notebook,
+      localConstants: notebook.localConstants.map(({ regionalDefault: _dropped, ...rest }) => rest),
+    }));
+    const { notebooks, changed } = applyPresetRegionalDefaults(legacy, JP);
+    // 目印を書き足す必要があるので changed は true。値は据え置き。
+    expect(changed).toBe(true);
+    expect(fuelConstant(notebooks)?.expression).toBe("15km/L");
+    expect(fuelConstant(notebooks)?.regionalDefault).toBe("fuelEconomy");
+    // 2回目は何も起きない（付け直しが1回きりであることの確認）。
+    expect(applyPresetRegionalDefaults(notebooks, JP).changed).toBe(false);
+  });
+
+  it("旧データの付け直しは、シードで regionalDefault が付いていない定数には及ばない", () => {
+    // 走行コストノートの distance（300km）はシード側に目印が無いので、対象外のまま。
+    const legacy = notebooksFor("JP", "ja").map((notebook) => ({
+      ...notebook,
+      localConstants: notebook.localConstants.map(({ regionalDefault: _dropped, ...rest }) => rest),
+    }));
+    const { notebooks } = applyPresetRegionalDefaults(legacy, US);
+    const distance = notebooks.flatMap((item) => item.localConstants).find((item) => item.symbol === "distance");
+    expect(distance?.regionalDefault).toBeUndefined();
+    expect(distance?.expression).toBe("300km");
+  });
+
   it("プリセット以外のノートには目印が付かない（利用者のノートは対象外）", () => {
     const own: CalculationNotebook = {
       id: "notebook-own",

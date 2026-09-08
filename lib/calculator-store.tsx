@@ -487,13 +487,57 @@ export function applyPresetRegionalDefaults(
   let changed = false;
 
   const nextNotebooks = notebooks.map((notebook) => {
-    const nextLocalConstants = presetRegionalDefaultPatch(notebook.localConstants, regionalDefaults);
+    // 目印を保存するようになる前に投入されたプリセットには目印が無い。まずシードから
+    // 付け直してから揃える（付け直さないと、その端末では永遠に追従しない）。
+    const stamped = stampSeedRegionalDefaults(notebook);
+    const patched = presetRegionalDefaultPatch(stamped, regionalDefaults);
+    const nextLocalConstants = patched ?? (stamped === notebook.localConstants ? null : stamped);
     if (!nextLocalConstants) return notebook;
     changed = true;
     return { ...notebook, localConstants: nextLocalConstants };
   });
 
   return { notebooks: nextNotebooks, changed };
+}
+
+/**
+ * 目印を保存するようになる前に投入されたプリセットへ、シードから目印を付け直す。
+ *
+ * **値を一切比較せず、定数のid（`presetConstantId`）でシードと突き合わせる**のが要点。
+ * 「投入時のシード値と一致するか」で編集の有無を推測する方式は、単位ごと変わる燃費
+ * （`15km/L` / `35mpg` / `42mpgUK`）では過去に入りえた全地域の値と比べる必要が出て破綻する。
+ * idで引けばその推測が要らない。
+ *
+ * **この付け直しは1回きりで、正式リリース前の保存データだけが対象。** 目印を保存する以降は
+ * 投入時に必ず付くうえ、編集時に外れるので、ここは何もしない（付いている定数は素通り）。
+ * 引き換えに、**リリース前の端末で定数を編集していた場合その値は1回だけ既定値へ戻る**
+ * （旧データには編集の記録が無いので区別できない）。正式リリース前なので許容する。
+ */
+function stampSeedRegionalDefaults(notebook: CalculationNotebook): NotebookLocalConstant[] {
+  if (!notebook.isPreset) return notebook.localConstants;
+  // 目印が全部付いているなら何もしない（＝リリース後に投入されたデータ）。
+  if (notebook.localConstants.every((constant) => constant.regionalDefault)) return notebook.localConstants;
+
+  const seeds = PRESET_NOTEBOOK_SEEDS[notebook.categoryId];
+  const seedId = seedIdFromNotebookId(notebook.id, notebook.categoryId);
+  const seed = !seeds || seedId === undefined ? undefined : seeds.find((candidate) => seedSlug(candidate) === seedId);
+  if (!seed || seedId === undefined) return notebook.localConstants;
+
+  const kindByConstantId = new Map<string, PresetRegionalDefaultKind>();
+  seed.localConstants.forEach((constant, constantIndex) => {
+    if (constant.regionalDefault) kindByConstantId.set(presetConstantId(notebook.categoryId, seedId, constantIndex), constant.regionalDefault);
+  });
+  if (!kindByConstantId.size) return notebook.localConstants;
+
+  let changed = false;
+  const next = notebook.localConstants.map((constant) => {
+    if (constant.regionalDefault) return constant;
+    const kind = kindByConstantId.get(constant.id);
+    if (!kind) return constant;
+    changed = true;
+    return { ...constant, regionalDefault: kind };
+  });
+  return changed ? next : notebook.localConstants;
 }
 
 export function CalculatorProvider({ children }: { children: ReactNode }) {
