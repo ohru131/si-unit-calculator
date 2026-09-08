@@ -91,6 +91,7 @@ export function preferredPrefixedUnit(quantity: Quantity, system: UnitSystem, is
   getCompatibleUnitGroups(quantity.dimension)
     .filter((group) => isUnitGroupVisible(group, isAdvancedMode))
     .forEach((group) => {
+      const groupCandidates: { symbol: string; scale: number }[] = [];
       group.units.forEach((unitOption) => {
         if (!isUnitVisible(unitOption, isAdvancedMode)) return;
         let definition: ReturnType<typeof parseUnit>;
@@ -100,8 +101,17 @@ export function preferredPrefixedUnit(quantity: Quantity, system: UnitSystem, is
           return;
         }
         if (definition.offset || !isPowerOfTenScale(definition.scale)) return;
-        if (candidates.some((candidate) => candidate.scale === definition.scale)) return;
-        candidates.push({ symbol: unitOption.symbol, scale: definition.scale });
+        groupCandidates.push({ symbol: unitOption.symbol, scale: definition.scale });
+      });
+      // **倍率1の単位を持たないグループは自動選択に使わない。** そのグループの単位は
+      // 「SI単位を接頭語で読み替えたもの」ではなく別の計量習慣の単位なので、SIの値を
+      // 勝手にその名前で呼ぶと誤解を招く。実際に燃費グループ（km/L は倍率1e6）を足した時点で、
+      // 逆面積の結果が軒並み燃費として表示されていた（`1/(1mm²)` が「1 km/L」）。
+      // 他のグループはすべてSI単位（N・Pa・m/s・kg/m³…）が倍率1で入っているので影響しない。
+      if (!groupCandidates.some((candidate) => candidate.scale === 1)) return;
+      groupCandidates.forEach((candidate) => {
+        if (candidates.some((existing) => existing.scale === candidate.scale)) return;
+        candidates.push(candidate);
       });
     });
   if (!candidates.length) return null;

@@ -42,6 +42,22 @@ export const PRESET_PRICE_PROFILES: Record<string, PresetPriceProfile> = {
   GBP: { electricityPerKWh: 0.26, fuelPerLiter: 1.5, filamentPerKg: 20 },
   BRL: { electricityPerKWh: 0.85, fuelPerLiter: 6.4, filamentPerKg: 130 },
   MXN: { electricityPerKWh: 2, fuelPerLiter: 23.5, filamentPerKg: 450 },
+  // ここから下は、電気の地域表（ELECTRICAL_PROFILE_BY_REGION）には入っているのに通貨表が
+  // 無く、**同じ国で電圧は正しいのに金額だけ言語推測（西語→EUR・英語→USD）に落ちていた**地域。
+  // 電気料金は2026年9月時点の各国の住宅用実勢（現地通貨の一次情報が取れたCO・CR・TW以外は
+  // USD建ての実勢に当時の為替を掛けて現地通貨へ直した概数）。燃料は現地通貨建ての店頭価格を
+  // 基準に、上と同じ理由で実勢よりやや低めの丸めにしてある。フィラメントは他の通貨と同じく
+  // PLA 1kgスプールを米ドル建て20ドル台とみなして為替換算した概数。
+  CAD: { electricityPerKWh: 0.18, fuelPerLiter: 1.45, filamentPerKg: 30 },
+  COP: { electricityPerKWh: 850, fuelPerLiter: 3500, filamentPerKg: 70000 },
+  CRC: { electricityPerKWh: 86, fuelPerLiter: 680, filamentPerKg: 10000 },
+  DOP: { electricityPerKWh: 6.8, fuelPerLiter: 72, filamentPerKg: 1300 },
+  GTQ: { electricityPerKWh: 2.2, fuelPerLiter: 10.5, filamentPerKg: 170 },
+  HNL: { electricityPerKWh: 6.5, fuelPerLiter: 34, filamentPerKg: 600 },
+  NIO: { electricityPerKWh: 6.5, fuelPerLiter: 46, filamentPerKg: 800 },
+  // 台湾の住宅用は階層制（月120kWhまで1.78元、1000kWh超で8.86元）で幅が5倍ある。
+  // 単一の代表値にはどうしても無理があるので、平均的な使用量の帯にあたる値を置く。
+  TWD: { electricityPerKWh: 3.2, fuelPerLiter: 30, filamentPerKg: 700 },
 };
 
 export const DEFAULT_PRESET_PRICE_CURRENCY = "USD";
@@ -51,7 +67,7 @@ export const DEFAULT_PRESET_PRICE_CURRENCY = "USD";
 // この対応表が無いとWebでは地域を全く見られなくなる。ネイティブでも、端末が
 // 通貨を返さない場合の保険になる。
 // 表に無い地域は言語からの推測に落ちるので、網羅する必要はない。
-const CURRENCY_BY_REGION: Record<string, string> = {
+export const CURRENCY_BY_REGION: Record<string, string> = {
   JP: "JPY",
   US: "USD",
   GB: "GBP",
@@ -62,6 +78,14 @@ const CURRENCY_BY_REGION: Record<string, string> = {
   // CodeRabbitが検出）。パナマの法定通貨はバルボアだが米ドルと1:1で併用され、実際の
   // 値付けは米ドル。プエルトリコは米国の自治領。
   EC: "USD", SV: "USD", PA: "USD", PR: "USD",
+  // ベネズエラは自国通貨(VES)があるが、価格表示が事実上ドル化している。VESの値を
+  // 置くとインフレで短期間に大きく外れるため、**あえてUSDへ寄せる**。端末が通貨コード
+  // VES を返しても VES のプロファイルが無いので、この地域表まで落ちてUSDになる。
+  // （電気は補助で極端に安いという別の事情があるが、EUR建ての値より近い。）
+  VE: "USD",
+  // カナダと、電気の地域表にあって通貨表に無かった中南米・台湾。ここが無いと
+  // カナダの英語ユーザーはUSD、中南米の西語ユーザーはEURの金額になる。
+  CA: "CAD", CO: "COP", CR: "CRC", DO: "DOP", GT: "GTQ", HN: "HNL", NI: "NIO", TW: "TWD",
   // ユーロ圏21カ国（2026年1月にブルガリアが加入して21カ国になった）。
   // プリセットの言語(de/fr/es)に関係する国だけでなく、端末の地域がユーロ圏なら
   // 言語を問わずEURになるように並べておく。**ここを1カ国でも落とすと、その国の
@@ -120,7 +144,9 @@ export const DEFAULT_PRESET_ELECTRICAL_PROFILE: PresetElectricalProfile = { main
 
 // 100〜127V圏（と、230Vでも定格が違う英国・アイルランド）だけを列挙する。ここに無い地域は
 // 上のDEFAULT_PRESET_ELECTRICAL_PROFILEになるので、網羅する必要があるのは低電圧側だけ。
-const ELECTRICAL_PROFILE_BY_REGION: Record<string, PresetElectricalProfile> = {
+// テストから「電気の地域表にある地域は金額も自国通貨で解決できる」ことを検証したいのでexportする。
+// この2つの表がずれると、同じ国で電圧は正しいのに金額だけ他国の通貨になる（今回塞いだ不整合）。
+export const ELECTRICAL_PROFILE_BY_REGION: Record<string, PresetElectricalProfile> = {
   JP: { mainsVoltage: 100, breakerCurrent: 30 },
   US: { mainsVoltage: 120, breakerCurrent: 20 },
   CA: { mainsVoltage: 120, breakerCurrent: 20 },
@@ -141,12 +167,26 @@ const ELECTRICAL_PROFILE_BY_REGION: Record<string, PresetElectricalProfile> = {
 
 // 地域が分からないときの当て。通貨は地域よりは粗いが、JPY・USD・BRL・MXNは
 // 電圧圏がはっきりしているので手掛かりになる（EUR・GBPは既定の230Vと同じなので置かない）。
+// 地域が読めないときの保険。**通貨表（PRESET_PRICE_PROFILES）に足した通貨は、その通貨が
+// 1つの国しか指さないならここにも足す**。片方だけ足すと「金額はカナダドルなのに電圧は
+// 言語推測」という食い違いが生まれる（CAD を足したのに electrical が無く、英語UIでは
+// 米国の120V/20A、西語UIの中南米通貨では230Vに落ちていた。CodeRabbitが検出）。
+// EUR はユーロ圏21カ国＋αを指すので1対1にならないが、どの国も230Vなので既定値で正しい。
+// 対応の欠けは tests/preset-regional-defaults.test.ts が CURRENCY_BY_REGION から機械的に検出する。
 const ELECTRICAL_PROFILE_BY_CURRENCY: Record<string, PresetElectricalProfile> = {
   JPY: ELECTRICAL_PROFILE_BY_REGION.JP,
   USD: ELECTRICAL_PROFILE_BY_REGION.US,
   BRL: ELECTRICAL_PROFILE_BY_REGION.BR,
   MXN: ELECTRICAL_PROFILE_BY_REGION.MX,
   GBP: ELECTRICAL_PROFILE_BY_REGION.GB,
+  CAD: ELECTRICAL_PROFILE_BY_REGION.CA,
+  COP: ELECTRICAL_PROFILE_BY_REGION.CO,
+  CRC: ELECTRICAL_PROFILE_BY_REGION.CR,
+  DOP: ELECTRICAL_PROFILE_BY_REGION.DO,
+  GTQ: ELECTRICAL_PROFILE_BY_REGION.GT,
+  HNL: ELECTRICAL_PROFILE_BY_REGION.HN,
+  NIO: ELECTRICAL_PROFILE_BY_REGION.NI,
+  TWD: ELECTRICAL_PROFILE_BY_REGION.TW,
 };
 
 // 地域も通貨も分からないときの最後の当て。金額側のFALLBACK_CURRENCY_BY_LANGUAGEと
@@ -181,10 +221,67 @@ export function resolvePresetElectricalProfile(
   return FALLBACK_ELECTRICAL_BY_LANGUAGE[language] ?? DEFAULT_PRESET_ELECTRICAL_PROFILE;
 }
 
+// 燃費の既定値。**単位そのものが地域で違う**（米国は mpg、英国は英ガロンの mpg、
+// 日本・欧州は km/L）ため、金額のように数値だけ差し替えるのでは足りず、単位ごと差し替える。
+// 電圧と同じ「地域で決まるもの」なので通貨は見ない。
+//
+// 3つの値は**同じ車を各地域の言い方で表したもの**にしてある（15km/L ≒ 35mpg ≒ 42英mpg）。
+// ノートの式は「距離 ÷ 燃費」で、エンジンがSIへ正規化するので式は地域非依存のまま動く。
+// L/100km は面積と同じ次元で単位文字列にできないため、ここでは扱わない（lib/units.ts の
+// 燃費グループのコメント参照）。
+const FUEL_ECONOMY_BY_REGION: Record<string, string> = {
+  US: "35mpg",
+  GB: "42mpgUK",
+};
+
+export const DEFAULT_PRESET_FUEL_ECONOMY = "15km/L";
+
+// 地域が読めない端末のための保険。金額（通貨）・電気（通貨）と根拠を揃えないと、
+// **同じ端末で価格はUSDなのに燃費だけ km/L** という食い違いが出る（独立レビューで検出）。
+// 言語までは落とさない: `en` は米国(mpg)・英国(英mpg)・豪州(L/100km)に割れていて一意に決まらず、
+// 推測を重ねるより世界の多数派である km/L の方が外れ方が小さい。
+const FUEL_ECONOMY_BY_CURRENCY: Record<string, string> = {
+  USD: FUEL_ECONOMY_BY_REGION.US,
+  GBP: FUEL_ECONOMY_BY_REGION.GB,
+};
+
+export function resolvePresetFuelEconomy(
+  regionCode: string | null | undefined,
+  currencyCode?: string | null | undefined,
+): string {
+  const region = regionCode?.trim().toUpperCase() ?? "";
+  // **地域が読めた時点で確定させる**（電圧と同じで、地域が分かれば推測の余地が無い）。
+  // 表に無い地域＝mpg圏ではないということなので、世界の多数派である km/L にする
+  // （カナダ・豪州は L/100km 表記だが、この式は km/L でも必要な燃料は正しく出る）。
+  if (region) return FUEL_ECONOMY_BY_REGION[region] ?? DEFAULT_PRESET_FUEL_ECONOMY;
+  return FUEL_ECONOMY_BY_CURRENCY[currencyCode?.trim().toUpperCase() ?? ""] ?? DEFAULT_PRESET_FUEL_ECONOMY;
+}
+
 // シードのローカル定数が指定できる「地域依存の既定値」の種類。金額と電気を1つの
 // unionにまとめてあるのは、シード側（NotebookSeedConstant.regionalDefault）から見ると
 // 「投入時に端末の地域へ合わせて差し替えるもの」という同じ1つの概念だから。
-export type PresetRegionalDefaultKind = PresetPriceKind | PresetElectricalKind;
+export type PresetRegionalDefaultKind = PresetPriceKind | PresetElectricalKind | "fuelEconomy";
+
+// 保存データの検証に使うので、種類の一覧を実行時に引ける形でも持つ。**型と一覧がずれると
+// 「保存されているのに解決できない目印」が生まれる**（`regionalDefaults[kind]` が undefined になり、
+// 定数の式が空になってノートが動かなくなる）。`Record<PresetRegionalDefaultKind, true>` にしておくと
+// 種類を足したときの入れ忘れ（キー不足）と綴り違い（未知のキー）の**両方**が型エラーになる
+// （`Record<AppLanguage, ...>` を翻訳漏れのチェックリストにしているのと同じ手）。
+const PRESET_REGIONAL_DEFAULT_KIND_SET: Record<PresetRegionalDefaultKind, true> = {
+  electricityPerKWh: true,
+  fuelPerLiter: true,
+  filamentPerKg: true,
+  mainsVoltage: true,
+  breakerCurrent: true,
+  fuelEconomy: true,
+};
+
+export const PRESET_REGIONAL_DEFAULT_KINDS = Object.keys(PRESET_REGIONAL_DEFAULT_KIND_SET) as PresetRegionalDefaultKind[];
+
+export function isPresetRegionalDefaultKind(value: unknown): value is PresetRegionalDefaultKind {
+  // hasOwnProperty で引くこと。`in` や添字だと "constructor" のようなプロトタイプのキーが通る。
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(PRESET_REGIONAL_DEFAULT_KIND_SET, value);
+}
 
 // 解決済みの既定値。**値ではなく「そのまま定数の式として使える文字列」**で持つ。
 // 金額は裸の数値（"0.29"。通貨記号はノート側で扱わない）、電気は単位付き（"230V"・"16A"）と
@@ -204,5 +301,6 @@ export function resolvePresetRegionalDefaults(
     filamentPerKg: String(price.filamentPerKg),
     mainsVoltage: `${electrical.mainsVoltage}V`,
     breakerCurrent: `${electrical.breakerCurrent}A`,
+    fuelEconomy: resolvePresetFuelEconomy(regionCode, currencyCode),
   };
 }

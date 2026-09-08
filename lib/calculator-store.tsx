@@ -9,7 +9,8 @@ import { PRESET_NOTEBOOK_CATEGORIES, PRESET_NOTEBOOK_SEEDS, PRESET_NOTEBOOK_SEED
 import { presetResultSymbolPatch } from "@/lib/notebook-result-symbols";
 import type { NotebookSeedConstant } from "@/lib/notebook-formulas/types";
 import { pushNotebookHistoryEntry, removeNotebookHistoryEntry, type NotebookHistoryEntry } from "@/lib/notebook-history";
-import { PresetRegionalDefaults, resolvePresetRegionalDefaults } from "@/lib/preset-regional-defaults";
+import { isPresetRegionalDefaultKind, PresetRegionalDefaults, type PresetRegionalDefaultKind, resolvePresetRegionalDefaults } from "@/lib/preset-regional-defaults";
+import { presetRegionalDefaultPatch, releaseEditedRegionalDefaults } from "@/lib/preset-regional-sync";
 import { applyPresetNotebookOverrides, type ImportedNotebook, type PresetNotebookOverride } from "@/lib/notebooks-backup";
 import { parseConstantDefinition, Quantity, SavedConstant, setCustomUnits as setCustomUnitsRegistry, type CustomUnitRegistration } from "@/lib/units";
 
@@ -32,6 +33,12 @@ const ACTIVE_NOTEBOOK_STORAGE_KEY = "si-unit-calculator.active-notebook.v1";
 // 対応言語全部との比較ではなく、この言語のシード文言とだけの比較に絞るために使う
 // （詳しくは resolveLocalizedField のコメントを参照）。
 const PRESETS_LANGUAGE_STORAGE_KEY = "si-unit-calculator.presets-language.v1";
+// 「地域別既定値の目印を旧データへ付け直す移行が済んだか」のフラグ。**1回きりであることを
+// フラグで保証しないと、利用者が編集して目印を外した定数を「旧データ」と誤認して付け直し、
+// 次の起動で編集内容を上書きしてしまう**（CodeRabbitが#54で検出）。
+// 「一部の定数に目印が無い」状態は正常でもあり得る（シードで regionalDefault を付けていない
+// 定数、および利用者が編集した定数）ので、データの形からは旧か新かを判定できない。
+const REGIONAL_DEFAULTS_STAMPED_STORAGE_KEY = "si-unit-calculator.regional-defaults-stamped.v1";
 
 export const UNCATEGORIZED_CATEGORY_ID = "uncategorized";
 
@@ -110,6 +117,12 @@ export type NotebookLocalConstant = {
   /** 数式の変数と同じ記号にする（下付き文字・ギリシャ文字も識別子として使えるため、表示用の別名は不要）。 */
   symbol: string;
   expression: string;
+  /**
+   * **この式がまだ「アプリが入れた地域別の既定値」であることの目印。**
+   * 付いている間は端末の地域に追従して差し替わり、利用者が値を書き換えた時点で外れて
+   * 以後アプリは触らない（所有権の記録）。詳しくは lib/preset-regional-sync.ts。
+   */
+  regionalDefault?: PresetRegionalDefaultKind;
 };
 
 /** 「説明文＋数式」のペア。計算手順（steps）とは独立に、複数個並べて解説できる。 */
@@ -215,11 +228,15 @@ function isLegacyCalculationNote(value: unknown): value is LegacyCalculationNote
   return typeof candidate.id === "string" && typeof candidate.title === "string" && typeof candidate.description === "string" && Array.isArray(candidate.steps) && candidate.steps.every((step) => step && typeof step.id === "string" && typeof step.title === "string" && typeof step.expression === "string" && typeof step.targetUnit === "string") && typeof candidate.createdAt === "string" && typeof candidate.updatedAt === "string";
 }
 
-function isCalculationNotebook(value: unknown): value is CalculationNotebook {
+export function isCalculationNotebook(value: unknown): value is CalculationNotebook {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<CalculationNotebook>;
   return typeof candidate.id === "string" && typeof candidate.title === "string" && typeof candidate.description === "string" && typeof candidate.categoryId === "string"
     && (candidate.formulas === undefined || (Array.isArray(candidate.formulas) && candidate.formulas.every((item) => item && typeof item.id === "string" && typeof item.explanation === "string" && typeof item.latex === "string")))
+    // regionalDefault の中身はここで検証しない。**未知の種類を理由にfalseを返すと、この後の
+    // filter でノートが丸ごと捨てられ、利用者の手順や編集ごと消える**（しかも投入済みカテゴリは
+    // seededPresetIds に残るので二度と復活しない）。目印は sanitizeStoredLocalConstants で
+    // 落とし、式と手順は残す。
     && Array.isArray(candidate.localConstants) && candidate.localConstants.every((item) => item && typeof item.id === "string" && typeof item.symbol === "string" && typeof item.expression === "string")
     && Array.isArray(candidate.steps) && candidate.steps.every((step) => step && typeof step.id === "string" && typeof step.title === "string" && typeof step.expression === "string" && typeof step.targetUnit === "string" && (step.resultSymbol === undefined || typeof step.resultSymbol === "string"))
     && typeof candidate.createdAt === "string" && typeof candidate.updatedAt === "string";
@@ -237,6 +254,20 @@ function isNotebookHistoryEntry(value: unknown): value is NotebookHistoryEntry {
   return typeof candidate.id === "string" && typeof candidate.notebookId === "string" && typeof candidate.title === "string" && typeof candidate.categoryId === "string" && typeof candidate.openedAt === "string";
 }
 
+/**
+ * 保存済みのローカル定数から、**現在のアプリが解釈できない `regionalDefault` だけ**を落とす。
+ * 種類を減らしたアプリで古いデータを開くと `regionalDefaults[kind]` が undefined になるため、
+ * 目印としては認めない。ただし式はそのまま残す（利用者が入れた値として扱う）。
+ * ノートごと捨てないのが要点。
+ */
+export function sanitizeStoredLocalConstants(localConstants: NotebookLocalConstant[]): NotebookLocalConstant[] {
+  return localConstants.map((constant) => {
+    if (constant.regionalDefault === undefined || isPresetRegionalDefaultKind(constant.regionalDefault)) return constant;
+    const { regionalDefault: _unknown, ...rest } = constant;
+    return rest;
+  });
+}
+
 function parseStoredArray(raw: string | null): unknown[] {
   if (!raw) return [];
   try {
@@ -250,8 +281,9 @@ function parseStoredArray(raw: string | null): unknown[] {
 // プリセットのローカル定数の式を決める。regionalDefault が付いている定数（電気代・燃料の単価、
 // 商用電源の電圧・ブレーカーの定格電流）は妥当な値が地域によって全く違うので、端末の地域から
 // 解決した式に差し替える。それ以外はシードの expression をそのまま使う。
-// 投入時に一度だけ適用する。localConstants はユーザーが編集する前提のフィールドで、
-// 言語切替時にも触らない決まりなので、あとから地域が変わっても上書きしない。
+// 投入時の初期値を決めるのがこの関数の役目。**投入後の追従は目印（regionalDefault）を
+// 見る lib/preset-regional-sync.ts が担う**ので、ここは「最初の1回」だけを考えればよい。
+// 言語切替時に localConstants を触らない決まりは従来どおり（文言の再解決とは無関係）。
 export function presetConstantExpression(constant: NotebookSeedConstant, regionalDefaults: PresetRegionalDefaults): string {
   if (!constant.regionalDefault) return constant.expression;
   return regionalDefaults[constant.regionalDefault];
@@ -305,6 +337,9 @@ export function buildPresetNotebooksFromSeeds(categoryIds: string[], language: A
           id: presetConstantId(categoryId, seedId, constantIndex),
           symbol: constant.symbol,
           expression: presetConstantExpression(constant, regionalDefaults),
+          // 解決した文字列だけでなく**種類も保存する**。これが無いと、あとから見て
+          // 「アプリが入れた既定値」か「利用者が打った値」かが区別できない。
+          ...(constant.regionalDefault ? { regionalDefault: constant.regionalDefault } : {}),
         })),
         steps: seed.steps.map((step, stepIndex) => ({
           id: presetStepId(categoryId, seedId, stepIndex),
@@ -457,6 +492,92 @@ export function applyPresetResultSymbols(notebooks: CalculationNotebook[]): { no
   return { notebooks: nextNotebooks, changed };
 }
 
+/**
+ * 保存済みのプリセットノートの「地域依存の既定値」を、現在の端末の地域へ揃える。
+ * `applyPresetResultSymbols` と同じ形（`{ notebooks, changed }`）にして、読み込み時の
+ * 書き込み判定をそのまま使えるようにしている。
+ *
+ * シードとの突き合わせが要らないのが以前との違い。**目印が保存データ側に付いている**ので、
+ * 「投入時のシード値と一致するか」で編集の有無を推測する必要がない（単位ごと変わる燃費では
+ * その推測が過去に入りえた全地域の値との比較になって現実的でなかった）。
+ */
+export function applyPresetRegionalDefaults(
+  notebooks: CalculationNotebook[],
+  regionalDefaults: PresetRegionalDefaults,
+): { notebooks: CalculationNotebook[]; changed: boolean } {
+  let changed = false;
+
+  const nextNotebooks = notebooks.map((notebook) => {
+    const nextLocalConstants = presetRegionalDefaultPatch(notebook.localConstants, regionalDefaults);
+    if (!nextLocalConstants) return notebook;
+    changed = true;
+    return { ...notebook, localConstants: nextLocalConstants };
+  });
+
+  return { notebooks: nextNotebooks, changed };
+}
+
+/**
+ * 目印を保存するようになる前に投入されたプリセットへ、シードから目印を付け直す。
+ *
+ * **値を一切比較せず、定数のid（`presetConstantId`）でシードと突き合わせる**のが要点。
+ * 「投入時のシード値と一致するか」で編集の有無を推測する方式は、単位ごと変わる燃費
+ * （`15km/L` / `35mpg` / `42mpgUK`）では過去に入りえた全地域の値と比べる必要が出て破綻する。
+ * idで引けばその推測が要らない。
+ *
+ * **必ず1回きりで呼ぶこと**（`REGIONAL_DEFAULTS_STAMPED_STORAGE_KEY` で縛っている）。
+ * データの形からは旧か新かを判定できない: 「一部の定数に目印が無い」状態は正常でもあり得る
+ * （シードで `regionalDefault` を付けていない定数、そして**利用者が編集して目印が外れた定数**）。
+ * 毎回呼ぶと後者を旧データと誤認して付け直し、次の起動で利用者の編集を上書きしてしまう
+ * （CodeRabbitが#54で検出。実際に編集した `18km/L` が `35mpg` に戻る回帰テストで固定した）。
+ *
+ * 引き換えに、**リリース前の端末で定数を編集していた場合その値は1回だけ既定値へ戻る**
+ * （旧データには編集の記録が無いので区別できない）。正式リリース前なので許容する。
+ */
+export function stampLegacyPresetRegionalDefaults(notebooks: CalculationNotebook[]): { notebooks: CalculationNotebook[]; changed: boolean } {
+  let changed = false;
+
+  const nextNotebooks = notebooks.map((notebook) => {
+    const nextLocalConstants = stampSeedRegionalDefaults(notebook);
+    if (nextLocalConstants === notebook.localConstants) return notebook;
+    changed = true;
+    return { ...notebook, localConstants: nextLocalConstants };
+  });
+
+  return { notebooks: nextNotebooks, changed };
+}
+
+function stampSeedRegionalDefaults(notebook: CalculationNotebook): NotebookLocalConstant[] {
+  if (!notebook.isPreset) return notebook.localConstants;
+
+  const seeds = PRESET_NOTEBOOK_SEEDS[notebook.categoryId];
+  const seedId = seedIdFromNotebookId(notebook.id, notebook.categoryId);
+  const seed = !seeds || seedId === undefined ? undefined : seeds.find((candidate) => seedSlug(candidate) === seedId);
+  if (!seed || seedId === undefined) return notebook.localConstants;
+
+  // idは「カテゴリID＋シードのスラグ＋添字」なので、シード内で定数を並べ替えると別の定数の
+  // idと一致してしまう。**記号も一致させる**ことで、並べ替えたときに間違った定数へ目印を付けて
+  // 直後の後追い反映が `distance` を `230V` で上書きする、という事故を防ぐ
+  // （配列位置から採番して既存データが別シードに結び付いたPR #51と同じ種類の危険）。
+  const seedByConstantId = new Map<string, { symbol: string; kind: PresetRegionalDefaultKind }>();
+  seed.localConstants.forEach((constant, constantIndex) => {
+    if (constant.regionalDefault) {
+      seedByConstantId.set(presetConstantId(notebook.categoryId, seedId, constantIndex), { symbol: constant.symbol, kind: constant.regionalDefault });
+    }
+  });
+  if (!seedByConstantId.size) return notebook.localConstants;
+
+  let changed = false;
+  const next = notebook.localConstants.map((constant) => {
+    if (constant.regionalDefault) return constant;
+    const seeded = seedByConstantId.get(constant.id);
+    if (!seeded || seeded.symbol !== constant.symbol) return constant;
+    changed = true;
+    return { ...constant, regionalDefault: seeded.kind };
+  });
+  return changed ? next : notebook.localConstants;
+}
+
 export function CalculatorProvider({ children }: { children: ReactNode }) {
   const { language, currencyCode, regionCode, isReady: isGlobalSettingsReady } = useGlobalSettings();
   const [constants, setConstants] = useState<SavedConstant[]>([]);
@@ -582,6 +703,8 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           migratedRaw,
           seededPresetsRaw,
           presetsLanguageRaw,
+          // 並び順は下の getItem と1対1で対応させること（ずれると別のキーの値が入る）。
+          regionalDefaultsStampedRaw,
           activeNotebookIdRaw,
         ] = await Promise.all([
           AsyncStorage.getItem(CONSTANTS_STORAGE_KEY),
@@ -595,10 +718,11 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           AsyncStorage.getItem(NOTEBOOKS_MIGRATED_STORAGE_KEY),
           AsyncStorage.getItem(NOTEBOOKS_SEEDED_PRESETS_STORAGE_KEY),
           AsyncStorage.getItem(PRESETS_LANGUAGE_STORAGE_KEY),
+          AsyncStorage.getItem(REGIONAL_DEFAULTS_STAMPED_STORAGE_KEY),
           AsyncStorage.getItem(ACTIVE_NOTEBOOK_STORAGE_KEY),
         ]);
 
-        let nextNotebooks = parseStoredArray(notebooksRaw).filter(isCalculationNotebook).map((item) => ({ ...item, formulas: item.formulas ?? [], pinned: item.pinned === true, isPreset: item.isPreset === true }));
+        let nextNotebooks = parseStoredArray(notebooksRaw).filter(isCalculationNotebook).map((item) => ({ ...item, formulas: item.formulas ?? [], pinned: item.pinned === true, isPreset: item.isPreset === true, localConstants: sanitizeStoredLocalConstants(item.localConstants) }));
         let seededPresetIds = parseStoredArray(seededPresetsRaw).filter((id): id is string => typeof id === "string");
         let notebooksDirty = false;
         let markMigrated = false;
@@ -635,9 +759,10 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         // プリセット計算ノートは特別なデータではなく、ユーザーのノートと全く同じ形で複製されるだけ
         // （isPresetだけが立っており、削除できない点が異なる）。
         // カテゴリ単位・冪等に投入するため、後から新カテゴリを追加しても既存データを壊さない。
+        // 投入にも後追い反映にも使うので、投入ブロックの外で1回だけ解決する。
+        const regionalDefaults = resolvePresetRegionalDefaults(currencyCode, regionCode, language);
         const missingPresetCategories = PRESET_NOTEBOOK_CATEGORIES.filter((category) => !seededPresetIds.includes(category.id));
         if (missingPresetCategories.length) {
-          const regionalDefaults = resolvePresetRegionalDefaults(currencyCode, regionCode, language);
           const now = new Date().toISOString();
           nextNotebooks.push(...buildPresetNotebooksFromSeeds(missingPresetCategories.map((category) => category.id), language, regionalDefaults, now));
           seededPresetIds = [...seededPresetIds, ...missingPresetCategories.map((category) => category.id)];
@@ -660,11 +785,41 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           }
         }
 
+        // 地域別の既定値（電気代・燃料単価・フィラメント単価・電圧・ブレーカー定格・燃費）を
+        // 現在の端末の地域へ揃える。**目印が付いたままの定数だけ**が対象なので、利用者が
+        // 書き換えた値は触らない（所有権の判定は lib/preset-regional-sync.ts）。
+        // 投入はカテゴリ単位で1回きりなので、これが無いと既存インストールには永遠に届かず、
+        // 引っ越しや端末のロケール変更にも追従しない。
+        // 目印を保存するようになる前の保存データへ、シードから目印を付け直す。**1回きり。**
+        // 毎回走らせると、利用者が編集して目印を外した定数を旧データと誤認して付け直し、
+        // すぐ下の後追い反映が編集内容を上書きしてしまう（CodeRabbitが#54で検出）。
+        let markRegionalDefaultsStamped = false;
+        if (regionalDefaultsStampedRaw !== "1") {
+          const stamped = stampLegacyPresetRegionalDefaults(nextNotebooks);
+          if (stamped.changed) {
+            nextNotebooks = stamped.notebooks;
+            notebooksDirty = true;
+          }
+          // 付け直す対象が無かった場合もフラグは立てる（次回以降走らせない）。
+          markRegionalDefaultsStamped = true;
+        }
+
+        {
+          const withRegionalDefaults = applyPresetRegionalDefaults(nextNotebooks, regionalDefaults);
+          if (withRegionalDefaults.changed) {
+            nextNotebooks = withRegionalDefaults.notebooks;
+            notebooksDirty = true;
+          }
+        }
+
         if (notebooksDirty) {
           await AsyncStorage.setItem(NOTEBOOKS_STORAGE_KEY, JSON.stringify(nextNotebooks));
           if (markMigrated) await AsyncStorage.setItem(NOTEBOOKS_MIGRATED_STORAGE_KEY, "1");
           if (missingPresetCategories.length) await AsyncStorage.setItem(NOTEBOOKS_SEEDED_PRESETS_STORAGE_KEY, JSON.stringify(seededPresetIds));
         }
+        // ノート本体の書き込みが済んだ後に立てる（途中で失敗したときに「済」だけ残らないように、
+        // 上の markMigrated と同じ順序にしてある）。
+        if (markRegionalDefaultsStamped) await AsyncStorage.setItem(REGIONAL_DEFAULTS_STAMPED_STORAGE_KEY, "1");
         if (presetsLanguageDirty) await AsyncStorage.setItem(PRESETS_LANGUAGE_STORAGE_KEY, presetsLanguage as AppLanguage);
 
         // 保存されていたIDが指すノートがもう存在しない（削除された・別端末のバックアップを
@@ -751,6 +906,25 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     if (previousLanguage !== language) void persistPresetsLanguage(language);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language, isGlobalSettingsReady, isLoading]);
+
+  // 端末の地域（currencyCode / regionCode）が変わったら、目印が残っているローカル定数を
+  // 新しい地域の既定値へ揃える。上の初回ロードは [isGlobalSettingsReady] だけを依存にして
+  // いるので、**アプリが起動したまま端末の地域設定が変わった場合はロード処理が再実行されず、
+  // 追従できない**（`Localization.useLocales()` は再起動を待たずに更新される。CodeRabbitが
+  // #54で検出）。言語の追従を上のuseEffectが個別に担当しているのと同じ形に揃えてある。
+  //
+  // **ここでは旧データへの目印の付け直し（stampLegacyPresetRegionalDefaults）を呼ばないこと。**
+  // あれは移行フラグで1回きりに縛る必要があるもので、地域が変わるたびに走らせると
+  // 利用者が編集して目印を外した定数を上書きしてしまう。
+  useEffect(() => {
+    if (!isGlobalSettingsReady || isLoading) return;
+    const regionalDefaults = resolvePresetRegionalDefaults(currencyCode, regionCode, language);
+    const { notebooks: nextNotebooks, changed } = applyPresetRegionalDefaults(notebooksRef.current, regionalDefaults);
+    if (changed) void persistNotebooks(nextNotebooks);
+    // language は「表に無い地域のときの最後の手掛かり」として resolvePresetRegionalDefaults が
+    // 使うだけなので、言語切替でここが走っても地域が読めている端末では何も変わらない。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currencyCode, regionCode, language, isGlobalSettingsReady, isLoading]);
 
   const upsertConstant = useCallback(
     async (symbolInput: string, expressionInput: string) => {
@@ -843,7 +1017,11 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
     const now = new Date().toISOString();
     const currentNotebooks = notebooksRef.current;
     const existing = input.id ? currentNotebooks.find((item) => item.id === input.id) : undefined;
-    const item: CalculationNotebook = { ...input, id: existing?.id ?? `notebook-${Date.now()}`, pinned: existing?.pinned ?? false, isPreset: existing?.isPreset ?? false, createdAt: existing?.createdAt ?? now, updatedAt: now };
+    // 利用者が書き換えた定数から地域別既定値の目印を外す（以後アプリは触らない）。
+    // 保存の入口はここだけなので、詳細画面・編集シート・バックアップ取り込みのどこから
+    // 来ても同じ規則で所有権が移る。
+    const localConstants = releaseEditedRegionalDefaults(input.localConstants, existing?.localConstants);
+    const item: CalculationNotebook = { ...input, localConstants, id: existing?.id ?? `notebook-${Date.now()}`, pinned: existing?.pinned ?? false, isPreset: existing?.isPreset ?? false, createdAt: existing?.createdAt ?? now, updatedAt: now };
     const next = [...currentNotebooks.filter((entry) => entry.id !== item.id), item].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
     await persistNotebooks(next);
     return item;

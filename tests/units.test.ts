@@ -200,7 +200,9 @@ describe("単位付き計算", () => {
   it("単位検索は地域別プリセット内から記号とカテゴリで候補を返す", () => {
     expect(searchUnitOptions("psi", "us").map((result) => result.unit.symbol)).toEqual(["psi"]);
     expect(searchUnitOptions("pressure", "us").map((result) => result.unit.symbol)).toEqual(["psi", "atm"]);
-    expect(searchUnitOptions("gal", "metric").map((result) => result.unit.symbol)).toEqual(["Gal", "mGal"]);
+    // 燃費の mpg は読みが「マイル毎米ガロン」なので "gal" でも当たる（燃費を探している
+    // 利用者にとっては当たった方がよい）。加速度のGalと同居するが、記号は別なので混同しない。
+    expect(searchUnitOptions("gal", "metric").map((result) => result.unit.symbol)).toEqual(["Gal", "mGal", "mpg"]);
   });
 
   it("候補への登録済み・計算可能な候補外・未対応の単位を区別する", () => {
@@ -334,5 +336,67 @@ describe("πを含む暗黙の掛け算", () => {
 
   it("数量どうしが並んだだけの入力（演算子の書き忘れ）は従来どおりエラーにする", () => {
     expect(() => evaluateExpression("2 3")).toThrow();
+  });
+});
+
+describe("メートル馬力（PS / CV）", () => {
+  it("PSとCVは同じ735.49875Wで、英馬力hpとは別の値になる", () => {
+    expect(evaluateExpression("1PS").siValue).toBeCloseTo(735.49875);
+    expect(evaluateExpression("1CV").siValue).toBeCloseTo(735.49875);
+    // 75kgf·m/s = 75 × 9.80665。定義どおり厳密な値であることを確認する。
+    expect(evaluateExpression("1PS").siValue).toBe(75 * 9.80665);
+    expect(evaluateExpression("1hp").siValue).not.toBeCloseTo(735.49875);
+  });
+
+  it("独仏のカタログ値を kW へ正しく直す（hpと混同すると1.4%ずれる）", () => {
+    expect(convertQuantity(evaluateExpression("100PS"), "kW").value).toBeCloseTo(73.549875);
+    expect(convertQuantity(evaluateExpression("100hp"), "kW").value).toBeCloseTo(74.5699871582);
+  });
+
+  it("小文字の ps はピコ秒のまま（別表記に小文字を足していない）", () => {
+    // PS を足したことで ps がメートル馬力へ化けると、時間の計算が黙って壊れる。
+    expect(evaluateExpression("1ps").siValue).toBeCloseTo(1e-12);
+    expect(formatQuantity(evaluateExpression("1ps"), "s")).toBe("1e-12 s");
+  });
+
+  it("CV は別表記として登録済み単位のPSへ寄せる", () => {
+    const registration = getUnitRegistration("CV");
+    expect(registration.status).toBe("registered");
+    expect(registration.canonical).toBe("PS");
+  });
+
+  it("PSは電力グループの単位として選べる（比較表・単位チップに出る）", () => {
+    const power = UNIT_GROUPS.find((group) => group.id === "power");
+    expect(power?.units.map((unitOption) => unitOption.symbol)).toContain("PS");
+  });
+});
+
+describe("燃費（走行距離÷燃料）", () => {
+  it("mi/gal が逆面積のまま出ず、mpg として読める", () => {
+    // 以前は 55mi/1gal が「2.33829e+7 1/m²」としか出せず、燃費として読めなかった。
+    const economy = evaluateExpression("55mi/1gal");
+    expect(convertQuantity(economy, "mpg").value).toBeCloseTo(55);
+    expect(convertQuantity(economy, "km/L").value).toBeCloseTo(23.3829, 3);
+  });
+
+  it("米ガロンと英ガロンで同じ「mpg」が約20%違うことを別記号で区別する", () => {
+    const economy = evaluateExpression("55mi/1gal");
+    expect(convertQuantity(economy, "mpgUK").value).toBeCloseTo(66.0522, 3);
+    expect(convertQuantity(evaluateExpression("20km/1L"), "mpg").value).toBeCloseTo(47.0428, 3);
+  });
+
+  it("燃費グループは逆面積の次元で、既存グループと衝突しない", () => {
+    const groups = getCompatibleUnitGroups(evaluateExpression("20km/1L").dimension);
+    expect(groups.map((group) => group.id)).toEqual(["fuelEconomy"]);
+    // 逆向きの「100kmあたりの燃料」は面積と同じ次元なので、面積の単位チップを汚さないよう
+    // グループにしていない（ノート側で「消費量 ÷ 距離 × 100km」を L で出す）。
+    expect(getCompatibleUnitGroups(evaluateExpression("1L/100km").dimension).map((group) => group.id)).toEqual(["area"]);
+  });
+
+  it("地域ごとに先に出す燃費の単位を変える", () => {
+    const fuelEconomy = UNIT_GROUPS.find((group) => group.id === "fuelEconomy");
+    expect(getRegionalUnits(fuelEconomy!, "metric").map((unitOption) => unitOption.symbol)[0]).toBe("km/L");
+    expect(getRegionalUnits(fuelEconomy!, "us").map((unitOption) => unitOption.symbol)[0]).toBe("mpg");
+    expect(getRegionalUnits(fuelEconomy!, "uk").map((unitOption) => unitOption.symbol)[0]).toBe("mpgUK");
   });
 });

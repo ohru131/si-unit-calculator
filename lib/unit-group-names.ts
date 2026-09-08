@@ -17,6 +17,7 @@ export const UNIT_GROUP_NAMES: Record<string, Record<AppLanguage, string>> = {
   acceleration: { en: "Acceleration", ja: "加速度", es: "Aceleración", "pt-BR": "Aceleração", de: "Beschleunigung", fr: "Accélération" },
   force: { en: "Force", ja: "力", es: "Fuerza", "pt-BR": "Força", de: "Kraft", fr: "Force" },
   pressure: { en: "Pressure", ja: "圧力", es: "Presión", "pt-BR": "Pressão", de: "Druck", fr: "Pression" },
+  fuelEconomy: { en: "Fuel economy", ja: "燃費", es: "Consumo de combustible", "pt-BR": "Consumo de combustível", de: "Kraftstoffverbrauch", fr: "Consommation de carburant" },
   energy: { en: "Energy", ja: "エネルギー", es: "Energía", "pt-BR": "Energia", de: "Energie", fr: "Énergie" },
   power: { en: "Power", ja: "電力", es: "Potencia", "pt-BR": "Potência", de: "Leistung", fr: "Puissance" },
   current: { en: "Current", ja: "電流", es: "Corriente", "pt-BR": "Corrente", de: "Stromstärke", fr: "Courant" },

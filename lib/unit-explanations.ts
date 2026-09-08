@@ -9,6 +9,69 @@ export type UnitExplanation = {
 };
 
 export const SPECIAL_UNIT_EXPLANATIONS: Record<string, UnitExplanation> = {
+  mpg: {
+    symbol: "mpg",
+    name: { ja: "マイル毎米ガロン", en: "Mile per US gallon", es: "Milla por galón estadounidense", "pt-BR": "Milha por galão americano", de: "Meile pro US-Gallone", fr: "Mile par gallon américain" },
+    summary: {
+      ja: "米国の燃費です。米ガロン(3.785L)と英ガロン(4.546L)は別物で、同じ「mpg」でも約20%違います。英国式は mpg (imp) を選んでください。",
+      en: "Fuel economy in the US. A US gallon (3.785 L) is not an imperial gallon (4.546 L), so the same \"mpg\" differs by about 20%. Pick mpg (imp) for the UK figure.",
+      es: "Consumo de combustible en EE. UU. El galón estadounidense (3,785 L) no es el imperial (4,546 L): el mismo «mpg» difiere un 20 %. Usa mpg (imp) para el dato británico.",
+      "pt-BR": "Consumo de combustível nos EUA. O galão americano (3,785 L) não é o imperial (4,546 L): o mesmo \"mpg\" difere cerca de 20%. Use mpg (imp) para o valor britânico.",
+      de: "Kraftstoffverbrauch in den USA. Eine US-Gallone (3,785 l) ist keine britische Gallone (4,546 l) – dasselbe \"mpg\" unterscheidet sich um rund 20 %. Für britische Angaben mpg (imp) wählen.",
+      fr: "Consommation aux États-Unis. Le gallon américain (3,785 L) n'est pas le gallon impérial (4,546 L) : le même « mpg » diffère d'environ 20 %. Choisissez mpg (imp) pour la valeur britannique.",
+    },
+    siConversion: "1 mpg = 1 mi / 1 US gal ≈ 0.425144 km/L",
+    usage: {
+      ja: "米国の車のカタログ燃費、走行コストの比較",
+      en: "US vehicle fuel-economy ratings and running-cost comparisons",
+      es: "Consumo homologado de vehículos en EE. UU. y comparación de costes",
+      "pt-BR": "Consumo homologado de veículos nos EUA e comparação de custos",
+      de: "Verbrauchsangaben US-amerikanischer Fahrzeuge und Kostenvergleiche",
+      fr: "Consommation homologuée des véhicules américains et comparaison des coûts",
+    },
+  },
+  mpgUK: {
+    symbol: "mpgUK",
+    name: { ja: "マイル毎英ガロン", en: "Mile per imperial gallon", es: "Milla por galón imperial", "pt-BR": "Milha por galão imperial", de: "Meile pro britische Gallone", fr: "Mile par gallon impérial" },
+    summary: {
+      ja: "英国の燃費です。英ガロンは4.546Lで米ガロンより大きいため、同じ車でも米国式より約20%大きい数字になります。",
+      en: "Fuel economy in the UK. An imperial gallon is 4.546 L, larger than a US gallon, so the same car reads about 20% higher than in US mpg.",
+      es: "Consumo en el Reino Unido. El galón imperial es de 4,546 L, mayor que el estadounidense, así que el mismo coche da una cifra un 20 % más alta.",
+      "pt-BR": "Consumo no Reino Unido. O galão imperial tem 4,546 L, maior que o americano, então o mesmo carro indica cerca de 20% mais.",
+      de: "Kraftstoffverbrauch im Vereinigten Königreich. Eine britische Gallone hat 4,546 l und ist größer als die US-Gallone, daher liegt derselbe Wagen rund 20 % höher.",
+      fr: "Consommation au Royaume-Uni. Le gallon impérial fait 4,546 L, plus grand que l'américain : la même voiture affiche environ 20 % de plus.",
+    },
+    siConversion: "1 mpg (imp) = 1 mi / 1 imp gal ≈ 0.354006 km/L",
+    usage: {
+      ja: "英国の車のカタログ燃費（給油はリットル、燃費はmpg表記）",
+      en: "UK vehicle fuel-economy ratings (fuel sold in litres, economy quoted in mpg)",
+      es: "Consumo homologado de vehículos británicos (combustible en litros, consumo en mpg)",
+      "pt-BR": "Consumo homologado de veículos britânicos (combustível em litros, consumo em mpg)",
+      de: "Verbrauchsangaben britischer Fahrzeuge (Kraftstoff in Litern, Verbrauch in mpg)",
+      fr: "Consommation homologuée des véhicules britanniques (carburant en litres, consommation en mpg)",
+    },
+  },
+  PS: {
+    symbol: "PS",
+    name: { ja: "メートル馬力", en: "Metric horsepower", es: "Caballo de vapor", "pt-BR": "Cavalo-vapor", de: "Pferdestärke", fr: "Cheval-vapeur" },
+    summary: {
+      ja: "75kgを毎秒1m持ち上げる仕事率です。独語圏のPSと仏語圏のCVは同じ単位で、英馬力hp（745.7W）とは約1.4%ずれます。",
+      en: "The power needed to lift 75 kg by one metre in one second. German PS and French CV are the same unit, about 1.4% smaller than mechanical horsepower (hp).",
+      es: "La potencia necesaria para elevar 75 kg un metro en un segundo. El PS alemán y el CV francés son la misma unidad, un 1,4 % menor que el hp imperial.",
+      "pt-BR": "A potência necessária para elevar 75 kg em um metro por segundo. O PS alemão e o CV francês são a mesma unidade, cerca de 1,4% menor que o hp imperial.",
+      de: "Die Leistung, um 75 kg in einer Sekunde einen Meter zu heben. Das deutsche PS und das französische CV sind dieselbe Einheit und rund 1,4 % kleiner als die britische Horsepower (hp).",
+      fr: "La puissance nécessaire pour élever 75 kg d'un mètre en une seconde. Le CV français et le PS allemand sont la même unité, environ 1,4 % plus petite que le horsepower anglais (hp).",
+    },
+    siConversion: "1 PS = 1 CV = 735.49875 W",
+    usage: {
+      ja: "自動車・二輪のエンジン出力（独・仏・日のカタログ値）",
+      en: "Engine output in German, French, and Japanese vehicle specifications",
+      es: "Potencia de motores en fichas técnicas de Europa continental",
+      "pt-BR": "Potência de motores em fichas técnicas da Europa continental",
+      de: "Motorleistung in Fahrzeugdaten (Deutschland, Frankreich, Japan)",
+      fr: "Puissance moteur dans les fiches techniques (France, Allemagne, Japon)",
+    },
+  },
   Gal: {
     symbol: "Gal",
     name: { ja: "ガル", en: "Gal", es: "Gal", "pt-BR": "Gal", de: "Gal", fr: "Gal" },
