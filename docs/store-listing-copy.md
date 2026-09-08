@@ -18,6 +18,10 @@ Google Play Console の文字数上限（短い説明 80字・詳しい説明 4,
 - 進数（2進・8進・16進）表示・入力 — `CLAUDE.md`「直近の作業履歴」18番（PR #37/#38/#39、#40で修正）、`lib/number-base.ts`
 - 6言語対応（UI・単位名・エラーメッセージ・プリセット全件） — `CLAUDE.md`「直近の作業履歴」7〜9番（PR #21〜#23）
 - バックアップ／復元（計算ノート・グローバル定数・**自作単位も含む**） — `lib/constants-backup.ts` / `lib/notebooks-backup.ts` の実装（`customUnits`フィールドの存在を確認済み。関連コミット `5ccfa29`）。**注**: `CLAUDE.md`末尾の「次にやりそうなこと」は自作単位のバックアップ対応をまだ未着手のTODOとして書いているが、これは更新漏れで、実際のコードは既に対応済み（本セッションでコミット履歴とソースの両方を確認した）
+- メートル馬力 PS / CV（735.49875 W） — `lib/units.ts` の `BASE_UNITS`・`lib/unit-explanations.ts`。英馬力 `hp`（745.7 W）と別記号で、独仏の掲載文だけがこれに触れている
+- 燃費の単位（`km/L` / `mpg` / 英ガロンの `mpgUK`）と地域別の既定値 — `lib/units.ts` の `fuelEconomy` グループ・`lib/preset-regional-defaults.ts` の `resolvePresetFuelEconomy`（US `35mpg` / GB `42mpgUK` / その他 `15km/L`）
+- 計量カップ・大さじの規格を端末の地域から決める（US / JIS / メートル法 / 豪州） — `lib/locale-defaults.ts` の `resolveDefaultMeasuringStandard`、`tests/locale-defaults.test.ts`
+- 試験対策・実験レポートのサンプル8件 — `lib/sample-calculations.ts` の `exam` / `lab` カテゴリ。掲載文に書いた値（9.4 V・5.64 mC・20 m/s・1200 kg/m³ ほか）はすべて `tests/sample-calculations.test.ts` が実エンジンで検証している
 - 買い切り1本・サブスクなし — `CLAUDE.md`「直近の作業履歴」14番、`docs/market-research-2026-09.md` 第4節
 - 無料版でも履歴無制限 — 同上14番
 - Proの実際の4特典（広告非表示・CSVエクスポート・マイ単位セット・ノート共有／PDF書き出し） — `app/(tabs)/pro.tsx` の `EN_COPY.features`（読み取りのみ、改変していない）
@@ -28,21 +32,26 @@ Google Play Console の文字数上限（短い説明 80字・詳しい説明 4,
 
 | 言語 | 文字数 | 本文 |
 |---|---|---|
-| en | 73 | Calculate with units, check dimensions, and browse 184 formula notebooks. |
-| ja | 34 | 単位付きで計算し、次元をチェック。184件の公式ノートも使える電卓。 |
-| es | 65 | Calcula con unidades, valida dimensiones y explora 184 cuadernos. |
-| pt-BR | 62 | Calcule com unidades, valide dimensões e explore 184 cadernos. |
-| de | 66 | Rechne mit Einheiten, prüfe Dimensionen und nutze 184 Rechenhefte. |
-| fr | 75 | Calculez avec des unités, vérifiez les dimensions, 184 carnets de formules. |
+| en | 71 | Type 12V/4.7kΩ and read 2.55 mA. The calculator that checks your units. |
+| ja | 33 | 単位ごと計算して桁ミスをゼロに。電験・電工・物理レポートの検算に。 |
+| es | 77 | Las unidades son parte de la respuesta: calcula con ellas y detecta el error. |
+| pt-BR | 76 | Calcule com as unidades juntas: 12V ÷ 4,7kΩ dá 2,55 mA, e m + kg ele recusa. |
+| de | 76 | Rechnen mit Einheiten: findet Einheitenfehler, bevor die Klausur sie findet. |
+| fr | 77 | La calculatrice qui garde les unités à chaque étape et rend l'erreur visible. |
 
-短い説明には**厳密値表示を入れていない**。en/fr は既に73字・75字で、`exact fractions` 相当の語（+15字前後）を足すと80字を超える。ja だけ足すと6言語で訴求点が揃わなくなるため、厳密値は詳しい説明の機能ブロック先頭に置いた。
+**6言語で同じ文を訳したものではない。** 以前は「単位付きで計算し、次元をチェック。184件の公式ノートも使える電卓」の直訳を6言語に並べていたが、
+短い説明は80字しかなく、**その言語の読み手にとって一番痛いところを1つだけ言う枠**として使う方が効く（`docs/target-users-by-locale-2026-09.md` 第4節）。
+いまは言語ごとにフックが違う: en/pt-BR は**実際の入力と答え**（`12V/4.7kΩ` → `2.55 mA`）、de は**Einheitenfehler と Klausur**、
+fr は**各段階で単位を保つ**という教育現場の言い回し、es は**採点基準そのままの言い方**（"las unidades... son parte de la respuesta"）、ja は**電験・電工の検算**。
+
+厳密値表示とノート件数はどの言語の短い説明にも入れていない（80字に収まらないため、詳しい説明の機能ブロックに置いた）。
 
 ## 詳しい説明（Full description、上限4,000字）
 
-### English（3,209字）
+### English（3,836字）
 
 ```
-Unit Calculator is a dimensional calculator: type an expression such as 5cm + 1mm or 100N ÷ 0.01m², and it normalizes every value to SI base units before calculating, checks that the dimensions actually match, then lets you read the result in any compatible unit. Mixing units by mistake shows a clear error instead of a wrong number.
+Type 12V/4.7kΩ and read 2.55 mA. Type 3m + 2kg and it tells you that a length and a mass cannot be added. Unit Calculator is a dimensional calculator and unit converter in one: it normalizes every value to SI base units before calculating, checks that the dimensions actually match, then converts the result into any compatible unit.
 
 WHAT MAKES IT DIFFERENT
 • Real-time calculation with automatic SI normalization and dimension checking, right as you type.
@@ -51,10 +60,14 @@ WHAT MAKES IT DIFFERENT
 • Define your own units, either as a simple multiple (2shaku = 0.606m) or as a formula (for offset units like temperature scales).
 • Switch a plain number between decimal, binary, octal, and hexadecimal on the same result card — handy for electronics and programming.
 • Save reusable constants such as W = 3cm and reuse them later in any expression.
+• Imperial and US units too: 12ft + 3in, 72°F to °C, 30psi to bar, fuel economy in mpg (US or imperial gallons) or km/L.
+
+BUILT FOR THE MOMENT YOU CHECK YOUR OWN WORK
+Most calculators let a slipped unit through and hand you a confident wrong answer. This one refuses — which matters while you prepare for the FE exam, work through a City & Guilds electrical course, write up a lab report, or check an engineering calculation by hand. The ready-made samples are those conversions: prefixes that cancel, the six decades hidden in µ, km/h to m/s, three-phase power, W × h to kWh, g/cm³ to kg/m³, moles per millilitre, °C to K.
 
 184 FORMULA NOTEBOOKS
 Browse calculation notebooks with real, typeset math (not plain text), in nine libraries:
-- School science (speed & motion, density & concentration, pressure & buoyancy, force, work & levers, heat, circuits, light & sound, earth science, chemical change)
+- School science (speed & motion, density & concentration, circuits, light & sound, and more)
 - High school physics (mechanics, thermodynamics, waves, electricity, atomic physics)
 - Chemistry stoichiometry, and astronomy & space
 - Electricity & energy (practical electricity, hobby electronics, solar power & batteries)
@@ -62,10 +75,10 @@ Browse calculation notebooks with real, typeset math (not plain text), in nine l
 - Home & everyday life (cooking & baking, coffee & home brewing, fitness & running, weather)
 - Physics of cars & bicycles
 - Mechanical & structural design (stress & strain, beams & columns, shafts & power transmission, machine elements)
-Search every notebook at once by title, description, or category to reach the one you need. Every notebook remembers your last values, chains results between steps, and shows the underlying formula so you can see the "why," not just the number.
+Search every notebook at once by title, description, or category to reach the one you need. Every notebook remembers your last values, chains results between steps, and shows the formula itself.
 
 SIX LANGUAGES, FULLY TRANSLATED
-The interface, unit names, error messages, and every one of the 184 notebooks are available in English, Japanese, Spanish, Portuguese (Brazil), German, and French. Notebooks whose values depend on where you live open with defaults that match your region — mains voltage, circuit breaker rating, and electricity prices.
+The interface, unit names, error messages, and every one of the 184 notebooks are available in English, Japanese, Spanish, Portuguese (Brazil), German, and French. Notebooks whose values depend on where you live open with defaults that match your region — mains voltage, breaker rating, electricity and fuel prices, fuel economy in mpg or km/L, and the cup and tablespoon sizes used where you are.
 
 FREE AND UNLIMITED
 Your full calculation history is unlimited for everyone — it is never trimmed or locked behind a purchase. Back up your notebooks, global constants, and custom units to a file and restore them on another device.
@@ -77,13 +90,13 @@ A single one-time purchase — no subscription, ever — unlocks:
 • Your own saved unit sets, for faster entry of the units you use most
 • Sharing a notebook as a formatted document you can print or save as PDF
 
-Unit Calculator is built for students, engineers, makers, and anyone who wants to trust the number a calculator gives them.
+Unit Calculator is built for engineering and science students, FE and City & Guilds candidates, makers, and anyone who wants to trust the number a calculator gives them.
 ```
 
-### 日本語（1,341字）
+### 日本語（1,817字）
 
 ```
-単位付き電卓は、単位ごと数式を入力する電卓です。「5cm + 1mm」や「100N ÷ 0.01m²」のように入力すると、すべての値をまずSI基本単位に正規化してから計算し、次元（単位の種類）が本当に合っているかをチェックし、結果を好きな単位で表示します。単位を間違えて足し引きしようとすると、誤った数値ではなく分かりやすいエラーが表示されます。
+単位付き電卓は、単位変換と単位計算を1つにした、単位ごと数式を入力する電卓です。「12V ÷ 4.7kΩ」と入力すればその場で「2.55 mA」、「3m + 2kg」と入力すれば「長さ (m) と 質量 (kg) は足し引きできません」と返します。すべての値をまずSI基本単位に正規化してから計算し、次元（単位の種類）が本当に合っているかをチェックし、結果を好きな単位に換算して表示します。単位を間違えて足し引きしようとすると、誤った数値ではなく分かりやすいエラーが表示されます。
 
 このアプリが違う理由
 ・入力するそばからSI正規化と次元チェックをしてリアルタイムに計算
@@ -92,6 +105,10 @@ Unit Calculator is built for students, engineers, makers, and anyone who wants t
 ・自分だけの単位を登録できる。倍率（2尺＝0.606m）でも、摂氏・華氏のようなオフセット付きの式でも作れる
 ・単位なしの数値を10進・2進・8進・16進で切り替えて表示（電気・組み込み・プログラミング向け）
 ・「W = 3cm」のような定数を保存し、あとの式で使い回せる
+・接頭語は自分で打ち消さなくていい。「4.7kΩ × 2mA」は 9.4 V、「470µF × 12V」は 5.64 mC と、k・m・µ の桁はアプリ側で処理
+
+検算のための電卓
+電験三種・第二種電気工事士・危険物取扱者乙4の学習中、大学の実験レポート、機械・建築の手計算のチェック——「自分の答えが合っているかを自分で確かめたい」場面のための電卓です。試験会場には持ち込めませんが、学習中の検算はここでできます。サンプルには「試験対策」「実験レポート」の2カテゴリを用意し、その場面で落としやすい換算をそのまま入れてあります: 接頭語の打ち消し（kΩ × mA）、µの6桁飛び、km/h → m/s、三相電力、W × h → kWh、g/cm³ → kg/m³、mol ÷ mL、°C → K。
 
 184件の計算ノート
 本物の組版された数式（テキストではなく）で読める計算ノートを9分野に収録:
@@ -106,7 +123,7 @@ Unit Calculator is built for students, engineers, makers, and anyone who wants t
 タイトル・説明・カテゴリ名を横断する検索で、目当ての1件にすぐ辿り着けます。各ノートは前回の入力値を覚え、手順の結果を次の手順で使い回せ、数式そのものも表示するので「なぜその答えになるか」まで分かります。
 
 6言語完全対応
-UI・単位名・エラーメッセージ・184件のノートの中身まで、すべて日本語・英語・スペイン語・ポルトガル語(ブラジル)・ドイツ語・フランス語に対応しています。電源電圧・ブレーカーの定格電流・電気代のように国で変わる値は、お使いの端末の地域に合った既定値でノートが開きます。
+UI・単位名・エラーメッセージ・184件のノートの中身まで、すべて日本語・英語・スペイン語・ポルトガル語(ブラジル)・ドイツ語・フランス語に対応しています。電源電圧・ブレーカーの定格電流・電気代や燃料単価・燃費（mpg か km/L）・計量カップと大さじの規格のように国で変わる値は、お使いの端末の地域に合った既定値でノートが開きます。
 
 無料でも制限なし
 計算履歴は誰でも無制限。件数で切られたり購入を求められたりしません。計算ノート・グローバル定数・自作の単位はファイルへバックアップし、別端末で復元できます。
@@ -118,25 +135,29 @@ UI・単位名・エラーメッセージ・184件のノートの中身まで、
 ・よく使う単位をまとめたマイ単位セット（入力が速くなる）
 ・計算ノートを整形済みの書類として書き出し、印刷やPDF保存が可能
 
-単位付き電卓は、学生・エンジニア・ものづくりをする人など、電卓が出す数値を信頼したいすべての人のためのアプリです。
+単位付き電卓は、電験・電工・乙4の受験者、理工系の学生、機械・建築のエンジニア、電子工作やDIYをする人など、電卓が出す数値を信頼したいすべての人のためのアプリです。
 ```
 
-### Español（3,568字）
+### Español（3,986字）
 
 ```
-Unit Calculator es una calculadora dimensional: escribe una expresión como 5cm + 1mm o 100N ÷ 0,01 m², y la app normaliza cada valor a unidades base del SI antes de calcular, comprueba que las dimensiones realmente coincidan y te deja leer el resultado en cualquier unidad compatible. Si mezclas unidades por error, verás un aviso claro en vez de un número incorrecto.
+Las unidades no son decoración: son parte de la respuesta. Escribe 12V ÷ 4,7kΩ y lee 2,55 mA; escribe 3m + 2kg y la app te dice que una longitud y una masa no se pueden sumar. Unit Calculator es una calculadora con unidades y un conversor de unidades a la vez: normaliza cada valor a unidades base del SI, comprueba que las dimensiones coincidan y te deja leer el resultado en cualquier unidad compatible.
 
 QUÉ LA HACE DIFERENTE
 • Cálculo en tiempo real con normalización SI y verificación de dimensiones mientras escribes.
-• Lee cualquier resultado como valor exacto en vez de un decimal redondeado: pulsa Exacto y 1/3 sigue siendo 1/3, 2*pi*50 pasa a 100π y sqrt(8) pasa a 2√2, compuestos tipográficamente como fracción y raíz reales, y se copian tal como se ven.
-• Compara un resultado en todas las unidades compatibles de un vistazo, en el mismo orden que ya conoces de los chips de unidad.
+• Lee cualquier resultado como valor exacto en vez de un decimal redondeado: pulsa Exacto y 1/3 sigue siendo 1/3, 2*pi*50 pasa a 100π y sqrt(8) pasa a 2√2, como fracción y raíz de verdad, y se copian tal como se ven.
+• Compara un resultado en todas las unidades compatibles de un vistazo.
 • Define tus propias unidades: como múltiplo simple (2shaku = 0,606 m) o como fórmula (para unidades con desplazamiento, como las escalas de temperatura).
 • Cambia un número sin unidad entre decimal, binario, octal y hexadecimal en la misma tarjeta de resultado — útil para electrónica y programación.
 • Guarda constantes reutilizables como W = 3cm y úsalas después en cualquier expresión.
+• Los prefijos se cancelan solos: 4,7kΩ × 2mA da 9,4 V y 470µF × 12V da 5,64 mC.
+
+PENSADA PARA LA EBAU Y LA FP
+En física de la EBAU, un error u omisión de unidades resta 0,25 puntos por apartado, tanto en los resultados intermedios como en el final. La app trabaja justo ahí: pasa los datos del enunciado al SI, mantiene las unidades en cada paso y avisa en cuanto dejan de simplificarse. Los ejemplos incluidos son justo esos cambios de unidad, los del examen y los del laboratorio.
 
 184 CUADERNOS DE FÓRMULAS
 Explora cuadernos de cálculo con matemáticas reales, compuestas tipográficamente (no texto plano), en nueve bibliotecas:
-- Ciencias naturales (velocidad y movimiento, densidad y concentración, presión y flotabilidad, fuerza, trabajo y palancas, calor, circuitos, luz y sonido, ciencias de la Tierra, cambio químico)
+- Ciencias naturales (velocidad y movimiento, densidad y concentración, circuitos, luz y sonido, y más)
 - Física de bachillerato (mecánica, termodinámica, ondas, electricidad, física atómica)
 - Estequiometría química, y astronomía y espacio
 - Electricidad y energía (electricidad práctica, electrónica para aficionados, energía solar y baterías)
@@ -144,10 +165,10 @@ Explora cuadernos de cálculo con matemáticas reales, compuestas tipográficame
 - Hogar y vida diaria (cocina y repostería, café y elaboración casera, fitness y running, tiempo y atmósfera)
 - Física de los vehículos
 - Diseño mecánico y estructural (esfuerzo y deformación, vigas y columnas, ejes y transmisión de potencia, elementos de máquinas)
-Busca en todos los cuadernos a la vez por título, descripción o categoría para llegar al que necesitas. Cada cuaderno recuerda tus últimos valores, encadena resultados entre pasos y muestra la fórmula subyacente para que veas el "por qué", no solo el número.
+Busca en todos los cuadernos a la vez por título, descripción o categoría para llegar al que necesitas. Cada cuaderno recuerda tus últimos valores, encadena resultados entre pasos y muestra la fórmula en sí.
 
 SEIS IDIOMAS, TOTALMENTE TRADUCIDOS
-La interfaz, los nombres de unidades, los mensajes de error y los 184 cuadernos están disponibles en inglés, japonés, español, portugués (Brasil), alemán y francés. Los cuadernos cuyos valores dependen del país se abren con valores predeterminados acordes a tu región: voltaje de la red, corriente nominal del disyuntor y precio de la electricidad.
+La interfaz, los nombres de unidades, los mensajes de error y los 184 cuadernos están disponibles en inglés, japonés, español, portugués (Brasil), alemán y francés. Los cuadernos cuyos valores dependen del país se abren con valores acordes a tu región: voltaje de la red, corriente del disyuntor, precio de la electricidad y del combustible, consumo en mpg o km/L, y el tamaño de taza y cucharada de donde vives.
 
 GRATIS Y SIN LÍMITES
 El historial de cálculos es ilimitado para todos, nunca se recorta ni se bloquea tras una compra. Haz copia de seguridad de tus cuadernos, constantes globales y unidades personalizadas en un archivo, y restáuralas en otro dispositivo.
@@ -156,28 +177,32 @@ UNIT CALCULATOR PRO
 Una única compra — sin suscripción, nunca — desbloquea:
 • Experiencia sin anuncios
 • Exportación CSV de tu historial de cálculos
-• Tus propios conjuntos de unidades guardados, para escribir más rápido con las unidades que más usas
+• Tus propios conjuntos de unidades guardados, para escribir más rápido
 • Compartir un cuaderno como documento con formato que puedes imprimir o guardar como PDF
 
-Unit Calculator está pensada para estudiantes, ingenieros, makers y cualquiera que quiera confiar en el número que le da su calculadora.
+Unit Calculator está pensada para quienes preparan la EBAU, para el alumnado de FP de electricidad y electrónica, para estudiantes de ingeniería, makers y cualquiera que quiera confiar en el número que le da su calculadora.
 ```
 
-### Português (Brasil)（3,476字）
+### Português (Brasil)（3,998字）
 
 ```
-Unit Calculator é uma calculadora dimensional: digite uma expressão como 5cm + 1mm ou 100N ÷ 0,01 m², e o app normaliza cada valor para unidades base do SI antes de calcular, verifica se as dimensões realmente coincidem e permite ler o resultado em qualquer unidade compatível. Se você misturar unidades por engano, aparece um aviso claro em vez de um número errado.
+Calcule com as unidades juntas. Digite 12V ÷ 4,7kΩ e leia 2,55 mA; digite 3m + 2kg e o app avisa que comprimento e massa não podem ser somados. O Unit Calculator é uma calculadora de unidades e um conversor de unidades: normaliza cada valor para unidades base do SI, verifica se as dimensões coincidem e permite ler o resultado em qualquer unidade compatível.
 
 O QUE TORNA O APP DIFERENTE
 • Cálculo em tempo real com normalização SI e verificação de dimensões enquanto você digita.
-• Leia qualquer resultado como valor exato em vez de um decimal arredondado: toque em Exato e 1/3 continua 1/3, 2*pi*50 vira 100π e sqrt(8) vira 2√2, tipografados como fração e raiz de verdade, e copiados exatamente como aparecem.
-• Compare um resultado em todas as unidades compatíveis de uma vez, na mesma ordem dos chips de unidade que você já conhece.
+• Leia qualquer resultado como valor exato em vez de um decimal arredondado: toque em Exato e 1/3 continua 1/3, 2*pi*50 vira 100π e sqrt(8) vira 2√2, tipografados como fração e raiz de verdade.
+• Compare um resultado em todas as unidades compatíveis de uma vez.
 • Defina suas próprias unidades: como múltiplo simples (2shaku = 0,606 m) ou como fórmula (para unidades com deslocamento, como escalas de temperatura).
-• Alterne um número sem unidade entre decimal, binário, octal e hexadecimal no mesmo cartão de resultado — útil para eletrônica e programação.
+• Alterne um número sem unidade entre decimal, binário, octal e hexadecimal — útil para eletrônica e programação.
 • Salve constantes reutilizáveis como W = 3cm e use-as depois em qualquer expressão.
+• Os prefixos se cancelam sozinhos: 4,7kΩ × 2mA dá 9,4 V e 470µF × 12V dá 5,64 mC.
+
+PARA O ENEM, O VESTIBULAR E A NR-10
+Nas questões de física do ENEM e dos vestibulares, o enunciado vem em uma unidade e a resposta é pedida em outra — e é aí que a conta se perde. O app mantém a unidade em cada passo e recusa a soma quando as dimensões não coincidem. Os exemplos prontos cobrem exatamente essas passagens, as do vestibular e as do laboratório. Para quem trabalha com eletricidade (NR-10, técnico em eletrotécnica), os cadernos já abrem com a tensão da rede da sua região, 127 V ou 220 V.
 
 184 CADERNOS DE FÓRMULAS
 Explore cadernos de cálculo com matemática real, tipografada (não texto simples), em nove bibliotecas:
-- Ciências (velocidade e movimento, densidade e concentração, pressão e empuxo, força, trabalho e alavancas, calor, circuitos, luz e som, ciências da Terra, mudança química)
+- Ciências (velocidade e movimento, densidade e concentração, circuitos, luz e som e mais)
 - Física do ensino médio (mecânica, termodinâmica, ondas, eletricidade, física atômica)
 - Estequiometria química, e astronomia e espaço
 - Eletricidade e energia (eletricidade prática, eletrônica para hobby, energia solar e baterias)
@@ -185,40 +210,44 @@ Explore cadernos de cálculo com matemática real, tipografada (não texto simpl
 - Casa e dia a dia (culinária e confeitaria, café e produção caseira, fitness e corrida, tempo e atmosfera)
 - Física dos veículos
 - Projeto mecânico e estrutural (tensão e deformação, vigas e colunas, eixos e transmissão de potência, elementos de máquinas)
-Busque em todos os cadernos de uma vez por título, descrição ou categoria para chegar ao que você precisa. Cada caderno lembra os últimos valores usados, encadeia resultados entre etapas e mostra a fórmula em si, para você entender o "porquê", não só o número.
+Busque em todos os cadernos de uma vez por título, descrição ou categoria para chegar ao que você precisa. Cada caderno lembra os últimos valores, encadeia resultados entre etapas e mostra a fórmula em si.
 
 SEIS IDIOMAS, TOTALMENTE TRADUZIDO
-A interface, os nomes das unidades, as mensagens de erro e todos os 184 cadernos estão disponíveis em inglês, japonês, espanhol, português (Brasil), alemão e francês. Os cadernos cujos valores dependem do país abrem com padrões condizentes com a sua região: tensão da rede, corrente nominal do disjuntor e preço da energia elétrica.
+A interface, os nomes das unidades, as mensagens de erro e todos os 184 cadernos estão disponíveis em inglês, japonês, espanhol, português (Brasil), alemão e francês. Os cadernos cujos valores dependem do país abrem com padrões da sua região: tensão da rede, corrente do disjuntor, preço da energia e do combustível, consumo em mpg ou km/L e o tamanho de xícara e colher usado onde você mora.
 
 GRATUITO E SEM LIMITES
-O histórico de cálculos é ilimitado para todos — nunca é reduzido nem bloqueado por trás de uma compra. Faça backup dos seus cadernos, constantes globais e unidades personalizadas em um arquivo e restaure-os em outro dispositivo.
+O histórico de cálculos é ilimitado para todos: nunca é reduzido nem bloqueado por trás de uma compra. Faça backup dos seus cadernos, constantes e unidades personalizadas em um arquivo e restaure-os em outro dispositivo.
 
 UNIT CALCULATOR PRO
 Uma única compra avulsa — sem assinatura, nunca — desbloqueia:
 • Experiência sem anúncios
 • Exportação em CSV do seu histórico de cálculos
-• Seus próprios conjuntos de unidades salvos, para digitar mais rápido as unidades que mais usa
+• Seus próprios conjuntos de unidades salvos, para digitar mais rápido
 • Compartilhar um caderno como documento formatado que você pode imprimir ou salvar em PDF
 
-O Unit Calculator foi feito para estudantes, engenheiros, makers e qualquer pessoa que queira confiar no número que a calculadora mostra.
+Gratuito e completo para estudar: histórico ilimitado e os 184 cadernos inclusos; o Pro é só para quem preferir usar sem anúncios. Feito para quem presta o ENEM e os vestibulares, técnicos em eletrotécnica, estudantes de engenharia, makers e qualquer pessoa que queira confiar no número que a calculadora mostra.
 ```
 
-### Deutsch（3,538字）
+### Deutsch（3,983字）
 
 ```
-Unit Calculator ist ein dimensionsbewusster Rechner: Gib einen Ausdruck wie 5cm + 1mm oder 100N ÷ 0,01 m² ein, und die App normiert jeden Wert zuerst auf SI-Basiseinheiten, prüft, ob die Dimensionen wirklich zusammenpassen, und zeigt das Ergebnis in jeder passenden Einheit an. Vermischst du Einheiten versehentlich, erscheint eine klare Fehlermeldung statt einer falschen Zahl.
+Der Rechner, der mit Einheiten rechnet – und Einheitenfehler findet, bevor die Klausur sie findet. Gib 12V ÷ 4,7kΩ ein und lies 2,55 mA; gib 3m + 2kg ein, und die App sagt dir, dass sich eine Länge und eine Masse nicht addieren lassen. Unit Calculator ist ein Einheitenrechner: Er normiert jeden Wert auf SI-Basiseinheiten, prüft die Dimensionen und kann das Ergebnis in jede passende Einheit umrechnen.
 
 WAS DIE APP ANDERS MACHT
 • Echtzeitberechnung mit automatischer SI-Normierung und Dimensionsprüfung, während du tippst.
-• Lies jedes Ergebnis als exakten Wert statt als gerundete Dezimalzahl: Tippe auf Exakt, und 1/3 bleibt 1/3, 2*pi*50 wird zu 100π, sqrt(8) wird zu 2√2 — als echter Bruch und echtes Wurzelzeichen gesetzt und genau so kopiert, wie es dasteht.
-• Vergleiche ein Ergebnis auf einen Blick in allen passenden Einheiten, in derselben Reihenfolge wie die bekannten Einheiten-Chips.
+• Lies jedes Ergebnis als exakten Wert statt als gerundete Dezimalzahl: Tippe auf Exakt, und 1/3 bleibt 1/3, 2*pi*50 wird zu 100π, sqrt(8) zu 2√2 – als echter Bruch und echtes Wurzelzeichen gesetzt.
+• Vergleiche ein Ergebnis auf einen Blick in allen passenden Einheiten.
 • Definiere eigene Einheiten: als einfaches Vielfaches (2shaku = 0,606 m) oder als Formel (für Einheiten mit Offset, wie Temperaturskalen).
-• Schalte eine einheitenlose Zahl auf derselben Ergebniskarte zwischen Dezimal, Binär, Oktal und Hexadezimal um — praktisch für Elektronik und Programmierung.
+• Schalte eine einheitenlose Zahl auf derselben Ergebniskarte zwischen Dezimal, Binär, Oktal und Hexadezimal um – praktisch für Elektronik und Programmierung.
 • Speichere wiederverwendbare Konstanten wie W = 3cm und nutze sie später in jedem Ausdruck.
+• PS und CV (metrische Pferdestärke, 735,5 W) sind eigene Einheiten – nicht das englische hp (745,7 W), das um 1,4 % daneben liegt.
+
+FÜR AUSBILDUNG, KLAUSUR UND PRÜFUNG
+In der Elektro-Ausbildung, in Physik- und Chemie-Klausuren und in der Techniker- oder Meisterprüfung ist eine falsche Einheit kein Schönheitsfehler, sondern Punktabzug. Die mitgelieferten Beispiele decken genau diese Stellen ab – von Vorsatzzeichen und Zehnerpotenzen bis zu Dichte, Konzentration und absoluter Temperatur für den Laborbericht.
 
 184 RECHENHEFTE
-Durchstöbere Rechenhefte mit echter, gesetzter Mathematik (kein reiner Text) in neun Bibliotheken:
-- Naturwissenschaften (Geschwindigkeit & Bewegung, Dichte & Konzentration, Druck & Auftrieb, Kraft, Arbeit & Hebel, Wärme, Stromkreise, Licht & Schall, Geowissenschaften, chemische Veränderung)
+Durchstöbere Rechenhefte mit echter, gesetzter Mathematik in neun Bibliotheken:
+- Naturwissenschaften (Geschwindigkeit & Bewegung, Dichte & Konzentration, Stromkreise, Licht & Schall u. a.)
 - Physik (Oberstufe) (Mechanik, Thermodynamik, Wellen, Elektrizität, Atomphysik)
 - Stöchiometrie sowie Astronomie & Weltraum
 - Elektrizität & Energie (praktische Elektrotechnik, Hobby-Elektronik, Solarstrom & Batterien)
@@ -226,40 +255,44 @@ Durchstöbere Rechenhefte mit echter, gesetzter Mathematik (kein reiner Text) in
 - Haushalt & Alltag (Kochen & Backen, Kaffee & Hausbrauen, Fitness & Laufen, Wetter & Atmosphäre)
 - Physik von Autos & Fahrrädern
 - Maschinen- & Tragwerksentwurf (Spannung & Dehnung, Balken & Stützen, Wellen & Antriebstechnik, Maschinenelemente)
-Durchsuche alle Rechenhefte auf einmal nach Titel, Beschreibung oder Kategorie, um genau das passende zu finden. Jedes Rechenheft merkt sich deine letzten Werte, verkettet Ergebnisse zwischen Schritten und zeigt die zugrunde liegende Formel, damit du das „Warum" siehst, nicht nur die Zahl.
+Durchsuche alle Rechenhefte auf einmal nach Titel, Beschreibung oder Kategorie, um genau das passende zu finden. Jedes Rechenheft merkt sich deine letzten Werte, verkettet Ergebnisse zwischen Schritten und zeigt die Formel selbst.
 
 SECHS SPRACHEN, VOLLSTÄNDIG ÜBERSETZT
-Die Oberfläche, Einheitennamen, Fehlermeldungen und alle 184 Rechenhefte gibt es auf Englisch, Japanisch, Spanisch, brasilianischem Portugiesisch, Deutsch und Französisch. Rechenhefte, deren Werte vom Land abhängen, starten mit Vorgaben passend zu deiner Region: Netzspannung, Nennstrom des Leitungsschutzschalters und Strompreis.
+Die Oberfläche, Einheitennamen, Fehlermeldungen und alle 184 Rechenhefte gibt es auf Englisch, Japanisch, Spanisch, brasilianischem Portugiesisch, Deutsch und Französisch. Rechenhefte, deren Werte vom Land abhängen, starten mit Vorgaben passend zu deiner Region: Netzspannung, Nennstrom des Leitungsschutzschalters, Strom- und Kraftstoffpreis, Verbrauch in mpg oder km/L sowie die bei dir üblichen Tassen- und Löffelmaße.
 
 KOSTENLOS UND UNBEGRENZT
-Der komplette Berechnungsverlauf ist für alle unbegrenzt — er wird nie gekürzt oder hinter einem Kauf versteckt. Sichere deine Rechenhefte, globalen Konstanten und eigenen Einheiten in einer Datei und stelle sie auf einem anderen Gerät wieder her.
+Der komplette Berechnungsverlauf ist für alle unbegrenzt – er wird nie gekürzt oder hinter einem Kauf versteckt. Sichere deine Rechenhefte, globalen Konstanten und eigenen Einheiten in einer Datei und stelle sie auf einem anderen Gerät wieder her.
 
 UNIT CALCULATOR PRO
-Ein einmaliger Kauf — nie ein Abo — schaltet frei:
+Ein einmaliger Kauf – nie ein Abo – schaltet frei:
 • Werbefreie Nutzung
 • CSV-Export deines Berechnungsverlaufs
 • Deine eigenen gespeicherten Einheitensets für schnellere Eingabe deiner meistgenutzten Einheiten
 • Ein Rechenheft als formatiertes Dokument teilen, das du drucken oder als PDF speichern kannst
 
-Unit Calculator ist für Schülerinnen und Schüler, Ingenieure, Makerinnen und Maker und alle gemacht, die der Zahl aus ihrem Rechner vertrauen wollen.
+Unit Calculator ist für Auszubildende in der Elektrotechnik, für Schülerinnen und Schüler, Studierende, Technikerinnen und Techniker, Ingenieurinnen und Ingenieure und alle gemacht, die der Zahl aus ihrem Rechner vertrauen wollen.
 ```
 
-### Français（3,812字）
+### Français（3,995字）
 
 ```
-Unit Calculator est une calculatrice dimensionnelle : saisissez une expression telle que 5cm + 1mm ou 100N ÷ 0,01 m², et l'application normalise chaque valeur en unités de base du SI avant de calculer, vérifie que les dimensions correspondent réellement, puis affiche le résultat dans n'importe quelle unité compatible. Si vous mélangez des unités par erreur, un message d'erreur clair s'affiche au lieu d'un résultat faux.
+La calculatrice qui garde les unités à chaque étape : si elles ne se simplifient pas, l'erreur devient visible. Saisissez 12V ÷ 4,7kΩ et lisez 2,55 mA ; saisissez 3m + 2kg et l'application refuse d'additionner une longueur et une masse. Unit Calculator est une calculatrice d'unités et un convertisseur d'unités : il normalise chaque valeur en unités de base du SI, vérifie les dimensions, puis convertit le résultat dans l'unité que vous voulez.
 
 CE QUI LA REND DIFFÉRENTE
 • Calcul en temps réel avec normalisation SI et vérification des dimensions pendant la saisie.
-• Lisez n'importe quel résultat sous forme exacte plutôt qu'en décimal arrondi : appuyez sur Exact et 1/3 reste 1/3, 2*pi*50 devient 100π, sqrt(8) devient 2√2 — composés comme une vraie fraction et un vrai radical, et copiés tels qu'affichés.
-• Comparez un résultat dans toutes les unités compatibles d'un coup d'œil, dans le même ordre que les puces d'unité que vous connaissez déjà.
+• Lisez n'importe quel résultat sous forme exacte plutôt qu'en décimal arrondi : appuyez sur Exact et 1/3 reste 1/3, 2*pi*50 devient 100π, sqrt(8) devient 2√2 — composés comme une vraie fraction et un vrai radical.
+• Comparez un résultat dans toutes les unités compatibles d'un coup d'œil.
 • Définissez vos propres unités : comme un simple multiple (2shaku = 0,606 m) ou comme une formule (pour les unités à décalage, comme les échelles de température).
-• Basculez un nombre sans unité entre décimal, binaire, octal et hexadécimal sur la même carte de résultat — pratique pour l'électronique et la programmation.
+• Basculez un nombre sans unité entre décimal, binaire, octal et hexadécimal — pratique pour l'électronique et la programmation.
 • Enregistrez des constantes réutilisables comme W = 3cm et réutilisez-les ensuite dans n'importe quelle expression.
+• CV (cheval-vapeur, 735,5 W) est une unité distincte du hp anglais (745,7 W), dont il diffère de 1,4 %.
+
+POUR LE LYCÉE, LA PRÉPA ET LE BTS
+En physique-chimie, on demande d'écrire les unités à chaque étape du calcul, pour que l'erreur saute aux yeux quand elles ne se simplifient pas. C'est ce que fait cette application, à chaque frappe. Les exemples fournis reprennent ces conversions, du lycée au compte rendu de TP.
 
 184 CARNETS DE FORMULES
-Parcourez des carnets de calcul avec de vraies formules composées typographiquement (pas du texte brut), répartis en neuf bibliothèques :
-- Sciences (vitesse et mouvement, masse volumique et concentration, pression et flottabilité, force, travail et leviers, chaleur, circuits, lumière et son, sciences de la Terre, transformation chimique)
+Parcourez des carnets de calcul avec de vraies formules composées, en neuf bibliothèques :
+- Sciences (vitesse et mouvement, masse volumique et concentration, circuits, lumière et son, etc.)
 - Physique du lycée (mécanique, thermodynamique, ondes, électricité, physique atomique)
 - Stœchiométrie, astronomie et espace
 - Électricité et énergie (électricité pratique, électronique de loisir, énergie solaire et batteries)
@@ -267,23 +300,44 @@ Parcourez des carnets de calcul avec de vraies formules composées typographique
 - Maison et vie quotidienne (cuisine et pâtisserie, café et brassage maison, fitness et course à pied, météo et atmosphère)
 - Physique des voitures et vélos
 - Conception mécanique et structurale (contrainte et déformation, poutres et poteaux, arbres et transmission de puissance, éléments de machines)
-Recherchez dans tous les carnets à la fois par titre, description ou catégorie pour aller droit à celui qu'il vous faut. Chaque carnet mémorise vos dernières valeurs, enchaîne les résultats entre les étapes et affiche la formule elle-même, pour voir le « pourquoi », pas seulement le nombre.
+Recherchez dans tous les carnets par titre, description ou catégorie. Chaque carnet mémorise vos dernières valeurs, enchaîne les résultats entre les étapes et affiche la formule elle-même.
 
 SIX LANGUES, ENTIÈREMENT TRADUITES
-L'interface, les noms d'unités, les messages d'erreur et les 184 carnets sont disponibles en anglais, japonais, espagnol, portugais (Brésil), allemand et français. Les carnets dont les valeurs dépendent du pays s'ouvrent avec des valeurs par défaut adaptées à votre région : tension du secteur, calibre du disjoncteur et prix de l'électricité.
+L'interface, les noms d'unités, les messages d'erreur et les 184 carnets sont disponibles en anglais, japonais, espagnol, portugais (Brésil), allemand et français. Les carnets dont les valeurs dépendent du pays s'ouvrent avec des valeurs adaptées à votre région : tension du secteur, calibre du disjoncteur, prix de l'électricité et du carburant, consommation en mpg ou km/L, et la taille de tasse et de cuillère utilisée chez vous.
 
 GRATUIT ET SANS LIMITE
-L'historique des calculs est illimité pour tout le monde — il n'est jamais réduit ni verrouillé derrière un achat. Sauvegardez vos carnets, vos constantes globales et vos unités personnalisées dans un fichier et restaurez-les sur un autre appareil.
+L'historique des calculs est illimité pour tout le monde : jamais réduit, jamais verrouillé derrière un achat. Sauvegardez carnets, constantes et unités personnalisées dans un fichier, et restaurez-les sur un autre appareil.
 
 UNIT CALCULATOR PRO
 Un achat unique — jamais d'abonnement — débloque :
 • Une expérience sans publicité
 • L'export CSV de votre historique de calculs
-• Vos propres ensembles d'unités enregistrés, pour saisir plus vite les unités que vous utilisez le plus
-• Le partage d'un carnet sous forme de document mis en forme, à imprimer ou enregistrer en PDF
+• Vos propres ensembles d'unités enregistrés, pour saisir plus vite
+• Le partage d'un carnet en document mis en forme, à imprimer ou enregistrer en PDF
 
-Unit Calculator est conçue pour les étudiants, les ingénieurs, les makers et toute personne qui veut faire confiance au nombre affiché par sa calculatrice.
+Unit Calculator est conçue pour les lycéens et lycéennes en physique-chimie, les étudiants de prépa, de BTS et d'école d'ingénieurs, les électriciens en formation, les makers et toute personne qui veut faire confiance au nombre affiché par sa calculatrice.
 ```
+
+## ASOキーワード（言語ごと・英語からの直訳をしない）
+
+Google Play に iOS のようなキーワード欄は無く、**タイトル・短い説明・詳しい説明の語がそのまま検索対象**になる。
+そのため「英語のキーワードを訳したもの」を並べても、その言語で実際に打たれている語から外れる。
+以下は言語ごとに**その言語で検索されている形**を優先して並べたもの（`docs/target-users-by-locale-2026-09.md` 第4節）。
+**Google Play はキーワード欄ではなく本文の語で引くので、表を作るだけでは効かない。** 太字の第一検索語は、
+上の詳しい説明の冒頭に地の文として実際に入れてある（機械的なテストが無いので、掲載文を書き換えたらこの表と本文を突き合わせること）。
+
+| 言語 | 中心となる語 | 併せて入れる語 |
+|---|---|---|
+| en | unit calculator, unit converter, dimensional analysis | SI units, engineering calculator, physics calculator, FE exam, metric conversion |
+| ja | 単位 電卓, 単位変換, 単位計算 | SI単位, 電験三種, 電気工事士, 換算, 物理 計算 |
+| de | **Einheitenrechner**, Einheiten umrechnen, Einheitenumrechner | Maßeinheiten, Zehnerpotenzen, Vorsatzzeichen, Physik Rechner, Klausur |
+| fr | **convertisseur d'unités**, calculatrice d'unités, conversion d'unités | unités SI, physique-chimie, calculatrice scientifique, lycée |
+| es | **calculadora con unidades**, conversor de unidades, cambio de unidades | factores de conversión, unidades SI, física, EBAU |
+| pt-BR | **calculadora de unidades**, conversor de unidades, conversão de unidades | unidades SI, física, ENEM, cálculo com unidades |
+
+太字は第4節で名指しした「その言語の第一検索語」。**`unit converter` の直訳を各言語に置くのはやめる**こと。
+独語の `Einheitenrechner`（単位で計算する電卓）と `Umrechner`（換算器）は意味が違い、当アプリは前者に当たる。
+西語の `calculadora con unidades` も「単位付きで計算する」側の語で、`conversor` とは別の意図の検索。
 
 ## 訳語チェックの注記
 
