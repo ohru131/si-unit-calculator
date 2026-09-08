@@ -4,7 +4,9 @@ import { presetConstantExpression } from "../lib/calculator-store";
 import { APP_LANGUAGES, AppLanguage } from "../lib/i18n";
 import { evaluateExpression, parseUnit } from "../lib/units";
 import {
+  CURRENCY_BY_REGION,
   DEFAULT_PRESET_ELECTRICAL_PROFILE,
+  ELECTRICAL_PROFILE_BY_REGION,
   DEFAULT_PRESET_PRICE_CURRENCY,
   PRESET_PRICE_PROFILES,
   PresetPriceKind,
@@ -201,5 +203,38 @@ describe("プリセットの電気の既定値", () => {
       expect(watts, `${region}: ${watts}W`).toBeGreaterThanOrEqual(1500);
       expect(watts, `${region}: ${watts}W`).toBeLessThanOrEqual(8000);
     });
+  });
+});
+
+describe("電気の地域表と金額の通貨表のずれ", () => {
+  it("電圧が分かる地域は、金額も同じ国の通貨で解決できる", () => {
+    // ここがずれると**同じ国で電圧は正しいのに金額だけ他国の通貨**になる。
+    // 実際に CO・CR・DO・GT・HN・NI・TW・VE は電圧だけ正しく、金額は西語→EUR に、
+    // カナダは英語→USD に落ちていた。地域を足すときは両方の表に入れる。
+    const regions = Object.keys(ELECTRICAL_PROFILE_BY_REGION);
+    const missing = regions.filter((region) => !CURRENCY_BY_REGION[region]);
+    expect(missing).toEqual([]);
+  });
+
+  it("追加した中南米・台湾・カナダは、通貨コードが取れないWebでも地域だけで自国通貨になる", () => {
+    // expo-localization の web 実装では currencyCode が常に null になるため、
+    // 地域コードだけで解決できることがそのまま「Webで正しく出るか」の確認になる。
+    const expectations: [string, AppLanguage, PresetPriceKind, number][] = [
+      ["CO", "es", "electricityPerKWh", 850],
+      ["CR", "es", "electricityPerKWh", 86],
+      ["GT", "es", "fuelPerLiter", 10.5],
+      ["TW", "en", "electricityPerKWh", 3.2],
+      ["CA", "en", "fuelPerLiter", 1.45],
+    ];
+    for (const [region, language, kind, expected] of expectations) {
+      expect(resolvePresetPriceProfile(null, region, language)[kind], region).toBe(expected);
+    }
+  });
+
+  it("ベネズエラはドル化しているのでUSDへ寄せる（VESの値は置かない）", () => {
+    // VESの数値を置くとインフレで短期間に大きく外れる。端末が通貨コードVESを返しても、
+    // VESのプロファイルが無いので地域表まで落ちてUSDになる。
+    expect(resolvePresetPriceProfile("VES", "VE", "es")).toBe(PRESET_PRICE_PROFILES.USD);
+    expect(resolvePresetPriceProfile(null, "VE", "es")).toBe(PRESET_PRICE_PROFILES.USD);
   });
 });

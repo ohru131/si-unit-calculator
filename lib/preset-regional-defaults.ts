@@ -42,6 +42,22 @@ export const PRESET_PRICE_PROFILES: Record<string, PresetPriceProfile> = {
   GBP: { electricityPerKWh: 0.26, fuelPerLiter: 1.5, filamentPerKg: 20 },
   BRL: { electricityPerKWh: 0.85, fuelPerLiter: 6.4, filamentPerKg: 130 },
   MXN: { electricityPerKWh: 2, fuelPerLiter: 23.5, filamentPerKg: 450 },
+  // ここから下は、電気の地域表（ELECTRICAL_PROFILE_BY_REGION）には入っているのに通貨表が
+  // 無く、**同じ国で電圧は正しいのに金額だけ言語推測（西語→EUR・英語→USD）に落ちていた**地域。
+  // 電気料金は2026年9月時点の各国の住宅用実勢（現地通貨の一次情報が取れたCO・CR・TW以外は
+  // USD建ての実勢に当時の為替を掛けて現地通貨へ直した概数）。燃料は現地通貨建ての店頭価格を
+  // 基準に、上と同じ理由で実勢よりやや低めの丸めにしてある。フィラメントは他の通貨と同じく
+  // PLA 1kgスプールを米ドル建て20ドル台とみなして為替換算した概数。
+  CAD: { electricityPerKWh: 0.18, fuelPerLiter: 1.45, filamentPerKg: 30 },
+  COP: { electricityPerKWh: 850, fuelPerLiter: 3500, filamentPerKg: 70000 },
+  CRC: { electricityPerKWh: 86, fuelPerLiter: 680, filamentPerKg: 10000 },
+  DOP: { electricityPerKWh: 6.8, fuelPerLiter: 72, filamentPerKg: 1300 },
+  GTQ: { electricityPerKWh: 2.2, fuelPerLiter: 10.5, filamentPerKg: 170 },
+  HNL: { electricityPerKWh: 6.5, fuelPerLiter: 34, filamentPerKg: 600 },
+  NIO: { electricityPerKWh: 6.5, fuelPerLiter: 46, filamentPerKg: 800 },
+  // 台湾の住宅用は階層制（月120kWhまで1.78元、1000kWh超で8.86元）で幅が5倍ある。
+  // 単一の代表値にはどうしても無理があるので、平均的な使用量の帯にあたる値を置く。
+  TWD: { electricityPerKWh: 3.2, fuelPerLiter: 30, filamentPerKg: 700 },
 };
 
 export const DEFAULT_PRESET_PRICE_CURRENCY = "USD";
@@ -51,7 +67,7 @@ export const DEFAULT_PRESET_PRICE_CURRENCY = "USD";
 // この対応表が無いとWebでは地域を全く見られなくなる。ネイティブでも、端末が
 // 通貨を返さない場合の保険になる。
 // 表に無い地域は言語からの推測に落ちるので、網羅する必要はない。
-const CURRENCY_BY_REGION: Record<string, string> = {
+export const CURRENCY_BY_REGION: Record<string, string> = {
   JP: "JPY",
   US: "USD",
   GB: "GBP",
@@ -62,6 +78,14 @@ const CURRENCY_BY_REGION: Record<string, string> = {
   // CodeRabbitが検出）。パナマの法定通貨はバルボアだが米ドルと1:1で併用され、実際の
   // 値付けは米ドル。プエルトリコは米国の自治領。
   EC: "USD", SV: "USD", PA: "USD", PR: "USD",
+  // ベネズエラは自国通貨(VES)があるが、価格表示が事実上ドル化している。VESの値を
+  // 置くとインフレで短期間に大きく外れるため、**あえてUSDへ寄せる**。端末が通貨コード
+  // VES を返しても VES のプロファイルが無いので、この地域表まで落ちてUSDになる。
+  // （電気は補助で極端に安いという別の事情があるが、EUR建ての値より近い。）
+  VE: "USD",
+  // カナダと、電気の地域表にあって通貨表に無かった中南米・台湾。ここが無いと
+  // カナダの英語ユーザーはUSD、中南米の西語ユーザーはEURの金額になる。
+  CA: "CAD", CO: "COP", CR: "CRC", DO: "DOP", GT: "GTQ", HN: "HNL", NI: "NIO", TW: "TWD",
   // ユーロ圏21カ国（2026年1月にブルガリアが加入して21カ国になった）。
   // プリセットの言語(de/fr/es)に関係する国だけでなく、端末の地域がユーロ圏なら
   // 言語を問わずEURになるように並べておく。**ここを1カ国でも落とすと、その国の
@@ -120,7 +144,9 @@ export const DEFAULT_PRESET_ELECTRICAL_PROFILE: PresetElectricalProfile = { main
 
 // 100〜127V圏（と、230Vでも定格が違う英国・アイルランド）だけを列挙する。ここに無い地域は
 // 上のDEFAULT_PRESET_ELECTRICAL_PROFILEになるので、網羅する必要があるのは低電圧側だけ。
-const ELECTRICAL_PROFILE_BY_REGION: Record<string, PresetElectricalProfile> = {
+// テストから「電気の地域表にある地域は金額も自国通貨で解決できる」ことを検証したいのでexportする。
+// この2つの表がずれると、同じ国で電圧は正しいのに金額だけ他国の通貨になる（今回塞いだ不整合）。
+export const ELECTRICAL_PROFILE_BY_REGION: Record<string, PresetElectricalProfile> = {
   JP: { mainsVoltage: 100, breakerCurrent: 30 },
   US: { mainsVoltage: 120, breakerCurrent: 20 },
   CA: { mainsVoltage: 120, breakerCurrent: 20 },
