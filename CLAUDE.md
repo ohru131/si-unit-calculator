@@ -382,6 +382,14 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
       - `1.72×10⁻⁸` のような上付き表記は使えない（`1.72e-8`）。抵抗率は `Ohm*m` でも `Ω*m` でも `Ohm*mm²/m` でも通る。
       - ギリシャ小文字 `μ`（U+03BC）も数値直後なら µF として通るが、既存サンプルに合わせて**マイクロ記号 `µ`（U+00B5）で書く**。
 
+### 製品名を一括置換したときに踏んだこと（次に改名するとき用）
+
+`Unit Calculator` → `UnitCalc` の一括置換で、**grepでもテストでも型でも拾えない取りこぼしが3件**出た（#55のマージ後にCodeRabbitが検出）。
+
+- **一括置換は「そこだけは置換してはいけない箇所」を巻き込む。** 掲載文の英語タイトル `UnitCalc - Unit Calculator` の副題まで置換され、`UnitCalc - UnitCalc`（19字）になっていた。**タイトルはASO第一検索語をわざと入れてある場所**なので、置換後は「意図して旧名を残す箇所」を必ず個別に見直す。字数の表記（26字）と実測がずれるのが唯一の手掛かりだった。
+- **`grep "Unit Calculator"` は `Unit&nbsp;Calculator` を見つけられない。** `scripts/record-demo-video.mjs` のクロージングカードがHTMLエンティティで区切っていて、置換もgrepの確認もすり抜けた。改名の確認は `grep -P 'Unit(?:\s|&nbsp;|&#160;)+Calculator'` のように**区切り文字を許すパターン**で行う。
+- **アプリ名は `app.config.ts` の外にも住んでいる。** iOSウィジェット（`widgets/UnitCalculatorWidget.ios.tsx`）は自前のCOPYを持ち、`app.config.ts` の `displayName`（＝OSのウィジェット一覧に出る名前）とは別に**ウィジェット本体に描画するタイトル**を6言語ぶん持っていた。改名時に触る場所: `app.config.ts`（appName・widget displayName）／`lib/global-settings.tsx`（`calculator`＝タブ名）／`widgets/*.tsx`（`title`）／`app/(tabs)/pro.tsx`（`heroEyebrowUpgrade`）／`lib/notebook-export.ts`（PDFのフッター）／`scripts/capture-submission-assets.mjs`・`scripts/record-demo-video.mjs`（タブ名とクロージングカード）／`scripts/generate-feature-graphic.mjs`／`docs/store-listing-copy.md`。
+
 ### 現在の基準値（2026-09-08時点、サンプル・ノートを言語ごとの関連度順にした後）
 
 - `npx tsc --noEmit` → **`app/(tabs)/constants.tsx` の `"/notebook"` ルート型で2件のみ**（上と同じ既存分）。

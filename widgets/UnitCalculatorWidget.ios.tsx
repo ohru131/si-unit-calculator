@@ -24,7 +24,7 @@ export type UnitCalculatorWidgetProps = {
 // ホーム画面ウィジェットの文言。アプリ本体と同じ「英語のキー集合を正とするRecord」方式にして、
 // 言語を足したときにキー漏れがその言語のブロックで型エラーになるようにする。
 const EN_COPY = {
-  title: "Unit Calculator",
+  title: "UnitCalc",
   siLabel: "SI base",
   latestLabel: "LATEST CALCULATION",
   emptyExpression: "Enter an expression",
@@ -32,11 +32,11 @@ const EN_COPY = {
 
 const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   en: EN_COPY,
-  ja: { title: "単位付き電卓", siLabel: "SI標準", latestLabel: "最新の計算", emptyExpression: "式を入力" },
-  es: { title: "Calculadora de unidades", siLabel: "Base SI", latestLabel: "ÚLTIMO CÁLCULO", emptyExpression: "Escribe una expresión" },
-  "pt-BR": { title: "Calculadora de unidades", siLabel: "Base SI", latestLabel: "ÚLTIMO CÁLCULO", emptyExpression: "Digite uma expressão" },
-  de: { title: "Einheitenrechner", siLabel: "SI-Basis", latestLabel: "LETZTE BERECHNUNG", emptyExpression: "Ausdruck eingeben" },
-  fr: { title: "Calculatrice d'unités", siLabel: "Base SI", latestLabel: "DERNIER CALCUL", emptyExpression: "Saisir une expression" },
+  ja: { title: "UnitCalc", siLabel: "SI標準", latestLabel: "最新の計算", emptyExpression: "式を入力" },
+  es: { title: "UnitCalc", siLabel: "Base SI", latestLabel: "ÚLTIMO CÁLCULO", emptyExpression: "Escribe una expresión" },
+  "pt-BR": { title: "UnitCalc", siLabel: "Base SI", latestLabel: "ÚLTIMO CÁLCULO", emptyExpression: "Digite uma expressão" },
+  de: { title: "UnitCalc", siLabel: "SI-Basis", latestLabel: "LETZTE BERECHNUNG", emptyExpression: "Ausdruck eingeben" },
+  fr: { title: "UnitCalc", siLabel: "Base SI", latestLabel: "DERNIER CALCUL", emptyExpression: "Saisir une expression" },
 };
 
 function UnitCalculatorWidget(
