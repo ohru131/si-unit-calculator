@@ -207,10 +207,32 @@ export function resolvePresetElectricalProfile(
   return FALLBACK_ELECTRICAL_BY_LANGUAGE[language] ?? DEFAULT_PRESET_ELECTRICAL_PROFILE;
 }
 
+// 燃費の既定値。**単位そのものが地域で違う**（米国は mpg、英国は英ガロンの mpg、
+// 日本・欧州は km/L）ため、金額のように数値だけ差し替えるのでは足りず、単位ごと差し替える。
+// 電圧と同じ「地域で決まるもの」なので通貨は見ない。
+//
+// 3つの値は**同じ車を各地域の言い方で表したもの**にしてある（15km/L ≒ 35mpg ≒ 42英mpg）。
+// ノートの式は「距離 ÷ 燃費」で、エンジンがSIへ正規化するので式は地域非依存のまま動く。
+// L/100km は面積と同じ次元で単位文字列にできないため、ここでは扱わない（lib/units.ts の
+// 燃費グループのコメント参照）。
+const FUEL_ECONOMY_BY_REGION: Record<string, string> = {
+  US: "35mpg",
+  GB: "42mpgUK",
+};
+
+export const DEFAULT_PRESET_FUEL_ECONOMY = "15km/L";
+
+export function resolvePresetFuelEconomy(regionCode: string | null | undefined): string {
+  const region = regionCode?.trim().toUpperCase() ?? "";
+  // 表に無い地域＝mpg圏ではないということなので、世界の多数派である km/L を既定にする
+  // （カナダ・豪州は L/100km 表記だが、この式は km/L でも必要な燃料は正しく出る）。
+  return FUEL_ECONOMY_BY_REGION[region] ?? DEFAULT_PRESET_FUEL_ECONOMY;
+}
+
 // シードのローカル定数が指定できる「地域依存の既定値」の種類。金額と電気を1つの
 // unionにまとめてあるのは、シード側（NotebookSeedConstant.regionalDefault）から見ると
 // 「投入時に端末の地域へ合わせて差し替えるもの」という同じ1つの概念だから。
-export type PresetRegionalDefaultKind = PresetPriceKind | PresetElectricalKind;
+export type PresetRegionalDefaultKind = PresetPriceKind | PresetElectricalKind | "fuelEconomy";
 
 // 解決済みの既定値。**値ではなく「そのまま定数の式として使える文字列」**で持つ。
 // 金額は裸の数値（"0.29"。通貨記号はノート側で扱わない）、電気は単位付き（"230V"・"16A"）と
@@ -230,5 +252,6 @@ export function resolvePresetRegionalDefaults(
     filamentPerKg: String(price.filamentPerKg),
     mainsVoltage: `${electrical.mainsVoltage}V`,
     breakerCurrent: `${electrical.breakerCurrent}A`,
+    fuelEconomy: resolvePresetFuelEconomy(regionCode),
   };
 }

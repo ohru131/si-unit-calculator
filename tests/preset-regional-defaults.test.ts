@@ -2,15 +2,17 @@ import { describe, expect, it, vi } from "vitest";
 
 import { presetConstantExpression } from "../lib/calculator-store";
 import { APP_LANGUAGES, AppLanguage } from "../lib/i18n";
-import { evaluateExpression, parseUnit } from "../lib/units";
+import { convertQuantity, evaluateExpression, parseUnit } from "../lib/units";
 import {
   CURRENCY_BY_REGION,
   DEFAULT_PRESET_ELECTRICAL_PROFILE,
+  DEFAULT_PRESET_FUEL_ECONOMY,
   ELECTRICAL_PROFILE_BY_REGION,
   DEFAULT_PRESET_PRICE_CURRENCY,
   PRESET_PRICE_PROFILES,
   PresetPriceKind,
   resolvePresetElectricalProfile,
+  resolvePresetFuelEconomy,
   resolvePresetPriceProfile,
   resolvePresetRegionalDefaults,
 } from "../lib/preset-regional-defaults";
@@ -236,5 +238,37 @@ describe("電気の地域表と金額の通貨表のずれ", () => {
     // VESのプロファイルが無いので地域表まで落ちてUSDになる。
     expect(resolvePresetPriceProfile("VES", "VE", "es")).toBe(PRESET_PRICE_PROFILES.USD);
     expect(resolvePresetPriceProfile(null, "VE", "es")).toBe(PRESET_PRICE_PROFILES.USD);
+  });
+});
+
+describe("燃費の地域別既定値", () => {
+  it("米国は mpg、英国は英ガロンの mpg、その他は km/L になる", () => {
+    // **単位そのものが地域で違う**ので、金額のように数値だけ差し替えるのでは足りない。
+    expect(resolvePresetFuelEconomy("US")).toBe("35mpg");
+    expect(resolvePresetFuelEconomy("GB")).toBe("42mpgUK");
+    expect(resolvePresetFuelEconomy("JP")).toBe(DEFAULT_PRESET_FUEL_ECONOMY);
+    expect(resolvePresetFuelEconomy("DE")).toBe(DEFAULT_PRESET_FUEL_ECONOMY);
+    // 表に無い地域＝mpg圏ではないということなので km/L にする（カナダ・豪州は L/100km 表記だが、
+    // 「距離 ÷ 燃費」で必要な燃料を出す式は km/L でも正しく動く）。
+    expect(resolvePresetFuelEconomy("CA")).toBe(DEFAULT_PRESET_FUEL_ECONOMY);
+    expect(resolvePresetFuelEconomy(null)).toBe(DEFAULT_PRESET_FUEL_ECONOMY);
+  });
+
+  it("どの地域の値もノートの式（距離 ÷ 燃費 → L）として計算できる", () => {
+    // 単位付きの文字列をそのまま定数の式として使うので、パースできない値を入れると
+    // その地域のユーザーだけノートが動かなくなる。
+    for (const region of ["US", "GB", "JP", "DE", "BR", null]) {
+      const economy = resolvePresetFuelEconomy(region);
+      expect(() => parseUnit(economy.replace(/^[\d.]+/, "")), String(region)).not.toThrow();
+      const fuel = convertQuantity(evaluateExpression(`300km/(${economy})`), "L").value;
+      // 3つの表記は同じ車を各地域の言い方で表したものなので、必要な燃料はほぼ一致する。
+      expect(fuel, String(region)).toBeCloseTo(20, 0);
+    }
+  });
+
+  it("燃費もローカル定数の regionalDefault として差し替えられる", () => {
+    const constant = { symbol: "fuelEconomy", expression: "15km/L", regionalDefault: "fuelEconomy" as const };
+    expect(presetConstantExpression(constant, resolvePresetRegionalDefaults(null, "US", "en"))).toBe("35mpg");
+    expect(presetConstantExpression(constant, resolvePresetRegionalDefaults(null, "JP", "ja"))).toBe("15km/L");
   });
 });
