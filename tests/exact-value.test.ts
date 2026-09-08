@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { bestRational, findExactValue } from "@/lib/exact-value";
+import { bestRational, findExactValue, isTerminatingDecimalFraction } from "@/lib/exact-value";
 
 describe("findExactValue", () => {
   it("割り算の結果を約分した分数で返す", () => {
@@ -84,5 +84,23 @@ describe("bestRational", () => {
 
   it("πのように有理数でない値は上限内では一致しない", () => {
     expect(bestRational(Math.PI, 1000)).toBeNull();
+  });
+});
+
+describe("isTerminatingDecimalFraction", () => {
+  it("分母が2と5だけの分数（有限小数）は言い換えにならないので true", () => {
+    for (const value of [0.051, 2.5, 0.125, 0.3]) {
+      const exact = findExactValue(value);
+      expect(exact, String(value)).not.toBeNull();
+      expect(isTerminatingDecimalFraction(exact!), String(value)).toBe(true);
+    }
+  });
+
+  it("循環小数になる分数・π・√ は false", () => {
+    for (const value of [1 / 3, 2 / 7, Math.PI / 4, Math.SQRT2]) {
+      const exact = findExactValue(value);
+      expect(exact, String(value)).not.toBeNull();
+      expect(isTerminatingDecimalFraction(exact!), String(value)).toBe(false);
+    }
   });
 });

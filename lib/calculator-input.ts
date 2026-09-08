@@ -6,6 +6,7 @@ import {
   type Quantity,
   type SavedConstant,
 } from "@/lib/units";
+import { UnitError, type UnitErrorCode } from "@/lib/unit-errors";
 
 // 定数名の判定はエンジン側（parseConstantDefinition）と同じ文字集合を使う。ここだけASCII限定に
 // していると、mₒ や α のようなUnicodeの記号で定義しようとしても代入と見なされず保存できない。
@@ -40,4 +41,42 @@ export function previewCalculatorInput(input: string, constants: SavedConstant[]
   } catch {
     return null;
   }
+}
+
+/**
+ * = を押す前の入力を「診断」する。previewCalculatorInput と違い、計算できなかった理由
+ * （UnitError）も返すので、結果カードの中で「長さと質量は足し引きできません」のような
+ * 説明をリアルタイムに出せる。評価規則は evaluateCalculatorInput と同じ関数を通す。
+ */
+export function diagnoseCalculatorInput(input: string, constants: SavedConstant[]): { quantity: Quantity | null; error: Error | null } {
+  if (!input.trim()) return { quantity: null, error: null };
+  try {
+    return { quantity: evaluateCalculatorInput(input, constants).quantity, error: null };
+  } catch (cause) {
+    return { quantity: null, error: cause instanceof Error ? cause : new Error(String(cause)) };
+  }
+}
+
+// 「まだ書きかけ」のときに出るエラー。閉じ括弧を待っている・末尾が演算子で終わっている等は
+// 入力の途中経過であって間違いではないので、リアルタイムの診断としては見せない
+// （一文字打つごとに「式の末尾が不完全です」と赤く出ると、打っている最中ずっと怒られる）。
+// 一方、次元不一致・使えない単位・ゼロ除算のような「その式の意味」の誤りは、完成前でも
+// もう分かっているので即座に見せる価値がある。
+const INCOMPLETE_INPUT_ERROR_CODES: ReadonlySet<UnitErrorCode> = new Set<UnitErrorCode>([
+  "emptyExpression",
+  "unexpectedEndOfExpression",
+  "missingClosingParen",
+  "functionMissingOpenParen",
+  "functionMissingClosingParen",
+  "atan2MissingOpenParen",
+  "atan2MissingComma",
+  "atan2MissingClosingParen",
+  "customFunctionMissingClosingParen",
+  "invalidExpressionSyntax",
+  "invalidConstantDefinitionFormat",
+]);
+
+/** リアルタイム診断として表示すべきエラーか（書きかけの式で出る構文系のエラーは除く）。 */
+export function isDiagnosableInputError(error: Error): error is UnitError {
+  return error instanceof UnitError && !INCOMPLETE_INPUT_ERROR_CODES.has(error.code);
 }

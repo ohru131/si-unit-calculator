@@ -663,16 +663,36 @@ function quantity(value: number, dimension: Dimension = ZERO): Quantity {
   return { siValue: value, dimension: [...dimension] as Dimension };
 }
 
+/**
+ * 次元不一致のエラーに「どの量とどの量か」を添えるための説明。単位グループ（長さ・質量…）に
+ * 一致すればその id を、無次元なら "dimensionless" を返す。表示名への変換は表示側
+ * （lib/unit-errors.ts → lib/unit-group-names.ts）が現在の言語で行うので、ここでは
+ * 言語に依存しない id と SI 基本単位の表記（m, kg, m/s²…）だけを返す。
+ * 角度・割合のような無次元グループは「無次元」として一括で扱う（`3m + 2` の 2 を
+ * 「角度」と呼ぶのは誤りなので、次元ゼロのグループ名は使わない）。
+ */
+export function describeDimension(dimension: Dimension): { group: string; label: string } {
+  if (isDimensionless(dimension)) return { group: "dimensionless", label: "1" };
+  const group = UNIT_GROUPS.find((candidate) => sameDimension(candidate.dimension, dimension));
+  return { group: group?.id ?? "", label: formatDimension(dimension) };
+}
+
+function dimensionMismatchParams(left: Quantity, right: Quantity) {
+  const leftInfo = describeDimension(left.dimension);
+  const rightInfo = describeDimension(right.dimension);
+  return { leftGroup: leftInfo.group, leftDimension: leftInfo.label, rightGroup: rightInfo.group, rightDimension: rightInfo.label };
+}
+
 function add(left: Quantity, right: Quantity): Quantity {
   if (!sameDimension(left.dimension, right.dimension)) {
-    throw new UnitError("dimensionMismatchAddSubtract");
+    throw new UnitError("dimensionMismatchAddSubtract", dimensionMismatchParams(left, right));
   }
   return quantity(left.siValue + right.siValue, left.dimension);
 }
 
 function subtract(left: Quantity, right: Quantity): Quantity {
   if (!sameDimension(left.dimension, right.dimension)) {
-    throw new UnitError("dimensionMismatchAddSubtract");
+    throw new UnitError("dimensionMismatchAddSubtract", dimensionMismatchParams(left, right));
   }
   return quantity(left.siValue - right.siValue, left.dimension);
 }

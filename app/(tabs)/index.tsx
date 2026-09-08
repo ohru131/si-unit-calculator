@@ -22,9 +22,10 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { isSampleCategoryVisible, isUnitGroupVisible, isUnitVisible, visibleUnits } from "@/lib/advanced-display";
-import { findExactValue } from "@/lib/exact-value";
+import { findExactValue, isTerminatingDecimalFraction } from "@/lib/exact-value";
 import { useCalculatorStore } from "@/lib/calculator-store";
-import { evaluateCalculatorInput, previewCalculatorInput } from "@/lib/calculator-input";
+import { diagnoseCalculatorInput, evaluateCalculatorInput, isDiagnosableInputError } from "@/lib/calculator-input";
+import { resolveDisplayUnit } from "@/lib/display-unit";
 import { resolveStartupExpression } from "@/lib/calculator-startup-expression";
 import { exportCalculationHistory } from "@/lib/calculation-export";
 import { useGlobalSettings } from "@/lib/global-settings";
@@ -34,7 +35,7 @@ import { BASE_META, canRepresentInBase, canSwitchBaseInput, formatInBaseParts, i
 import { getCalculatorQuickShortcut } from "@/lib/quick-shortcuts";
 import { usePro } from "@/lib/revenuecat-provider";
 import { buildUnitComparisonRows } from "@/lib/unit-comparison";
-import { unitErrorMessage } from "@/lib/unit-errors";
+import { UnitError, unitErrorMessage } from "@/lib/unit-errors";
 import { getUnitExplanation } from "@/lib/unit-explanations";
 import UnitCalculatorWidget from "@/widgets/UnitCalculatorWidget";
 import { SAMPLE_CALCULATIONS, SAMPLE_CATEGORIES, type SampleCalculation } from "@/lib/sample-calculations";
@@ -67,6 +68,16 @@ type ValueForm = (typeof VALUE_FORMS)[number];
 const DEFAULT_TARGET_UNIT = "";
 // 16進の入力モード専用。キーパッド本体の配置は変えず、直上に小さな別の行として出す。
 const HEX_LETTER_KEYS = ["A", "B", "C", "D", "E", "F"];
+
+// 空状態の結果カードに置く「まず1つ試す」式。サンプルシート（SAMPLE_CALCULATIONS）の縮約版ではなく、
+// このアプリの3つの売り（単位のまま足せる・答えが読みやすい接頭語で返る・速さ×時間が距離になる）を
+// 1タップずつで見せるための固定3件。表示単位は指定せず、表示単位の自動選択（lib/display-unit.ts）に
+// 任せる（5.1 cm / 2.55 mA / 90 km になることが、そのまま自動選択のデモになる）。
+const QUICK_START: { id: "length" | "current" | "distance"; expression: string }[] = [
+  { id: "length", expression: "5cm + 1mm" },
+  { id: "current", expression: "12V / 4.7kΩ" },
+  { id: "distance", expression: "60km/h × 90min" },
+];
 // 進数入力モード中に押せてはいけないキー（演算子・小数点・括弧）。16進の桁のまま演算に入ると
 // 評価器が解釈できないため、まず = で10進へ確定させてから通常の式に組み込む運用にする。
 const BASE_INPUT_DISABLED_KEYS = ["(", ")", "÷", "×", "-", "+", "."];
@@ -107,6 +118,11 @@ const EN_COPY = {
   sampleConfirmTitle: "Load an example?",
   sampleConfirmMessage: "The expression you have typed will be replaced.",
   sampleConfirmButton: "Load",
+  incompleteHint: "Keep typing — the result appears as soon as the expression is complete.",
+  quickStartTitle: "Try one",
+  quickStartLength: "Add lengths in different units",
+  quickStartCurrent: "Ohm's law — the answer comes back in mA",
+  quickStartDistance: "Speed × time, shown in km",
 };
 const COPY: Record<AppLanguage, typeof EN_COPY> = {
   en: EN_COPY,
@@ -141,6 +157,11 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     sampleConfirmTitle: "サンプルを読み込みますか？",
     sampleConfirmMessage: "入力中の式は置き換えられます。",
     sampleConfirmButton: "読み込む",
+    incompleteHint: "続けて入力すると、式が完成した時点で結果が出ます。",
+    quickStartTitle: "試してみる",
+    quickStartLength: "単位の違う長さを足す",
+    quickStartCurrent: "オームの法則 — 答えは mA で返る",
+    quickStartDistance: "速さ × 時間を km で表示",
   },
   es: {
     definitionHint: "Definir una constante: W = 3cm", calculate: "=", siBase: "Base SI", emptyResult: "Escribe una expresión para ver el resultado. Toca = para guardarlo en el historial.", pickUnit: "Elige una unidad registrada", speedTitle: "Distancia, tiempo y velocidad", speedFormula: "Velocidad = distancia ÷ tiempo     Distancia = velocidad × tiempo", findSpeed: "Calcular velocidad", findDistance: "Calcular distancia", findTime: "Calcular tiempo", savedHistory: "Cálculos guardados", historyHint: "Los últimos resultados están disponibles como a1, a2, etc.", clear: "Borrar", helpTitle: "Ejemplos", helpDone: "Listo", unitSearch: "Buscar unidades, nombres o categorías", copied: "Cálculo copiado", copy: "Copiar", unitDetails: "Detalles de la unidad", siConversion: "Conversión SI", commonUse: "Uso común", close: "Cerrar", advancedMath: "Matemáticas avanzadas", advancedMathHint: "Los ángulos usan rad, deg o °. Incluye trigonometría inversa, logaritmos y atan2(y, x).", saveTemplate: "Guardar", samples: "Ejemplos", math: "Matemáticas", outputUnit: "Unidad mostrada", insertUnit: "Insertar unidad", registered: "Registrada", supported: "Compatible, sin listar", unknown: "Unidad no válida", unknownHint: "Revisa el símbolo o elige un candidato abajo.", history: "Historial", use: "Usar", noUnit: "Base SI", compatible: "Compatible con este resultado", allCandidates: "Candidatos más cercanos", hintFix: "Corregir", hintComplete: "Completar", hintAttach: "Añadir", hintReplace: "Sustituir", hintInsert: "Insertar", more: "Más", showAs: "Mostrar como", fixTap: "Toca la unidad en rojo para corregirla.", noCandidates: "No se encontró ningún candidato. Revisa el símbolo.", aliasNote: "igual a", noSearchResults: "Ninguna unidad coincide con esta búsqueda.", noSearchResultsHint: "Prueba otro símbolo, nombre o categoría.", noHistory: "Aún no hay cálculos guardados.", noHistoryHint: "Cada resultado que calculas se guarda aquí automáticamente.", browseUnits: "Explorar categorías",
@@ -173,6 +194,11 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     sampleConfirmTitle: "¿Cargar un ejemplo?",
     sampleConfirmMessage: "Se reemplazará la expresión que has escrito.",
     sampleConfirmButton: "Cargar",
+    incompleteHint: "Sigue escribiendo: el resultado aparece en cuanto la expresión esté completa.",
+    quickStartTitle: "Prueba uno",
+    quickStartLength: "Suma longitudes en distintas unidades",
+    quickStartCurrent: "Ley de Ohm: la respuesta sale en mA",
+    quickStartDistance: "Velocidad × tiempo, mostrado en km",
   },
   "pt-BR": {
     definitionHint: "Definir uma constante: W = 3cm", calculate: "=", siBase: "Base SI", emptyResult: "Digite uma expressão para ver o resultado. Toque em = para salvá-lo no histórico.", pickUnit: "Escolha uma unidade registrada", speedTitle: "Distância, tempo e velocidade", speedFormula: "Velocidade = distância ÷ tempo     Distância = velocidade × tempo", findSpeed: "Calcular velocidade", findDistance: "Calcular distância", findTime: "Calcular tempo", savedHistory: "Cálculos salvos", historyHint: "Os últimos resultados ficam disponíveis como a1, a2 etc.", clear: "Limpar", helpTitle: "Exemplos", helpDone: "Concluído", unitSearch: "Buscar unidades, nomes ou categorias", copied: "Cálculo copiado", copy: "Copiar", unitDetails: "Detalhes da unidade", siConversion: "Conversão SI", commonUse: "Uso comum", close: "Fechar", advancedMath: "Matemática avançada", advancedMathHint: "Os ângulos usam rad, deg ou °. Inclui trigonometria inversa, logaritmos e atan2(y, x).", saveTemplate: "Salvar", samples: "Exemplos", math: "Matemática", outputUnit: "Unidade de exibição", insertUnit: "Inserir unidade", registered: "Registrada", supported: "Compatível, não listada", unknown: "Unidade inválida", unknownHint: "Verifique o símbolo ou escolha um candidato abaixo.", history: "Histórico", use: "Usar", noUnit: "Base SI", compatible: "Compatível com este resultado", allCandidates: "Candidatos mais próximos", hintFix: "Corrigir", hintComplete: "Concluir", hintAttach: "Adicionar", hintReplace: "Substituir", hintInsert: "Inserir", more: "Mais", showAs: "Exibir como", fixTap: "Toque na unidade em vermelho para corrigi-la.", noCandidates: "Nenhum candidato encontrado. Verifique o símbolo.", aliasNote: "igual a", noSearchResults: "Nenhuma unidade corresponde a esta busca.", noSearchResultsHint: "Tente outro símbolo, nome ou categoria.", noHistory: "Ainda não há cálculos salvos.", noHistoryHint: "Cada resultado calculado é salvo aqui automaticamente.", browseUnits: "Explorar categorias",
@@ -205,6 +231,11 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     sampleConfirmTitle: "Carregar um exemplo?",
     sampleConfirmMessage: "A expressão que você digitou será substituída.",
     sampleConfirmButton: "Carregar",
+    incompleteHint: "Continue digitando: o resultado aparece assim que a expressão estiver completa.",
+    quickStartTitle: "Experimente",
+    quickStartLength: "Some comprimentos em unidades diferentes",
+    quickStartCurrent: "Lei de Ohm: a resposta sai em mA",
+    quickStartDistance: "Velocidade × tempo, exibido em km",
   },
   de: {
     definitionHint: "Konstante definieren: W = 3cm", calculate: "=", siBase: "SI-Basis", emptyResult: "Gib einen Ausdruck ein, um das Ergebnis zu sehen. Tippe auf =, um es im Verlauf zu speichern.", pickUnit: "Registrierte Einheit wählen", speedTitle: "Strecke, Zeit & Geschwindigkeit", speedFormula: "Geschwindigkeit = Strecke ÷ Zeit     Strecke = Geschwindigkeit × Zeit", findSpeed: "Geschwindigkeit berechnen", findDistance: "Strecke berechnen", findTime: "Zeit berechnen", savedHistory: "Gespeicherte Berechnungen", historyHint: "Die letzten Ergebnisse stehen als a1, a2 usw. zur Verfügung.", clear: "Löschen", helpTitle: "Beispiele", helpDone: "Fertig", unitSearch: "Einheiten, Namen oder Kategorien suchen", copied: "Berechnung kopiert", copy: "Kopieren", unitDetails: "Details zur Einheit", siConversion: "SI-Umrechnung", commonUse: "Typische Verwendung", close: "Schließen", advancedMath: "Erweiterte Mathematik", advancedMathHint: "Winkel in rad, deg oder °. Enthält inverse Trigonometrie, Logarithmen und atan2(y, x).", saveTemplate: "Speichern", samples: "Beispiele", math: "Mathematik", outputUnit: "Anzeigeeinheit", insertUnit: "Einheit einfügen", registered: "Registriert", supported: "Unterstützt, nicht gelistet", unknown: "Keine gültige Einheit", unknownHint: "Prüfe das Symbol oder wähle unten einen Vorschlag.", history: "Verlauf", use: "Verwenden", noUnit: "SI-Basis", compatible: "Passt zu diesem Ergebnis", allCandidates: "Nächste Vorschläge", hintFix: "Beheben", hintComplete: "Fertig", hintAttach: "Anfügen", hintReplace: "Ersetzen", hintInsert: "Einfügen", more: "Mehr", showAs: "Anzeigen als", fixTap: "Tippe auf die rote Einheit, um sie zu korrigieren.", noCandidates: "Kein Vorschlag gefunden. Prüfe das Symbol.", aliasNote: "entspricht", noSearchResults: "Keine Einheit passt zu dieser Suche.", noSearchResultsHint: "Versuche ein anderes Symbol, einen anderen Namen oder eine andere Kategorie.", noHistory: "Noch keine gespeicherten Berechnungen.", noHistoryHint: "Jedes berechnete Ergebnis wird hier automatisch gespeichert.", browseUnits: "Kategorien durchsuchen",
@@ -237,6 +268,11 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     sampleConfirmTitle: "Beispiel laden?",
     sampleConfirmMessage: "Der eingegebene Ausdruck wird ersetzt.",
     sampleConfirmButton: "Laden",
+    incompleteHint: "Tippe weiter – das Ergebnis erscheint, sobald der Ausdruck vollständig ist.",
+    quickStartTitle: "Probier eins",
+    quickStartLength: "Längen in verschiedenen Einheiten addieren",
+    quickStartCurrent: "Ohmsches Gesetz – die Antwort kommt in mA",
+    quickStartDistance: "Geschwindigkeit × Zeit, angezeigt in km",
   },
   fr: {
     definitionHint: "Définir une constante : W = 3cm", calculate: "=", siBase: "Base SI", emptyResult: "Saisissez une expression pour voir le résultat. Appuyez sur = pour l'enregistrer dans l'historique.", pickUnit: "Choisir une unité enregistrée", speedTitle: "Distance, temps et vitesse", speedFormula: "Vitesse = distance ÷ temps     Distance = vitesse × temps", findSpeed: "Calculer la vitesse", findDistance: "Calculer la distance", findTime: "Calculer le temps", savedHistory: "Calculs enregistrés", historyHint: "Les derniers résultats sont disponibles sous la forme a1, a2, etc.", clear: "Effacer", helpTitle: "Exemples", helpDone: "Terminé", unitSearch: "Rechercher des unités, des noms ou des catégories", copied: "Calcul copié", copy: "Copier", unitDetails: "Détails de l'unité", siConversion: "Conversion SI", commonUse: "Usage courant", close: "Fermer", advancedMath: "Mathématiques avancées", advancedMathHint: "Les angles utilisent rad, deg ou °. Comprend la trigonométrie inverse, les logarithmes et atan2(y, x).", saveTemplate: "Enregistrer", samples: "Exemples", math: "Maths", outputUnit: "Unité affichée", insertUnit: "Insérer une unité", registered: "Enregistrée", supported: "Prise en charge, non listée", unknown: "Unité non valide", unknownHint: "Vérifiez le symbole ou choisissez un candidat ci-dessous.", history: "Historique", use: "Utiliser", noUnit: "Base SI", compatible: "Compatible avec ce résultat", allCandidates: "Candidats les plus proches", hintFix: "Corriger", hintComplete: "Terminer", hintAttach: "Ajouter", hintReplace: "Remplacer", hintInsert: "Insérer", more: "Plus", showAs: "Afficher en", fixTap: "Touchez l'unité en rouge pour la corriger.", noCandidates: "Aucun candidat trouvé. Vérifiez le symbole.", aliasNote: "identique à", noSearchResults: "Aucune unité ne correspond à cette recherche.", noSearchResultsHint: "Essayez un autre symbole, nom ou catégorie.", noHistory: "Aucun calcul enregistré pour le moment.", noHistoryHint: "Chaque résultat calculé est enregistré ici automatiquement.", browseUnits: "Parcourir les catégories",
@@ -269,6 +305,11 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     sampleConfirmTitle: "Charger un exemple ?",
     sampleConfirmMessage: "L'expression que vous avez saisie sera remplacée.",
     sampleConfirmButton: "Charger",
+    incompleteHint: "Continuez à saisir : le résultat apparaît dès que l'expression est complète.",
+    quickStartTitle: "Essayez",
+    quickStartLength: "Additionner des longueurs d'unités différentes",
+    quickStartCurrent: "Loi d'Ohm : la réponse s'affiche en mA",
+    quickStartDistance: "Vitesse × temps, affiché en km",
   },
 };
 
@@ -277,33 +318,33 @@ type OnboardingSlide = { title: string; body: string; example: string };
 const ONBOARDING_SLIDES: Record<AppLanguage, OnboardingSlide[]> = {
   en: [
     { title: "Calculate with units, directly", body: "Type an expression with units, such as 5cm + 1mm. The app normalizes it to SI before calculating.", example: "5cm + 1mm" },
-    { title: "Tap a red unit to fix it", body: "Unknown or mistyped units turn red in the preview. Tap one to pick the closest match.", example: "5cm + 1mn" },
-    { title: "Switch units in one tap", body: "Choose any compatible display unit right under the result. Multi-step calculations live in the Notebooks tab.", example: "cm → m → ft" },
+    { title: "Mistakes are caught, not calculated", body: "3m + 2kg is refused with the reason: length and mass cannot be added. Mistyped units turn red — tap one to fix it.", example: "3m + 2kg" },
+    { title: "Answers in the unit you mean", body: "5cm + 1mm comes back as 5.1 cm, and 12V / 4.7kΩ as 2.55 mA. Tap a chip under the result to switch units. Step-by-step formulas live in the Library tab.", example: "12V / 4.7kΩ" },
   ],
   ja: [
     { title: "単位のまま計算できます", body: "5cm + 1mm のように単位を含む式を入力するだけです。計算前にSI標準へ正規化されます。", example: "5cm + 1mm" },
-    { title: "赤い単位はタップで修正", body: "未登録・入力ミスの単位はプレビューで赤く表示されます。タップすると近い候補を選べます。", example: "5cm + 1mn" },
-    { title: "結果はワンタップで単位切替", body: "結果のすぐ下で表示単位を選べます。手順のある計算は「ノート」タブで使えます。", example: "cm → m → ft" },
+    { title: "間違いは計算せず、理由を教えます", body: "3m + 2kg は「長さと質量は足し引きできません」と止まります。入力ミスの単位は赤くなり、タップで直せます。", example: "3m + 2kg" },
+    { title: "答えは読みたい単位で", body: "5cm + 1mm は 5.1 cm、12V / 4.7kΩ は 2.55 mA で返ります。結果の下のチップで単位を切り替えられます。手順のある公式は「ライブラリ」タブにあります。", example: "12V / 4.7kΩ" },
   ],
   es: [
     { title: "Calcula directamente con unidades", body: "Escribe una expresión con unidades, como 5cm + 1mm. La app la normaliza a SI antes de calcular.", example: "5cm + 1mm" },
-    { title: "Toca una unidad en rojo para corregirla", body: "Las unidades desconocidas o mal escritas aparecen en rojo en la vista previa. Tócala para elegir la coincidencia más cercana.", example: "5cm + 1mn" },
-    { title: "Cambia de unidad con un toque", body: "Elige cualquier unidad compatible justo debajo del resultado. Los cálculos con varios pasos están en la pestaña Cuadernos.", example: "cm → m → ft" },
+    { title: "Los errores se detectan, no se calculan", body: "3m + 2kg se rechaza con el motivo: longitud y masa no se pueden sumar. Las unidades mal escritas aparecen en rojo; tócalas para corregirlas.", example: "3m + 2kg" },
+    { title: "Respuestas en la unidad que quieres", body: "5cm + 1mm devuelve 5.1 cm, y 12V / 4.7kΩ devuelve 2.55 mA. Toca un chip bajo el resultado para cambiar de unidad. Las fórmulas paso a paso están en la pestaña Biblioteca.", example: "12V / 4.7kΩ" },
   ],
   "pt-BR": [
     { title: "Calcule diretamente com unidades", body: "Digite uma expressão com unidades, como 5cm + 1mm. O app a normaliza para SI antes de calcular.", example: "5cm + 1mm" },
-    { title: "Toque em uma unidade em vermelho para corrigi-la", body: "Unidades desconhecidas ou digitadas incorretamente ficam vermelhas na pré-visualização. Toque em uma para escolher a correspondência mais próxima.", example: "5cm + 1mn" },
-    { title: "Troque de unidade com um toque", body: "Escolha qualquer unidade de exibição compatível logo abaixo do resultado. Os cálculos com várias etapas ficam na aba Cadernos.", example: "cm → m → ft" },
+    { title: "Erros são detectados, não calculados", body: "3m + 2kg é recusado com o motivo: comprimento e massa não podem ser somados. Unidades digitadas errado ficam vermelhas; toque para corrigir.", example: "3m + 2kg" },
+    { title: "Respostas na unidade que você quer", body: "5cm + 1mm retorna 5.1 cm, e 12V / 4.7kΩ retorna 2.55 mA. Toque em um chip abaixo do resultado para trocar a unidade. As fórmulas passo a passo ficam na aba Biblioteca.", example: "12V / 4.7kΩ" },
   ],
   de: [
     { title: "Direkt mit Einheiten rechnen", body: "Gib einen Ausdruck mit Einheiten ein, zum Beispiel 5cm + 1mm. Die App normalisiert ihn vor der Berechnung auf SI.", example: "5cm + 1mm" },
-    { title: "Tippe auf eine rote Einheit, um sie zu korrigieren", body: "Unbekannte oder falsch geschriebene Einheiten werden in der Vorschau rot angezeigt. Tippe darauf, um die beste Übereinstimmung zu wählen.", example: "5cm + 1mn" },
-    { title: "Einheit mit einem Tipp wechseln", body: "Wähle direkt unter dem Ergebnis jede passende Anzeigeeinheit. Mehrschrittige Berechnungen findest du im Tab Rechenhefte.", example: "cm → m → ft" },
+    { title: "Fehler werden erkannt, nicht gerechnet", body: "3m + 2kg wird mit Begründung abgelehnt: Länge und Masse lassen sich nicht addieren. Falsch geschriebene Einheiten werden rot – tippe darauf, um sie zu korrigieren.", example: "3m + 2kg" },
+    { title: "Antworten in der Einheit, die du meinst", body: "5cm + 1mm ergibt 5.1 cm, 12V / 4.7kΩ ergibt 2.55 mA. Tippe auf einen Chip unter dem Ergebnis, um die Einheit zu wechseln. Schrittweise Formeln findest du im Tab Bibliothek.", example: "12V / 4.7kΩ" },
   ],
   fr: [
     { title: "Calculez directement avec des unités", body: "Saisissez une expression avec des unités, comme 5cm + 1mm. L'application la normalise en SI avant de calculer.", example: "5cm + 1mm" },
-    { title: "Touchez une unité en rouge pour la corriger", body: "Les unités inconnues ou mal saisies s'affichent en rouge dans l'aperçu. Touchez-en une pour choisir la correspondance la plus proche.", example: "5cm + 1mn" },
-    { title: "Changez d'unité en un seul geste", body: "Choisissez n'importe quelle unité d'affichage compatible juste sous le résultat. Les calculs à plusieurs étapes sont dans l'onglet Carnets.", example: "cm → m → ft" },
+    { title: "Les erreurs sont détectées, pas calculées", body: "3m + 2kg est refusé avec la raison : une longueur et une masse ne s'additionnent pas. Les unités mal saisies passent en rouge ; touchez-les pour les corriger.", example: "3m + 2kg" },
+    { title: "Des réponses dans l'unité voulue", body: "5cm + 1mm donne 5.1 cm et 12V / 4.7kΩ donne 2.55 mA. Touchez une puce sous le résultat pour changer d'unité. Les formules pas à pas sont dans l'onglet Bibliothèque.", example: "12V / 4.7kΩ" },
   ],
 };
 
@@ -448,12 +489,20 @@ export default function CalculatorScreen() {
   const visibleHistory = history;
   const autoConstants = useMemo(() => historyToAutoConstants(history), [history]);
   const availableConstants = useMemo(() => [...constants, ...autoConstants], [autoConstants, constants]);
-  // = を押す前でも計算できる入力ならその場で結果を出す。計算できない途中の入力（"5cm +" など）は
-  // null になるだけで、エラー表示は = を押したときだけに留める（打っている最中に赤くしない）。
-  const result = useMemo(() => previewCalculatorInput(expression, availableConstants), [availableConstants, expression]);
+  // = を押す前でも計算できる入力ならその場で結果を出す。計算できない入力は「なぜ計算できないか」
+  // （UnitError）も一緒に受け取り、次元不一致・使えない単位のような意味の誤りは結果カードの中で
+  // リアルタイムに説明する（liveDiagnosis）。書きかけの式（"5cm +"・閉じ括弧待ち）で出る構文系の
+  // エラーは isDiagnosableInputError が弾くので、打っている最中に赤くはならない。
+  // 以前はエラーを全部握りつぶして「式を入力すると結果が出ます」を出していたため、このアプリの
+  // 中核である次元チェックが = を押した人にしか見えなかった（2026-09のUX監査で判明）。
+  const diagnosis = useMemo(() => diagnoseCalculatorInput(expression, availableConstants), [availableConstants, expression]);
+  const result = diagnosis.quantity;
+  const liveDiagnosis = useMemo(
+    () => (diagnosis.error && isDiagnosableInputError(diagnosis.error) ? unitErrorMessage(diagnosis.error, language) ?? diagnosis.error.message : ""),
+    [diagnosis, language],
+  );
   const compatibleUnitGroups = useMemo(() => (result ? getCompatibleUnitGroups(result.dimension).filter((group) => isUnitGroupVisible(group, isAdvancedMode) && visibleUnits(getRegionalUnits(group, unitSystem), isAdvancedMode).length > 0) : []), [isAdvancedMode, result, unitSystem]);
   const unitInfo = useMemo(() => getUnitExplanation(unitInfoSymbol ?? ""), [unitInfoSymbol]);
-  const targetUnitRegistration = useMemo(() => getUnitRegistration(targetUnit), [targetUnit]);
   const searchedUnitRegistration = useMemo(() => getUnitRegistration(unitSearch), [unitSearch]);
 
   const identifiers = useMemo(
@@ -461,6 +510,18 @@ export default function CalculatorScreen() {
     [autoConstants, constants],
   );
   const analysis = useMemo(() => analyzeExpression(expression, identifiers), [expression, identifiers]);
+
+  // 実際に表示へ使う単位。targetUnit（ユーザーが明示的に選んだ単位）はそのまま状態として持ち続け、
+  // 結果の次元に合うときだけ使う。合わないとき・未選択のときは式中の単位→読みやすい接頭語→SI の順で
+  // 自動的に決める（lib/display-unit.ts）。targetUnit を直接 convertQuantity に渡していた頃は、
+  // 長さの計算で cm を選んだあと 255 や 1/3 を打つと「cmへ変換できません」の赤字が出て、
+  // 進数チップまで消えていた。以降の表示・チップの点灯・比較表・履歴の保存はすべてこの値を見る。
+  const expressionUnits = useMemo(() => analysis.segments.filter((segment) => segment.kind === "unit").map((segment) => segment.text), [analysis]);
+  const displayUnit = useMemo(
+    () => (result ? resolveDisplayUnit({ quantity: result, requestedUnit: targetUnit, expressionUnits, system: unitSystem, isAdvancedMode }).unit : targetUnit.trim()),
+    [expressionUnits, isAdvancedMode, result, targetUnit, unitSystem],
+  );
+  const targetUnitRegistration = useMemo(() => getUnitRegistration(displayUnit), [displayUnit]);
   const hint = useMemo<UnitInputHint>(() => {
     if (fixSelection) {
       return { kind: "fix", fragment: fixSelection.text, start: fixSelection.start, end: fixSelection.end, candidates: getUnitSuggestions(fixSelection.text, { system: unitSystem, limit: RAIL_LIMIT, includeUnit }) };
@@ -474,7 +535,7 @@ export default function CalculatorScreen() {
   /** 結果のすぐ横で切り替えられる、同じ次元の単位。 */
   const conversionUnits = useMemo(() => {
     const symbols: string[] = [];
-    const current = targetUnit.trim();
+    const current = displayUnit;
     if (current) symbols.push(current);
     compatibleUnitGroups.forEach((group) => {
       visibleGroupUnits(group).forEach((unitOption) => {
@@ -482,7 +543,7 @@ export default function CalculatorScreen() {
       });
     });
     return symbols.slice(0, 10);
-  }, [compatibleUnitGroups, targetUnit, visibleGroupUnits]);
+  }, [compatibleUnitGroups, displayUnit, visibleGroupUnits]);
 
   const targetUnitForSample = (sample: SampleCalculation) => {
     if (unitSystem === "us") {
@@ -518,10 +579,10 @@ export default function CalculatorScreen() {
     const si = formatQuantity(result, undefined, locale);
     const siUnitLabel = isDimensionless(result.dimension) ? "" : formatDimension(result.dimension, locale);
     try {
-      if (!targetUnit.trim()) {
+      if (!displayUnit) {
         return { value: si, numeric: result.siValue, unitLabel: siUnitLabel, si, error: "", isFallback: false };
       }
-      const converted = convertQuantity(result, targetUnit, locale);
+      const converted = convertQuantity(result, displayUnit, locale);
       return {
         value: `${formatNumberForLocale(converted.value, locale)} ${converted.unit}`,
         numeric: converted.value,
@@ -552,22 +613,22 @@ export default function CalculatorScreen() {
       };
     }
     // measuringStandardが変わるとcup/tbsp/tspの換算値が変わるため、依存配列に含めて表示単位を再計算させる（値自体は使わない）。
-  }, [copy, language, locale, measuringStandard, result, targetUnit]);
+  }, [copy, displayUnit, language, locale, measuringStandard, result]);
 
   // SIチップの点灯条件。表示単位が未指定のときに加えて、次元が合わずSI表記へフォールバック
   // しているときも点灯させる（そのとき実際に表示している値はSI表記そのものなので）。
-  const siChipActive = !targetUnit.trim() || Boolean(display?.isFallback);
+  const siChipActive = !displayUnit || Boolean(display?.isFallback);
 
   const comparisonRows = useMemo(() => {
     // measuringStandardが変わるとcup/tbsp/tspの換算値が変わるため、依存配列に含めて表を再計算させる（値自体は使わない）。
     void measuringStandard;
     return buildUnitComparisonRows(result ?? undefined, {
       unitSystem,
-      hints: [targetUnit, expression, display?.si],
-      activeUnit: targetUnit,
+      hints: [displayUnit, expression, display?.si],
+      activeUnit: displayUnit,
       locale,
     });
-  }, [display, expression, locale, measuringStandard, result, targetUnit, unitSystem]);
+  }, [display, displayUnit, expression, locale, measuringStandard, result, unitSystem]);
 
   // 進数入力モード中の変換結果。expressionには接頭辞を含まない生の桁だけが入っている
   // （接頭辞は表示のときだけ足す）ので、パースにも接頭辞なしの生の桁をそのまま渡す。
@@ -581,29 +642,31 @@ export default function CalculatorScreen() {
   // 入力欄の直下の別バーに分けてある。
   // 表示単位が付いていると画面の数値とsiValueが食い違う（例: 200%は画面表示が200・siValueは2）ので、
   // 表示単位が空のときだけ出す。
-  const showBaseChips = canRepresentInBase(result ?? undefined) && !targetUnit.trim();
+  const showBaseChips = canRepresentInBase(result ?? undefined) && !displayUnit;
   // 大きい数値の基数表示も上と同じ条件（無次元の安全整数・表示単位が空）でだけ行う。この条件を
   // 外すと、進数表示に切り替えた後に単位付きの式へ書き換えたときactiveBaseが10のまま残らず、
   // 単位付きの値を誤って基数表記してしまう。
   const resultBaseParts = useMemo(
-    () => (result && activeBase !== 10 && canRepresentInBase(result) && !targetUnit.trim() ? formatInBaseParts(result.siValue, activeBase) : null),
-    [activeBase, result, targetUnit],
+    () => (result && activeBase !== 10 && canRepresentInBase(result) && !displayUnit ? formatInBaseParts(result.siValue, activeBase) : null),
+    [activeBase, displayUnit, result],
   );
 
   // 小数で出た結果を分数・πの倍数・√の倍数として言い当てられるか（lib/exact-value.ts）。
   // 進数表示（resultBaseParts）とは排他になる。厳密な形が出るのは整数でない値だけで、進数表示は
   // 安全整数のときだけ出すため、両方が同時に有効になることはない。
-  const exactValue = useMemo(
-    () => (display && baseInputMode === null ? findExactValue(display.numeric) : null),
-    [baseInputMode, display],
-  );
+  // 有限小数（0.051 → 51/1000）は言い換えになっていないので、チップごと出さない。
+  const exactValue = useMemo(() => {
+    if (!display || baseInputMode !== null) return null;
+    const found = findExactValue(display.numeric);
+    return found && !isTerminatingDecimalFraction(found) ? found : null;
+  }, [baseInputMode, display]);
 
   // 分数（\frac）は縦に2段積むので、小数と同じ文字サイズで組むと高さが倍以上になり、
   // 小数から切り替えた瞬間に結果カードだけ別物のように見える。段数に応じて文字サイズを
   // 落とし、ブロック全体の高さが小数1行（resultValueの28px）に近くなるよう揃える。
   // 分数を含まない形（√3・2π など）は1段なので小数と同じ大きさのままでよい。
   const isStackedExactValue = Boolean(exactValue?.latex.includes("\\frac"));
-  const exactFontSize = isStackedExactValue ? 20 : 28;
+  const exactFontSize = isStackedExactValue ? 26 : 36;
 
   // コピーには画面に出ているものと同じ表記を渡す。厳密値に切り替えているのに小数がコピーされると、
   // 画面と手元のメモが食い違う。
@@ -625,7 +688,8 @@ export default function CalculatorScreen() {
 
   const calculate = async (expressionOverride?: string, targetUnitOverride?: string) => {
     const input = (expressionOverride ?? expression).trim();
-    const selectedTargetUnit = targetUnitOverride ?? targetUnit;
+    // 履歴に残す表示単位は、画面に実際に出ている単位（自動選択を含む）。
+    const selectedTargetUnit = targetUnitOverride ?? displayUnit;
     if (!input) {
       setError(copy.enterExpression);
       return;
@@ -695,7 +759,10 @@ export default function CalculatorScreen() {
     } catch (cause) {
       // エンジンのエラー(UnitError)は現在の言語で表示する。UnitError以外は従来どおり
       // Error.message をそのまま出す（バックアップ処理など別系統のエラーもここを通るため）。
-      setError(cause instanceof Error ? (unitErrorMessage(cause, language) ?? cause.message) : copy.expressionCalculationFailed);
+      // 結果カードに同じ診断（liveDiagnosis）が既に出ているときは赤帯を重ねない。同じ文言が
+      // 2箇所に出るうえ、帯の挿入で結果カード以下が100px近く押し下げられるため。
+      const alreadyDiagnosed = !expressionOverride && cause instanceof UnitError && Boolean(liveDiagnosis);
+      if (!alreadyDiagnosed) setError(cause instanceof Error ? (unitErrorMessage(cause, language) ?? cause.message) : copy.expressionCalculationFailed);
       playErrorShake();
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
@@ -1016,6 +1083,18 @@ export default function CalculatorScreen() {
     setError("");
     setNotice("");
     void calculate(sample.expression, sampleTargetUnit);
+  };
+
+  // 空状態のクイックスタート。サンプル（applySample）と違って表示単位を決めず、= も押さない。
+  // リアルタイム計算がそのまま結果を出し、表示単位の自動選択が 5.1 cm / 2.55 mA / 90 km を選ぶ。
+  const applyQuickStart = (nextExpression: string) => {
+    markUserInteraction();
+    setBaseInputMode(null);
+    setExpression(nextExpression);
+    placeCaret(nextExpression.length);
+    setFixSelection(null);
+    setError("");
+    setNotice("");
   };
 
   // サンプルを「選んだ」瞬間に確認する。閲覧（シートを開いて眺める）は自由にできるべきなので、
@@ -1350,7 +1429,7 @@ export default function CalculatorScreen() {
                           隣の小数表示より明らかに小さく見える。displayMode自体は中央寄せ・上下の
                           余白が付いて結果カードの詰まった配置に合わないので false のままにする。 */}
                       <LatexView latex={`\\displaystyle ${exactValue.latex}`} color={colors.primaryStrong} fontSize={exactFontSize} displayMode={false} fitContent />
-                      {display.unitLabel ? <Text style={[styles.exactValueUnit, { fontSize: isStackedExactValue ? 22 : 26 }]}>{display.unitLabel}</Text> : null}
+                      {display.unitLabel ? <Text style={[styles.exactValueUnit, { fontSize: isStackedExactValue ? 26 : 32 }]}>{display.unitLabel}</Text> : null}
                     </View>
                   ) : (
                     <Animated.Text numberOfLines={2} adjustsFontSizeToFit style={[styles.resultValue, resultAnimatedStyle]}>
@@ -1374,8 +1453,8 @@ export default function CalculatorScreen() {
                         <Text style={[styles.convertChipText, siChipActive && styles.convertChipTextActive]}>SI</Text>
                       </Pressable>
                       {conversionUnits.map((symbol) => (
-                        <Pressable accessibilityLabel={symbol} key={symbol} onPress={() => { markUserInteraction(); applyTargetUnit(symbol); }} style={({ pressed }) => [styles.convertChip, targetUnit.trim() === symbol && !display.isFallback && styles.convertChipActive, pressed && styles.pressed]}>
-                          <Text style={[styles.convertChipText, targetUnit.trim() === symbol && !display.isFallback && styles.convertChipTextActive]}>{symbol}</Text>
+                        <Pressable accessibilityLabel={symbol} key={symbol} onPress={() => { markUserInteraction(); applyTargetUnit(symbol); }} style={({ pressed }) => [styles.convertChip, displayUnit === symbol && !display.isFallback && styles.convertChipActive, pressed && styles.pressed]}>
+                          <Text style={[styles.convertChipText, displayUnit === symbol && !display.isFallback && styles.convertChipTextActive]}>{symbol}</Text>
                         </Pressable>
                       ))}
                     </ScrollView>
@@ -1422,16 +1501,49 @@ export default function CalculatorScreen() {
                     <Text style={styles.siLabel}>{copy.siBase}</Text>
                     <Text numberOfLines={1} selectable style={styles.siValue}>{display.si}</Text>
                   </View>
-                  {targetUnit.trim() && targetUnitRegistration.status !== "registered" ? (
-                    <Text style={styles.registrationNote}>{targetUnitRegistration.status === "supported" ? `${targetUnit} · ${copy.supported}` : `${targetUnit} · ${copy.unknown}`}</Text>
+                  {displayUnit && targetUnitRegistration.status !== "registered" ? (
+                    <Text style={styles.registrationNote}>{targetUnitRegistration.status === "supported" ? `${displayUnit} · ${copy.supported}` : `${displayUnit} · ${copy.unknown}`}</Text>
                   ) : null}
                   {display.error ? <Text style={styles.errorText}>{display.error}</Text> : null}
                 </>
+              ) : baseInputMode === null && liveDiagnosis ? (
+                // 式の意味の誤り（次元不一致・使えない単位・ゼロ除算…）はここでリアルタイムに説明する。
+                // 結果カードの中に出すので、= を押したときのエラー帯のようにレイアウトが跳ねない。
+                <View style={styles.diagnosisWrap}>
+                  <IconSymbol name="exclamationmark.triangle.fill" size={15} color={colors.error} />
+                  <View style={styles.diagnosisBody}>
+                    <Text style={styles.diagnosisText}>{liveDiagnosis}</Text>
+                    {analysis.unresolved.some((segment) => segment.kind === "unknown-unit") ? <Text style={styles.diagnosisHint}>{copy.fixTap}</Text> : null}
+                  </View>
+                </View>
+              ) : baseInputMode === null && expression.trim() ? (
+                // 書きかけ（末尾が演算子・閉じ括弧待ち）。間違いではないので案内だけ出す。
+                <Text style={styles.emptyResult}>{copy.incompleteHint}</Text>
               ) : (
                 // 通常の空状態と「進数入力モードだが変換できる桁がまだ無い（空・不正な桁）」の
                 // どちらもここに来る。入力モード中はエラーを出さない方針なので文言は変えない。
                 <>
                   <Text style={styles.emptyResult}>{copy.emptyResult}</Text>
+                  {baseInputMode === null && !expression.trim() ? (
+                    // 空状態の「まず1つ試す」。式が空なので確認ダイアログ無しで即適用する。
+                    <View style={styles.quickStartList}>
+                      <Text style={styles.quickStartLabel}>{copy.quickStartTitle}</Text>
+                      {QUICK_START.map((item) => (
+                        <Pressable
+                          accessibilityLabel={item.expression}
+                          key={item.id}
+                          onPress={() => applyQuickStart(item.expression)}
+                          style={({ pressed }) => [styles.quickStartRow, pressed && styles.cardPressed]}
+                        >
+                          <Text style={styles.quickStartExpression}>{item.expression}</Text>
+                          <Text numberOfLines={2} style={styles.quickStartHint}>
+                            {item.id === "length" ? copy.quickStartLength : item.id === "current" ? copy.quickStartCurrent : copy.quickStartDistance}
+                          </Text>
+                          <IconSymbol name="chevron.right" size={11} color={colors.primary} />
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : null}
                   <Pressable accessibilityLabel={copy.outputUnit} onPress={() => openUnitPicker("target")} style={({ pressed }) => [styles.presetOutputUnit, pressed && styles.pressed]}>
                     <Text style={styles.presetOutputUnitLabel}>{copy.outputUnit}</Text>
                     <View style={styles.presetOutputUnitValueWrap}>
@@ -1572,7 +1684,7 @@ export default function CalculatorScreen() {
                 <>
                   <Text style={styles.pickerSectionLabel}>{copy.allCandidates}</Text>
                   {searchSuggestions.length ? (
-                    <View style={styles.chips}>{searchSuggestions.map((suggestion) => renderUnitChip(suggestion, () => chooseUnit(suggestion.unit.symbol), targetUnit.trim() === suggestion.unit.symbol && unitPickerMode === "target"))}</View>
+                    <View style={styles.chips}>{searchSuggestions.map((suggestion) => renderUnitChip(suggestion, () => chooseUnit(suggestion.unit.symbol), displayUnit === suggestion.unit.symbol && unitPickerMode === "target"))}</View>
                   ) : (
                     <View style={styles.emptyState}>
                       <IconSymbol name="magnifyingglass" size={22} color={colors.muted} />
@@ -1589,13 +1701,13 @@ export default function CalculatorScreen() {
                       {compatibleUnitGroups.map((group) => (
                         <View key={group.id} style={styles.pickerGroup}>
                           <Text style={styles.unitGroupLabel}>{unitGroupLabel(group.id)}</Text>
-                          <View style={styles.chips}>{visibleGroupUnits(group).map((unitOption) => renderUnitChip({ group, unit: unitOption }, () => chooseUnit(unitOption.symbol), targetUnit.trim() === unitOption.symbol))}</View>
+                          <View style={styles.chips}>{visibleGroupUnits(group).map((unitOption) => renderUnitChip({ group, unit: unitOption }, () => chooseUnit(unitOption.symbol), displayUnit === unitOption.symbol))}</View>
                         </View>
                       ))}
                     </>
                   ) : null}
                   <Text style={styles.pickerSectionLabel}>{unitGroupLabel(selectedInputGroup.id)}</Text>
-                  <View style={styles.chips}>{selectedInputUnits.map((unitOption) => renderUnitChip({ group: selectedInputGroup, unit: unitOption }, () => chooseUnit(unitOption.symbol), unitPickerMode === "target" && targetUnit.trim() === unitOption.symbol))}</View>
+                  <View style={styles.chips}>{selectedInputUnits.map((unitOption) => renderUnitChip({ group: selectedInputGroup, unit: unitOption }, () => chooseUnit(unitOption.symbol), unitPickerMode === "target" && displayUnit === unitOption.symbol))}</View>
                 </>
               )}
               {/* 検索中でも、Pro のお気に入り単位は隠さず常に選べるようにする。 */}
@@ -1774,12 +1886,22 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   cardLabel: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase" },
   resultActions: { alignItems: "center", flexDirection: "row", gap: 6 },
   iconButton: { alignItems: "center", backgroundColor: colors.surface, borderRadius: 8, height: 28, justifyContent: "center", width: 32 },
-  resultValue: { color: colors.primaryStrong, fontFamily: mono, fontSize: 28, fontWeight: "700", marginTop: 2, minHeight: 34 },
+  // 結果は画面で最も大きい文字にする（式19px・キー18pxに対して28pxでは、下に並ぶチップに埋没していた）。
+  resultValue: { color: colors.primaryStrong, fontFamily: mono, fontSize: 36, fontWeight: "700", marginTop: 2, minHeight: 44 },
   emptyResult: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 6 },
   presetOutputUnit: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
   presetOutputUnitLabel: { color: colors.muted, fontSize: 11, fontWeight: "700" },
   presetOutputUnitValueWrap: { alignItems: "center", flexDirection: "row", gap: 2 },
   presetOutputUnitValue: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },
+  quickStartList: { gap: 6, marginTop: 10 },
+  quickStartLabel: { color: colors.muted, fontSize: 11, fontWeight: "700" },
+  quickStartRow: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 12, borderWidth: 1, flexDirection: "row", gap: 10, minHeight: 44, paddingHorizontal: 12, paddingVertical: 8 },
+  quickStartExpression: { color: colors.primaryStrong, fontFamily: mono, fontSize: 15, fontWeight: "700" },
+  quickStartHint: { color: colors.muted, flex: 1, fontSize: 11, lineHeight: 15 },
+  diagnosisWrap: { alignItems: "flex-start", flexDirection: "row", gap: 8, marginTop: 6, minHeight: 44 },
+  diagnosisBody: { flex: 1 },
+  diagnosisText: { color: colors.error, fontSize: 14, fontWeight: "600", lineHeight: 20 },
+  diagnosisHint: { color: colors.muted, fontSize: 11, marginTop: 3 },
 
   // 結果のすぐ下で単位を切り替えられるようにする。
   conversionRow: { alignItems: "center", flexDirection: "row", gap: 6, marginTop: 4 },
@@ -1811,8 +1933,8 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   baseInputBar: { flexDirection: "row", gap: 6, marginTop: 6 },
   // 上下のpaddingは飾りではない。KaTeXのインライン描画は行ボックスより上下にはみ出すことがあり
   // （分数の分子・根号の上線）、RNのViewは既定でoverflow:hiddenなので余白が無いと上が欠ける。
-  exactValueRow: { alignItems: "center", flexDirection: "row", gap: 6, marginTop: 2, minHeight: 34, paddingVertical: 4 },
-  exactValueUnit: { color: colors.primaryStrong, fontFamily: mono, fontSize: 26, fontWeight: "700" },
+  exactValueRow: { alignItems: "center", flexDirection: "row", gap: 6, marginTop: 2, minHeight: 44, paddingVertical: 4 },
+  exactValueUnit: { color: colors.primaryStrong, fontFamily: mono, fontSize: 32, fontWeight: "700" },
   valueFormChip: { backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 9, borderWidth: 1, justifyContent: "center", minHeight: 30, paddingHorizontal: 10 },
   valueFormChipActive: { backgroundColor: colors.primarySurface, borderColor: colors.primary },
   valueFormChipText: { color: colors.muted, fontSize: 12, fontWeight: "800" },

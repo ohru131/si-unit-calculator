@@ -55,8 +55,9 @@ describe("UnitErrorの言語対応", () => {
     expect(caught).toBeInstanceOf(UnitError);
     const error = caught as UnitError;
     expect(error.code).toBe("dimensionMismatchAddSubtract");
-    expect(unitErrorMessage(error, "ja")).toBe("加算・減算できるのは同じ次元の値だけです。");
-    expect(unitErrorMessage(error, "en")).toBe("Only values with the same dimension can be added or subtracted.");
+    // 2026-09: 両辺の量の名前を添える形に変えた（tests/calculator-diagnosis.test.ts に詳細）。
+    expect(unitErrorMessage(error, "ja")).toContain("加算・減算できるのは同じ次元の値だけです。");
+    expect(unitErrorMessage(error, "en")).toContain("Only values with the same dimension can be combined.");
   });
 
   it("UnitError以外はunitErrorMessageがundefinedを返す（既存のcause.messageフォールバックを壊さない）", () => {
