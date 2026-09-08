@@ -384,11 +384,30 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 
 ### 製品名を一括置換したときに踏んだこと（次に改名するとき用）
 
-`Unit Calculator` → `UnitCalc` の一括置換で、**grepでもテストでも型でも拾えない取りこぼしが3件**出た（#55のマージ後にCodeRabbitが検出）。
+`Unit Calculator` → `UnitCalc` の一括置換で、**grepでもテストでも型でも拾えない取りこぼしが5件**出た（#55・#56でCodeRabbitが2周に分けて検出）。
 
 - **一括置換は「そこだけは置換してはいけない箇所」を巻き込む。** 掲載文の英語タイトル `UnitCalc - Unit Calculator` の副題まで置換され、`UnitCalc - UnitCalc`（19字）になっていた。**タイトルはASO第一検索語をわざと入れてある場所**なので、置換後は「意図して旧名を残す箇所」を必ず個別に見直す。字数の表記（26字）と実測がずれるのが唯一の手掛かりだった。
 - **`grep "Unit Calculator"` は `Unit&nbsp;Calculator` を見つけられない。** `scripts/record-demo-video.mjs` のクロージングカードがHTMLエンティティで区切っていて、置換もgrepの確認もすり抜けた。改名の確認は `grep -P 'Unit(?:\s|&nbsp;|&#160;)+Calculator'` のように**区切り文字を許すパターン**で行う。
-- **アプリ名は `app.config.ts` の外にも住んでいる。** iOSウィジェット（`widgets/UnitCalculatorWidget.ios.tsx`）は自前のCOPYを持ち、`app.config.ts` の `displayName`（＝OSのウィジェット一覧に出る名前）とは別に**ウィジェット本体に描画するタイトル**を6言語ぶん持っていた。改名時に触る場所: `app.config.ts`（appName・widget displayName）／`lib/global-settings.tsx`（`calculator`＝タブ名）／`widgets/*.tsx`（`title`）／`app/(tabs)/pro.tsx`（`heroEyebrowUpgrade`）／`lib/notebook-export.ts`（PDFのフッター）／`scripts/capture-submission-assets.mjs`・`scripts/record-demo-video.mjs`（タブ名とクロージングカード）／`scripts/generate-feature-graphic.mjs`／`docs/store-listing-copy.md`。
+- **アプリ名は `app.config.ts` の外にも住んでいる。** iOSウィジェット（`widgets/UnitCalculatorWidget.ios.tsx`）は自前のCOPYを持ち、`app.config.ts` の `displayName`（＝OSのウィジェット一覧に出る名前）とは別に**ウィジェット本体に描画するタイトル**を6言語ぶん持っていた。**改名時に触る場所（この一覧を先に潰すこと）**:
+
+| 場所 | 何の名前か |
+|---|---|
+| `app.config.ts` | `appName`（ホーム画面のラベル）・widget の `displayName`（OSのウィジェット一覧） |
+| `lib/global-settings.tsx` | `calculator`＝電卓タブ名 |
+| `widgets/*.tsx` | ウィジェット**本体に描画する** `title`（6言語ぶん。`displayName` とは別物） |
+| `app/(tabs)/pro.tsx` | `heroEyebrowUpgrade` |
+| `lib/notebook-export.ts` | PDF書き出しのフッター |
+| `scripts/capture-submission-assets.mjs` | 撮影用のタブ名 |
+| `scripts/record-demo-video.mjs` | タブ名と**クロージングカード**（HTMLエンティティ区切りに注意） |
+| `submission-assets/demo/demo-captions-en.srt` | **動画に焼き込まれる字幕の情報源。** ここを直さないと撮り直しても字幕が旧名のまま（台本 `docs/shipaton-demo-script.md` だけ直すと両者が食い違う） |
+| `scripts/generate-feature-graphic.mjs` | 図版の見出し |
+| `docs/store-listing-copy.md` | ストアのタイトル・短い説明・詳しい説明 |
+| `README.md` | **リポジトリの表示名**（GitHubのトップに出る。ASO用の一般語ではない） |
+| `submission-assets/README.md` | 生成済み動画の状態の記述 |
+
+**sweepの範囲を `app/ lib/ components/ widgets/ scripts/` に絞らないこと。** #56で残った2件（`README.md` と `.srt`）はこの絞り込みの外にあった。`--include='*.md' --include='*.srt'` まで広げて、リポジトリ直下も見る。
+
+意図的に旧名を残す場所（sweepの結果から除外してよい）: `CLAUDE.md`・`docs/`・`submission-assets/README.md`（改名前はこうだったという記録）、`todo.md`・`design.md`（過去の記録）、`template.json`（スキャフォールド由来で動作に影響しない）。
 
 ### 現在の基準値（2026-09-08時点、サンプル・ノートを言語ごとの関連度順にした後）
 
