@@ -102,8 +102,8 @@ async function installOverlays(page) {
     document.body.appendChild(caption);
 
     // セットアップ中の目隠しと、最後のタイトルカードに使う全面カバー。
-    // **中身は空のまま置いておく**こと。ここに "Unit Calculator" のような文字を入れると
-    // getByText("Unit Calculator") がタブではなくこちらに当たり、pointer-events:none の
+    // **中身は空のまま置いておく**こと。ここに "UnitCalc" のような文字を入れると
+    // getByText("UnitCalc") がタブではなくこちらに当たり、pointer-events:none の
     // せいでクリックできない要素として掴まれてタブ操作が全滅する（実際に踏んだ）。
     const cover = document.createElement("div");
     cover.id = coverId;
@@ -147,9 +147,9 @@ const showClosingCard = (page) =>
 // ---------------------------------------------------------------- 画面操作
 
 const TABS = {
-  en: { calculator: "Unit Calculator", notebook: "Notebooks", library: "Library", settings: "Preferences" },
-  ja: { calculator: "単位付き電卓", notebook: "ノート", library: "ライブラリ", settings: "設定" },
-  de: { calculator: "Einheitenrechner", notebook: "Rechenhefte", library: "Bibliothek", settings: "Einstellungen" },
+  en: { calculator: "UnitCalc", notebook: "Notebooks", library: "Library", settings: "Preferences" },
+  ja: { calculator: "UnitCalc", notebook: "ノート", library: "ライブラリ", settings: "設定" },
+  de: { calculator: "UnitCalc", notebook: "Rechenhefte", library: "Bibliothek", settings: "Einstellungen" },
 };
 const LANGUAGE_SECTION = /^(App language|アプリの言語|App-Sprache)$/;
 

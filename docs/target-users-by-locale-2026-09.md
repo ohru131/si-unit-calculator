@@ -143,6 +143,26 @@ ASOのキーワードは英語からの直訳にしないこと。
 | P2 | **分数インチ**: `3ft + 1/8in` を通す。ただし `unitSuffixEnd` の貪欲マッチ（CLAUDE.md）に触るので、評価器と `lib/unit-input.ts` の両方に同時に効く形でしか触らない | `lib/units.ts`, `lib/unit-input.ts` |
 | P2 | AWG / kcmil。米国の職人を取りに行くと決めた場合のみ | `lib/units.ts` |
 
+### 実装済み（2026-09-08）
+
+第5節のP0・P1に加えて、**サンプルと計算ノートを言語ごとのターゲットに合わせて並べ替える**ところまで実装した。
+
+- `lib/locale-relevance.ts` — 言語 → 先頭に持ち上げるIDの列。サンプルのカテゴリタブ・カテゴリ内のサンプル・
+  計算ノートのカテゴリカード（最上位と子の両方）・ノート編集シートのカテゴリピッカーに効く。**書くのは先頭に出したいIDだけ**で、
+  書かなかったものは元の順のまま後ろに続く。並べ替えは表示のときだけで、`SAMPLE_CALCULATIONS` と
+  `PRESET_NOTEBOOK_CATEGORIES` の配列そのものは言語に依らない正順のまま（後者はプリセット投入の順を決めるため）。
+- 追加したサンプル6件（`lib/sample-calculations.ts`）: `imperial-to-si`（en・FE / C&G）、`psi-to-kpa`（en）、
+  `metric-horsepower`（de の PS・fr の CV）、`voltage-drop`（de / ja / pt-BR の電気系）、
+  `gravity-field`・`coulomb-force`（es の EBAU・pt-BR の ENEM・fr の lycée・de の Klausur）。
+- 追加した計算ノート4件: `electricity-basics` に「電圧降下と必要な電線の太さ」「変圧器の巻数比」
+  「モーターの効率・損失・線電流」、`physics-electricity` に「点電荷の電場と電位」。
+  前3件は Ausbildung Elektroniker / 電工二種・電験 / C&G 2365 / NR-10 / FP Instalaciones Eléctricas が
+  そろって扱う計算で、電圧降下のノートは `regionalDefault: "mainsVoltage"` を使うので
+  **100V の地域では 2.5mm² が3%制限に落ちる**（＝計算する意味が出る）ようになっている。
+
+**投入済みカテゴリのシードを足しても既存インストールには届かない**（CLAUDE.md の既知の制約）ので、
+上記4件のノートが見えるのは新規インストールのみ。並べ替えは表示側なので既存インストールにも効く。
+
 **P2の2件は「米国の職人を取る」という決定とセット**で、単体では入れない。エンジンの守備範囲が広がるほど
 「単位を厳密に扱う」という中核の保証が薄まる（CLAUDE.md の `B`（バイト）を足さない判断と同じ理由）。
 

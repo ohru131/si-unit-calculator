@@ -17,7 +17,7 @@ import { UNIT_GROUPS } from "@/lib/units";
 // したから（app/(tabs)/index.tsx の visibleHistory）。全員が使えるものをProの特典として並べると
 // 誇大表示になるので、履歴に関する行を書き戻さないこと。
 const EN_COPY = {
-  heroEyebrowActive: "PRO ACTIVE", heroEyebrowUpgrade: "UNIT CALCULATOR PRO",
+  heroEyebrowActive: "PRO ACTIVE", heroEyebrowUpgrade: "UNITCALC PRO",
   heroTitleActive: "You're on Pro", heroTitleUpgrade: "Calculate with more freedom.",
   heroTextActive: "All Pro features are enabled.", heroTextUpgrade: "One purchase unlocks everything below — yours forever, no subscription.",
   features: [
@@ -37,7 +37,7 @@ const EN_COPY = {
 const COPY: Record<AppLanguage, typeof EN_COPY> = {
   en: EN_COPY,
   ja: {
-    heroEyebrowActive: "PRO 利用中", heroEyebrowUpgrade: "単位付き電卓 PRO",
+    heroEyebrowActive: "PRO 利用中", heroEyebrowUpgrade: "UNITCALC PRO",
     heroTitleActive: "Proをご利用中です", heroTitleUpgrade: "計算を、もっと自在に。",
     heroTextActive: "Pro機能がすべて有効です。", heroTextUpgrade: "一度の購入で、下記すべてがずっと使えます。月額課金なし。",
     features: [
@@ -54,7 +54,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     unitsTitle: "マイ単位セット", unitsText: "よく使う単位を選択すると、計算タブの単位入力に表示されます。",
   },
   es: {
-    heroEyebrowActive: "PRO ACTIVO", heroEyebrowUpgrade: "CALCULADORA DE UNIDADES PRO",
+    heroEyebrowActive: "PRO ACTIVO", heroEyebrowUpgrade: "UNITCALC PRO",
     heroTitleActive: "Tienes Pro", heroTitleUpgrade: "Calcula con más libertad.",
     heroTextActive: "Todas las funciones Pro están activadas.", heroTextUpgrade: "Una sola compra desbloquea todo esto, para siempre. Sin suscripción.",
     features: [
@@ -71,7 +71,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     unitsTitle: "Mis conjuntos de unidades", unitsText: "Las unidades que selecciones aquí aparecerán en la entrada de unidades de la pestaña de la calculadora.",
   },
   "pt-BR": {
-    heroEyebrowActive: "PRO ATIVO", heroEyebrowUpgrade: "CALCULADORA DE UNIDADES PRO",
+    heroEyebrowActive: "PRO ATIVO", heroEyebrowUpgrade: "UNITCALC PRO",
     heroTitleActive: "Você tem o Pro", heroTitleUpgrade: "Calcule com mais liberdade.",
     heroTextActive: "Todos os recursos Pro estão ativados.", heroTextUpgrade: "Uma única compra desbloqueia tudo abaixo, para sempre. Sem assinatura.",
     features: [
@@ -88,7 +88,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     unitsTitle: "Meus conjuntos de unidades", unitsText: "As unidades selecionadas aqui aparecem na entrada de unidades da aba da calculadora.",
   },
   de: {
-    heroEyebrowActive: "PRO AKTIV", heroEyebrowUpgrade: "EINHEITENRECHNER PRO",
+    heroEyebrowActive: "PRO AKTIV", heroEyebrowUpgrade: "UNITCALC PRO",
     heroTitleActive: "Du hast Pro", heroTitleUpgrade: "Rechne mit mehr Freiheit.",
     heroTextActive: "Alle Pro-Funktionen sind aktiviert.", heroTextUpgrade: "Ein einziger Kauf schaltet alles hier unten frei — für immer, ohne Abo.",
     features: [
@@ -105,7 +105,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     unitsTitle: "Meine Einheitensets", unitsText: "Hier ausgewählte Einheiten erscheinen bei der Einheiteneingabe im Rechner-Tab.",
   },
   fr: {
-    heroEyebrowActive: "PRO ACTIF", heroEyebrowUpgrade: "CALCULATRICE D'UNITÉS PRO",
+    heroEyebrowActive: "PRO ACTIF", heroEyebrowUpgrade: "UNITCALC PRO",
     heroTitleActive: "Vous avez Pro", heroTitleUpgrade: "Calculez avec plus de liberté.",
     heroTextActive: "Toutes les fonctionnalités Pro sont activées.", heroTextUpgrade: "Un seul achat débloque tout ci-dessous, pour toujours. Sans abonnement.",
     features: [

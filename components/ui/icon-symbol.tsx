@@ -26,6 +26,8 @@ const MAPPING = {
   "xmark": "close",
   "xmark.circle.fill": "cancel",
   "chevron.up": "expand-less",
+  "chevron.down": "expand-more",
+  "checkmark": "check",
   "clock.arrow.circlepath": "history",
   "trash": "delete",
   "delete.left": "backspace",

@@ -9,14 +9,14 @@
 
 | パス | 内容 |
 |---|---|
-| `screenshots/` | ストア掲載用スクリーンショット。`en-*` と `ja-*` の2言語・各14枚。すべて 1080×1800px |
-| `demo/unit-calculator-demo-en-silent.webm` | デモ動画（無音・英語字幕を焼き込み済み・**1分53秒**・1080×1800・25fps・VP8） |
+| `screenshots/` | ストア掲載用スクリーンショット。**6言語（en / ja / es / pt-BR / de / fr）・各16枚**。すべて 1080×1800px |
+| `demo/unit-calculator-demo-en-silent.webm` | デモ動画（無音・英語字幕を焼き込み済み・**1分53秒**・1080×1800・25fps・VP8）。**アプリ名を UnitCalc に改名する前の録画で、タブバーが旧名「Unit Calculator」のまま。** 提出前に撮り直すこと（`node scripts/record-demo-video.mjs`。字幕の文言は `demo/demo-captions-en.srt` と `docs/shipaton-demo-script.md` を先に直す） |
 | `demo/demo-captions-en.srt` | 同じ文言・同じ尺の字幕トラック。YouTubeに別途アップロードするとオン/オフ切替ができる |
 | `demo/caption-style-reference.png` | 字幕の位置・書式の確認用フレーム（動画の 0:28 を抜いたもの） |
 | `store/play-store-icon-512.png` | Playのストアアイコン（512×512・不透明） |
-| `store/play-feature-graphic-1024x500.png` | Playのフィーチャーグラフィック（1024×500・不透明）。要素は中央712px以内の安全域に収めてある |
+| `store/play-feature-graphic-<lang>-1024x500.png` | Playのフィーチャーグラフィック（1024×500・不透明）を**6言語ぶん**。要素は中央712px以内の安全域に収めてある。`scripts/generate-feature-graphic.mjs` で再生成する |
 
-### スクリーンショットのカット一覧（`en-*` / `ja-*` で同じ構成）
+### スクリーンショットのカット一覧（6言語とも同じファイル名・同じ構成）
 
 | ファイル | 中身 |
 |---|---|
@@ -25,18 +25,65 @@
 | `03-speed` | `100km / 2h` → `13.888… m/s`（SI基準） |
 | `03-compare-units` | 同じ式で単位比較表を展開した状態 |
 | `04-number-base` | `1024 * 3` の結果を `DEC/BIN/OCT/HEX` の HEX（`0xC00`）で表示 |
-| `05-library-grid` | 計算ノートのカテゴリグリッド（最上位9枚・184件）＋検索欄 |
-| `06-notebook-list` | 高校物理 → 力学 のノート一覧 |
+| `05-library-grid` | 計算ノートのカテゴリグリッド（最上位9枚・194件）＋検索欄 |
+| `06-notebook-list` | ノート一覧（開くカテゴリは言語ごとに違う。下の表を参照） |
 | `07-notebooks-tab` | ノート詳細（KaTeXの数式カード・定数・手順ごとの結果） |
 | `08-settings` | 設定（言語セクションを開き、対応6言語が見える状態） |
 | `09-pro` | Pro画面（買い切り1本・特典4点） |
 | `10-exact-fraction` | **厳密値表示**: `1/3` を分数（横棒つき）で表示 |
 | `11-exact-pi` | **厳密値表示**: `2*pi*50` → `100π` |
 | `12-exact-sqrt` | **厳密値表示**: `sqrt(8)` → `2√2` |
-| `13-notebook-search` | 計算ノートの検索（`solar` / `太陽光` で絞り込み） |
+| `13-notebook-search` | 計算ノートの検索（検索語は言語ごとに違う。下の表を参照） |
+| `14-exam-samples` | サンプルシートを開き、**その国の試験名になっているタブ**を選んだ状態 |
+| `15-prefix-cancel` | `4.7kΩ × 2mA` → `9.4 V`（k と m が打ち消える） |
 
 10〜13番は 2026-09-06 に追加したカット（PR #42 の厳密値表示と PR #48 のノート検索）。
-掲載順を決めるときは、**厳密値表示（10〜12）が最大の訴求ポイント**なので上位に置くこと。
+14・15番は 2026-09-08 に追加（言語ごとのターゲットに合わせた掲載用）。
+
+### 言語ごとに中身が変わるカット
+
+**画像は翻訳ではない。** どのノート・どのサンプルを開くかを言語ごとに変えてあり、その根拠は
+`docs/target-users-by-locale-2026-09.md` 第1節のターゲット設定。情報源は
+`scripts/capture-submission-assets.mjs` の `NOTEBOOK_TARGETS` と `LABELS[].examCategory` / `searchQuery`。
+
+| 言語 | 06・07 で開くノート | 14 のタブ | 13 の検索語 |
+|---|---|---|---|
+| en | Mechanics → Uniformly accelerated motion | Exam prep | solar |
+| ja | 電気の基礎計算 → 電圧降下と必要な電線の太さ | 試験対策（電験・電工） | 太陽光 |
+| de | Praktische Elektrotechnik → Spannungsfall und der nötige Leiterquerschnitt | Klausur & Prüfung | Spannung |
+| es | Electricidad → Campo eléctrico y potencial de una carga puntual | Preparación (EBAU) | campo |
+| pt-BR | Eletricidade → Campo elétrico e potencial de uma carga pontual | Preparação (ENEM) | tensão |
+| fr | Mécanique → Mouvement uniformément accéléré | Révisions (physique-chimie) | masse volumique |
+
+`05-library-grid` は操作が全言語同じでも、カテゴリカードの並びが `lib/locale-relevance.ts` で
+言語ごとに変わるため違う絵になる（独語なら「Elektrizität & Energie」が先頭）。
+
+### Playへ上げる順（言語ごとに8枚）
+
+Play のスマートフォン用スクリーンショットは**最大8枚**で、**1枚目が一覧に出る**。
+撮影した16枚から言語ごとに8枚を選び、その言語のターゲットに一番効くカットを先頭に置く。
+
+| 言語 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| en | 01-calc-basic | 02-dimension-error | 10-exact-fraction | 03-compare-units | 14-exam-samples | 05-library-grid | 07-notebooks-tab | 04-number-base |
+| ja | 15-prefix-cancel | 02-dimension-error | 14-exam-samples | 06-notebook-list | 07-notebooks-tab | 01-calc-basic | 10-exact-fraction | 05-library-grid |
+| de | 15-prefix-cancel | 02-dimension-error | 14-exam-samples | 06-notebook-list | 07-notebooks-tab | 01-calc-basic | 05-library-grid | 10-exact-fraction |
+| es | 02-dimension-error | 14-exam-samples | 01-calc-basic | 07-notebooks-tab | 15-prefix-cancel | 05-library-grid | 03-compare-units | 10-exact-fraction |
+| pt-BR | 01-calc-basic | 02-dimension-error | 14-exam-samples | 07-notebooks-tab | 15-prefix-cancel | 05-library-grid | 03-compare-units | 10-exact-fraction |
+| fr | 01-calc-basic | 02-dimension-error | 14-exam-samples | 07-notebooks-tab | 05-library-grid | 03-compare-units | 10-exact-fraction | 15-prefix-cancel |
+
+考え方: **独語と日本語は「桁を落とす痛み」が言語化されている層**（Zehnerpotenzen / 電験・電工）なので
+接頭語の打ち消しと次元エラーを先に出す。**西語は減点が採点基準に明文化されている**ので次元エラーが最初。
+**英語・仏語・葡語は「何ができるアプリか」が先**で、基本の単位付き計算から入る。
+どの言語でも `14-exam-samples` を上位に入れているのは、**その国の試験名がそのまま写っている1枚**だから。
+
+### アプリ名について
+
+**アプリ名は `UnitCalc` で、言語ごとに訳さない**（`app.config.ts` の `appName`・電卓タブ名・
+フィーチャーグラフィックの見出し・Pro画面のヒーロー行・PDFのフッターまで全部同じ）。
+Playのタイトルに付く副題だけが言語ごとに違う（`UnitCalc - 電験・電工の単位計算` など。
+一覧は `docs/store-listing-copy.md`）。スクリーンショットのタブバーにこの名前が写るので、
+**改名したら全言語ぶん撮り直しが必要**（今回撮り直し済み）。
 
 ## 撮影方法と、その限界
 
@@ -69,10 +116,28 @@ npx expo export --platform web
 ### スクリーンショット
 
 ```sh
-node scripts/capture-submission-assets.mjs                 # en/ja 全28枚
+node scripts/capture-submission-assets.mjs                  # 6言語 × 16枚 = 96枚（30分ほどかかる）
+node scripts/capture-submission-assets.mjs --lang de,fr
 node scripts/capture-submission-assets.mjs --lang ja --only 10-exact-fraction,13-notebook-search
 node scripts/capture-submission-assets.mjs --headed         # 目視デバッグ
 ```
+
+**言語を足したら `LABELS` と `NOTEBOOK_TARGETS` の両方に足すこと。** `LABELS` だけだと
+`NOTEBOOK_TARGETS[lang]` が undefined になり、ノート系カット（06・07）が黙って
+「カテゴリ名が見つからない」で落ちる。文言はアプリの COPY からそのまま写す（ここで訳し直さない）。
+
+### フィーチャーグラフィック
+
+```sh
+node scripts/generate-feature-graphic.mjs                   # 6言語
+node scripts/generate-feature-graphic.mjs --lang de
+```
+
+`assets/images/icon.png` を読み込んで 1024×500 の HTML を Chromium で撮るだけなので、
+`dist/` は不要。**見出しは訳文ではなく言語ごとに書き分けてある**（独=Einheitenfehler と Klausur、
+西=EBAU の採点基準の言い回し、葡=ENEM と NR-10、日=電験・電工、英=FE と City & Guilds、仏=各段階で単位を保つ）。
+ノート件数は `NOTEBOOK_COUNT` の1箇所だけに置いてある。**掲載文（`docs/store-listing-copy.md`）の件数と
+必ず突き合わせること**（旧素材は生成スクリプトが残っておらず、旧アイコンと「112 formula notebooks」のまま凍結していた）。
 
 `dist/` を配信する簡易HTTPサーバ（拡張子なしのパスを `.html` へフォールバックさせる。
 `/pro` のようなパスを直接開くと expo-router がURLと一致せず404画面になるため）を内蔵している。

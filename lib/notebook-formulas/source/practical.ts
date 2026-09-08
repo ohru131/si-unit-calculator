@@ -62,6 +62,59 @@ export const ELECTRICITY_BASICS_SEEDS: NotebookSeed[] = [
     ],
     steps: [{ title: { en: "Real power P", ja: "実効電力 P", es: "Potencia real P", "pt-BR": "Potência real P", de: "Wirkleistung P", fr: "Puissance réelle P" }, expression: "V*I*cosφ", targetUnit: "W", formulaLatex: "P = VI\\cos\\varphi" }],
   },
+  // ここから3件は、電気系の職業訓練・資格（独のAusbildung Elektroniker、日本の電工二種・電験、
+  // 英国のC&G 2365、ブラジルのNR-10、スペインのFP Instalaciones Eléctricas）が共通して扱う計算。
+  // docs/target-users-by-locale-2026-09.md 第1節で ja / de / pt-BR の主・副ターゲットに挙げたもの。
+  {
+    title: { en: "Voltage drop and the cable cross-section it needs", ja: "電圧降下と必要な電線の太さ", es: "Caída de voltaje y sección de cable necesaria", "pt-BR": "Queda de tensão e a seção de cabo necessária", de: "Spannungsfall und der nötige Leiterquerschnitt", fr: "Chute de tension et section de câble nécessaire" },
+    description: { en: "Compute the voltage drop of a single-phase run from the resistivity, one-way length, current and cross-section, express it as a fraction of the supply voltage, then solve for the smallest cross-section that keeps the drop within the permitted fraction f.", ja: "抵抗率・片道の配線長・電流・導体断面積から単相回路の電圧降下を求め、電源電圧に対する割合で表し、許容割合 f に収まる最小の断面積を逆算します。", es: "Calcula la caída de voltaje de una línea monofásica a partir de la resistividad, la longitud de ida, la corriente y la sección; la expresa como fracción del voltaje de alimentación y despeja la sección mínima que mantiene la caída dentro de la fracción admisible f.", "pt-BR": "Calcule a queda de tensão de um circuito monofásico a partir da resistividade, do comprimento de ida, da corrente e da seção; expresse-a como fração da tensão de alimentação e resolva a menor seção que mantém a queda dentro da fração admissível f.", de: "Berechnet den Spannungsfall einer einphasigen Leitung aus dem spezifischen Widerstand, der einfachen Länge, dem Strom und dem Querschnitt, stellt ihn als Anteil der Versorgungsspannung dar und ermittelt den kleinsten Querschnitt, der den zulässigen Anteil f einhält.", fr: "Calculer la chute de tension d'une ligne monophasée à partir de la résistivité, de la longueur aller, du courant et de la section, l'exprimer en fraction de la tension d'alimentation, puis déterminer la section minimale qui respecte la fraction admissible f." },
+    localConstants: [
+      { symbol: "ρ", expression: "0.0175Ohm*mm^2/m" },
+      { symbol: "L", expression: "25m" },
+      { symbol: "I", expression: "16A" },
+      { symbol: "A", expression: "2.5mm^2" },
+      // 商用電源の電圧は地域で決まる（100V/120V/230V）ので投入時に差し替える。
+      // 電圧が低い地域ほど同じ電力で電流が増え、同じ配線でも降下率が大きくなる＝この計算の値打ちが出る。
+      { symbol: "V", expression: "100V", regionalDefault: "mainsVoltage" },
+      { symbol: "f", expression: "0.03" },
+    ],
+    steps: [
+      { title: { en: "Voltage drop ΔU", ja: "電圧降下 ΔU", es: "Caída de voltaje ΔU", "pt-BR": "Queda de tensão ΔU", de: "Spannungsfall ΔU", fr: "Chute de tension ΔU" }, expression: "2*ρ*L*I/A", targetUnit: "V", formulaLatex: "\\Delta U = \\dfrac{2 \\rho L I}{A}" },
+      { title: { en: "Drop as a fraction of the supply voltage", ja: "電源電圧に対する降下の割合", es: "Caída respecto al voltaje de alimentación", "pt-BR": "Queda em relação à tensão de alimentação", de: "Anteil des Spannungsfalls an der Versorgungsspannung", fr: "Chute rapportée à la tension d'alimentation" }, expression: "2*ρ*L*I/(A*V)", targetUnit: "%", formulaLatex: "\\dfrac{\\Delta U}{V} = \\dfrac{2 \\rho L I}{A V}" },
+      { title: { en: "Smallest cross-section that stays within f", ja: "f に収まる最小の断面積", es: "Sección mínima que respeta f", "pt-BR": "Seção mínima que respeita f", de: "Kleinster Querschnitt, der f einhält", fr: "Section minimale respectant f" }, expression: "2*ρ*L*I/(f*V)", targetUnit: "mm²", formulaLatex: "A_{min} = \\dfrac{2 \\rho L I}{f V}" },
+    ],
+  },
+  {
+    title: { en: "Transformer turns ratio (secondary voltage and current)", ja: "変圧器の巻数比（二次側の電圧と電流）", es: "Relación de transformación (voltaje y corriente del secundario)", "pt-BR": "Relação de espiras do transformador (tensão e corrente do secundário)", de: "Übersetzungsverhältnis des Transformators (Sekundärspannung und -strom)", fr: "Rapport de transformation (tension et courant au secondaire)" },
+    description: { en: "From the primary voltage, the primary current and the turn count of each winding, compute the turns ratio, the secondary voltage and the secondary current. The voltage falls with the ratio while the current rises by the same factor.", ja: "一次電圧・一次電流と一次側・二次側の巻数から、巻数比・二次電圧・二次電流を求めます。電圧は巻数比で下がり、電流は同じ倍率で上がります。", es: "A partir del voltaje y la corriente del primario y del número de espiras de cada devanado, calcula la relación de transformación, el voltaje del secundario y su corriente. El voltaje baja con la relación y la corriente sube en la misma proporción.", "pt-BR": "A partir da tensão e da corrente do primário e do número de espiras de cada enrolamento, calcule a relação de espiras, a tensão do secundário e sua corrente. A tensão cai na razão das espiras e a corrente sobe na mesma proporção.", de: "Aus Primärspannung, Primärstrom und den Windungszahlen beider Wicklungen ergeben sich Übersetzungsverhältnis, Sekundärspannung und Sekundärstrom. Die Spannung sinkt im Verhältnis der Windungszahlen, der Strom steigt im gleichen Maß.", fr: "À partir de la tension et du courant au primaire et du nombre de spires de chaque enroulement, calculer le rapport de transformation, la tension et le courant au secondaire. La tension diminue selon le rapport, le courant augmente d'autant." },
+    localConstants: [
+      { symbol: "V₁", expression: "100V", regionalDefault: "mainsVoltage" },
+      { symbol: "I₁", expression: "0.5A" },
+      { symbol: "N₁", expression: "1000" },
+      { symbol: "N₂", expression: "50" },
+    ],
+    steps: [
+      { title: { en: "Turns ratio a", ja: "巻数比 a", es: "Relación de transformación a", "pt-BR": "Relação de espiras a", de: "Übersetzungsverhältnis a", fr: "Rapport de transformation a" }, expression: "N₁/N₂", targetUnit: "", formulaLatex: "a = \\dfrac{N_1}{N_2}" },
+      { title: { en: "Secondary voltage V₂", ja: "二次電圧 V₂", es: "Voltaje del secundario V₂", "pt-BR": "Tensão do secundário V₂", de: "Sekundärspannung V₂", fr: "Tension au secondaire V₂" }, expression: "V₁*N₂/N₁", targetUnit: "V", formulaLatex: "V_2 = V_1 \\dfrac{N_2}{N_1}" },
+      { title: { en: "Secondary current I₂", ja: "二次電流 I₂", es: "Corriente del secundario I₂", "pt-BR": "Corrente do secundário I₂", de: "Sekundärstrom I₂", fr: "Courant au secondaire I₂" }, expression: "I₁*N₁/N₂", targetUnit: "A", formulaLatex: "I_2 = I_1 \\dfrac{N_1}{N_2}" },
+    ],
+  },
+  {
+    title: { en: "Motor efficiency, losses and line current", ja: "モーターの効率・損失・線電流", es: "Rendimiento del motor, pérdidas y corriente de línea", "pt-BR": "Rendimento do motor, perdas e corrente de linha", de: "Wirkungsgrad, Verlustleistung und Strom eines Motors", fr: "Rendement du moteur, pertes et courant de ligne" },
+    description: { en: "Motors are rated in metric horsepower (PS and CV, 735.5 W each — not the 745.7 W of hp). Convert the rating to kW, then use the efficiency to get the electrical input, the power lost as heat, and the current drawn from the mains at the given power factor.", ja: "モーターの定格はメートル馬力（PS・CV、1つ735.5W。英馬力 hp の745.7Wとは別物）で書かれています。定格をkWに直し、効率から電気入力・熱になる損失・力率を考えた線電流を求めます。", es: "La potencia de los motores viene en caballos métricos (CV, 735,5 W cada uno, no los 745,7 W del hp). Convierte el valor a kW y usa el rendimiento para obtener la potencia eléctrica de entrada, la pérdida en forma de calor y la corriente que toma de la red con el factor de potencia dado.", "pt-BR": "A potência dos motores vem em cavalos-vapor métricos (CV, 735,5 W cada, não os 745,7 W do hp). Converta o valor para kW e use o rendimento para obter a potência elétrica de entrada, a perda em forma de calor e a corrente absorvida da rede com o fator de potência dado.", de: "Motorleistungen sind in PS angegeben (735,5 W je PS, nicht die 745,7 W der britischen hp). Der Wert wird in kW umgerechnet; über den Wirkungsgrad ergeben sich die elektrische Aufnahmeleistung, die als Wärme abgegebene Verlustleistung und der Strom, den der Motor bei dem angegebenen Leistungsfaktor aus dem Netz zieht.", fr: "La puissance des moteurs est donnée en chevaux (CV, 735,5 W chacun, pas les 745,7 W du hp anglais). Convertir cette valeur en kW, puis utiliser le rendement pour obtenir la puissance électrique absorbée, les pertes sous forme de chaleur et le courant appelé sur le réseau avec le facteur de puissance donné." },
+    localConstants: [
+      { symbol: "P₂", expression: "5PS" },
+      { symbol: "η", expression: "0.88" },
+      { symbol: "V", expression: "100V", regionalDefault: "mainsVoltage" },
+      { symbol: "cosφ", expression: "0.85" },
+    ],
+    steps: [
+      { title: { en: "Mechanical output in kW", ja: "出力を kW で見る", es: "Potencia mecánica en kW", "pt-BR": "Potência mecânica em kW", de: "Abgegebene Leistung in kW", fr: "Puissance mécanique en kW" }, expression: "P₂", targetUnit: "kW" },
+      { title: { en: "Electrical input P₁", ja: "電気入力 P₁", es: "Potencia eléctrica de entrada P₁", "pt-BR": "Potência elétrica de entrada P₁", de: "Aufnahmeleistung P₁", fr: "Puissance absorbée P₁" }, expression: "P₂/η", targetUnit: "kW", formulaLatex: "P_1 = \\dfrac{P_2}{\\eta}" },
+      { title: { en: "Power lost as heat", ja: "熱になる損失", es: "Pérdida en forma de calor", "pt-BR": "Perda em forma de calor", de: "Verlustleistung als Wärme", fr: "Pertes sous forme de chaleur" }, expression: "P₂/η-P₂", targetUnit: "W", formulaLatex: "P_v = \\dfrac{P_2}{\\eta} - P_2" },
+      { title: { en: "Line current I", ja: "線電流 I", es: "Corriente de línea I", "pt-BR": "Corrente de linha I", de: "Strom I", fr: "Courant de ligne I" }, expression: "P₂/(η*V*cosφ)", targetUnit: "A", formulaLatex: "I = \\dfrac{P_2}{\\eta V \\cos\\varphi}" },
+    ],
+  },
 ];
 
 /** 「天体・宇宙」。第一宇宙速度やケプラーの法則など、スケールの大きさが楽しい天文計算をまとめている。 */

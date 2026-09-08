@@ -56,6 +56,26 @@ describe("ターゲット層向けサンプルの数値", () => {
     expect(value("sqrt(3) × 200V × 10A × 0.8", "kW")).toBeCloseTo(2.7713, 3);
   });
 
+  it("電気系（電験・電工・Ausbildung）のサンプルが期待の値になる", () => {
+    // 掲載文とフィーチャーグラフィックに書いた値の裏取り。ここが動くと掲載文が嘘になる。
+    expect(value("230V ÷ 10kΩ", "mA")).toBeCloseTo(23);
+    expect(value("0.47MΩ × 20µA", "V")).toBeCloseTo(9.4);
+    expect(value("750mV ÷ 150Ω", "mA")).toBeCloseTo(5);
+    expect(value("5.5kW ÷ (sqrt(3) × 200V × 0.85)", "A")).toBeCloseTo(18.679, 2);
+    expect(value("750W × 40min", "Wh")).toBeCloseTo(500);
+    expect(value("0.0172Ohm*mm²/m × 30m ÷ 2mm²", "Ohm")).toBeCloseTo(0.258);
+    expect(value("1 ÷ (2*pi × 50Hz × 100µF)", "Ohm")).toBeCloseTo(31.831, 2);
+    // 短い説明に載せた 1kΩ × 1mA ⇒ 1V。
+    expect(value("1kΩ × 1mA", "V")).toBeCloseTo(1);
+  });
+
+  it("電流の2乗は括弧が必須（20A² は 20平方アンペアで別物）", () => {
+    // エラーにならず桁だけ外れるので、型でもエンジンでも拾えない。サンプルの式が
+    // (20A)^2 のまま保たれていることをここで固定する。
+    expect(value("(20A)^2 × 0.258Ohm", "W")).toBeCloseTo(103.2);
+    expect(value("20A² × 0.258Ohm", "W")).toBeCloseTo(5.16);
+  });
+
   it("実験レポートの換算（密度・濃度・絶対温度）が正しい", () => {
     // g/cm³ → kg/m³ は1000倍。100倍と取り違えるのが定番の誤り。
     expect(value("1.2g/cm³", "kg/m³")).toBeCloseTo(1200);

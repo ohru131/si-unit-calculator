@@ -6,7 +6,8 @@
 //
 // 使い方:
 //   npx expo export --platform web        # dist/ を作る（このスクリプトは dist/ を作らない）
-//   node scripts/capture-submission-assets.mjs
+//   node scripts/capture-submission-assets.mjs                       # 6言語 × 全カット
+//   node scripts/capture-submission-assets.mjs --lang de,fr
 //   node scripts/capture-submission-assets.mjs --lang ja --only 10-exact-fraction,11-exact-pi
 //   node scripts/capture-submission-assets.mjs --headed   # 目視デバッグ用
 //
@@ -80,8 +81,20 @@ export function startDistServer(root = DIST) {
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
+// 画面の文言をそのまま正規表現に埋めるので、記号を必ずエスケープする。
+// pt-BR の言語名「Português (Brasil)」の括弧をそのまま渡すとグループ扱いになり、
+// 「: Português Brasil」を探しに行って**言語切替だけが静かにタイムアウトする**（実際に踏んだ）。
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 // ---------------------------------------------------------------- 画面操作の共通部品
 
+// 画面から拾う文言。**すべてアプリのCOPYからそのまま写したもの**で、ここで訳し直さないこと
+// （lib/global-settings.tsx の calculator（=アプリ名 UnitCalc・全言語共通） / notebook / constants / settings / language / expression /
+// result、app/(tabs)/index.tsx の compareUnits / decimalForm / exactForm / samples、
+// app/(tabs)/constants.tsx の notebookSearch、app/(tabs)/pro.tsx の previewNote）。
+// examCategory は lib/sample-calculations.ts の "exam" カテゴリのラベルで、**言語ごとに
+// その国で実際に受ける試験の名前**になっている（Klausur / EBAU / ENEM / physique-chimie / 電験・電工）。
+// searchQuery はその言語のターゲット層が実際に打ちそうな語を選んである。
 const LABELS = {
   en: {
     expression: "Expression",
@@ -89,10 +102,12 @@ const LABELS = {
     compareUnits: "Compare units",
     decimalForm: "Decimal",
     exactForm: "Exact",
+    samples: "Examples",
+    examCategory: "Exam prep",
     languageOption: "English",
     deviceLocale: "en-US",
     languageSection: "App language",
-    tabs: { calculator: "Unit Calculator", notebook: "Notebooks", library: "Library", settings: "Preferences" },
+    tabs: { calculator: "UnitCalc", notebook: "Notebooks", library: "Library", settings: "Preferences" },
     search: "Search all notebooks",
     searchQuery: "solar",
     // Web 版だけに出る注記（Android 実機では出ない）。撮影前に要素ごと消す。
@@ -104,13 +119,79 @@ const LABELS = {
     compareUnits: "単位を比較",
     decimalForm: "小数",
     exactForm: "分数・π",
+    samples: "サンプル",
+    examCategory: "試験対策（電験・電工）",
     languageOption: "日本語",
     deviceLocale: "ja-JP",
     languageSection: "アプリの言語",
-    tabs: { calculator: "単位付き電卓", notebook: "ノート", library: "ライブラリ", settings: "設定" },
+    tabs: { calculator: "UnitCalc", notebook: "ノート", library: "ライブラリ", settings: "設定" },
     search: "すべての計算ノートを検索",
     searchQuery: "太陽光",
     webOnlyNotes: ["現在はWebプレビューです", "購入はiOSまたはAndroidのストア版で利用できます。"],
+  },
+  es: {
+    expression: "Expresión",
+    result: "Resultado",
+    compareUnits: "Comparar unidades",
+    decimalForm: "Decimal",
+    exactForm: "Exacto",
+    samples: "Ejemplos",
+    examCategory: "Preparación (EBAU)",
+    languageOption: "Español",
+    deviceLocale: "es-ES",
+    languageSection: "Idioma de la app",
+    tabs: { calculator: "UnitCalc", notebook: "Cuadernos", library: "Biblioteca", settings: "Preferencias" },
+    search: "Buscar en todos los cuadernos",
+    searchQuery: "campo",
+    webOnlyNotes: ["Esto es una vista previa web", "Las compras reales están disponibles en la versión de la tienda de iOS/Android."],
+  },
+  "pt-BR": {
+    expression: "Expressão",
+    result: "Resultado",
+    compareUnits: "Comparar unidades",
+    decimalForm: "Decimal",
+    exactForm: "Exato",
+    samples: "Exemplos",
+    examCategory: "Preparação (ENEM)",
+    languageOption: "Português (Brasil)",
+    deviceLocale: "pt-BR",
+    languageSection: "Idioma do app",
+    tabs: { calculator: "UnitCalc", notebook: "Cadernos", library: "Biblioteca", settings: "Preferências" },
+    search: "Buscar em todos os cadernos",
+    searchQuery: "tensão",
+    webOnlyNotes: ["Esta é uma prévia web", "As compras reais estão disponíveis na versão da loja iOS/Android."],
+  },
+  de: {
+    expression: "Ausdruck",
+    result: "Ergebnis",
+    compareUnits: "Einheiten vergleichen",
+    decimalForm: "Dezimal",
+    exactForm: "Exakt",
+    samples: "Beispiele",
+    examCategory: "Klausur & Prüfung",
+    languageOption: "Deutsch",
+    deviceLocale: "de-DE",
+    languageSection: "App-Sprache",
+    tabs: { calculator: "UnitCalc", notebook: "Rechenhefte", library: "Bibliothek", settings: "Einstellungen" },
+    search: "Alle Rechenhefte durchsuchen",
+    searchQuery: "Spannung",
+    webOnlyNotes: ["Dies ist eine Web-Vorschau", "Echte Käufe sind in der iOS/Android-Store-Version verfügbar."],
+  },
+  fr: {
+    expression: "Expression",
+    result: "Résultat",
+    compareUnits: "Comparer les unités",
+    decimalForm: "Décimal",
+    exactForm: "Exact",
+    samples: "Exemples",
+    examCategory: "Révisions (physique-chimie)",
+    languageOption: "Français",
+    deviceLocale: "fr-FR",
+    languageSection: "Langue de l'app",
+    tabs: { calculator: "UnitCalc", notebook: "Carnets", library: "Bibliothèque", settings: "Préférences" },
+    search: "Rechercher dans tous les carnets",
+    searchQuery: "masse volumique",
+    webOnlyNotes: ["Ceci est un aperçu web", "Les achats réels sont disponibles dans la version du store iOS/Android."],
   },
 };
 
@@ -133,7 +214,7 @@ async function openTab(page, label) {
 
 // 設定画面の「言語」セクションを開く。折りたたみなので、開かないと選択肢が出ない。
 async function openLanguageSection(page, lang) {
-  const titles = [LABELS.en.languageSection, LABELS[lang].languageSection];
+  const titles = [LABELS.en.languageSection, LABELS[lang].languageSection].map(escapeRegExp);
   await page.getByText(new RegExp(`^(${titles.join("|")})$`)).first().click();
   await sleep(500);
 }
@@ -143,7 +224,7 @@ async function setLanguage(page, lang) {
   // せず必ずアプリ内の設定画面から明示的に選ぶ（撮影言語を取り違えないため）。
   await openTab(page, LABELS[lang].tabs.settings);
   await openLanguageSection(page, lang);
-  await page.getByRole("radio", { name: new RegExp(`: ${LABELS[lang].languageOption}$`) }).first().click();
+  await page.getByRole("radio", { name: new RegExp(`: ${escapeRegExp(LABELS[lang].languageOption)}$`) }).first().click();
   await sleep(1500);
 }
 
@@ -343,6 +424,32 @@ const SHOTS = [
     },
   },
   {
+    // 言語ごとに一番効くカット。サンプルシートの先頭タブが、その国で実際に受ける試験の名前
+    // （Klausur & Prüfung / Preparación (EBAU) / Preparação (ENEM) / 試験対策（電験・電工） ほか）で
+    // 出るので、ストアの一覧で「自分向けのアプリだ」と分かる。タブの並びも lib/locale-relevance.ts で
+    // 言語ごとに変えてあり、この1枚に両方が写る。
+    name: "14-exam-samples",
+    run: async (page, lang) => {
+      await openTab(page, LABELS[lang].tabs.calculator);
+      await page.getByText(LABELS[lang].samples, { exact: true }).first().click();
+      await sleep(900);
+      await page.getByText(LABELS[lang].examCategory, { exact: true }).first().click();
+      await sleep(700);
+    },
+  },
+  {
+    // 接頭語の打ち消し（kΩ × mA → V）。独語の Zehnerpotenzen、日本の電験・電工、
+    // 西語の EBAU がそろって落とす桁で、docs/target-users-by-locale-2026-09.md 第1節の
+    // 「決定的な瞬間」そのもの。
+    name: "15-prefix-cancel",
+    run: async (page, lang) => {
+      await openTab(page, LABELS[lang].tabs.calculator);
+      await typeExpression(page, lang, "4.7kΩ × 2mA");
+      await submitExpression(page, lang);
+      await blurInputs(page);
+    },
+  },
+  {
     name: "09-pro",
     run: async (page, lang, ctx) => {
       await page.goto(`${ctx.origin}/pro`);
@@ -352,16 +459,27 @@ const SHOTS = [
   },
 ];
 
-// ノート系カットで開くカテゴリ／ノート（#46 で再編した後の名前）
+// ノート系カット（06 / 07）で開くカテゴリとノート。
+// **言語ごとにその国のターゲット層に一番近いノートを選んである**
+// （docs/target-users-by-locale-2026-09.md 第1節）。ここを全言語で同じノートにすると、
+// 掲載文だけ言語ごとに書き分けてスクリーンショットが英語版の使い回し、という以前の状態に戻る。
+// - ja / de: 電気系の職業資格（電工二種・電験 / Ausbildung Elektroniker）の中心にある電圧降下の計算
+// - es / pt-BR: EBAU・ENEM の定番である点電荷の場と電位（µC と cm を最後まで持ち越す）
+// - en: FE 試験・工学部の力学　- fr: lycée の physique-chimie（力学）
+// 文言は lib/notebook-formulas/source/ の各シードの title をそのまま写したもの。
 const NOTEBOOK_TARGETS = {
   en: { category: "High school physics", subCategory: "Mechanics", notebook: "Uniformly accelerated motion (velocity & displacement)" },
-  ja: { category: "高校物理", subCategory: "力学", notebook: "等加速度運動（速度・変位）" },
+  ja: { category: "電気・エネルギー", subCategory: "電気の基礎計算", notebook: "電圧降下と必要な電線の太さ" },
+  es: { category: "Física (bachillerato)", subCategory: "Electricidad", notebook: "Campo eléctrico y potencial de una carga puntual" },
+  "pt-BR": { category: "Física (Ensino Médio)", subCategory: "Eletricidade", notebook: "Campo elétrico e potencial de uma carga pontual" },
+  de: { category: "Elektrizität & Energie", subCategory: "Praktische Elektrotechnik", notebook: "Spannungsfall und der nötige Leiterquerschnitt" },
+  fr: { category: "Physique (lycée)", subCategory: "Mécanique", notebook: "Mouvement uniformément accéléré (vitesse et déplacement)" },
 };
 
 // ---------------------------------------------------------------- 実行
 
 function parseArgs(argv) {
-  const args = { langs: ["en", "ja"], only: null, headed: false };
+  const args = { langs: Object.keys(LABELS), only: null, headed: false };
   for (let i = 2; i < argv.length; i += 1) {
     if (argv[i] === "--lang") args.langs = argv[++i].split(",");
     else if (argv[i] === "--only") args.only = new Set(argv[++i].split(","));

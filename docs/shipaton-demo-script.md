@@ -1,4 +1,4 @@
-# Unit Calculator — Silent Demo Script (English captions, under 2 minutes)
+# UnitCalc — Silent Demo Script (English captions, under 2 minutes)
 
 ## Production specification
 
@@ -10,14 +10,14 @@ The previous version of this script assumed spoken English narration. **The narr
 - Target duration: **under 2 minutes** (this shot list totals **1:53**, leaving a 7-second safety margin). The Shipaton rules have been seen stated as both "under 2 minutes" and "under 3 minutes" in different places — **this is unresolved and flagged as 要確認 in `docs/android-submission-checklist.md`**. This script targets the stricter 2-minute limit so it is safe either way.
 - **The recording in `submission-assets/demo/unit-calculator-demo-en-silent.webm` follows this script**: 1:53, 1080×1800, 25 fps, no audio track, English captions burned in from `demo-captions-en.srt`. Re-record it with `node scripts/record-demo-video.mjs` whenever the shot list or the captions change (the previous take — 2:30, 540×900, 112 notebooks — has been replaced).
 - Capture route used for this repo: `npx expo export --platform web`, then `node scripts/record-demo-video.mjs` (it serves `dist/` itself and drives Chromium at a 540×900 viewport with `--force-device-scale-factor=2`, so the recording lands at 1080×1800; the context-level `deviceScaleFactor` does **not** apply to video). The onboarding modal ("Skip") is dismissed before the take starts.
-- Screen names below use the English UI labels. Note that the tab bar reads **Unit Calculator / Notebooks / Library / Preferences**: the preset notebooks are *browsed and searched* on the **Library** tab, and *opened* on the **Notebooks** tab.
+- Screen names below use the English UI labels. Note that the tab bar reads **UnitCalc / Notebooks / Library / Preferences** (the app name is not translated): the preset notebooks are *browsed and searched* on the **Library** tab, and *opened* on the **Notebooks** tab.
 - Each scene below names the exact screen/action to record. Follow `docs/screenshot-capture-plan.md` for how to reach each screen if more detail is needed.
 
 ## Shot list and captions
 
 | Time | Screen / action | On-screen caption |
 |---|---|---|
-| 0:00–0:07 | App opens on the Unit Calculator tab; type `5cm + 1mm` into the expression field | **A calculator that checks your units.** |
+| 0:00–0:07 | App opens on the UnitCalc tab; type `5cm + 1mm` into the expression field | **A calculator that checks your units.** |
 | 0:07–0:15 | Hold on the result card, which already shows the value and the SI base line without pressing `=`; let the unit chips under the value be visible | **Every value is normalized to SI — automatically, as you type.** |
 | 0:15–0:22 | Confirm the previous expression with `=` (so it lands in the history used at 1:38), press `AC`, type `5m + 1kg` and press `=`; the dimension-mismatch error appears in place of a result | **Mix incompatible units, and it tells you — instead of a wrong answer.** |
 | 0:22–0:31 | Press `AC`, type `100km / 2h`; tap **Compare units** under the result card and let the comparison table expand | **See one result across every compatible unit, at a glance.** |
@@ -29,8 +29,8 @@ The previous version of this script assumed spoken English narration. **The narr
 | 1:12–1:21 | Tap "Depth of field (near and far limits)"; the notebook opens on the **Notebooks** tab. Scroll through its typeset formula card and its step results | **Real typeset math, with every step shown — not just the number.** |
 | 1:21–1:28 | Preferences → App language: switch English → Japanese → German with fast cuts, showing the same notebook screen re-rendering each time | **Fully translated into six languages.** |
 | 1:28–1:38 | Open the Pro screen; show the four feature cards (Ad-free, CSV export, My unit sets, Notebook sharing) and the single purchase button | **One purchase. No subscription, ever.** |
-| 1:38–1:45 | Back on the Unit Calculator tab: open the saved-history sheet and scroll it, showing the entries confirmed with `=` during the earlier scenes | **Full calculation history — free, for everyone, unlimited.** |
-| 1:45–1:53 | Closing title card on a plain background | **Unit Calculator — Calculate with confidence, in any compatible unit.** |
+| 1:38–1:45 | Back on the UnitCalc tab: open the saved-history sheet and scroll it, showing the entries confirmed with `=` during the earlier scenes | **Full calculation history — free, for everyone, unlimited.** |
+| 1:45–1:53 | Closing title card on a plain background | **UnitCalc — Calculate with confidence, in any compatible unit.** |
 
 Total run time as written: **1:53**, under the 2-minute target.
 

@@ -9,6 +9,7 @@ import { UNCATEGORIZED_CATEGORY_ID, type CalculationNotebook, type NotebookCateg
 import { localizedText, type AppLanguage } from "@/lib/i18n";
 import { categoryExportHasContent, collectExportCategoryIds } from "@/lib/notebook-category-export";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
+import { orderNotebookCategoriesForLanguage } from "@/lib/locale-relevance";
 
 type Props = {
   language: AppLanguage;
@@ -112,11 +113,15 @@ export function NotebookCategoryGrid({ language, notebooks, notebookCategories, 
     };
     if (parentCategoryId) {
       const childIds = childIdsByParent.get(parentCategoryId) ?? [];
-      return PRESET_NOTEBOOK_CATEGORIES.filter((category) => childIds.includes(category.id)).map((category) => ({
+      return orderNotebookCategoriesForLanguage(PRESET_NOTEBOOK_CATEGORIES.filter((category) => childIds.includes(category.id)), language).map((category) => ({
         id: category.id, label: localizedText(category.label, language), count: countFor(category.id), isPreset: true, hasChildren: false, ...exportInfoFor(category.id),
       }));
     }
-    const presetRows = PRESET_NOTEBOOK_CATEGORIES.filter((category) => !category.parentId).map((category) => {
+    // カードの並びは言語ごとのターゲット層に合わせた関連度順にする
+    // （docs/target-users-by-locale-2026-09.md 第1節。判断は lib/locale-relevance.ts）。
+    // PRESET_NOTEBOOK_CATEGORIES の配列自体はプリセット投入の順（＝保存データ上のノートの並び）を
+    // 決めるので言語に依らない正順のまま保ち、並べ替えはこの表示側だけで行う。
+    const presetRows = orderNotebookCategoriesForLanguage(PRESET_NOTEBOOK_CATEGORIES.filter((category) => !category.parentId), language).map((category) => {
       const childIds = childIdsByParent.get(category.id) ?? [];
       const count = childIds.length ? childIds.reduce((sum, childId) => sum + countFor(childId), 0) : countFor(category.id);
       return { id: category.id, label: localizedText(category.label, language), count, isPreset: true, hasChildren: childIds.length > 0, ...exportInfoFor(category.id) };

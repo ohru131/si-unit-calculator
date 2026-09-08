@@ -324,6 +324,24 @@ export const PHYSICS_ELECTRICITY_SEEDS: NotebookSeed[] = [
     ],
     steps: [{ title: { en: "Induced EMF V", ja: "誘導起電力 V", es: "Fem inducida V", "pt-BR": "Fem induzida V", de: "Induzierte Spannung V", fr: "F.é.m. induite V" }, expression: "N*ΔΦ/Δt", targetUnit: "V", formulaLatex: "V = N\\dfrac{\\Delta\\Phi}{\\Delta t}" }],
   },
+  // 点電荷の場と電位は EBAU（es）・ENEM（pt-BR）・lycée の physique-chimie（fr）・Abitur（de）が
+  // そろって出す定番で、µC と cm を最後まで持ち越せるかがそのまま得点差になる
+  // （docs/target-users-by-locale-2026-09.md 第1節）。既存の「クーロンの法則」は2電荷間の力だけを扱う。
+  {
+    title: { en: "Electric field and potential of a point charge", ja: "点電荷の電場と電位", es: "Campo eléctrico y potencial de una carga puntual", "pt-BR": "Campo elétrico e potencial de uma carga pontual", de: "Elektrisches Feld und Potenzial einer Punktladung", fr: "Champ électrique et potentiel d'une charge ponctuelle" },
+    description: { en: "Compute the field strength and the potential at a distance r from a point charge, then the force on a test charge placed there. The charge is given in µC and the distance in cm, so both prefixes have to be carried all the way through.", ja: "点電荷から距離 r の位置での電場の強さと電位、そこに置いた試験電荷が受ける力を求めます。電荷は µC、距離は cm なので、どちらの接頭語も最後まで持ち越す必要があります。", es: "Calcula la intensidad del campo y el potencial a una distancia r de una carga puntual, y después la fuerza sobre una carga de prueba situada allí. La carga está en µC y la distancia en cm, así que hay que arrastrar los dos prefijos hasta el final.", "pt-BR": "Calcule a intensidade do campo e o potencial a uma distância r de uma carga pontual e, em seguida, a força sobre uma carga de prova colocada ali. A carga está em µC e a distância em cm, então os dois prefixos precisam ser levados até o fim.", de: "Berechnet die Feldstärke und das Potenzial im Abstand r von einer Punktladung sowie die Kraft auf eine dort platzierte Probeladung. Die Ladung steht in µC und der Abstand in cm – beide Vorsatzzeichen müssen bis zum Ergebnis mitgeführt werden.", fr: "Calculer l'intensité du champ et le potentiel à une distance r d'une charge ponctuelle, puis la force subie par une charge d'essai placée en ce point. La charge est en µC et la distance en cm : les deux préfixes doivent être conservés jusqu'au résultat." },
+    localConstants: [
+      { symbol: "k", expression: "8.988e9N*m^2/C^2" },
+      { symbol: "Q", expression: "3µC" },
+      { symbol: "r", expression: "20cm" },
+      { symbol: "q", expression: "0.5µC" },
+    ],
+    steps: [
+      { title: { en: "Field strength E", ja: "電場の強さ E", es: "Intensidad del campo E", "pt-BR": "Intensidade do campo E", de: "Feldstärke E", fr: "Intensité du champ E" }, expression: "k*Q/r^2", targetUnit: "N/C", formulaLatex: "E = k\\dfrac{Q}{r^2}" },
+      { title: { en: "Electric potential V", ja: "電位 V", es: "Potencial eléctrico V", "pt-BR": "Potencial elétrico V", de: "Elektrisches Potenzial V", fr: "Potentiel électrique V" }, expression: "k*Q/r", targetUnit: "kV", formulaLatex: "V = k\\dfrac{Q}{r}" },
+      { title: { en: "Force on the test charge F", ja: "試験電荷が受ける力 F", es: "Fuerza sobre la carga de prueba F", "pt-BR": "Força sobre a carga de prova F", de: "Kraft auf die Probeladung F", fr: "Force sur la charge d'essai F" }, expression: "k*Q*q/r^2", targetUnit: "mN", formulaLatex: "F = k\\dfrac{Qq}{r^2}" },
+    ],
+  },
 ];
 
 /** 高校物理「原子」。光子のエネルギー・光電効果・半減期・ボーアモデルをまとめている。 */
