@@ -252,6 +252,9 @@ export function NotebookEditorSheet({
   const [categoryPickerExpandedParentId, setCategoryPickerExpandedParentId] = useState<string | null>(
     () => PRESET_NOTEBOOK_CATEGORIES.find((category) => category.id === (notebook?.categoryId ?? initialCategoryId))?.parentId ?? null,
   );
+  // カテゴリピッカーを開いているか。既定は閉じ（1行）。カテゴリが38件まで増えてチップを
+  // 全部並べると縦に10行近く占め、タイトル・数式・手順の入力欄が画面外へ押し出されていた。
+  const [isCategoryPickerOpen, setIsCategoryPickerOpen] = useState(false);
   const [showNewCategoryField, setShowNewCategoryField] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
 
@@ -277,6 +280,40 @@ export function NotebookEditorSheet({
   ], [childCategoriesByParentId, copy.uncategorized, language, notebookCategories]);
 
   const categoryParentId = (categoryId: string) => PRESET_NOTEBOOK_CATEGORIES.find((category) => category.id === categoryId)?.parentId ?? null;
+
+  // 折りたたんだときに出す表示。サブカテゴリのときは大分類も添える
+  // （「電気」「化学変化」のようなサブカテゴリ名だけでは、どの大分類の下のものか分からない）。
+  // 大分類とサブカテゴリを1行に繋げると、独語の「Elektrizität & Energie › Praktische Elektrote…」の
+  // ように**肝心のサブカテゴリ側が省略される**ので、大分類は上に小さく重ねて2段で出す。
+  const selectedCategory = useMemo(() => {
+    const preset = PRESET_NOTEBOOK_CATEGORIES.find((category) => category.id === notebookCategoryId);
+    if (preset) {
+      const parent = preset.parentId ? PRESET_NOTEBOOK_CATEGORIES.find((category) => category.id === preset.parentId) : undefined;
+      return { label: localizedText(preset.label, language), parentLabel: parent ? localizedText(parent.label, language) : null };
+    }
+    const userCategory = notebookCategories.find((category) => category.id === notebookCategoryId);
+    return { label: userCategory ? userCategory.name : copy.uncategorized, parentLabel: null };
+  }, [copy.uncategorized, language, notebookCategories, notebookCategoryId]);
+
+  const toggleCategoryPicker = () => {
+    setShowNewCategoryField(false);
+    if (isCategoryPickerOpen) {
+      setIsCategoryPickerOpen(false);
+      return;
+    }
+    // 開いたときは今の選択がある階層をそのまま出す（サブカテゴリを選んでいるなら、その大分類の中）。
+    // 毎回最上位から出すと、自分が今どこを選んでいるのかを見るためだけに1タップ払うことになる。
+    setCategoryPickerExpandedParentId(categoryParentId(notebookCategoryId));
+    setIsCategoryPickerOpen(true);
+  };
+
+  // 葉カテゴリを選んだら閉じる。開いた階層（categoryPickerExpandedParentId）は残すので、
+  // 選び直したくなったときは同じ場所が開く。
+  const selectCategory = (categoryId: string) => {
+    setNotebookCategoryId(categoryId);
+    setShowNewCategoryField(false);
+    setIsCategoryPickerOpen(false);
+  };
 
   // 編集画面の単位チップ用。まだ保存前で値が確定していないローカル定数も、ここで先行評価しておく
   // （detail画面のresolveNotebookLocalConstantsと同じ使い方）。1行の失敗（式が未入力・不正）は
@@ -333,10 +370,12 @@ export function NotebookEditorSheet({
     if (!name) return;
     const created = await onCreateCategory(name);
     setNotebookCategoryId(created.id);
-    // 新規作成のユーザーカテゴリは常に最上位の葉カテゴリなので、開いていたサブカテゴリ行は閉じる。
+    // 新規作成のユーザーカテゴリは常に最上位の葉カテゴリなので、開いていたサブカテゴリの階層は閉じる。
     setCategoryPickerExpandedParentId(null);
     setShowNewCategoryField(false);
     setNewCategoryName("");
+    // 作ったカテゴリがそのまま選択されるので、リストは他の選択と同じように畳む。
+    setIsCategoryPickerOpen(false);
   };
 
   const updateLocalConstant = (id: string, patch: Partial<NotebookLocalConstant>) =>
@@ -504,42 +543,67 @@ export function NotebookEditorSheet({
             <TextInput value={notebookDescription} onChangeText={setNotebookDescription} placeholder={copy.notebookDescriptionPlaceholder} placeholderTextColor={colors.placeholder} style={styles.input} />
 
             <Text style={styles.fieldLabel}>{copy.category}</Text>
-            <View style={styles.categoryPicker}>
-              {topLevelCategoryOptions.map((option) => {
-                // 大分類チップは「選択中」または「選択中カテゴリの親」のとき強調表示する（子を開いていなくても今どこにいるか分かるように）。
-                const isActive = notebookCategoryId === option.id || (option.hasChildren && categoryParentId(notebookCategoryId) === option.id);
-                // サブカテゴリ行は最上位チップ全部の下に出るため、どの大分類を開いているのかを
-                // チップ側でも示す（未選択のまま開いただけの状態を「選択中」と区別する）。
-                const isExpanded = categoryPickerExpandedParentId === option.id && !isActive;
-                return (
-                  <Pressable
-                    key={option.id}
-                    onPress={() => {
-                      if (option.hasChildren) {
-                        // 大分類はグループ化のためだけの存在でノート自体の所属先にはできない。タップではサブカテゴリ行を開閉するだけにする。
-                        setCategoryPickerExpandedParentId((current) => (current === option.id ? null : option.id));
-                        return;
-                      }
-                      setNotebookCategoryId(option.id);
-                      setCategoryPickerExpandedParentId(null);
-                    }}
-                    style={({ pressed }) => [styles.sectionChip, isExpanded && styles.sectionChipExpanded, isActive && styles.sectionChipActive, pressed && styles.buttonPressed]}
-                  >
-                    <Text style={[styles.sectionChipText, isExpanded && styles.sectionChipExpandedText, isActive && styles.sectionChipTextActive]}>{option.label}</Text>
-                  </Pressable>
-                );
-              })}
-              <Pressable onPress={() => setShowNewCategoryField((current) => !current)} style={({ pressed }) => [styles.sectionChip, pressed && styles.buttonPressed]}>
-                <Text style={styles.sectionChipText}>＋ {copy.newCategory}</Text>
-              </Pressable>
-            </View>
-            {categoryPickerExpandedParentId ? (
-              <View style={styles.categoryPickerChild}>
-                {(childCategoriesByParentId.get(categoryPickerExpandedParentId) ?? []).map((option) => (
-                  <Pressable key={option.id} onPress={() => setNotebookCategoryId(option.id)} style={({ pressed }) => [styles.sectionChip, notebookCategoryId === option.id && styles.sectionChipActive, pressed && styles.buttonPressed]}>
-                    <Text style={[styles.sectionChipText, notebookCategoryId === option.id && styles.sectionChipTextActive]}>{option.label}</Text>
-                  </Pressable>
-                ))}
+            {/* カテゴリはチップを全部並べる形をやめ、折りたたんだ1行＋リストにした。
+                最上位9枚＋サブカテゴリまで増えた時点でチップが縦に10行近く占め、
+                この下にある数式・定数・手順の入力欄が画面外へ押し出されていた。
+                階層のたどり方（大分類→サブカテゴリ→戻る）はライブラリのカテゴリグリッドと
+                同じにして、同じカテゴリを2通りの操作で覚えずに済むようにしている。 */}
+            <Pressable
+              accessibilityLabel={copy.category}
+              onPress={toggleCategoryPicker}
+              style={({ pressed }) => [styles.categoryValueRow, isCategoryPickerOpen && styles.categoryValueRowOpen, pressed && styles.buttonPressed]}
+            >
+              <IconSymbol name="folder.fill" size={16} color={colors.primary} />
+              <View style={styles.categoryValueCopy}>
+                {selectedCategory.parentLabel ? <Text numberOfLines={1} style={styles.categoryValueParent}>{selectedCategory.parentLabel}</Text> : null}
+                <Text numberOfLines={1} style={styles.categoryValueText}>{selectedCategory.label}</Text>
+              </View>
+              <IconSymbol name={isCategoryPickerOpen ? "chevron.up" : "chevron.down"} size={16} color={colors.muted} />
+            </Pressable>
+            {isCategoryPickerOpen ? (
+              <View style={styles.categoryList}>
+                {categoryPickerExpandedParentId ? (
+                  <>
+                    <Pressable onPress={() => setCategoryPickerExpandedParentId(null)} style={({ pressed }) => [styles.categoryListRow, pressed && styles.categoryListRowPressed]}>
+                      <IconSymbol name="chevron.left" size={15} color={colors.primary} />
+                      <Text numberOfLines={1} style={styles.categoryListBackLabel}>{topLevelCategoryOptions.find((option) => option.id === categoryPickerExpandedParentId)?.label ?? ""}</Text>
+                    </Pressable>
+                    {(childCategoriesByParentId.get(categoryPickerExpandedParentId) ?? []).map((option) => {
+                      const isActive = notebookCategoryId === option.id;
+                      return (
+                        <Pressable key={option.id} onPress={() => selectCategory(option.id)} style={({ pressed }) => [styles.categoryListRow, styles.categoryListChildRow, pressed && styles.categoryListRowPressed]}>
+                          <Text numberOfLines={1} style={[styles.categoryListLabel, isActive && styles.categoryListLabelActive]}>{option.label}</Text>
+                          {isActive ? <IconSymbol name="checkmark" size={15} color={colors.primary} /> : null}
+                        </Pressable>
+                      );
+                    })}
+                  </>
+                ) : (
+                  <>
+                    {topLevelCategoryOptions.map((option) => {
+                      const isActive = notebookCategoryId === option.id;
+                      // 大分類はグループ化のためだけの存在でノート自体の所属先にはできない。行をタップしても
+                      // 選択にはならずサブカテゴリの階層へ入るだけなので、チェックではなく
+                      // 「選択中のカテゴリを含む」ことだけを色で示す（チェックを付けると選べる行に見える）。
+                      const containsSelection = option.hasChildren && categoryParentId(notebookCategoryId) === option.id;
+                      return (
+                        <Pressable
+                          key={option.id}
+                          onPress={() => (option.hasChildren ? setCategoryPickerExpandedParentId(option.id) : selectCategory(option.id))}
+                          style={({ pressed }) => [styles.categoryListRow, pressed && styles.categoryListRowPressed]}
+                        >
+                          <Text numberOfLines={1} style={[styles.categoryListLabel, (isActive || containsSelection) && styles.categoryListLabelActive]}>{option.label}</Text>
+                          {option.hasChildren ? <IconSymbol name="chevron.right" size={15} color={colors.muted} /> : null}
+                          {isActive ? <IconSymbol name="checkmark" size={15} color={colors.primary} /> : null}
+                        </Pressable>
+                      );
+                    })}
+                    <Pressable onPress={() => setShowNewCategoryField((current) => !current)} style={({ pressed }) => [styles.categoryListRow, pressed && styles.categoryListRowPressed]}>
+                      <IconSymbol name="folder.badge.plus" size={15} color={colors.primary} />
+                      <Text numberOfLines={1} style={styles.categoryListAddLabel}>{copy.newCategory}</Text>
+                    </Pressable>
+                  </>
+                )}
               </View>
             ) : null}
             {showNewCategoryField ? (
@@ -692,12 +756,23 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   buttonPressed: { opacity: 0.72, transform: [{ scale: 0.97 }] }, iconPressed: { opacity: 0.55 },
   modalBackdrop: { backgroundColor: colors.overlay, flex: 1, justifyContent: "flex-end" }, sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 26, borderTopRightRadius: 26, maxHeight: "92%", paddingBottom: 36, paddingHorizontal: 22, paddingTop: 10 }, sheetHandle: { alignSelf: "center", backgroundColor: colors.border, borderRadius: 3, height: 5, width: 42 }, sheetHeader: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between", paddingBottom: 16, paddingTop: 17 }, sheetTitle: { color: colors.foreground, fontSize: 21, fontWeight: "700" }, closeButton: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderRadius: 18, height: 36, justifyContent: "center", width: 36 },
   fieldLabel: { color: colors.foreground, fontSize: 13, fontWeight: "700", marginBottom: 7, marginTop: 12 }, hintText: { color: colors.muted, fontSize: 11, lineHeight: 16, marginBottom: 8, marginTop: -4 }, input: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 12, borderWidth: 1, color: colors.foreground, fontFamily: mono, fontSize: 16, minHeight: 48, paddingHorizontal: 14 }, error: { color: colors.error, fontSize: 13, lineHeight: 19, marginTop: 11 }, saveButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 13, marginTop: 22, minHeight: 52, justifyContent: "center" }, saveText: { color: colors.onPrimary, fontSize: 16, fontWeight: "700" },
-  sectionChip: { backgroundColor: colors.surfaceSecondary, borderRadius: 14, paddingHorizontal: 11, paddingVertical: 8 }, sectionChipActive: { backgroundColor: colors.primaryFill }, sectionChipText: { color: colors.muted, fontSize: 12, fontWeight: "700" }, sectionChipTextActive: { color: colors.onPrimary },
-  categoryPicker: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
-  sectionChipExpanded: { backgroundColor: colors.primarySurface },
-  sectionChipExpandedText: { color: colors.primary },
-  // サブカテゴリ行。少し右にインデントし、上に余白を足して親カテゴリの下位であることを視覚的に示す。
-  categoryPickerChild: { borderLeftColor: colors.border, borderLeftWidth: 2, flexDirection: "row", flexWrap: "wrap", gap: 7, marginLeft: 6, marginTop: 8, paddingLeft: 8 },
+  // カテゴリの選択行（折りたたみ時）。入力欄（input）と同じ枠・同じ高さにして、
+  // 「タイトル」「説明」と並んだときに1つのフォーム項目として読めるようにする。
+  categoryValueRow: { alignItems: "center", backgroundColor: colors.background, borderColor: colors.border, borderRadius: 12, borderWidth: 1, flexDirection: "row", gap: 9, minHeight: 48, paddingHorizontal: 14 },
+  categoryValueRowOpen: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderColor: colors.primaryBorder },
+  categoryValueCopy: { flex: 1, gap: 1, paddingVertical: 6 },
+  categoryValueParent: { color: colors.muted, fontSize: 11, fontWeight: "700" },
+  categoryValueText: { color: colors.foreground, fontSize: 14, fontWeight: "600" },
+  // 展開したリスト。選択行と地続きに見えるよう上の角だけ落とし、枠線を1本に見せる。
+  categoryList: { backgroundColor: colors.surface, borderBottomLeftRadius: 12, borderBottomRightRadius: 12, borderColor: colors.primaryBorder, borderTopWidth: 0, borderWidth: 1, overflow: "hidden" },
+  categoryListRow: { alignItems: "center", borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row", gap: 9, minHeight: 44, paddingHorizontal: 14 },
+  categoryListRowPressed: { backgroundColor: colors.surfaceSecondary },
+  // サブカテゴリの行は少し右へ寄せ、親の下位であることを示す。
+  categoryListChildRow: { paddingLeft: 26 },
+  categoryListLabel: { color: colors.foreground, flex: 1, fontSize: 14 },
+  categoryListLabelActive: { color: colors.primary, fontWeight: "700" },
+  categoryListBackLabel: { color: colors.primary, flex: 1, fontSize: 13, fontWeight: "700" },
+  categoryListAddLabel: { color: colors.primary, flex: 1, fontSize: 14, fontWeight: "700" },
   inlineCategoryRow: { flexDirection: "row", gap: 8, marginTop: 8 },
   inlineCategoryInput: { flex: 1, minHeight: 44 },
   inlineCategoryButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 10, justifyContent: "center", paddingHorizontal: 16 },
