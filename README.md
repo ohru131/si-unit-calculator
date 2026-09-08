@@ -1,4 +1,4 @@
-# 単位付き電卓 (Unit Calculator)
+# UnitCalc（単位付き電卓）
 
 単位を含む式（例: `5cm + 1mm`）をそのまま計算し、SI基底単位への正規化結果と、任意の出力単位への換算結果を同時に確認できる電卓アプリです。Expo (React Native) 製で、iOS / Android / Web で動作します。
 
