@@ -48,13 +48,13 @@ fr は**各段階で単位を保つ**という教育現場の言い回し、es �
 
 ## 詳しい説明（Full description、上限4,000字）
 
-### English（3,836字）
+### English（3,859字）
 
 ```
 Type 12V/4.7kΩ and read 2.55 mA. Type 3m + 2kg and it tells you that a length and a mass cannot be added. Unit Calculator is a dimensional calculator and unit converter in one: it normalizes every value to SI base units before calculating, checks that the dimensions actually match, then converts the result into any compatible unit.
 
 WHAT MAKES IT DIFFERENT
-• Real-time calculation with automatic SI normalization and dimension checking, right as you type.
+• Real-time dimensional analysis as you type: every value is normalized to SI and the dimensions are checked as you type.
 • Read any result as an exact value instead of a rounded decimal: tap Exact and 1/3 stays 1/3, 2*pi*50 becomes 100π, and sqrt(8) becomes 2√2 — typeset as a real fraction or radical, and copied exactly as shown.
 • Compare one result across every compatible unit at a glance, in the same order as the unit chips you already know.
 • Define your own units, either as a simple multiple (2shaku = 0.606m) or as a formula (for offset units like temperature scales).
@@ -323,19 +323,42 @@ Unit Calculator est conçue pour les lycéens et lycéennes en physique-chimie, 
 Google Play に iOS のようなキーワード欄は無く、**タイトル・短い説明・詳しい説明の語がそのまま検索対象**になる。
 そのため「英語のキーワードを訳したもの」を並べても、その言語で実際に打たれている語から外れる。
 以下は言語ごとに**その言語で検索されている形**を優先して並べたもの（`docs/target-users-by-locale-2026-09.md` 第4節）。
-**Google Play はキーワード欄ではなく本文の語で引くので、表を作るだけでは効かない。** 太字の第一検索語は、
-上の詳しい説明の冒頭に地の文として実際に入れてある（機械的なテストが無いので、掲載文を書き換えたらこの表と本文を突き合わせること）。
+**Google Play はキーワード欄ではなく本文の語で引くので、表を作るだけでは効かない。**
+`docs/android-submission-checklist.md` の手順でこのファイルをPlay Consoleへコピーすると、本文の語がそのまま検索対象になる。
+そのため**表と本文が食い違っていると、狙った語で引けないのに引けているつもりになる**
+（実際に一度、表に `dimensional analysis` と書いてあるのに英語本文に無く、日本語も表の `単位 電卓` と
+本文の `単位付き電卓` が一致していなかった。CodeRabbitが検出）。
 
-| 言語 | 中心となる語 | 併せて入れる語 |
+**第一検索語**は本文に**必ずその並びで**入れる（下の照合コマンドで確認できる）。
+**その他の検索語**は狙ってはいるが本文に無くてよい欄で、そもそも本文に書けないものも混ざる
+（独語の `Einheiten umrechnen` は文中では分離動詞になる。日本語の `単位 電卓` は分かち書きの検索形で、
+本文では両方の語を含む `単位付き電卓` で受ける）。**この2列を混ぜないこと。**
+
+| 言語 | 第一検索語（本文に必ず入れる） | その他の検索語（本文に無くてよい） |
 |---|---|---|
-| en | unit calculator, unit converter, dimensional analysis | SI units, engineering calculator, physics calculator, FE exam, metric conversion |
-| ja | 単位 電卓, 単位変換, 単位計算 | SI単位, 電験三種, 電気工事士, 換算, 物理 計算 |
-| de | **Einheitenrechner**, Einheiten umrechnen, Einheitenumrechner | Maßeinheiten, Zehnerpotenzen, Vorsatzzeichen, Physik Rechner, Klausur |
-| fr | **convertisseur d'unités**, calculatrice d'unités, conversion d'unités | unités SI, physique-chimie, calculatrice scientifique, lycée |
-| es | **calculadora con unidades**, conversor de unidades, cambio de unidades | factores de conversión, unidades SI, física, EBAU |
-| pt-BR | **calculadora de unidades**, conversor de unidades, conversão de unidades | unidades SI, física, ENEM, cálculo com unidades |
+| en | **unit calculator** | unit converter, dimensional analysis, SI units, engineering calculator, physics calculator, FE exam, metric conversion |
+| ja | **単位変換** | 単位 電卓, 単位計算, SI単位, 電験三種, 電気工事士, 換算, 物理 計算 |
+| de | **Einheitenrechner** | Einheiten umrechnen, Einheitenumrechner, Maßeinheiten, Zehnerpotenzen, Vorsatzzeichen, Physik Rechner, Klausur |
+| fr | **convertisseur d'unités** | calculatrice d'unités, conversion d'unités, unités SI, physique-chimie, calculatrice scientifique, lycée |
+| es | **calculadora con unidades** | conversor de unidades, cambio de unidades, factores de conversión, unidades SI, física, EBAU |
+| pt-BR | **calculadora de unidades** | conversor de unidades, conversão de unidades, unidades SI, física, ENEM, cálculo com unidades |
 
-太字は第4節で名指しした「その言語の第一検索語」。**`unit converter` の直訳を各言語に置くのはやめる**こと。
+掲載文を書き換えたら、第一検索語が本文に残っているかをこれで照合する（機械的なテストは無い）:
+
+```bash
+python3 - <<'EOF'
+import re
+src = open("docs/store-listing-copy.md", encoding="utf-8").read()
+bodies = {m[0]: m[1] for m in re.findall(r"### ([^\n（]+)（[\d,]+字）\n\n```\n(.*?)\n```", src, re.S)}
+LEAD = {"English": "unit calculator", "日本語": "単位変換", "Deutsch": "Einheitenrechner",
+        "Français": "convertisseur d'unités", "Español": "calculadora con unidades",
+        "Português (Brasil)": "calculadora de unidades"}
+for name, term in LEAD.items():
+    print(f"{name:20s} {len(bodies[name]):5d}字 {'OK' if term.lower() in bodies[name].lower() else 'MISSING'} {term}")
+EOF
+```
+
+**`unit converter` の直訳を各言語の第一検索語に置くのはやめること。**
 独語の `Einheitenrechner`（単位で計算する電卓）と `Umrechner`（換算器）は意味が違い、当アプリは前者に当たる。
 西語の `calculadora con unidades` も「単位付きで計算する」側の語で、`conversor` とは別の意図の検索。
 

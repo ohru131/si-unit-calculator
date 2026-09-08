@@ -218,6 +218,30 @@ describe("電気の地域表と金額の通貨表のずれ", () => {
     expect(missing).toEqual([]);
   });
 
+  it("通貨だけで電気も解決できる（金額と電圧の根拠が食い違わない）", () => {
+    // regionCode が読めず currencyCode だけ取れる端末では、金額は通貨表から出るのに
+    // 電気は言語推測に落ちる、という食い違いが起きうる。**その通貨を使うどの国も同じ
+    // 電気プロファイルに解決されるなら、通貨だけでも言語に関係なくその値になるべき**。
+    // 実際に CAD を金額表にだけ足したため、英語UIでは米国の120V/20A、西語UIの中南米通貨では
+    // 230Vに落ちていた（CodeRabbitが検出）。
+    const regionsByCurrency = new Map<string, string[]>();
+    for (const [region, currency] of Object.entries(CURRENCY_BY_REGION)) {
+      regionsByCurrency.set(currency, [...(regionsByCurrency.get(currency) ?? []), region]);
+    }
+    for (const [currency, regions] of regionsByCurrency) {
+      // 地域から解決した結果で比べる（表に無い地域は既定の230V/16Aになるので、それも含めて見る）。
+      const resolved = regions.map((region) => resolvePresetElectricalProfile(null, region, "en"));
+      const distinct = new Map(resolved.map((profile) => [`${profile.mainsVoltage}/${profile.breakerCurrent}`, profile]));
+      // 通貨圏の中で割れているもの（EURは大陸が230V/16A・アイルランドだけリングファイナルの32A）は
+      // 通貨から一意に決められない。この場合は地域が読めたときだけ正しくなるので対象外。
+      if (distinct.size !== 1) continue;
+      const [expected] = distinct.values();
+      for (const language of APP_LANGUAGES) {
+        expect(resolvePresetElectricalProfile(currency, null, language), `${currency}/${language}`).toEqual(expected);
+      }
+    }
+  });
+
   it("追加した中南米・台湾・カナダは、通貨コードが取れないWebでも地域だけで自国通貨になる", () => {
     // expo-localization の web 実装では currencyCode が常に null になるため、
     // 地域コードだけで解決できることがそのまま「Webで正しく出るか」の確認になる。

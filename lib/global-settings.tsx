@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Localization from "expo-localization";
-import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppLanguage, isAppLanguage, LANGUAGE_META, resolveDeviceLanguage } from "@/lib/i18n";
 import { UNIT_GROUP_NAMES } from "@/lib/unit-group-names";
@@ -639,18 +639,29 @@ export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
   const [isReady, setIsReady] = useState(false);
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
 
+  // 利用者が明示的に選んだ設定を覚えておく。このeffectは端末のロケールが変わると
+  // 再実行されるが、そのとき AsyncStorage を読み終わるまでの間に**選択済みの規格を
+  // ロケール既定値で上書きしてはいけない**（`applyMeasuringStandard` は lib/units.ts の
+  // 可変状態を即座に書き換えるので、その隙間に 1cup の量が変わってしまう）。
+  const storedPreferencesRef = useRef<{ unitSystem: UnitSystem | null; measuringStandard: MeasuringStandard | null }>({ unitSystem: null, measuringStandard: null });
+
   useEffect(() => {
     // lib/units.ts はモジュール内の可変状態でcup/tbsp/tspの値を持つため、Reactのstateより先に
     // （同じ関数の中で）反映させる。useEffectの依存配列経由で追従させると1回分遅れて反映される。
-    applyMeasuringStandard(resolveDefaultMeasuringStandard(deviceLocale, defaultLanguage));
+    applyMeasuringStandard(storedPreferencesRef.current.measuringStandard ?? resolveDefaultMeasuringStandard(deviceLocale, defaultLanguage));
 
     Promise.all([AsyncStorage.getItem(LANGUAGE_KEY), AsyncStorage.getItem(UNIT_SYSTEM_KEY), AsyncStorage.getItem(ONBOARDING_SEEN_KEY), AsyncStorage.getItem(MEASURING_STANDARD_KEY)])
       .then(([storedLanguage, storedUnitSystem, storedOnboardingSeen, storedMeasuringStandard]) => {
         const resolvedLanguage = isAppLanguage(storedLanguage) ? storedLanguage : defaultLanguage;
         if (isAppLanguage(storedLanguage)) setLanguageState(storedLanguage);
-        if (storedUnitSystem === "metric" || storedUnitSystem === "us" || storedUnitSystem === "uk") setUnitSystemState(storedUnitSystem);
         if (storedOnboardingSeen === "true") setHasSeenOnboarding(true);
-        const resolvedStandard = isMeasuringStandard(storedMeasuringStandard) ? storedMeasuringStandard : resolveDefaultMeasuringStandard(deviceLocale, resolvedLanguage);
+        const savedUnitSystem = storedUnitSystem === "metric" || storedUnitSystem === "us" || storedUnitSystem === "uk" ? storedUnitSystem : null;
+        const savedStandard = isMeasuringStandard(storedMeasuringStandard) ? storedMeasuringStandard : null;
+        storedPreferencesRef.current = { unitSystem: savedUnitSystem, measuringStandard: savedStandard };
+        // **保存値が無いときも必ずstateを更新する。** useStateの初期値関数は初回しか走らないので、
+        // ここで else を省くと端末のロケールが変わっても前の unitSystem が残ってしまう。
+        setUnitSystemState(savedUnitSystem ?? resolveDefaultUnitSystem(deviceLocale));
+        const resolvedStandard = savedStandard ?? resolveDefaultMeasuringStandard(deviceLocale, resolvedLanguage);
         applyMeasuringStandard(resolvedStandard);
         setMeasuringStandardState(resolvedStandard);
       })
@@ -665,12 +676,16 @@ export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
 
   const setUnitSystem = useCallback(async (nextSystem: UnitSystem) => {
     setUnitSystemState(nextSystem);
+    // refも同時に更新する。ここを忘れると、設定を変えたあとに端末のロケールが変わったとき
+    // 上のeffectが「保存値なし」と判断してロケール既定値へ戻してしまう。
+    storedPreferencesRef.current = { ...storedPreferencesRef.current, unitSystem: nextSystem };
     await AsyncStorage.setItem(UNIT_SYSTEM_KEY, nextSystem);
   }, []);
 
   const setMeasuringStandard = useCallback(async (nextStandard: MeasuringStandard) => {
     applyMeasuringStandard(nextStandard);
     setMeasuringStandardState(nextStandard);
+    storedPreferencesRef.current = { ...storedPreferencesRef.current, measuringStandard: nextStandard };
     await AsyncStorage.setItem(MEASURING_STANDARD_KEY, nextStandard);
   }, []);
 

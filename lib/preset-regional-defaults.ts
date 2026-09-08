@@ -167,12 +167,26 @@ export const ELECTRICAL_PROFILE_BY_REGION: Record<string, PresetElectricalProfil
 
 // 地域が分からないときの当て。通貨は地域よりは粗いが、JPY・USD・BRL・MXNは
 // 電圧圏がはっきりしているので手掛かりになる（EUR・GBPは既定の230Vと同じなので置かない）。
+// 地域が読めないときの保険。**通貨表（PRESET_PRICE_PROFILES）に足した通貨は、その通貨が
+// 1つの国しか指さないならここにも足す**。片方だけ足すと「金額はカナダドルなのに電圧は
+// 言語推測」という食い違いが生まれる（CAD を足したのに electrical が無く、英語UIでは
+// 米国の120V/20A、西語UIの中南米通貨では230Vに落ちていた。CodeRabbitが検出）。
+// EUR はユーロ圏21カ国＋αを指すので1対1にならないが、どの国も230Vなので既定値で正しい。
+// 対応の欠けは tests/preset-regional-defaults.test.ts が CURRENCY_BY_REGION から機械的に検出する。
 const ELECTRICAL_PROFILE_BY_CURRENCY: Record<string, PresetElectricalProfile> = {
   JPY: ELECTRICAL_PROFILE_BY_REGION.JP,
   USD: ELECTRICAL_PROFILE_BY_REGION.US,
   BRL: ELECTRICAL_PROFILE_BY_REGION.BR,
   MXN: ELECTRICAL_PROFILE_BY_REGION.MX,
   GBP: ELECTRICAL_PROFILE_BY_REGION.GB,
+  CAD: ELECTRICAL_PROFILE_BY_REGION.CA,
+  COP: ELECTRICAL_PROFILE_BY_REGION.CO,
+  CRC: ELECTRICAL_PROFILE_BY_REGION.CR,
+  DOP: ELECTRICAL_PROFILE_BY_REGION.DO,
+  GTQ: ELECTRICAL_PROFILE_BY_REGION.GT,
+  HNL: ELECTRICAL_PROFILE_BY_REGION.HN,
+  NIO: ELECTRICAL_PROFILE_BY_REGION.NI,
+  TWD: ELECTRICAL_PROFILE_BY_REGION.TW,
 };
 
 // 地域も通貨も分からないときの最後の当て。金額側のFALLBACK_CURRENCY_BY_LANGUAGEと
