@@ -139,7 +139,7 @@ const showClosingCard = (page) =>
     if (!el) return;
     el.innerHTML =
       '<div style="font-size:76px;font-weight:800;line-height:1">&#x3A3;</div>' +
-      '<div style="font-size:30px;font-weight:800">Unit&nbsp;Calculator</div>' +
+      '<div style="font-size:30px;font-weight:800">UnitCalc</div>' +
       '<div style="font-size:16px;font-weight:600;color:#4A6472">Calculate with confidence,<br>in any compatible unit.</div>';
     el.style.display = "flex";
   }, COVER_ID);
