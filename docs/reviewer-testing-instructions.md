@@ -21,7 +21,7 @@ Everything below is available with no purchase:
   - `atan(1)` → π/4
   - By design the chips **do not appear** when the answer is already a whole number — try `3+5` to confirm nothing is added (the app never shows a toggle that would do nothing).
   - Copying the result while `Exact` is selected copies the same notation you see on screen, not the decimal.
-- Open the Library tab to browse **184 preset formula notebooks** in nine top-level categories — School science, High school physics, Chemistry stoichiometry, Astronomy & space, Electricity & energy, Hobbies & making, Home & everyday life, Physics of cars & bicycles, and Mechanical & structural design (38 categories in total, counting sub-categories) — each rendered with real typeset math. Tapping a notebook opens it on the Notebooks tab.
+- Open the Library tab to browse **194 preset formula notebooks** in nine top-level categories — School science, High school physics, Chemistry stoichiometry, Astronomy & space, Electricity & energy, Hobbies & making, Home & everyday life, Physics of cars & bicycles, and Mechanical & structural design (38 categories in total, counting sub-categories) — each rendered with real typeset math. Tapping a notebook opens it on the Notebooks tab.
 - **Searching the notebooks.** The Library tab has a search field ("Search all notebooks") above the list. It matches titles, descriptions **and category names** across the whole two-level hierarchy, so you do not have to remember where a notebook lives. Things to try:
   - `photography` — returns the 7 notebooks of the Photography category even though none of them has that word in its title (category-name matching).
   - `torque`, `coffee`, `solar` — each returns matches pulled from several different categories at once.

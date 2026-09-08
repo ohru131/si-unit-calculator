@@ -362,6 +362,14 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - `npx expo lint` → **2エラー・0警告**（`app/(tabs)/index.tsx` の既存分のまま）。
 - **`vitest.config.ts` を追加してある。** `@/lib/units` のような `@/` の**実行時import**（型だけのimportと違う）を解決するため。これが無いとテストから `lib/locale-defaults.ts` を読めない。
 
+28. **[完了]** **Google Playの掲載文とストア画像を、言語ごとのターゲットに合わせて作り直した**（単純翻訳をやめる方針の続き）。
+    - **掲載文（`docs/store-listing-copy.md`）**: 件数を194件に直し、各言語の「誰向けか」の段落で**新しく足したノートを名指し**した（独=Spannungsfall と Leiterquerschnitt・Übersetzungsverhältnis・Wirkungsgrad、日=電圧降下と電線の太さ・変圧器の巻数比・モーターの効率、西=EBAU の campo eléctrico と FP の caída de voltaje、葡=ENEM の campo elétrico と NR-10 の queda de tensão、仏=lycée の champ électrique と Bac Pro MELEC の chute de tension、英=voltage drop / transformer / motor efficiency）。
+    - **詳しい説明は4,000字上限に張り付いている**（es 3,995 / de 3,995 / fr 3,987 / pt-BR 3,952）。**足すなら同じ量を先に削ること。** 今回削ったのはカテゴリ一覧の括弧内の小分類と、地域別既定値の列挙、機能の箇条の冗長な補足節。文字数は `docs/store-listing-copy.md` のヘッダー表記と本文を必ず突き合わせる（Pythonの `len()` で測る）。
+    - **スクリーンショットを6言語ぶん撮るようにした**（`scripts/capture-submission-assets.mjs`。以前は日英だけ撮って他4言語に英語版を流用していた）。**画像は翻訳ではなく、言語ごとに写すノート・サンプルを変える**: `NOTEBOOK_TARGETS` と `LABELS[].examCategory` / `searchQuery` がその情報源。カット `14-exam-samples`（サンプルのタブがその国の試験名で出る）と `15-prefix-cancel`（`4.7kΩ × 2mA` → `9.4 V`）を追加した。**言語を足すときは `LABELS` と `NOTEBOOK_TARGETS` の両方に足すこと**（前者だけだとノート系カットが黙って落ちる）。
+    - **フィーチャーグラフィックを6言語ぶん生成する `scripts/generate-feature-graphic.mjs` を追加**。旧 `play-feature-graphic-1024x500.png` は英語1枚きりで、**生成スクリプトが残っていなかったため旧アイコン（m²）と旧件数（112）のまま凍結**していた（誰も直せない状態だった）。新スクリプトはアイコンを `assets/images/icon.png` から読み、件数を `NOTEBOOK_COUNT` の1箇所に置いている。
+    - **この環境のCJKフォントは IPAGothic（ボールド無し）しかない**ので、日本語の見出しは `-webkit-text-stroke` で太字相当にしている。Android実機（Noto Sans CJK）で撮り直すときはこの補正は要らない。
+    - Playへ上げる8枚の順は言語ごとに変えてある（`submission-assets/README.md`）。**独語・日本語は接頭語の打ち消しと次元エラーを先頭**（桁を落とす痛みが言語化されている層）、**西語は次元エラーが先頭**（減点が採点基準に明文化されている）、**英・仏・葡は基本の単位付き計算から**。
+
 ### 現在の基準値（2026-09-08時点、サンプル・ノートを言語ごとの関連度順にした後）
 
 - `npx tsc --noEmit` → **`app/(tabs)/constants.tsx` の `"/notebook"` ルート型で2件のみ**（上と同じ既存分）。
