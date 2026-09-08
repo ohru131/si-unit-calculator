@@ -179,8 +179,9 @@ describe("buildNotebookExportModel", () => {
       unitOverrides: {},
       measuringStandard: "jis",
     });
-    expect(en.steps[0]).toEqual({ title: "5m+3kg", expression: "5m+3kg", resultText: "Only values with the same dimension can be added or subtracted.", isError: true });
-    expect(ja.steps[0]).toEqual({ title: "5m+3kg", expression: "5m+3kg", resultText: "加算・減算できるのは同じ次元の値だけです。", isError: true });
+    // 2026-09: 次元不一致のエラーは両辺の量の名前を添える形になった（tests/calculator-diagnosis.test.ts）。
+    expect(en.steps[0]).toEqual({ title: "5m+3kg", expression: "5m+3kg", resultText: "Cannot add or subtract Length (m) and Mass (kg). Only values with the same dimension can be combined.", isError: true });
+    expect(ja.steps[0]).toEqual({ title: "5m+3kg", expression: "5m+3kg", resultText: "長さ (m) と 質量 (kg) は足し引きできません。加算・減算できるのは同じ次元の値だけです。", isError: true });
   });
 
   it("ローカル定数は name=expression の1行としてconstantsに出る", () => {

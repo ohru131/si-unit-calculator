@@ -3,6 +3,7 @@ import * as Localization from "expo-localization";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { AppLanguage, isAppLanguage, LANGUAGE_META, resolveDeviceLanguage } from "@/lib/i18n";
+import { UNIT_GROUP_NAMES } from "@/lib/unit-group-names";
 import { MeasuringStandard, setMeasuringStandard as applyMeasuringStandard, UnitSystem } from "@/lib/units";
 
 // AppLanguage の唯一の定義は lib/i18n.ts。既存のimport元（他ファイルが
@@ -599,26 +600,8 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
 // lib/units.ts の BASE_UNIT_GROUPS（18グループ）と1対1で揃える必要がある。
 // キーが欠けると unitGroupLabel が生の group id をそのままUIに出してしまう
 // （実際に amount が抜けていて "amount" という文字列が表示されるバグがあった）。
-const GROUP_NAMES: Record<string, Record<AppLanguage, string>> = {
-  length: { en: "Length", ja: "長さ", es: "Longitud", "pt-BR": "Comprimento", de: "Länge", fr: "Longueur" },
-  area: { en: "Area", ja: "面積", es: "Área", "pt-BR": "Área", de: "Fläche", fr: "Superficie" },
-  volume: { en: "Volume", ja: "体積", es: "Volumen", "pt-BR": "Volume", de: "Volumen", fr: "Volume" },
-  time: { en: "Time", ja: "時間", es: "Tiempo", "pt-BR": "Tempo", de: "Zeit", fr: "Temps" },
-  mass: { en: "Mass", ja: "質量", es: "Masa", "pt-BR": "Massa", de: "Masse", fr: "Masse" },
-  temperature: { en: "Temperature", ja: "温度", es: "Temperatura", "pt-BR": "Temperatura", de: "Temperatur", fr: "Température" },
-  velocity: { en: "Speed", ja: "速度", es: "Velocidad", "pt-BR": "Velocidade", de: "Geschwindigkeit", fr: "Vitesse" },
-  acceleration: { en: "Acceleration", ja: "加速度", es: "Aceleración", "pt-BR": "Aceleração", de: "Beschleunigung", fr: "Accélération" },
-  force: { en: "Force", ja: "力", es: "Fuerza", "pt-BR": "Força", de: "Kraft", fr: "Force" },
-  pressure: { en: "Pressure", ja: "圧力", es: "Presión", "pt-BR": "Pressão", de: "Druck", fr: "Pression" },
-  energy: { en: "Energy", ja: "エネルギー", es: "Energía", "pt-BR": "Energia", de: "Energie", fr: "Énergie" },
-  power: { en: "Power", ja: "電力", es: "Potencia", "pt-BR": "Potência", de: "Leistung", fr: "Puissance" },
-  current: { en: "Current", ja: "電流", es: "Corriente", "pt-BR": "Corrente", de: "Stromstärke", fr: "Courant" },
-  voltage: { en: "Voltage", ja: "電圧", es: "Voltaje", "pt-BR": "Tensão", de: "Spannung", fr: "Tension" },
-  frequency: { en: "Frequency", ja: "周波数", es: "Frecuencia", "pt-BR": "Frequência", de: "Frequenz", fr: "Fréquence" },
-  angle: { en: "Angle", ja: "角度", es: "Ángulo", "pt-BR": "Ângulo", de: "Winkel", fr: "Angle" },
-  ratio: { en: "Ratio", ja: "割合・無次元", es: "Proporción", "pt-BR": "Razão", de: "Verhältnis", fr: "Rapport" },
-  amount: { en: "Amount of substance", ja: "物質量", es: "Cantidad de sustancia", "pt-BR": "Quantidade de matéria", de: "Stoffmenge", fr: "Quantité de matière" },
-};
+// 単位グループの表示名は lib/unit-group-names.ts に移した（エラーメッセージからも参照するため）。
+const GROUP_NAMES = UNIT_GROUP_NAMES;
 
 const GlobalSettingsContext = createContext<GlobalSettings | null>(null);
 

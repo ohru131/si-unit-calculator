@@ -2,6 +2,7 @@
 // 現在のUI言語を知り得ない。そこでエラーは「種類を表すコード」+「埋め込みパラメータ」だけを持たせ、
 // 表示側（UIコンポーネント）が現在の言語でメッセージを解決する構造にする。
 import { type AppLanguage, type LocalizedText, resolveDeviceLanguage } from "./i18n";
+import { unitGroupName } from "./unit-group-names";
 
 export type UnitErrorCode =
   | "unsupportedUnit"
@@ -55,6 +56,23 @@ export class UnitError extends Error {
   }
 }
 
+// 次元不一致の両辺を「長さ (m)」「質量 (kg)」のように言葉にする。エンジンは言語を知らないので
+// グループ id と SI 表記だけをパラメータに載せてくる（lib/units.ts の describeDimension）。
+// グループ名が引けない合成次元（N·m²/C² など）は SI 表記だけを出す。旧形式のエラー
+// （パラメータ無し）は null を返し、呼び出し側が従来の一般文言へフォールバックする。
+function describeMismatchSides(params: UnitErrorParams, language: AppLanguage): { left: string; right: string } | null {
+  const leftDimension = params.leftDimension;
+  const rightDimension = params.rightDimension;
+  if (typeof leftDimension !== "string" || typeof rightDimension !== "string") return null;
+  const describe = (group: string | number | undefined, dimension: string) => {
+    const name = typeof group === "string" && group ? unitGroupName(group, language) : undefined;
+    if (group === "dimensionless") return name ?? dimension;
+    if (!name) return dimension;
+    return `${name} (${dimension})`;
+  };
+  return { left: describe(params.leftGroup, leftDimension), right: describe(params.rightGroup, rightDimension) };
+}
+
 type UnitErrorMessageCatalog = Record<UnitErrorCode, (params: UnitErrorParams) => string>;
 
 const UNIT_ERROR_MESSAGES: Record<AppLanguage, UnitErrorMessageCatalog> = {
@@ -63,7 +81,12 @@ const UNIT_ERROR_MESSAGES: Record<AppLanguage, UnitErrorMessageCatalog> = {
     unparsableUnitFormat: ({ input }) => `Could not parse the format of unit "${input}".`,
     temperatureUnitStandalone: () => "Enter Celsius or Fahrenheit as a standalone temperature value.",
     nonFiniteNumber: () => "Enter a finite number.",
-    dimensionMismatchAddSubtract: () => "Only values with the same dimension can be added or subtracted.",
+    dimensionMismatchAddSubtract: (params) => {
+      const sides = describeMismatchSides(params, "en");
+      if (!sides) return "Only values with the same dimension can be added or subtracted.";
+      const { left, right } = sides;
+      return `Cannot add or subtract ${left} and ${right}. Only values with the same dimension can be combined.`;
+    },
     divideByZero: () => "Cannot divide by zero.",
     exponentMustBeDimensionless: () => "The exponent must be a dimensionless value.",
     exponentMustBeFinite: () => "The exponent must be a finite number.",
@@ -98,7 +121,12 @@ const UNIT_ERROR_MESSAGES: Record<AppLanguage, UnitErrorMessageCatalog> = {
     unparsableUnitFormat: ({ input }) => `単位「${input}」の書式を解釈できません。`,
     temperatureUnitStandalone: () => "摂氏・華氏は単独の温度値として入力してください。",
     nonFiniteNumber: () => "有限の数値を入力してください。",
-    dimensionMismatchAddSubtract: () => "加算・減算できるのは同じ次元の値だけです。",
+    dimensionMismatchAddSubtract: (params) => {
+      const sides = describeMismatchSides(params, "ja");
+      if (!sides) return "加算・減算できるのは同じ次元の値だけです。";
+      const { left, right } = sides;
+      return `${left} と ${right} は足し引きできません。加算・減算できるのは同じ次元の値だけです。`;
+    },
     divideByZero: () => "0では割れません。",
     exponentMustBeDimensionless: () => "べき指数は無次元の値にしてください。",
     exponentMustBeFinite: () => "べき指数は有限の数値にしてください。",
@@ -133,7 +161,12 @@ const UNIT_ERROR_MESSAGES: Record<AppLanguage, UnitErrorMessageCatalog> = {
     unparsableUnitFormat: ({ input }) => `No se pudo interpretar el formato de la unidad "${input}".`,
     temperatureUnitStandalone: () => "Introduce los grados Celsius o Fahrenheit como un valor de temperatura independiente.",
     nonFiniteNumber: () => "Introduce un número finito.",
-    dimensionMismatchAddSubtract: () => "Solo se pueden sumar o restar valores con la misma dimensión.",
+    dimensionMismatchAddSubtract: (params) => {
+      const sides = describeMismatchSides(params, "es");
+      if (!sides) return "Solo se pueden sumar o restar valores con la misma dimensión.";
+      const { left, right } = sides;
+      return `No se puede sumar ni restar ${left} y ${right}. Solo se combinan valores con la misma dimensión.`;
+    },
     divideByZero: () => "No se puede dividir entre cero.",
     exponentMustBeDimensionless: () => "El exponente debe ser un valor adimensional.",
     exponentMustBeFinite: () => "El exponente debe ser un número finito.",
@@ -168,7 +201,12 @@ const UNIT_ERROR_MESSAGES: Record<AppLanguage, UnitErrorMessageCatalog> = {
     unparsableUnitFormat: ({ input }) => `Não foi possível interpretar o formato da unidade "${input}".`,
     temperatureUnitStandalone: () => "Informe Celsius ou Fahrenheit como um valor de temperatura isolado.",
     nonFiniteNumber: () => "Informe um número finito.",
-    dimensionMismatchAddSubtract: () => "Só é possível somar ou subtrair valores com a mesma dimensão.",
+    dimensionMismatchAddSubtract: (params) => {
+      const sides = describeMismatchSides(params, "pt-BR");
+      if (!sides) return "Só é possível somar ou subtrair valores com a mesma dimensão.";
+      const { left, right } = sides;
+      return `Não é possível somar nem subtrair ${left} e ${right}. Só se combinam valores com a mesma dimensão.`;
+    },
     divideByZero: () => "Não é possível dividir por zero.",
     exponentMustBeDimensionless: () => "O expoente deve ser um valor adimensional.",
     exponentMustBeFinite: () => "O expoente deve ser um número finito.",
@@ -203,7 +241,12 @@ const UNIT_ERROR_MESSAGES: Record<AppLanguage, UnitErrorMessageCatalog> = {
     unparsableUnitFormat: ({ input }) => `Das Format der Einheit „${input}“ konnte nicht erkannt werden.`,
     temperatureUnitStandalone: () => "Gib Celsius oder Fahrenheit als eigenständigen Temperaturwert ein.",
     nonFiniteNumber: () => "Gib eine endliche Zahl ein.",
-    dimensionMismatchAddSubtract: () => "Addiert oder subtrahiert werden können nur Werte mit derselben Dimension.",
+    dimensionMismatchAddSubtract: (params) => {
+      const sides = describeMismatchSides(params, "de");
+      if (!sides) return "Addiert oder subtrahiert werden können nur Werte mit derselben Dimension.";
+      const { left, right } = sides;
+      return `${left} und ${right} können nicht addiert oder subtrahiert werden. Nur Werte mit derselben Dimension lassen sich verrechnen.`;
+    },
     divideByZero: () => "Division durch null ist nicht möglich.",
     exponentMustBeDimensionless: () => "Der Exponent muss ein dimensionsloser Wert sein.",
     exponentMustBeFinite: () => "Der Exponent muss eine endliche Zahl sein.",
@@ -238,7 +281,12 @@ const UNIT_ERROR_MESSAGES: Record<AppLanguage, UnitErrorMessageCatalog> = {
     unparsableUnitFormat: ({ input }) => `Le format de l'unité « ${input} » n'a pas pu être interprété.`,
     temperatureUnitStandalone: () => "Saisissez les degrés Celsius ou Fahrenheit comme valeur de température isolée.",
     nonFiniteNumber: () => "Saisissez un nombre fini.",
-    dimensionMismatchAddSubtract: () => "Seules des valeurs de même dimension peuvent être additionnées ou soustraites.",
+    dimensionMismatchAddSubtract: (params) => {
+      const sides = describeMismatchSides(params, "fr");
+      if (!sides) return "Seules des valeurs de même dimension peuvent être additionnées ou soustraites.";
+      const { left, right } = sides;
+      return `Impossible d'additionner ou de soustraire ${left} et ${right}. Seules des valeurs de même dimension peuvent être combinées.`;
+    },
     divideByZero: () => "Impossible de diviser par zéro.",
     exponentMustBeDimensionless: () => "L'exposant doit être une valeur sans dimension.",
     exponentMustBeFinite: () => "L'exposant doit être un nombre fini.",
