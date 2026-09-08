@@ -10,7 +10,7 @@
 | パス | 内容 |
 |---|---|
 | `screenshots/` | ストア掲載用スクリーンショット。**6言語（en / ja / es / pt-BR / de / fr）・各16枚**。すべて 1080×1800px |
-| `demo/unit-calculator-demo-en-silent.webm` | デモ動画（無音・英語字幕を焼き込み済み・**1分53秒**・1080×1800・25fps・VP8）。**アプリ名を UnitCalc に改名する前の録画で、タブバーが旧名「Unit Calculator」のまま。** 提出前に撮り直すこと（`node scripts/record-demo-video.mjs`。字幕の文言は `demo/demo-captions-en.srt` と `docs/shipaton-demo-script.md` を先に直す） |
+| `demo/unit-calculator-demo-en-silent.webm` | デモ動画（無音・英語字幕を焼き込み済み・**1分53秒**・1080×1800・25fps・VP8）。**アプリ名を UnitCalc に改名する前の録画（この `.webm` だけが古い）。** タブバーとクロージングカードが旧名「Unit Calculator」のまま。**字幕のSRT・台本・録画スクリプトはすでに UnitCalc に直してあるので、`node scripts/record-demo-video.mjs` を走らせるだけで揃う**（`dist/` を先に作ること） |
 | `demo/demo-captions-en.srt` | 同じ文言・同じ尺の字幕トラック。YouTubeに別途アップロードするとオン/オフ切替ができる |
 | `demo/caption-style-reference.png` | 字幕の位置・書式の確認用フレーム（動画の 0:28 を抜いたもの） |
 | `store/play-store-icon-512.png` | Playのストアアイコン（512×512・不透明） |

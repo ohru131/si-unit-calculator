@@ -94,8 +94,8 @@ function buildHtml(locale, iconDataUri) {
   .safe { width: ${SAFE_WIDTH}px; display: flex; align-items: center; gap: 40px; }
   .icon { width: 176px; height: 176px; border-radius: 38px; flex: none; box-shadow: 0 10px 30px rgba(0,0,0,0.28); }
   .copy { flex: 1; min-width: 0; }
-  /* タイトルは1行に収まらない言語（Calculadora de unidades）があるので折り返しを許し、
-     行間を詰めて2行でも収まるようにする。 */
+  /* タイトルは全言語 "UnitCalc" なので折り返さないが、行間の指定は残す
+     （副題を入れる形に戻した場合に2行でも収まるようにしておくため）。 */
   .title { font-size: 46px; font-weight: 800; line-height: 1.1; letter-spacing: -0.5px; }
   .headline { font-size: 24px; font-weight: 700; line-height: 1.35; margin-top: 18px; color: #C9E7F4; }
   /* この環境の CJK フォントは IPAGothic（ボールド無し）しかなく、font-weight を上げても

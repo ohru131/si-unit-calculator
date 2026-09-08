@@ -43,7 +43,7 @@ Google Play Console の文字数上限（短い説明 80字・詳しい説明 4,
 
 | 言語 | 字数 | タイトル | 副題に入れたもの |
 |---|---|---|---|
-| en | 26 | UnitCalc - UnitCalc | ASO第一検索語 `unit calculator` |
+| en | 26 | UnitCalc - Unit Calculator | ASO第一検索語 `unit calculator` |
 | ja | 21 | UnitCalc - 電験・電工の単位計算 | ターゲットの資格名（電験三種・第二種電気工事士） |
 | es | 28 | UnitCalc - Unidades y física | EBAU の física |
 | pt-BR | 28 | UnitCalc - Unidades e física | ENEM の física |
