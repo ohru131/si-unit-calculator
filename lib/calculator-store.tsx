@@ -33,6 +33,12 @@ const ACTIVE_NOTEBOOK_STORAGE_KEY = "si-unit-calculator.active-notebook.v1";
 // 対応言語全部との比較ではなく、この言語のシード文言とだけの比較に絞るために使う
 // （詳しくは resolveLocalizedField のコメントを参照）。
 const PRESETS_LANGUAGE_STORAGE_KEY = "si-unit-calculator.presets-language.v1";
+// 「地域別既定値の目印を旧データへ付け直す移行が済んだか」のフラグ。**1回きりであることを
+// フラグで保証しないと、利用者が編集して目印を外した定数を「旧データ」と誤認して付け直し、
+// 次の起動で編集内容を上書きしてしまう**（CodeRabbitが#54で検出）。
+// 「一部の定数に目印が無い」状態は正常でもあり得る（シードで regionalDefault を付けていない
+// 定数、および利用者が編集した定数）ので、データの形からは旧か新かを判定できない。
+const REGIONAL_DEFAULTS_STAMPED_STORAGE_KEY = "si-unit-calculator.regional-defaults-stamped.v1";
 
 export const UNCATEGORIZED_CATEGORY_ID = "uncategorized";
 
@@ -487,11 +493,7 @@ export function applyPresetRegionalDefaults(
   let changed = false;
 
   const nextNotebooks = notebooks.map((notebook) => {
-    // 目印を保存するようになる前に投入されたプリセットには目印が無い。まずシードから
-    // 付け直してから揃える（付け直さないと、その端末では永遠に追従しない）。
-    const stamped = stampSeedRegionalDefaults(notebook);
-    const patched = presetRegionalDefaultPatch(stamped, regionalDefaults);
-    const nextLocalConstants = patched ?? (stamped === notebook.localConstants ? null : stamped);
+    const nextLocalConstants = presetRegionalDefaultPatch(notebook.localConstants, regionalDefaults);
     if (!nextLocalConstants) return notebook;
     changed = true;
     return { ...notebook, localConstants: nextLocalConstants };
@@ -508,15 +510,30 @@ export function applyPresetRegionalDefaults(
  * （`15km/L` / `35mpg` / `42mpgUK`）では過去に入りえた全地域の値と比べる必要が出て破綻する。
  * idで引けばその推測が要らない。
  *
- * **この付け直しは1回きりで、正式リリース前の保存データだけが対象。** 目印を保存する以降は
- * 投入時に必ず付くうえ、編集時に外れるので、ここは何もしない（付いている定数は素通り）。
+ * **必ず1回きりで呼ぶこと**（`REGIONAL_DEFAULTS_STAMPED_STORAGE_KEY` で縛っている）。
+ * データの形からは旧か新かを判定できない: 「一部の定数に目印が無い」状態は正常でもあり得る
+ * （シードで `regionalDefault` を付けていない定数、そして**利用者が編集して目印が外れた定数**）。
+ * 毎回呼ぶと後者を旧データと誤認して付け直し、次の起動で利用者の編集を上書きしてしまう
+ * （CodeRabbitが#54で検出。実際に編集した `18km/L` が `35mpg` に戻る回帰テストで固定した）。
+ *
  * 引き換えに、**リリース前の端末で定数を編集していた場合その値は1回だけ既定値へ戻る**
  * （旧データには編集の記録が無いので区別できない）。正式リリース前なので許容する。
  */
+export function stampLegacyPresetRegionalDefaults(notebooks: CalculationNotebook[]): { notebooks: CalculationNotebook[]; changed: boolean } {
+  let changed = false;
+
+  const nextNotebooks = notebooks.map((notebook) => {
+    const nextLocalConstants = stampSeedRegionalDefaults(notebook);
+    if (nextLocalConstants === notebook.localConstants) return notebook;
+    changed = true;
+    return { ...notebook, localConstants: nextLocalConstants };
+  });
+
+  return { notebooks: nextNotebooks, changed };
+}
+
 function stampSeedRegionalDefaults(notebook: CalculationNotebook): NotebookLocalConstant[] {
   if (!notebook.isPreset) return notebook.localConstants;
-  // 目印が全部付いているなら何もしない（＝リリース後に投入されたデータ）。
-  if (notebook.localConstants.every((constant) => constant.regionalDefault)) return notebook.localConstants;
 
   const seeds = PRESET_NOTEBOOK_SEEDS[notebook.categoryId];
   const seedId = seedIdFromNotebookId(notebook.id, notebook.categoryId);
@@ -665,6 +682,8 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           migratedRaw,
           seededPresetsRaw,
           presetsLanguageRaw,
+          // 並び順は下の getItem と1対1で対応させること（ずれると別のキーの値が入る）。
+          regionalDefaultsStampedRaw,
           activeNotebookIdRaw,
         ] = await Promise.all([
           AsyncStorage.getItem(CONSTANTS_STORAGE_KEY),
@@ -678,6 +697,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           AsyncStorage.getItem(NOTEBOOKS_MIGRATED_STORAGE_KEY),
           AsyncStorage.getItem(NOTEBOOKS_SEEDED_PRESETS_STORAGE_KEY),
           AsyncStorage.getItem(PRESETS_LANGUAGE_STORAGE_KEY),
+          AsyncStorage.getItem(REGIONAL_DEFAULTS_STAMPED_STORAGE_KEY),
           AsyncStorage.getItem(ACTIVE_NOTEBOOK_STORAGE_KEY),
         ]);
 
@@ -749,6 +769,20 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         // 書き換えた値は触らない（所有権の判定は lib/preset-regional-sync.ts）。
         // 投入はカテゴリ単位で1回きりなので、これが無いと既存インストールには永遠に届かず、
         // 引っ越しや端末のロケール変更にも追従しない。
+        // 目印を保存するようになる前の保存データへ、シードから目印を付け直す。**1回きり。**
+        // 毎回走らせると、利用者が編集して目印を外した定数を旧データと誤認して付け直し、
+        // すぐ下の後追い反映が編集内容を上書きしてしまう（CodeRabbitが#54で検出）。
+        let markRegionalDefaultsStamped = false;
+        if (regionalDefaultsStampedRaw !== "1") {
+          const stamped = stampLegacyPresetRegionalDefaults(nextNotebooks);
+          if (stamped.changed) {
+            nextNotebooks = stamped.notebooks;
+            notebooksDirty = true;
+          }
+          // 付け直す対象が無かった場合もフラグは立てる（次回以降走らせない）。
+          markRegionalDefaultsStamped = true;
+        }
+
         {
           const withRegionalDefaults = applyPresetRegionalDefaults(nextNotebooks, regionalDefaults);
           if (withRegionalDefaults.changed) {
@@ -762,6 +796,9 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           if (markMigrated) await AsyncStorage.setItem(NOTEBOOKS_MIGRATED_STORAGE_KEY, "1");
           if (missingPresetCategories.length) await AsyncStorage.setItem(NOTEBOOKS_SEEDED_PRESETS_STORAGE_KEY, JSON.stringify(seededPresetIds));
         }
+        // ノート本体の書き込みが済んだ後に立てる（途中で失敗したときに「済」だけ残らないように、
+        // 上の markMigrated と同じ順序にしてある）。
+        if (markRegionalDefaultsStamped) await AsyncStorage.setItem(REGIONAL_DEFAULTS_STAMPED_STORAGE_KEY, "1");
         if (presetsLanguageDirty) await AsyncStorage.setItem(PRESETS_LANGUAGE_STORAGE_KEY, presetsLanguage as AppLanguage);
 
         // 保存されていたIDが指すノートがもう存在しない（削除された・別端末のバックアップを

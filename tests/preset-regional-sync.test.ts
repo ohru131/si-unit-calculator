@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { applyPresetRegionalDefaults, buildPresetNotebooksFromSeeds, type CalculationNotebook, type NotebookLocalConstant } from "../lib/calculator-store";
+import { applyPresetRegionalDefaults, buildPresetNotebooksFromSeeds, stampLegacyPresetRegionalDefaults, type CalculationNotebook, type NotebookLocalConstant } from "../lib/calculator-store";
 import { resolvePresetRegionalDefaults } from "../lib/preset-regional-defaults";
 import { presetRegionalDefaultPatch, releaseEditedRegionalDefaults } from "../lib/preset-regional-sync";
 
@@ -124,7 +124,10 @@ describe("投入したプリセットとの結び付き", () => {
     expect(fuelConstant(legacy)?.regionalDefault).toBeUndefined();
     expect(fuelConstant(legacy)?.expression).toBe("15km/L");
 
-    const { notebooks, changed } = applyPresetRegionalDefaults(legacy, US);
+    // 読み込み時と同じ順序: 付け直し（移行フラグで1回きり）→ 現在の地域へ揃える。
+    const stamped = stampLegacyPresetRegionalDefaults(legacy);
+    expect(stamped.changed).toBe(true);
+    const { notebooks, changed } = applyPresetRegionalDefaults(stamped.notebooks, US);
     expect(changed).toBe(true);
     expect(fuelConstant(notebooks)?.expression).toBe("35mpg");
     // 付け直した目印は残るので、次に地域が変わってもまた追従する。
@@ -136,13 +139,15 @@ describe("投入したプリセットとの結び付き", () => {
       ...notebook,
       localConstants: notebook.localConstants.map(({ regionalDefault: _dropped, ...rest }) => rest),
     }));
-    const { notebooks, changed } = applyPresetRegionalDefaults(legacy, JP);
+    const stamped = stampLegacyPresetRegionalDefaults(legacy);
     // 目印を書き足す必要があるので changed は true。値は据え置き。
-    expect(changed).toBe(true);
-    expect(fuelConstant(notebooks)?.expression).toBe("15km/L");
-    expect(fuelConstant(notebooks)?.regionalDefault).toBe("fuelEconomy");
-    // 2回目は何も起きない（付け直しが1回きりであることの確認）。
-    expect(applyPresetRegionalDefaults(notebooks, JP).changed).toBe(false);
+    expect(stamped.changed).toBe(true);
+    expect(fuelConstant(stamped.notebooks)?.expression).toBe("15km/L");
+    expect(fuelConstant(stamped.notebooks)?.regionalDefault).toBe("fuelEconomy");
+    // 同じ地域なので揃える側は何もしない。
+    expect(applyPresetRegionalDefaults(stamped.notebooks, JP).changed).toBe(false);
+    // もう一度付け直しても変化なし（＝フラグが無くても冪等であることの確認）。
+    expect(stampLegacyPresetRegionalDefaults(stamped.notebooks).changed).toBe(false);
   });
 
   it("旧データの付け直しは、シードで regionalDefault が付いていない定数には及ばない", () => {
@@ -151,7 +156,7 @@ describe("投入したプリセットとの結び付き", () => {
       ...notebook,
       localConstants: notebook.localConstants.map(({ regionalDefault: _dropped, ...rest }) => rest),
     }));
-    const { notebooks } = applyPresetRegionalDefaults(legacy, US);
+    const { notebooks } = applyPresetRegionalDefaults(stampLegacyPresetRegionalDefaults(legacy).notebooks, US);
     const distance = notebooks.flatMap((item) => item.localConstants).find((item) => item.symbol === "distance");
     expect(distance?.regionalDefault).toBeUndefined();
     expect(distance?.expression).toBe("300km");
@@ -172,5 +177,47 @@ describe("投入したプリセットとの結び付き", () => {
       updatedAt: "2026-01-01T00:00:00.000Z",
     };
     expect(applyPresetRegionalDefaults([own], US).changed).toBe(false);
+  });
+});
+
+describe("回帰: 利用者の編集が次回起動で消えないこと", () => {
+  it("編集で目印を外した定数が、再読み込みで再スタンプされない", () => {
+    const seeded = buildPresetNotebooksFromSeeds(["vehicles"], "ja", JP, "2026-01-01T00:00:00.000Z");
+    const target = seeded.find((notebook) => notebook.localConstants.some((item) => item.symbol === "fuelEconomy"))!;
+    // 利用者が fuelEconomy を編集して保存した状態（保存の入口で目印が外れる）
+    const edited = {
+      ...target,
+      localConstants: releaseEditedRegionalDefaults(
+        target.localConstants.map((item) => (item.symbol === "fuelEconomy" ? { ...item, expression: "18km/L" } : item)),
+        target.localConstants,
+      ),
+    };
+    const editedConstant = edited.localConstants.find((item) => item.symbol === "fuelEconomy");
+    expect(editedConstant?.regionalDefault).toBeUndefined();
+
+    // 次回起動（別の地域で開いても、利用者の値は絶対に触られてはいけない）
+    const { notebooks } = applyPresetRegionalDefaults([edited], US);
+    const after = notebooks[0].localConstants.find((item) => item.symbol === "fuelEconomy");
+    expect(after?.expression).toBe("18km/L");
+    expect(after?.regionalDefault).toBeUndefined();
+  });
+
+  it("編集済みの新形式データを付け直しに通すと編集が壊れる（だから移行フラグで1回きりに縛る）", () => {
+    // **付け直しはデータの形から旧・新を判定できない**ことの証明。編集で目印が外れた定数は
+    // 旧データの目印なしと見分けが付かないので、フラグ無しで毎回走らせると編集が消える。
+    // 読み込み時は REGIONAL_DEFAULTS_STAMPED_STORAGE_KEY で1回きりに縛ってある。
+    const seeded = buildPresetNotebooksFromSeeds(["vehicles"], "ja", JP, "2026-01-01T00:00:00.000Z");
+    const target = seeded.find((notebook) => notebook.localConstants.some((item) => item.symbol === "fuelEconomy"))!;
+    const edited = {
+      ...target,
+      localConstants: releaseEditedRegionalDefaults(
+        target.localConstants.map((item) => (item.symbol === "fuelEconomy" ? { ...item, expression: "18km/L" } : item)),
+        target.localConstants,
+      ),
+    };
+    const restamped = stampLegacyPresetRegionalDefaults([edited]);
+    expect(restamped.changed).toBe(true);
+    const back = restamped.notebooks[0].localConstants.find((item) => item.symbol === "fuelEconomy");
+    expect(back?.regionalDefault).toBe("fuelEconomy");
   });
 });
