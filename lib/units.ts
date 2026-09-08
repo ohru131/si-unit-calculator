@@ -131,7 +131,13 @@ const BASE_UNIT_GROUPS: UnitGroup[] = [
   { id: "force", label: "力", dimension: [1, 1, -2, 0, 0, 0, 0], units: [{ symbol: "N", label: "N" }, { symbol: "kN", label: "kN" }] },
   { id: "pressure", label: "圧力", dimension: [-1, 1, -2, 0, 0, 0, 0], units: [{ symbol: "Pa", label: "Pa" }, { symbol: "kPa", label: "kPa" }, { symbol: "MPa", label: "MPa" }, { symbol: "bar", label: "bar" }, { symbol: "psi", label: "psi" }, { symbol: "atm", label: "atm" }] },
   { id: "energy", label: "エネルギー", dimension: [2, 1, -2, 0, 0, 0, 0], units: [{ symbol: "J", label: "J" }, { symbol: "kJ", label: "kJ" }, { symbol: "Wh", label: "Wh" }, { symbol: "BTU", label: "BTU" }, { symbol: "cal", label: "cal" }, { symbol: "kcal", label: "kcal" }, { symbol: "eV", label: "eV" }] },
-  { id: "power", label: "電力", dimension: [2, 1, -3, 0, 0, 0, 0], units: [{ symbol: "W", label: "W" }, { symbol: "kW", label: "kW" }, { symbol: "MW", label: "MW" }, { symbol: "hp", label: "hp" }] },
+  { id: "power", label: "電力", dimension: [2, 1, -3, 0, 0, 0, 0], units: [{ symbol: "W", label: "W" }, { symbol: "kW", label: "kW" }, { symbol: "MW", label: "MW" }, { symbol: "hp", label: "hp" }, { symbol: "PS", label: "PS" }] },
+  // 燃費（走行距離÷燃料）。次元は逆面積で、既存のどのグループとも衝突しない。
+  // **逆向きの「100kmあたりの燃料」(L/100km) はグループにしない**。次元が面積と同じなので、
+  // 足すと 3m × 4m のような普通の面積計算の単位チップに L/100km が混ざる。加えて
+  // parseUnit は1因子あたり数字を許さないため "L/100km" は単位文字列として解釈できない。
+  // 欧州向けのノートは「消費量 ÷ 距離 × 100km」を L で表示する形で扱う（lib/notebook-formulas）。
+  { id: "fuelEconomy", label: "燃費", dimension: [-2, 0, 0, 0, 0, 0, 0], units: [{ symbol: "km/L", label: "km/L" }, { symbol: "mpg", label: "mpg" }, { symbol: "mpgUK", label: "mpg (imp)" }] },
   { id: "current", label: "電流", dimension: DIMENSIONS.current, units: [{ symbol: "A", label: "A" }, { symbol: "mA", label: "mA" }, { symbol: "µA", label: "µA" }] },
   { id: "voltage", label: "電圧", dimension: [2, 1, -3, -1, 0, 0, 0], units: [{ symbol: "V", label: "V" }, { symbol: "mV", label: "mV" }, { symbol: "kV", label: "kV" }] },
   { id: "frequency", label: "周波数", dimension: [0, 0, -1, 0, 0, 0, 0], units: [{ symbol: "Hz", label: "Hz" }, { symbol: "kHz", label: "kHz" }, { symbol: "MHz", label: "MHz" }, { symbol: "rpm", label: "rpm" }, { symbol: "bpm", label: "bpm" }] },
@@ -229,6 +235,12 @@ const UNIT_META: Record<string, UnitMeta> = {
   kW: { aliases: ["kilowatt", "キロワット"], name: { en: "kilowatt", ja: "キロワット", es: "kilovatio", "pt-BR": "quilowatt", de: "Kilowatt", fr: "kilowatt" } },
   MW: { aliases: ["megawatt", "メガワット"], name: { en: "megawatt", ja: "メガワット", es: "megavatio", "pt-BR": "megawatt", de: "Megawatt", fr: "mégawatt" } },
   hp: { aliases: ["horsepower", "馬力"], name: { en: "horsepower", ja: "馬力", es: "caballo de fuerza (hp, imperial)", "pt-BR": "horsepower (hp)", de: "britische Horsepower (hp)", fr: "horsepower anglais (hp)" } },
+  // 別表記に小文字（ps / cv）を入れてはいけない。ps は既にピコ秒として解決できるうえ、
+  // UNIT_META の英字の別表記は BASE_UNITS へ自動登録されるため、ピコ秒を壊す。
+  "km/L": { aliases: ["kmpl", "キロメートル毎リットル"], name: { en: "kilometer per liter", ja: "キロメートル毎リットル", es: "kilómetro por litro", "pt-BR": "quilômetro por litro", de: "Kilometer pro Liter", fr: "kilomètre par litre" } },
+  mpg: { aliases: ["mi/gal", "milespergallon", "マイル毎ガロン"], name: { en: "mile per US gallon", ja: "マイル毎米ガロン", es: "milla por galón estadounidense", "pt-BR": "milha por galão americano", de: "Meile pro US-Gallone", fr: "mile par gallon américain" } },
+  mpgUK: { aliases: ["mpgimp", "milesperimperialgallon"], name: { en: "mile per imperial gallon", ja: "マイル毎英ガロン", es: "milla por galón imperial", "pt-BR": "milha por galão imperial", de: "Meile pro britische Gallone", fr: "mile par gallon impérial" } },
+  PS: { aliases: ["CV", "Pferdestärke", "cheval-vapeur", "メートル馬力", "仏馬力"], name: { en: "metric horsepower (PS / CV)", ja: "メートル馬力（PS・仏馬力CV）", es: "caballo de vapor (CV, métrico)", "pt-BR": "cavalo-vapor (cv, métrico)", de: "Pferdestärke (PS, metrisch)", fr: "cheval-vapeur (CV, métrique)" } },
   A: { aliases: ["amp", "ampere", "amps", "アンペア"], name: { en: "ampere", ja: "アンペア", es: "amperio", "pt-BR": "ampere", de: "Ampere", fr: "ampère" } },
   mA: { aliases: ["milliamp", "milliampere", "ミリアンペア"], name: { en: "milliampere", ja: "ミリアンペア", es: "miliamperio", "pt-BR": "miliampere", de: "Milliampere", fr: "milliampère" } },
   "µA": { aliases: ["uA", "microampere", "マイクロアンペア"], name: { en: "microampere", ja: "マイクロアンペア", es: "microamperio", "pt-BR": "microampere", de: "Mikroampere", fr: "microampère" } },
@@ -253,9 +265,9 @@ const UNIT_META: Record<string, UnitMeta> = {
   eV: { aliases: ["electronvolt", "electron-volt", "電子ボルト"], name: { en: "electronvolt", ja: "電子ボルト", es: "electronvoltio", "pt-BR": "elétron-volt", de: "Elektronenvolt", fr: "électron-volt" } },
   bpm: { aliases: ["beatsperminute", "拍毎分"], name: { en: "beat per minute", ja: "心拍数", es: "latido por minuto", "pt-BR": "batimento por minuto", de: "Schlag pro Minute", fr: "battement par minute" } },
   rpm: { aliases: ["revolutionsperminute", "回転毎分"], name: { en: "revolution per minute", ja: "回転数", es: "revolución por minuto", "pt-BR": "rotação por minuto", de: "Umdrehung pro Minute", fr: "tour par minute" } },
-  cup: { aliases: ["cups", "カップ"], name: { en: "cup (US or JIS, set in Preferences)", ja: "カップ（設定で米国基準・JISを切替）", es: "taza (EE. UU. o JIS, configurable en Preferencias)", "pt-BR": "xícara (EUA ou JIS, configurável em Preferências)", de: "Tasse (US oder JIS, einstellbar unter Einstellungen)", fr: "tasse (US ou JIS, réglable dans les Préférences)" } },
-  tbsp: { aliases: ["tablespoon", "tablespoons", "大さじ"], name: { en: "tablespoon (US or JIS, set in Preferences)", ja: "大さじ（設定で米国基準・JISを切替）", es: "cucharada (EE. UU. o JIS, configurable en Preferencias)", "pt-BR": "colher de sopa (EUA ou JIS, configurável em Preferências)", de: "Esslöffel (US oder JIS, einstellbar unter Einstellungen)", fr: "cuillère à soupe (US ou JIS, réglable dans les Préférences)" } },
-  tsp: { aliases: ["teaspoon", "teaspoons", "小さじ"], name: { en: "teaspoon (US or JIS, set in Preferences)", ja: "小さじ（設定で米国基準・JISを切替）", es: "cucharadita (EE. UU. o JIS, configurable en Preferencias)", "pt-BR": "colher de chá (EUA ou JIS, configurável em Preferências)", de: "Teelöffel (US oder JIS, einstellbar unter Einstellungen)", fr: "cuillère à café (US ou JIS, réglable dans les Préférences)" } },
+  cup: { aliases: ["cups", "カップ"], name: { en: "cup (size set in Preferences)", ja: "カップ（実際の量は設定で切替）", es: "taza (tamaño configurable en Preferencias)", "pt-BR": "xícara (tamanho configurável em Preferências)", de: "Tasse (Größe unter Einstellungen einstellbar)", fr: "tasse (contenance réglable dans les Préférences)" } },
+  tbsp: { aliases: ["tablespoon", "tablespoons", "大さじ"], name: { en: "tablespoon (size set in Preferences)", ja: "大さじ（実際の量は設定で切替）", es: "cucharada (tamaño configurable en Preferencias)", "pt-BR": "colher de sopa (tamanho configurável em Preferências)", de: "Esslöffel (Größe unter Einstellungen einstellbar)", fr: "cuillère à soupe (contenance réglable dans les Préférences)" } },
+  tsp: { aliases: ["teaspoon", "teaspoons", "小さじ"], name: { en: "teaspoon (size set in Preferences)", ja: "小さじ（実際の量は設定で切替）", es: "cucharadita (tamaño configurable en Preferencias)", "pt-BR": "colher de chá (tamanho configurável em Preferências)", de: "Teelöffel (Größe unter Einstellungen einstellbar)", fr: "cuillère à café (contenance réglable dans les Préférences)" } },
   au: { aliases: ["AU", "astronomicalunit", "天文単位"], name: { en: "astronomical unit", ja: "天文単位", es: "unidad astronómica", "pt-BR": "unidade astronômica", de: "astronomische Einheit", fr: "unité astronomique" } },
   ly: { aliases: ["lightyear", "lightyears", "光年"], name: { en: "light year", ja: "光年", es: "año luz", "pt-BR": "ano-luz", de: "Lichtjahr", fr: "année-lumière" } },
   yr: { aliases: ["year", "years", "年"], name: { en: "year", ja: "年", es: "año", "pt-BR": "ano", de: "Jahr", fr: "année" } },
@@ -402,6 +414,17 @@ const BASE_UNITS: Record<string, UnitDefinition> = {
   atm: unit(101325, [-1, 1, -2, 0, 0, 0, 0]),
   BTU: unit(1055.05585262, [2, 1, -2, 0, 0, 0, 0]),
   hp: unit(745.699871582, [2, 1, -3, 0, 0, 0, 0]),
+  // メートル馬力（75 kgf·m/s = 75 × 9.80665 W）。独語圏の PS・仏語圏の CV は同じ値で、
+  // 英馬力 hp(745.6999W) とは1.4%ずれる。**完全一致を先に見る解決順のおかげで、
+  // これまで P(ペタ)+S(ジーメンス) として 1e15 S に解決されていた "PS" が馬力になる**
+  // （ペタジーメンスを意図して打つ利用者はいないので、この上書きは意図どおり）。
+  // 小文字の ps は p(ピコ)+s でピコ秒として既に解決できるので、別表記に小文字を足してはいけない。
+  PS: unit(735.49875, [2, 1, -3, 0, 0, 0, 0]),
+  CV: unit(735.49875, [2, 1, -3, 0, 0, 0, 0]),
+  // 燃費。米国ガロン(3.785411784L)と英ガロン(4.54609L)で**同じ "mpg" が20%違う**ため、
+  // 記号を分ける。値は割り算のまま書いて、どのガロンで割ったのかをコードから読めるようにする。
+  mpg: unit(1609.344 / 0.003785411784, [-2, 0, 0, 0, 0, 0, 0]),
+  mpgUK: unit(1609.344 / 0.00454609, [-2, 0, 0, 0, 0, 0, 0]),
   Gal: unit(1e-2, [1, 0, -2, 0, 0, 0, 0]),
   mGal: unit(1e-5, [1, 0, -2, 0, 0, 0, 0]),
   "µGal": unit(1e-8, [1, 0, -2, 0, 0, 0, 0]),
@@ -500,12 +523,26 @@ const normalize = (input: string) =>
     .replace(/\s+/g, " ")
     .replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]/g, (character) => SUPERSCRIPTS[character]);
 
-export type MeasuringStandard = "us" | "jis";
+export type MeasuringStandard = "us" | "jis" | "metric" | "au";
 
-/** カップ・大さじ・小さじは、米国基準とJIS規格で値が異なる。設定でまとめて切り替える。 */
+export const MEASURING_STANDARDS: readonly MeasuringStandard[] = ["us", "jis", "metric", "au"];
+
+/** 保存済みの設定値の復元に使う。未知の文字列を黙って通すと、cup が解決できない状態になる。 */
+export function isMeasuringStandard(value: unknown): value is MeasuringStandard {
+  return typeof value === "string" && (MEASURING_STANDARDS as readonly string[]).includes(value);
+}
+
+/**
+ * カップ・大さじ・小さじの実際の量。**同じ「cup」でも規格ごとに値が違う**ので設定でまとめて切り替える。
+ * metric（カップ250mL・大さじ15mL）は英国・NZ・カナダなど、メートル法圏の計量の標準。
+ * au だけ大さじが20mLで、これはオーストラリア固有（他のメートル法圏は15mL）。
+ * この差は3分の1あり、ベーキングパウダーのような分量では結果が変わる。
+ */
 const MEASURING_STANDARD_VALUES: Record<MeasuringStandard, { cup: number; tbsp: number; tsp: number }> = {
   us: { cup: 2.365882365e-4, tbsp: 1.478676478125e-5, tsp: 4.92892159375e-6 },
   jis: { cup: 2e-4, tbsp: 1.5e-5, tsp: 5e-6 },
+  metric: { cup: 2.5e-4, tbsp: 1.5e-5, tsp: 5e-6 },
+  au: { cup: 2.5e-4, tbsp: 2e-5, tsp: 5e-6 },
 };
 
 let measuringStandard: MeasuringStandard = "us";
@@ -1075,14 +1112,14 @@ export function getCompatibleUnitGroups(dimension: Dimension): UnitGroup[] {
 }
 
 const REGIONAL_PRIORITY: Record<UnitSystem, Record<string, string[]>> = {
-  metric: { length: ["m", "km", "cm", "mm"], area: ["m²", "km²", "cm²"], volume: ["L", "mL", "m³"], mass: ["kg", "g", "mg"], temperature: ["°C", "K"], velocity: ["m/s", "km/h", "cm/s", "kine", "kt"], acceleration: ["m/s²", "Gal", "mGal", "G"], pressure: ["Pa", "kPa", "bar"], energy: ["J", "kJ", "Wh"], power: ["W", "kW"] },
+  metric: { length: ["m", "km", "cm", "mm"], area: ["m²", "km²", "cm²"], volume: ["L", "mL", "m³"], mass: ["kg", "g", "mg"], temperature: ["°C", "K"], velocity: ["m/s", "km/h", "cm/s", "kine", "kt"], acceleration: ["m/s²", "Gal", "mGal", "G"], pressure: ["Pa", "kPa", "bar"], energy: ["J", "kJ", "Wh"], power: ["W", "kW"], fuelEconomy: ["km/L", "mpg"] },
   // areaMomentOfInertia のみ、既存グループと違って米国式(in⁴)を先頭にする実益があるため追加する。
   // それ以外の新規グループ（density/resistance/charge/capacitance/magneticFlux/springConstant/
   // specificHeatCapacity/molarMass/molarEnergy/molarConcentration）は地域ごとの慣用単位が
   // 存在しない（SI単位のみ）ため、あえて優先度を設定しない。未設定でも getRegionalUnits は
   // `?? []` で空配列にフォールバックし、そのままgroup.units全件を返すため壊れない。
-  us: { length: ["in", "ft", "yd", "mi"], area: ["in²", "ft²", "yd²", "acre"], volume: ["gal", "qt", "pt"], mass: ["lb", "oz"], temperature: ["°F"], velocity: ["mph", "ft/s", "kt", "m/s"], acceleration: ["ft/s²", "G", "m/s²", "Gal", "mGal"], pressure: ["psi", "atm"], energy: ["BTU", "Wh"], power: ["hp", "W"], areaMomentOfInertia: ["in⁴", "mm⁴", "cm⁴", "m⁴"] },
-  uk: { length: ["mm", "m", "km", "mi"], area: ["m²", "acre"], volume: ["L", "pt"], mass: ["kg", "st", "lb"], temperature: ["°C"], velocity: ["mph", "km/h", "kt", "m/s"], acceleration: ["m/s²", "G", "Gal"], pressure: ["bar", "psi"], energy: ["kJ", "Wh"], power: ["kW", "hp"] },
+  us: { length: ["in", "ft", "yd", "mi"], area: ["in²", "ft²", "yd²", "acre"], volume: ["gal", "qt", "pt"], mass: ["lb", "oz"], temperature: ["°F"], velocity: ["mph", "ft/s", "kt", "m/s"], acceleration: ["ft/s²", "G", "m/s²", "Gal", "mGal"], pressure: ["psi", "atm"], energy: ["BTU", "Wh"], power: ["hp", "W"], fuelEconomy: ["mpg", "km/L"], areaMomentOfInertia: ["in⁴", "mm⁴", "cm⁴", "m⁴"] },
+  uk: { length: ["mm", "m", "km", "mi"], area: ["m²", "acre"], volume: ["L", "pt"], mass: ["kg", "st", "lb"], temperature: ["°C"], velocity: ["mph", "km/h", "kt", "m/s"], acceleration: ["m/s²", "G", "Gal"], pressure: ["bar", "psi"], energy: ["kJ", "Wh"], power: ["kW", "hp"], fuelEconomy: ["mpgUK", "km/L"] },
 };
 
 /** 地域の優先単位を先頭に置きつつ、そのカテゴリの全単位を返す。 */

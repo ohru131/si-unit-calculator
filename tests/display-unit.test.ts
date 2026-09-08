@@ -72,3 +72,28 @@ describe("preferredPrefixedUnit", () => {
     expect(preferredPrefixedUnit(evaluateExpression("8.99e9N*m^2/C^2", []), "metric", false)).toBeNull();
   });
 });
+
+describe("倍率1の単位を持たないグループは自動選択に使わない", () => {
+  it("逆面積の結果を燃費（km/L）として表示しない", () => {
+    // 燃費グループ（km/L は倍率1e6）を足した時点で、逆面積の結果が軒並み燃費として
+    // 表示されていた（`1/(1mm²)` が「1 km/L」）。km/L はSI単位を接頭語で読み替えたものではなく
+    // 別の計量習慣の単位なので、SIの値を勝手にその名前で呼んではいけない（独立レビューで検出）。
+    for (const expression of ["1/(1mm^2)", "1e7/1m^2", "1/(1cm^2)"]) {
+      const quantity = evaluateExpression(expression);
+      const resolved = resolveDisplayUnit({ quantity, requestedUnit: "", expressionUnits: [], system: "metric", isAdvancedMode: false });
+      expect(resolved, expression).toEqual({ unit: "", source: "si" });
+    }
+  });
+
+  it("燃費の単位はユーザーが明示的に選んだときだけ使われる", () => {
+    const quantity = evaluateExpression("15km/(1L)");
+    expect(resolveDisplayUnit({ quantity, requestedUnit: "km/L", expressionUnits: [], system: "metric", isAdvancedMode: false }))
+      .toEqual({ unit: "km/L", source: "requested" });
+  });
+
+  it("倍率1の単位を持つグループは従来どおり自動で選ばれる", () => {
+    // 力（N は倍率1）と電流（A・mA）は影響を受けない、という回帰の確認。
+    expect(resolveDisplayUnit({ quantity: evaluateExpression("2kg*9.8m/s^2"), requestedUnit: "", expressionUnits: [], system: "metric", isAdvancedMode: false }).unit).toBe("N");
+    expect(resolveDisplayUnit({ quantity: evaluateExpression("12V/4.7kOhm"), requestedUnit: "", expressionUnits: [], system: "metric", isAdvancedMode: false }).unit).toBe("mA");
+  });
+});

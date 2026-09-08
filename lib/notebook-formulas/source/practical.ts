@@ -275,7 +275,9 @@ export const VEHICLES_SEEDS: NotebookSeed[] = [
     description: { en: "Compute the fuel needed and the trip cost from distance traveled, fuel economy, and fuel price.", ja: "走行距離・燃費・燃料単価から、必要な燃料の量と走行にかかる費用を求めます。", es: "Calcula el combustible necesario y el costo del viaje a partir de la distancia recorrida, el consumo y el precio del combustible.", "pt-BR": "Calcule o combustível necessário e o custo da viagem a partir da distância percorrida, do consumo e do preço do combustível.", de: "Berechnet den benötigten Kraftstoff und die Fahrtkosten aus der zurückgelegten Strecke, dem Kraftstoffverbrauch und dem Kraftstoffpreis.", fr: "Calculer le carburant nécessaire et le coût du trajet à partir de la distance parcourue, de la consommation et du prix du carburant." },
     localConstants: [
       { symbol: "distance", expression: "300km" },
-      { symbol: "fuelEconomy", expression: "15km/L" },
+      // 燃費は**単位そのものが地域で違う**ので、値ではなく単位ごと差し替える
+      // （米国 35mpg・英国 42英mpg・その他 15km/L。どれも同じ車を各地域の言い方で表したもの）。
+      { symbol: "fuelEconomy", expression: "15km/L", regionalDefault: "fuelEconomy" },
       // 燃料単価（1リットルあたり）。上の rate と同じ理由で通貨に応じて差し替える。
       { symbol: "price", expression: "170", regionalDefault: "fuelPerLiter" },
     ],

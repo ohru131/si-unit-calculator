@@ -1,10 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Localization from "expo-localization";
-import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppLanguage, isAppLanguage, LANGUAGE_META, resolveDeviceLanguage } from "@/lib/i18n";
 import { UNIT_GROUP_NAMES } from "@/lib/unit-group-names";
-import { MeasuringStandard, setMeasuringStandard as applyMeasuringStandard, UnitSystem } from "@/lib/units";
+import { resolveDefaultMeasuringStandard, resolveDefaultUnitSystem } from "@/lib/locale-defaults";
+import { isMeasuringStandard, MeasuringStandard, setMeasuringStandard as applyMeasuringStandard, UnitSystem } from "@/lib/units";
 
 // AppLanguage の唯一の定義は lib/i18n.ts。既存のimport元（他ファイルが
 // "@/lib/global-settings" から AppLanguage をimportしている）を壊さないよう、ここではre-exportする。
@@ -94,6 +95,10 @@ const EN_COPY = {
   standardJISShort: "JIS",
   standardUS: "US customary (cup ≈ 236.6 mL)",
   standardJIS: "Japanese JIS (cup = 200 mL)",
+  standardMetricShort: "Metric",
+  standardMetric: "Metric (cup = 250 mL, tbsp = 15 mL)",
+  standardAUShort: "AU",
+  standardAU: "Australian (cup = 250 mL, tbsp = 20 mL)",
   customUnits: "Custom units",
   customUnitsHint: "Define your own unit as a multiple (0.303m) or as a formula in x ((x-32)*5/9*K + 273.15*K). Symbols already used by built-in units are not accepted.",
   customUnitSymbolPlaceholder: "Symbol",
@@ -197,6 +202,10 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     standardJISShort: "JIS",
     standardUS: "米国基準（カップ ≈ 236.6mL）",
     standardJIS: "日本のJIS規格（カップ = 200mL）",
+    standardMetricShort: "メートル法",
+    standardMetric: "メートル法（カップ = 250mL、大さじ = 15mL）",
+    standardAUShort: "豪州",
+    standardAU: "豪州基準（カップ = 250mL、大さじ = 20mL）",
     customUnits: "自作の単位",
     customUnitsHint: "倍率（0.303m）か、x を使った式（(x-32)*5/9*K + 273.15*K）で自分の単位を定義できます。既存の単位と同じ記号は登録できません。",
     customUnitSymbolPlaceholder: "記号",
@@ -285,6 +294,10 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     standardJISShort: "JIS",
     standardUS: "Habitual de EE. UU. (taza ≈ 236,6 mL)",
     standardJIS: "Norma JIS de Japón (taza = 200 mL)",
+    standardMetricShort: "Métrico",
+    standardMetric: "Métrico (taza = 250 mL, cucharada = 15 mL)",
+    standardAUShort: "Australia",
+    standardAU: "Australiano (taza = 250 mL, cucharada = 20 mL)",
     customUnits: "Unidades personalizadas",
     customUnitsHint: "Define tu propia unidad como múltiplo (0.303m) o como fórmula en x ((x-32)*5/9*K + 273.15*K). No se aceptan símbolos que ya usen las unidades integradas.",
     customUnitSymbolPlaceholder: "Símbolo",
@@ -373,6 +386,10 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     standardJISShort: "JIS",
     standardUS: "Padrão dos EUA (xícara ≈ 236,6 mL)",
     standardJIS: "Norma JIS do Japão (xícara = 200 mL)",
+    standardMetricShort: "Métrico",
+    standardMetric: "Métrico (xícara = 250 mL, colher de sopa = 15 mL)",
+    standardAUShort: "Austrália",
+    standardAU: "Australiano (xícara = 250 mL, colher de sopa = 20 mL)",
     customUnits: "Unidades personalizadas",
     customUnitsHint: "Defina sua própria unidade como múltiplo (0.303m) ou como fórmula em x ((x-32)*5/9*K + 273.15*K). Símbolos já usados por unidades integradas não são aceitos.",
     customUnitSymbolPlaceholder: "Símbolo",
@@ -461,6 +478,10 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     standardJISShort: "JIS",
     standardUS: "US-Standard (Tasse ≈ 236,6 mL)",
     standardJIS: "Japanischer JIS-Standard (Tasse = 200 mL)",
+    standardMetricShort: "Metrisch",
+    standardMetric: "Metrisch (Tasse = 250 ml, EL = 15 ml)",
+    standardAUShort: "Australien",
+    standardAU: "Australisch (Tasse = 250 ml, EL = 20 ml)",
     customUnits: "Eigene Einheiten",
     customUnitsHint: "Definiere eine eigene Einheit als Vielfaches (0.303m) oder als Formel in x ((x-32)*5/9*K + 273.15*K). Symbole, die integrierte Einheiten bereits verwenden, sind nicht zulässig.",
     customUnitSymbolPlaceholder: "Symbol",
@@ -549,6 +570,10 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     standardJISShort: "JIS",
     standardUS: "Norme américaine (tasse ≈ 236,6 mL)",
     standardJIS: "Norme JIS japonaise (tasse = 200 mL)",
+    standardMetricShort: "Métrique",
+    standardMetric: "Métrique (tasse = 250 mL, c. à soupe = 15 mL)",
+    standardAUShort: "Australie",
+    standardAU: "Australien (tasse = 250 mL, c. à soupe = 20 mL)",
     customUnits: "Unités personnalisées",
     customUnitsHint: "Définissez votre propre unité comme multiple (0.303m) ou comme formule en x ((x-32)*5/9*K + 273.15*K). Les symboles déjà utilisés par les unités intégrées ne sont pas acceptés.",
     customUnitSymbolPlaceholder: "Symbole",
@@ -605,45 +630,44 @@ const GROUP_NAMES = UNIT_GROUP_NAMES;
 
 const GlobalSettingsContext = createContext<GlobalSettings | null>(null);
 
-function defaultMeasuringStandard(language: AppLanguage): MeasuringStandard {
-  return language === "ja" ? "jis" : "us";
-}
-
-function defaultUnitSystem(locale: Localization.Locale | undefined): UnitSystem {
-  if (locale?.measurementSystem === "us") return "us";
-  if (locale?.measurementSystem === "uk") return "uk";
-  if (locale?.regionCode === "US") return "us";
-  if (locale?.regionCode === "GB") return "uk";
-  return "metric";
-}
-
 export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
   const deviceLocale = Localization.useLocales()[0];
   const defaultLanguage: AppLanguage = resolveDeviceLanguage(deviceLocale?.languageTag, deviceLocale?.languageCode);
   const [language, setLanguageState] = useState<AppLanguage>(defaultLanguage);
-  const [unitSystem, setUnitSystemState] = useState<UnitSystem>(() => defaultUnitSystem(deviceLocale));
-  const [measuringStandard, setMeasuringStandardState] = useState<MeasuringStandard>(() => defaultMeasuringStandard(defaultLanguage));
+  const [unitSystem, setUnitSystemState] = useState<UnitSystem>(() => resolveDefaultUnitSystem(deviceLocale));
+  const [measuringStandard, setMeasuringStandardState] = useState<MeasuringStandard>(() => resolveDefaultMeasuringStandard(deviceLocale, defaultLanguage));
   const [isReady, setIsReady] = useState(false);
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
+
+  // 利用者が明示的に選んだ設定を覚えておく。このeffectは端末のロケールが変わると
+  // 再実行されるが、そのとき AsyncStorage を読み終わるまでの間に**選択済みの規格を
+  // ロケール既定値で上書きしてはいけない**（`applyMeasuringStandard` は lib/units.ts の
+  // 可変状態を即座に書き換えるので、その隙間に 1cup の量が変わってしまう）。
+  const storedPreferencesRef = useRef<{ unitSystem: UnitSystem | null; measuringStandard: MeasuringStandard | null }>({ unitSystem: null, measuringStandard: null });
 
   useEffect(() => {
     // lib/units.ts はモジュール内の可変状態でcup/tbsp/tspの値を持つため、Reactのstateより先に
     // （同じ関数の中で）反映させる。useEffectの依存配列経由で追従させると1回分遅れて反映される。
-    applyMeasuringStandard(defaultMeasuringStandard(defaultLanguage));
+    applyMeasuringStandard(storedPreferencesRef.current.measuringStandard ?? resolveDefaultMeasuringStandard(deviceLocale, defaultLanguage));
 
     Promise.all([AsyncStorage.getItem(LANGUAGE_KEY), AsyncStorage.getItem(UNIT_SYSTEM_KEY), AsyncStorage.getItem(ONBOARDING_SEEN_KEY), AsyncStorage.getItem(MEASURING_STANDARD_KEY)])
       .then(([storedLanguage, storedUnitSystem, storedOnboardingSeen, storedMeasuringStandard]) => {
         const resolvedLanguage = isAppLanguage(storedLanguage) ? storedLanguage : defaultLanguage;
         if (isAppLanguage(storedLanguage)) setLanguageState(storedLanguage);
-        if (storedUnitSystem === "metric" || storedUnitSystem === "us" || storedUnitSystem === "uk") setUnitSystemState(storedUnitSystem);
         if (storedOnboardingSeen === "true") setHasSeenOnboarding(true);
-        const resolvedStandard = storedMeasuringStandard === "us" || storedMeasuringStandard === "jis" ? storedMeasuringStandard : defaultMeasuringStandard(resolvedLanguage);
+        const savedUnitSystem = storedUnitSystem === "metric" || storedUnitSystem === "us" || storedUnitSystem === "uk" ? storedUnitSystem : null;
+        const savedStandard = isMeasuringStandard(storedMeasuringStandard) ? storedMeasuringStandard : null;
+        storedPreferencesRef.current = { unitSystem: savedUnitSystem, measuringStandard: savedStandard };
+        // **保存値が無いときも必ずstateを更新する。** useStateの初期値関数は初回しか走らないので、
+        // ここで else を省くと端末のロケールが変わっても前の unitSystem が残ってしまう。
+        setUnitSystemState(savedUnitSystem ?? resolveDefaultUnitSystem(deviceLocale));
+        const resolvedStandard = savedStandard ?? resolveDefaultMeasuringStandard(deviceLocale, resolvedLanguage);
         applyMeasuringStandard(resolvedStandard);
         setMeasuringStandardState(resolvedStandard);
       })
       .catch(() => undefined)
       .finally(() => setIsReady(true));
-  }, [defaultLanguage]);
+  }, [defaultLanguage, deviceLocale]);
 
   const setLanguage = useCallback(async (nextLanguage: AppLanguage) => {
     setLanguageState(nextLanguage);
@@ -652,12 +676,16 @@ export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
 
   const setUnitSystem = useCallback(async (nextSystem: UnitSystem) => {
     setUnitSystemState(nextSystem);
+    // refも同時に更新する。ここを忘れると、設定を変えたあとに端末のロケールが変わったとき
+    // 上のeffectが「保存値なし」と判断してロケール既定値へ戻してしまう。
+    storedPreferencesRef.current = { ...storedPreferencesRef.current, unitSystem: nextSystem };
     await AsyncStorage.setItem(UNIT_SYSTEM_KEY, nextSystem);
   }, []);
 
   const setMeasuringStandard = useCallback(async (nextStandard: MeasuringStandard) => {
     applyMeasuringStandard(nextStandard);
     setMeasuringStandardState(nextStandard);
+    storedPreferencesRef.current = { ...storedPreferencesRef.current, measuringStandard: nextStandard };
     await AsyncStorage.setItem(MEASURING_STANDARD_KEY, nextStandard);
   }, []);
 

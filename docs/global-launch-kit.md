@@ -20,7 +20,7 @@
 | 項目 | 内容 |
 |---|---|
 | App name | Unit Calculator |
-| Short description | `docs/store-listing-copy.md`の短い説明（英語73字）を参照 |
+| Short description | `docs/store-listing-copy.md`の短い説明（英語71字）を参照。**6言語で同じ文の訳ではなく、言語ごとにフックが違う** |
 | Full description | 同ドキュメントの詳しい説明（英語、6言語すべて掲載済み） |
 
 ## 国際化チェックリスト

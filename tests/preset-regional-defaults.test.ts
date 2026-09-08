@@ -2,13 +2,17 @@ import { describe, expect, it, vi } from "vitest";
 
 import { presetConstantExpression } from "../lib/calculator-store";
 import { APP_LANGUAGES, AppLanguage } from "../lib/i18n";
-import { evaluateExpression, parseUnit } from "../lib/units";
+import { convertQuantity, evaluateExpression, parseUnit } from "../lib/units";
 import {
+  CURRENCY_BY_REGION,
   DEFAULT_PRESET_ELECTRICAL_PROFILE,
+  DEFAULT_PRESET_FUEL_ECONOMY,
+  ELECTRICAL_PROFILE_BY_REGION,
   DEFAULT_PRESET_PRICE_CURRENCY,
   PRESET_PRICE_PROFILES,
   PresetPriceKind,
   resolvePresetElectricalProfile,
+  resolvePresetFuelEconomy,
   resolvePresetPriceProfile,
   resolvePresetRegionalDefaults,
 } from "../lib/preset-regional-defaults";
@@ -201,5 +205,106 @@ describe("プリセットの電気の既定値", () => {
       expect(watts, `${region}: ${watts}W`).toBeGreaterThanOrEqual(1500);
       expect(watts, `${region}: ${watts}W`).toBeLessThanOrEqual(8000);
     });
+  });
+});
+
+describe("電気の地域表と金額の通貨表のずれ", () => {
+  it("電圧が分かる地域は、金額も同じ国の通貨で解決できる", () => {
+    // ここがずれると**同じ国で電圧は正しいのに金額だけ他国の通貨**になる。
+    // 実際に CO・CR・DO・GT・HN・NI・TW・VE は電圧だけ正しく、金額は西語→EUR に、
+    // カナダは英語→USD に落ちていた。地域を足すときは両方の表に入れる。
+    const regions = Object.keys(ELECTRICAL_PROFILE_BY_REGION);
+    const missing = regions.filter((region) => !CURRENCY_BY_REGION[region]);
+    expect(missing).toEqual([]);
+  });
+
+  it("通貨だけで電気も解決できる（金額と電圧の根拠が食い違わない）", () => {
+    // regionCode が読めず currencyCode だけ取れる端末では、金額は通貨表から出るのに
+    // 電気は言語推測に落ちる、という食い違いが起きうる。**その通貨を使うどの国も同じ
+    // 電気プロファイルに解決されるなら、通貨だけでも言語に関係なくその値になるべき**。
+    // 実際に CAD を金額表にだけ足したため、英語UIでは米国の120V/20A、西語UIの中南米通貨では
+    // 230Vに落ちていた（CodeRabbitが検出）。
+    const regionsByCurrency = new Map<string, string[]>();
+    for (const [region, currency] of Object.entries(CURRENCY_BY_REGION)) {
+      regionsByCurrency.set(currency, [...(regionsByCurrency.get(currency) ?? []), region]);
+    }
+    for (const [currency, regions] of regionsByCurrency) {
+      // 地域から解決した結果で比べる（表に無い地域は既定の230V/16Aになるので、それも含めて見る）。
+      const resolved = regions.map((region) => resolvePresetElectricalProfile(null, region, "en"));
+      const distinct = new Map(resolved.map((profile) => [`${profile.mainsVoltage}/${profile.breakerCurrent}`, profile]));
+      // 通貨圏の中で割れているもの（EURは大陸が230V/16A・アイルランドだけリングファイナルの32A）は
+      // 通貨から一意に決められない。この場合は地域が読めたときだけ正しくなるので対象外。
+      if (distinct.size !== 1) continue;
+      const [expected] = distinct.values();
+      for (const language of APP_LANGUAGES) {
+        expect(resolvePresetElectricalProfile(currency, null, language), `${currency}/${language}`).toEqual(expected);
+      }
+    }
+  });
+
+  it("追加した中南米・台湾・カナダは、通貨コードが取れないWebでも地域だけで自国通貨になる", () => {
+    // expo-localization の web 実装では currencyCode が常に null になるため、
+    // 地域コードだけで解決できることがそのまま「Webで正しく出るか」の確認になる。
+    const expectations: [string, AppLanguage, PresetPriceKind, number][] = [
+      ["CO", "es", "electricityPerKWh", 850],
+      ["CR", "es", "electricityPerKWh", 86],
+      ["GT", "es", "fuelPerLiter", 10.5],
+      ["TW", "en", "electricityPerKWh", 3.2],
+      ["CA", "en", "fuelPerLiter", 1.45],
+    ];
+    for (const [region, language, kind, expected] of expectations) {
+      expect(resolvePresetPriceProfile(null, region, language)[kind], region).toBe(expected);
+    }
+  });
+
+  it("ベネズエラはドル化しているのでUSDへ寄せる（VESの値は置かない）", () => {
+    // VESの数値を置くとインフレで短期間に大きく外れる。端末が通貨コードVESを返しても、
+    // VESのプロファイルが無いので地域表まで落ちてUSDになる。
+    expect(resolvePresetPriceProfile("VES", "VE", "es")).toBe(PRESET_PRICE_PROFILES.USD);
+    expect(resolvePresetPriceProfile(null, "VE", "es")).toBe(PRESET_PRICE_PROFILES.USD);
+  });
+});
+
+describe("燃費の地域別既定値", () => {
+  it("米国は mpg、英国は英ガロンの mpg、その他は km/L になる", () => {
+    // **単位そのものが地域で違う**ので、金額のように数値だけ差し替えるのでは足りない。
+    expect(resolvePresetFuelEconomy("US")).toBe("35mpg");
+    expect(resolvePresetFuelEconomy("GB")).toBe("42mpgUK");
+    expect(resolvePresetFuelEconomy("JP")).toBe(DEFAULT_PRESET_FUEL_ECONOMY);
+    expect(resolvePresetFuelEconomy("DE")).toBe(DEFAULT_PRESET_FUEL_ECONOMY);
+    // 表に無い地域＝mpg圏ではないということなので km/L にする（カナダ・豪州は L/100km 表記だが、
+    // 「距離 ÷ 燃費」で必要な燃料を出す式は km/L でも正しく動く）。
+    expect(resolvePresetFuelEconomy("CA")).toBe(DEFAULT_PRESET_FUEL_ECONOMY);
+    expect(resolvePresetFuelEconomy(null)).toBe(DEFAULT_PRESET_FUEL_ECONOMY);
+  });
+
+  it("どの地域の値もノートの式（距離 ÷ 燃費 → L）として計算できる", () => {
+    // 単位付きの文字列をそのまま定数の式として使うので、パースできない値を入れると
+    // その地域のユーザーだけノートが動かなくなる。
+    for (const region of ["US", "GB", "JP", "DE", "BR", null]) {
+      const economy = resolvePresetFuelEconomy(region);
+      expect(() => parseUnit(economy.replace(/^[\d.]+/, "")), String(region)).not.toThrow();
+      const fuel = convertQuantity(evaluateExpression(`300km/(${economy})`), "L").value;
+      // 3つの表記は同じ車を各地域の言い方で表したものなので、必要な燃料はほぼ一致する。
+      expect(fuel, String(region)).toBeCloseTo(20, 0);
+    }
+  });
+
+  it("地域が読めず通貨だけ取れる端末でも、燃費が金額・電気と同じ国を指す", () => {
+    // 金額と電気は通貨まで落ちるのに燃費は地域しか見ていなかったため、
+    // **価格はUSDで電圧は120Vなのに燃費だけ km/L** という食い違いが出ていた（独立レビューで検出）。
+    expect(resolvePresetFuelEconomy(null, "USD")).toBe("35mpg");
+    expect(resolvePresetFuelEconomy(null, "GBP")).toBe("42mpgUK");
+    // 通貨から一意に決まらないものは世界の多数派へ倒す（EUR圏は L/100km 表記だが km/L で計算できる）。
+    expect(resolvePresetFuelEconomy(null, "EUR")).toBe(DEFAULT_PRESET_FUEL_ECONOMY);
+    expect(resolvePresetFuelEconomy(null, null)).toBe(DEFAULT_PRESET_FUEL_ECONOMY);
+    // 地域が読めればそちらが優先される（通貨より地域が強い、という既存の原則を崩さない）。
+    expect(resolvePresetFuelEconomy("JP", "USD")).toBe(DEFAULT_PRESET_FUEL_ECONOMY);
+  });
+
+  it("燃費もローカル定数の regionalDefault として差し替えられる", () => {
+    const constant = { symbol: "fuelEconomy", expression: "15km/L", regionalDefault: "fuelEconomy" as const };
+    expect(presetConstantExpression(constant, resolvePresetRegionalDefaults(null, "US", "en"))).toBe("35mpg");
+    expect(presetConstantExpression(constant, resolvePresetRegionalDefaults(null, "JP", "ja"))).toBe("15km/L");
   });
 });
