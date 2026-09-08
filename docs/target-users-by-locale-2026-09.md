@@ -154,6 +154,12 @@ ASOのキーワードは英語からの直訳にしないこと。
 - 追加したサンプル6件（`lib/sample-calculations.ts`）: `imperial-to-si`（en・FE / C&G）、`psi-to-kpa`（en）、
   `metric-horsepower`（de の PS・fr の CV）、`voltage-drop`（de / ja / pt-BR の電気系）、
   `gravity-field`・`coulomb-force`（es の EBAU・pt-BR の ENEM・fr の lycée・de の Klausur）。
+- **`exam` カテゴリに置くのは「試験のための計算」そのものだけ**にした（2026-09-08）。`exam` のラベルは
+  言語ごとに現地の試験名になり、**日本語版だけは「試験対策（電験・電工）」と電気の資格に限定される**ので、
+  `kmh-to-ms`・`gravity-field`・`coulomb-force` のような一般物理を入れるとタブ名と中身が食い違っていた。
+  この3件は `motion`・`mechanics` へ移し、拾わせたい言語（es / pt-BR / fr / de）では
+  `SAMPLE_CATEGORY_RELEVANCE` でそのタブを上位に置いて補っている。**サンプルはカテゴリを1つしか持てない**ので、
+  「どの言語でも通る分野のタブに置き、並べ替えで各言語のターゲットに寄せる」のが唯一の解になる。
 - 追加した計算ノート4件: `electricity-basics` に「電圧降下と必要な電線の太さ」「変圧器の巻数比」
   「モーターの効率・損失・線電流」、`physics-electricity` に「点電荷の電場と電位」。
   前3件は Ausbildung Elektroniker / 電工二種・電験 / C&G 2365 / NR-10 / FP Instalaciones Eléctricas が

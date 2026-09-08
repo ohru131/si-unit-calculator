@@ -37,20 +37,24 @@ export function orderByRelevance<T>(items: readonly T[], idOf: (item: T) => stri
  * サンプルシートのカテゴリタブの順。
  * どの言語でも exam / lab（試験対策・実験レポート）を上位に置いているが、その中身は言語ごとに違う
  * （ラベル自体が Klausur / EBAU / ENEM / TP と現地の呼び名になっている。lib/sample-calculations.ts）。
+ * exam に入れるのは「試験のための計算」そのものだけなので、各国の試験に出る一般物理（km/h→m/s・重力場・
+ * クーロンの法則）は motion / mechanics にある。それを拾わせたい言語では、この表でそのタブを上位に置く。
  */
 export const SAMPLE_CATEGORY_RELEVANCE: Record<AppLanguage, readonly string[]> = {
   // 電験三種・電工二種は電気の計算そのものなので electric を2番目に置く。
   ja: ["exam", "electric", "lab", "energy", "mechanics", "motion", "basic"],
   // FE試験は力学・熱・電気を横断し、学部の実験レポートが副ターゲット。
   en: ["exam", "lab", "mechanics", "energy", "electric", "motion", "basic"],
-  // Ausbildung Elektroniker。Zehnerpotenzen と電気の実務計算が最優先。
-  de: ["exam", "electric", "energy", "lab", "mechanics", "motion", "basic"],
+  // Ausbildung Elektroniker。Zehnerpotenzen と電気の実務計算が最優先。km/h→m/s は Klausur の定番だが
+  // exam ではなく motion にあるので（lib/sample-calculations.ts のコメント参照）motion を lab より上に置く。
+  de: ["exam", "electric", "energy", "motion", "lab", "mechanics", "basic"],
   // lycée の physique-chimie。化学（濃度・mL→L）が入口なので lab を先頭に。
-  fr: ["lab", "exam", "motion", "energy", "mechanics", "electric", "basic"],
-  // EBAU の física は力学・場・電気が中心。
-  es: ["exam", "lab", "mechanics", "motion", "energy", "electric", "basic"],
-  // ENEM はエネルギーと消費電力量（kWh）の文章題が定番。
-  "pt-BR": ["exam", "energy", "motion", "mechanics", "electric", "lab", "basic"],
+  // 力学（重力場・クーロンの法則）は motion のすぐ後で拾わせる。
+  fr: ["lab", "exam", "motion", "mechanics", "energy", "electric", "basic"],
+  // EBAU の física は力学・場が中心。重力場とクーロンの法則は mechanics にあるので2番目に置く。
+  es: ["exam", "mechanics", "motion", "lab", "energy", "electric", "basic"],
+  // ENEM は運動・力学の文章題が定番で、消費電力量（kWh）は exam に残っている。
+  "pt-BR": ["exam", "motion", "mechanics", "energy", "electric", "lab", "basic"],
 };
 
 /**
