@@ -52,7 +52,7 @@ export default function SettingsScreen() {
   const systems: { id: UnitSystem; label: string }[] = [{ id: "metric", label: t("systemMetric") }, { id: "us", label: t("systemUS") }, { id: "uk", label: t("systemUK") }];
   // shortLabelは折りたたみが閉じた行の値に使う。展開したラジオでは説明的な label を出す。
   const themeOptions: { id: ThemePreference; label: string; shortLabel: string }[] = [{ id: "system", label: t("themeSystem"), shortLabel: t("themeSystemShort") }, { id: "light", label: t("themeLight"), shortLabel: t("themeLight") }, { id: "dark", label: t("themeDark"), shortLabel: t("themeDark") }];
-  const measuringStandards: { id: MeasuringStandard; label: string; shortLabel: string }[] = [{ id: "us", label: t("standardUS"), shortLabel: t("standardUSShort") }, { id: "jis", label: t("standardJIS"), shortLabel: t("standardJISShort") }];
+  const measuringStandards: { id: MeasuringStandard; label: string; shortLabel: string }[] = [{ id: "metric", label: t("standardMetric"), shortLabel: t("standardMetricShort") }, { id: "us", label: t("standardUS"), shortLabel: t("standardUSShort") }, { id: "jis", label: t("standardJIS"), shortLabel: t("standardJISShort") }, { id: "au", label: t("standardAU"), shortLabel: t("standardAUShort") }];
   // 折りたたみが閉じた行の右端に出す現在値。選択肢を作っている配列（上の4つ）から引く
   // ことで、翻訳を直したときにここが食い違う心配をなくす。
   const languageValue = languages.find((option) => option.id === language)?.label ?? "";

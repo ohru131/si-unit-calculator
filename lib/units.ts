@@ -253,9 +253,9 @@ const UNIT_META: Record<string, UnitMeta> = {
   eV: { aliases: ["electronvolt", "electron-volt", "電子ボルト"], name: { en: "electronvolt", ja: "電子ボルト", es: "electronvoltio", "pt-BR": "elétron-volt", de: "Elektronenvolt", fr: "électron-volt" } },
   bpm: { aliases: ["beatsperminute", "拍毎分"], name: { en: "beat per minute", ja: "心拍数", es: "latido por minuto", "pt-BR": "batimento por minuto", de: "Schlag pro Minute", fr: "battement par minute" } },
   rpm: { aliases: ["revolutionsperminute", "回転毎分"], name: { en: "revolution per minute", ja: "回転数", es: "revolución por minuto", "pt-BR": "rotação por minuto", de: "Umdrehung pro Minute", fr: "tour par minute" } },
-  cup: { aliases: ["cups", "カップ"], name: { en: "cup (US or JIS, set in Preferences)", ja: "カップ（設定で米国基準・JISを切替）", es: "taza (EE. UU. o JIS, configurable en Preferencias)", "pt-BR": "xícara (EUA ou JIS, configurável em Preferências)", de: "Tasse (US oder JIS, einstellbar unter Einstellungen)", fr: "tasse (US ou JIS, réglable dans les Préférences)" } },
-  tbsp: { aliases: ["tablespoon", "tablespoons", "大さじ"], name: { en: "tablespoon (US or JIS, set in Preferences)", ja: "大さじ（設定で米国基準・JISを切替）", es: "cucharada (EE. UU. o JIS, configurable en Preferencias)", "pt-BR": "colher de sopa (EUA ou JIS, configurável em Preferências)", de: "Esslöffel (US oder JIS, einstellbar unter Einstellungen)", fr: "cuillère à soupe (US ou JIS, réglable dans les Préférences)" } },
-  tsp: { aliases: ["teaspoon", "teaspoons", "小さじ"], name: { en: "teaspoon (US or JIS, set in Preferences)", ja: "小さじ（設定で米国基準・JISを切替）", es: "cucharadita (EE. UU. o JIS, configurable en Preferencias)", "pt-BR": "colher de chá (EUA ou JIS, configurável em Preferências)", de: "Teelöffel (US oder JIS, einstellbar unter Einstellungen)", fr: "cuillère à café (US ou JIS, réglable dans les Préférences)" } },
+  cup: { aliases: ["cups", "カップ"], name: { en: "cup (size set in Preferences)", ja: "カップ（実際の量は設定で切替）", es: "taza (tamaño configurable en Preferencias)", "pt-BR": "xícara (tamanho configurável em Preferências)", de: "Tasse (Größe unter Einstellungen einstellbar)", fr: "tasse (contenance réglable dans les Préférences)" } },
+  tbsp: { aliases: ["tablespoon", "tablespoons", "大さじ"], name: { en: "tablespoon (size set in Preferences)", ja: "大さじ（実際の量は設定で切替）", es: "cucharada (tamaño configurable en Preferencias)", "pt-BR": "colher de sopa (tamanho configurável em Preferências)", de: "Esslöffel (Größe unter Einstellungen einstellbar)", fr: "cuillère à soupe (contenance réglable dans les Préférences)" } },
+  tsp: { aliases: ["teaspoon", "teaspoons", "小さじ"], name: { en: "teaspoon (size set in Preferences)", ja: "小さじ（実際の量は設定で切替）", es: "cucharadita (tamaño configurable en Preferencias)", "pt-BR": "colher de chá (tamanho configurável em Preferências)", de: "Teelöffel (Größe unter Einstellungen einstellbar)", fr: "cuillère à café (contenance réglable dans les Préférences)" } },
   au: { aliases: ["AU", "astronomicalunit", "天文単位"], name: { en: "astronomical unit", ja: "天文単位", es: "unidad astronómica", "pt-BR": "unidade astronômica", de: "astronomische Einheit", fr: "unité astronomique" } },
   ly: { aliases: ["lightyear", "lightyears", "光年"], name: { en: "light year", ja: "光年", es: "año luz", "pt-BR": "ano-luz", de: "Lichtjahr", fr: "année-lumière" } },
   yr: { aliases: ["year", "years", "年"], name: { en: "year", ja: "年", es: "año", "pt-BR": "ano", de: "Jahr", fr: "année" } },
@@ -500,12 +500,26 @@ const normalize = (input: string) =>
     .replace(/\s+/g, " ")
     .replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]/g, (character) => SUPERSCRIPTS[character]);
 
-export type MeasuringStandard = "us" | "jis";
+export type MeasuringStandard = "us" | "jis" | "metric" | "au";
 
-/** カップ・大さじ・小さじは、米国基準とJIS規格で値が異なる。設定でまとめて切り替える。 */
+export const MEASURING_STANDARDS: readonly MeasuringStandard[] = ["us", "jis", "metric", "au"];
+
+/** 保存済みの設定値の復元に使う。未知の文字列を黙って通すと、cup が解決できない状態になる。 */
+export function isMeasuringStandard(value: unknown): value is MeasuringStandard {
+  return typeof value === "string" && (MEASURING_STANDARDS as readonly string[]).includes(value);
+}
+
+/**
+ * カップ・大さじ・小さじの実際の量。**同じ「cup」でも規格ごとに値が違う**ので設定でまとめて切り替える。
+ * metric（カップ250mL・大さじ15mL）は英国・NZ・カナダなど、メートル法圏の計量の標準。
+ * au だけ大さじが20mLで、これはオーストラリア固有（他のメートル法圏は15mL）。
+ * この差は3分の1あり、ベーキングパウダーのような分量では結果が変わる。
+ */
 const MEASURING_STANDARD_VALUES: Record<MeasuringStandard, { cup: number; tbsp: number; tsp: number }> = {
   us: { cup: 2.365882365e-4, tbsp: 1.478676478125e-5, tsp: 4.92892159375e-6 },
   jis: { cup: 2e-4, tbsp: 1.5e-5, tsp: 5e-6 },
+  metric: { cup: 2.5e-4, tbsp: 1.5e-5, tsp: 5e-6 },
+  au: { cup: 2.5e-4, tbsp: 2e-5, tsp: 5e-6 },
 };
 
 let measuringStandard: MeasuringStandard = "us";
