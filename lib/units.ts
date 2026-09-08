@@ -131,7 +131,7 @@ const BASE_UNIT_GROUPS: UnitGroup[] = [
   { id: "force", label: "力", dimension: [1, 1, -2, 0, 0, 0, 0], units: [{ symbol: "N", label: "N" }, { symbol: "kN", label: "kN" }] },
   { id: "pressure", label: "圧力", dimension: [-1, 1, -2, 0, 0, 0, 0], units: [{ symbol: "Pa", label: "Pa" }, { symbol: "kPa", label: "kPa" }, { symbol: "MPa", label: "MPa" }, { symbol: "bar", label: "bar" }, { symbol: "psi", label: "psi" }, { symbol: "atm", label: "atm" }] },
   { id: "energy", label: "エネルギー", dimension: [2, 1, -2, 0, 0, 0, 0], units: [{ symbol: "J", label: "J" }, { symbol: "kJ", label: "kJ" }, { symbol: "Wh", label: "Wh" }, { symbol: "BTU", label: "BTU" }, { symbol: "cal", label: "cal" }, { symbol: "kcal", label: "kcal" }, { symbol: "eV", label: "eV" }] },
-  { id: "power", label: "電力", dimension: [2, 1, -3, 0, 0, 0, 0], units: [{ symbol: "W", label: "W" }, { symbol: "kW", label: "kW" }, { symbol: "MW", label: "MW" }, { symbol: "hp", label: "hp" }] },
+  { id: "power", label: "電力", dimension: [2, 1, -3, 0, 0, 0, 0], units: [{ symbol: "W", label: "W" }, { symbol: "kW", label: "kW" }, { symbol: "MW", label: "MW" }, { symbol: "hp", label: "hp" }, { symbol: "PS", label: "PS" }] },
   { id: "current", label: "電流", dimension: DIMENSIONS.current, units: [{ symbol: "A", label: "A" }, { symbol: "mA", label: "mA" }, { symbol: "µA", label: "µA" }] },
   { id: "voltage", label: "電圧", dimension: [2, 1, -3, -1, 0, 0, 0], units: [{ symbol: "V", label: "V" }, { symbol: "mV", label: "mV" }, { symbol: "kV", label: "kV" }] },
   { id: "frequency", label: "周波数", dimension: [0, 0, -1, 0, 0, 0, 0], units: [{ symbol: "Hz", label: "Hz" }, { symbol: "kHz", label: "kHz" }, { symbol: "MHz", label: "MHz" }, { symbol: "rpm", label: "rpm" }, { symbol: "bpm", label: "bpm" }] },
@@ -229,6 +229,9 @@ const UNIT_META: Record<string, UnitMeta> = {
   kW: { aliases: ["kilowatt", "キロワット"], name: { en: "kilowatt", ja: "キロワット", es: "kilovatio", "pt-BR": "quilowatt", de: "Kilowatt", fr: "kilowatt" } },
   MW: { aliases: ["megawatt", "メガワット"], name: { en: "megawatt", ja: "メガワット", es: "megavatio", "pt-BR": "megawatt", de: "Megawatt", fr: "mégawatt" } },
   hp: { aliases: ["horsepower", "馬力"], name: { en: "horsepower", ja: "馬力", es: "caballo de fuerza (hp, imperial)", "pt-BR": "horsepower (hp)", de: "britische Horsepower (hp)", fr: "horsepower anglais (hp)" } },
+  // 別表記に小文字（ps / cv）を入れてはいけない。ps は既にピコ秒として解決できるうえ、
+  // UNIT_META の英字の別表記は BASE_UNITS へ自動登録されるため、ピコ秒を壊す。
+  PS: { aliases: ["CV", "Pferdestärke", "cheval-vapeur", "メートル馬力", "仏馬力"], name: { en: "metric horsepower (PS / CV)", ja: "メートル馬力（PS・仏馬力CV）", es: "caballo de vapor (CV, métrico)", "pt-BR": "cavalo-vapor (cv, métrico)", de: "Pferdestärke (PS, metrisch)", fr: "cheval-vapeur (CV, métrique)" } },
   A: { aliases: ["amp", "ampere", "amps", "アンペア"], name: { en: "ampere", ja: "アンペア", es: "amperio", "pt-BR": "ampere", de: "Ampere", fr: "ampère" } },
   mA: { aliases: ["milliamp", "milliampere", "ミリアンペア"], name: { en: "milliampere", ja: "ミリアンペア", es: "miliamperio", "pt-BR": "miliampere", de: "Milliampere", fr: "milliampère" } },
   "µA": { aliases: ["uA", "microampere", "マイクロアンペア"], name: { en: "microampere", ja: "マイクロアンペア", es: "microamperio", "pt-BR": "microampere", de: "Mikroampere", fr: "microampère" } },
@@ -402,6 +405,13 @@ const BASE_UNITS: Record<string, UnitDefinition> = {
   atm: unit(101325, [-1, 1, -2, 0, 0, 0, 0]),
   BTU: unit(1055.05585262, [2, 1, -2, 0, 0, 0, 0]),
   hp: unit(745.699871582, [2, 1, -3, 0, 0, 0, 0]),
+  // メートル馬力（75 kgf·m/s = 75 × 9.80665 W）。独語圏の PS・仏語圏の CV は同じ値で、
+  // 英馬力 hp(745.6999W) とは1.4%ずれる。**完全一致を先に見る解決順のおかげで、
+  // これまで P(ペタ)+S(ジーメンス) として 1e15 S に解決されていた "PS" が馬力になる**
+  // （ペタジーメンスを意図して打つ利用者はいないので、この上書きは意図どおり）。
+  // 小文字の ps は p(ピコ)+s でピコ秒として既に解決できるので、別表記に小文字を足してはいけない。
+  PS: unit(735.49875, [2, 1, -3, 0, 0, 0, 0]),
+  CV: unit(735.49875, [2, 1, -3, 0, 0, 0, 0]),
   Gal: unit(1e-2, [1, 0, -2, 0, 0, 0, 0]),
   mGal: unit(1e-5, [1, 0, -2, 0, 0, 0, 0]),
   "µGal": unit(1e-8, [1, 0, -2, 0, 0, 0, 0]),

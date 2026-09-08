@@ -9,6 +9,27 @@ export type UnitExplanation = {
 };
 
 export const SPECIAL_UNIT_EXPLANATIONS: Record<string, UnitExplanation> = {
+  PS: {
+    symbol: "PS",
+    name: { ja: "メートル馬力", en: "Metric horsepower", es: "Caballo de vapor", "pt-BR": "Cavalo-vapor", de: "Pferdestärke", fr: "Cheval-vapeur" },
+    summary: {
+      ja: "75kgを毎秒1m持ち上げる仕事率です。独語圏のPSと仏語圏のCVは同じ単位で、英馬力hp（745.7W）とは約1.4%ずれます。",
+      en: "The power needed to lift 75 kg by one metre in one second. German PS and French CV are the same unit, about 1.4% smaller than mechanical horsepower (hp).",
+      es: "La potencia necesaria para elevar 75 kg un metro en un segundo. El PS alemán y el CV francés son la misma unidad, un 1,4 % menor que el hp imperial.",
+      "pt-BR": "A potência necessária para elevar 75 kg em um metro por segundo. O PS alemão e o CV francês são a mesma unidade, cerca de 1,4% menor que o hp imperial.",
+      de: "Die Leistung, um 75 kg in einer Sekunde einen Meter zu heben. Das deutsche PS und das französische CV sind dieselbe Einheit und rund 1,4 % kleiner als die britische Horsepower (hp).",
+      fr: "La puissance nécessaire pour élever 75 kg d'un mètre en une seconde. Le CV français et le PS allemand sont la même unité, environ 1,4 % plus petite que le horsepower anglais (hp).",
+    },
+    siConversion: "1 PS = 1 CV = 735.49875 W",
+    usage: {
+      ja: "自動車・二輪のエンジン出力（独・仏・日のカタログ値）",
+      en: "Engine output in German, French, and Japanese vehicle specifications",
+      es: "Potencia de motores en fichas técnicas de Europa continental",
+      "pt-BR": "Potência de motores em fichas técnicas da Europa continental",
+      de: "Motorleistung in Fahrzeugdaten (Deutschland, Frankreich, Japan)",
+      fr: "Puissance moteur dans les fiches techniques (France, Allemagne, Japon)",
+    },
+  },
   Gal: {
     symbol: "Gal",
     name: { ja: "ガル", en: "Gal", es: "Gal", "pt-BR": "Gal", de: "Gal", fr: "Gal" },

@@ -336,3 +336,35 @@ describe("πを含む暗黙の掛け算", () => {
     expect(() => evaluateExpression("2 3")).toThrow();
   });
 });
+
+describe("メートル馬力（PS / CV）", () => {
+  it("PSとCVは同じ735.49875Wで、英馬力hpとは別の値になる", () => {
+    expect(evaluateExpression("1PS").siValue).toBeCloseTo(735.49875);
+    expect(evaluateExpression("1CV").siValue).toBeCloseTo(735.49875);
+    // 75kgf·m/s = 75 × 9.80665。定義どおり厳密な値であることを確認する。
+    expect(evaluateExpression("1PS").siValue).toBe(75 * 9.80665);
+    expect(evaluateExpression("1hp").siValue).not.toBeCloseTo(735.49875);
+  });
+
+  it("独仏のカタログ値を kW へ正しく直す（hpと混同すると1.4%ずれる）", () => {
+    expect(convertQuantity(evaluateExpression("100PS"), "kW").value).toBeCloseTo(73.549875);
+    expect(convertQuantity(evaluateExpression("100hp"), "kW").value).toBeCloseTo(74.5699871582);
+  });
+
+  it("小文字の ps はピコ秒のまま（別表記に小文字を足していない）", () => {
+    // PS を足したことで ps がメートル馬力へ化けると、時間の計算が黙って壊れる。
+    expect(evaluateExpression("1ps").siValue).toBeCloseTo(1e-12);
+    expect(formatQuantity(evaluateExpression("1ps"), "s")).toBe("1e-12 s");
+  });
+
+  it("CV は別表記として登録済み単位のPSへ寄せる", () => {
+    const registration = getUnitRegistration("CV");
+    expect(registration.status).toBe("registered");
+    expect(registration.canonical).toBe("PS");
+  });
+
+  it("PSは電力グループの単位として選べる（比較表・単位チップに出る）", () => {
+    const power = UNIT_GROUPS.find((group) => group.id === "power");
+    expect(power?.units.map((unitOption) => unitOption.symbol)).toContain("PS");
+  });
+});
