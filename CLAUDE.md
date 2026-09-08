@@ -83,11 +83,14 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - **所有権を外すのは保存の入口（`upsertNotebook`）だけ。** 画面側に目印を意識させると詳細画面・編集シート・取り込みのそれぞれで外し忘れる。両方の編集画面が定数を `{ ...item }` で持ち回るので、**画面側のコードは1行も変えていない**。
   - 後追い反映は読み込み時に `applyPresetRegionalDefaults` で当てる（`applyPresetResultSymbols` と同じ形・同じ場所）。**未知の種類は式を空にせず放置する**（空にするとその定数が解決できずノート全体が止まる）。
   - **読み込み時だけでは足りない。** 初回ロードのeffectは `[isGlobalSettingsReady]` だけを依存にしているので、**アプリが起動したまま端末の地域設定が変わるとロード処理が再実行されず追従できない**（`Localization.useLocales()` は再起動を待たずに更新される。CodeRabbitが#54で検出）。`[currencyCode, regionCode, language, ...]` を依存にした専用のeffectを別に置いてある（言語の追従を `localizePresetNotebooks` のeffectが個別に担当しているのと同じ形）。**そのeffectで旧データの付け直しを呼ばないこと**（1回きりの縛りが壊れて利用者の編集を上書きする）。
+  - **未知の種類の目印を理由に検証（`isCalculationNotebook`）でfalseを返してはいけない。** 読み込み時の `filter` でノートが**丸ごと**捨てられ、利用者の手順や編集ごと消える（しかも投入済みカテゴリは `seededPresetIds` に残るので二度と復活しない）。目印は `sanitizeStoredLocalConstants` で落とし、式と手順は残す。
+  - **旧データの付け直しは id だけでなく記号も一致させる。** idは「カテゴリID＋スラグ＋添字」なので、シード内で定数を並べ替えると別の定数のidと一致し、間違った定数に目印が付いて直後の後追い反映が `distance` を `230V` で上書きする（配列位置から採番して既存データが別シードに結び付いたPR #51と同じ種類の危険）。
   - **バックアップからの復元では目印が付かない**（`lib/notebooks-backup.ts` は `{ symbol, expression }` だけを持ち運ぶ）。意図的で、復元は利用者の値を明示的に写す操作なので、別の地域の端末で黙って書き換わる方が驚きが大きい。
   - **目印を保存する前に投入された旧データには、シードから目印を付け直す**（`stampLegacyPresetRegionalDefaults`）。**突き合わせは定数のid（`presetConstantId`）で行い、値は一切比較しない。**
   - **付け直しは `REGIONAL_DEFAULTS_STAMPED_STORAGE_KEY` で1回きりに縛ること。** **データの形からは旧・新を判定できない**のがポイントで、「一部の定数に目印が無い」状態は正常でもあり得る（シードで `regionalDefault` を付けていない定数＝走行コストの `distance`、そして**利用者が編集して目印が外れた定数**）。毎回走らせると後者を旧データと誤認して付け直し、直後の後追い反映が**利用者の編集を上書きする**（編集した `18km/L` が `35mpg` に戻る。CodeRabbitが#54で検出）。当初 `localConstants.every((c) => c.regionalDefault)` で「全部付いていれば新形式」と判定しようとしたが、`distance` のように**シードから目印が付かない定数がある時点でこの判定は常に false** になり機能しない。
   - 引き換えにリリース前の端末で定数を編集していた場合その値は1回だけ既定値へ戻るが、旧データには編集の記録が無いので区別できず、正式リリース前なので許容した。**旧形式の再現と「編集が消えない」ことの両方を `tests/preset-regional-sync.test.ts` が固定している**（付け直しを外すと旧データのテストが、フラグを外すと編集のテストが落ちることを確認済み）。
-- `lib/display-unit.ts` — 電卓の結果カードの**表示単位を決める純関数**（`resolveDisplayUnit`）。`targetUnit`（ユーザーが明示的に選んだ単位）はstateとして持ち続けるが、**表示・チップの点灯・比較表・進数チップの条件・履歴の保存はすべて `displayUnit`（この関数の結果）を見る**。優先順は「明示的な選択（結果と同じ次元のときだけ）→ 式の中で最初に使った同じ次元の単位（`5cm + 1mm` → cm）→ 1〜1000に収まるSI接頭語（`12V/4.7kΩ` → mA、`100N/0.01m²` → kPa）または倍率1の名前付き単位（`2kg×9.8m/s²` → N。無いと `m·kg/s²` と出る）→ SI」。
+- `lib/display-unit.ts` — 電卓の結果カードの**表示単位を決める純関数**（`resolveDisplayUnit`）。
+  - **倍率1の単位を持たないグループは自動選択に使わない**（`preferredPrefixedUnit`）。そのグループの単位は「SI単位を接頭語で読み替えたもの」ではなく別の計量習慣の単位なので、SIの値を勝手にその名前で呼ぶと誤解を招く。実際に燃費グループ（`km/L` は倍率1e6で10のべき乗なので接頭語の判定を通ってしまう）を足した時点で、**逆面積の結果が軒並み燃費として表示されていた**（`1/(1mm²)` が「1 km/L」）。他のグループはすべてSI単位（N・Pa・m/s・kg/m³…）が倍率1で入っているので影響しない。**単位グループを足すときは、倍率1の単位が無いなら自動選択の対象外になることを確認する。**`targetUnit`（ユーザーが明示的に選んだ単位）はstateとして持ち続けるが、**表示・チップの点灯・比較表・進数チップの条件・履歴の保存はすべて `displayUnit`（この関数の結果）を見る**。優先順は「明示的な選択（結果と同じ次元のときだけ）→ 式の中で最初に使った同じ次元の単位（`5cm + 1mm` → cm）→ 1〜1000に収まるSI接頭語（`12V/4.7kΩ` → mA、`100N/0.01m²` → kPa）または倍率1の名前付き単位（`2kg×9.8m/s²` → N。無いと `m·kg/s²` と出る）→ SI」。
   - **明示的な選択が結果の次元に合わないときはエラーにせず黙って自動へ戻す。** 以前は長さの計算で cm を選んだあと `255` や `1/3` を打つと「cmへ変換できません」の赤字が出て進数チップまで消えていた（2026-09のUX監査）。`targetUnit` を直接 `convertQuantity` に渡す箇所を復活させないこと。
   - 接頭語の候補は**倍率が10のべき乗でオフセットを持たない単位だけ**（in・ft・km/h・°C は自動では選ばない）。無次元の結果は常に裸の数値（`%`・`rad` を勝手に付けない）。
   - 電卓のクイックスタート3件（`QUICK_START`）は表示単位を指定せず、この自動選択に任せている（5.1 cm / 2.55 mA / 90 km になることがそのままデモになる）。
@@ -335,8 +338,8 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 
 ### 現在の基準値（2026-09-08時点、各言語版ターゲット施策のP0・P1を入れた後）
 
-- `npx tsc --noEmit` → **エラー0**（`app/(tabs)/constants.tsx` の `"/notebook"` ルート型で2件出るのは `.expo/types/router.d.ts` が古い環境依存。`npx expo export` で型が再生成されれば消える）
-- `npx vitest run` → **840 passed / 2 failed / 1 skipped**。失敗2件は従来どおり `tests/revenuecat.credentials.test.ts`（環境依存）。新規: `tests/locale-defaults.test.ts`（10件）・`tests/sample-calculations.test.ts`（7件）・`tests/preset-regional-sync.test.ts`（20件）、`tests/preset-regional-defaults.test.ts` に7件、`tests/units.test.ts` に PS/CV と燃費のブロック。
+- `npx tsc --noEmit` → **`app/(tabs)/constants.tsx` の `"/notebook"` ルート型で2件のみ**（mainに元からあるもので、このPRは `constants.tsx` を触っていない）。**「`npx expo export` で型が再生成されれば消える」という以前の記述は誤り**で、実際にexportし直しても消えないことを確認した（生成される型に `"/(tabs)/notebook"` は入るが `"/notebook"` は入らない）。直すなら `router.push("/(tabs)/notebook")` にするか型を広げる別作業。
+- `npx vitest run` → **850 passed / 2 failed / 1 skipped**。失敗2件は従来どおり `tests/revenuecat.credentials.test.ts`（環境依存）。新規: `tests/locale-defaults.test.ts`（10件）・`tests/sample-calculations.test.ts`（7件）・`tests/preset-regional-sync.test.ts`（25件）、`tests/preset-regional-defaults.test.ts` に7件、`tests/units.test.ts` に PS/CV と燃費のブロック。
 - `npx expo lint` → **2エラー・0警告**（`app/(tabs)/index.tsx` の既存分のまま）。
 - **`vitest.config.ts` を追加してある。** `@/lib/units` のような `@/` の**実行時import**（型だけのimportと違う）を解決するため。これが無いとテストから `lib/locale-defaults.ts` を読めない。
 

@@ -43,5 +43,11 @@ export function resolveDefaultMeasuringStandard(locale: LocaleHints | undefined,
   if (region === "AU") return "au";
   if (locale?.measurementSystem === "us" || region === "US") return "us";
   if (region) return "metric";
-  return language === "ja" ? "jis" : "metric";
+  // 地域が全く読めない端末だけ言語を手掛かりにする。**`en` は米国式にする**のが要点で、
+  // 同じ状況で `FALLBACK_CURRENCY_BY_LANGUAGE.en` は USD、`FALLBACK_ELECTRICAL_BY_LANGUAGE.en` は
+  // 米国の120Vを選ぶ。ここだけメートル法にすると「電気代はドル・電圧は120Vなのにカップは250mL」
+  // という食い違った端末が生まれる（独立レビューで検出）。英国・豪州の可能性は残るが、
+  // 地域が読めない以上どの資源も同じ推測に賭けるほかなく、揃えておく方が説明できる。
+  if (language === "ja") return "jis";
+  return language === "en" ? "us" : "metric";
 }

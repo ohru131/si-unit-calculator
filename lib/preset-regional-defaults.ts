@@ -236,11 +236,25 @@ const FUEL_ECONOMY_BY_REGION: Record<string, string> = {
 
 export const DEFAULT_PRESET_FUEL_ECONOMY = "15km/L";
 
-export function resolvePresetFuelEconomy(regionCode: string | null | undefined): string {
+// 地域が読めない端末のための保険。金額（通貨）・電気（通貨）と根拠を揃えないと、
+// **同じ端末で価格はUSDなのに燃費だけ km/L** という食い違いが出る（独立レビューで検出）。
+// 言語までは落とさない: `en` は米国(mpg)・英国(英mpg)・豪州(L/100km)に割れていて一意に決まらず、
+// 推測を重ねるより世界の多数派である km/L の方が外れ方が小さい。
+const FUEL_ECONOMY_BY_CURRENCY: Record<string, string> = {
+  USD: FUEL_ECONOMY_BY_REGION.US,
+  GBP: FUEL_ECONOMY_BY_REGION.GB,
+};
+
+export function resolvePresetFuelEconomy(
+  regionCode: string | null | undefined,
+  currencyCode?: string | null | undefined,
+): string {
   const region = regionCode?.trim().toUpperCase() ?? "";
-  // 表に無い地域＝mpg圏ではないということなので、世界の多数派である km/L を既定にする
+  // **地域が読めた時点で確定させる**（電圧と同じで、地域が分かれば推測の余地が無い）。
+  // 表に無い地域＝mpg圏ではないということなので、世界の多数派である km/L にする
   // （カナダ・豪州は L/100km 表記だが、この式は km/L でも必要な燃料は正しく出る）。
-  return FUEL_ECONOMY_BY_REGION[region] ?? DEFAULT_PRESET_FUEL_ECONOMY;
+  if (region) return FUEL_ECONOMY_BY_REGION[region] ?? DEFAULT_PRESET_FUEL_ECONOMY;
+  return FUEL_ECONOMY_BY_CURRENCY[currencyCode?.trim().toUpperCase() ?? ""] ?? DEFAULT_PRESET_FUEL_ECONOMY;
 }
 
 // シードのローカル定数が指定できる「地域依存の既定値」の種類。金額と電気を1つの
@@ -287,6 +301,6 @@ export function resolvePresetRegionalDefaults(
     filamentPerKg: String(price.filamentPerKg),
     mainsVoltage: `${electrical.mainsVoltage}V`,
     breakerCurrent: `${electrical.breakerCurrent}A`,
-    fuelEconomy: resolvePresetFuelEconomy(regionCode),
+    fuelEconomy: resolvePresetFuelEconomy(regionCode, currencyCode),
   };
 }

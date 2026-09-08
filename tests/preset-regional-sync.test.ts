@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { applyPresetRegionalDefaults, buildPresetNotebooksFromSeeds, stampLegacyPresetRegionalDefaults, type CalculationNotebook, type NotebookLocalConstant } from "../lib/calculator-store";
+import { applyPresetRegionalDefaults, buildPresetNotebooksFromSeeds, isCalculationNotebook, sanitizeStoredLocalConstants, stampLegacyPresetRegionalDefaults, type CalculationNotebook, type NotebookLocalConstant } from "../lib/calculator-store";
 import { resolvePresetRegionalDefaults } from "../lib/preset-regional-defaults";
 import { presetRegionalDefaultPatch, releaseEditedRegionalDefaults } from "../lib/preset-regional-sync";
 
@@ -246,5 +246,144 @@ describe("回帰: 利用者の編集が次回起動で消えないこと", () =>
     expect(restamped.changed).toBe(true);
     const back = restamped.notebooks[0].localConstants.find((item) => item.symbol === "fuelEconomy");
     expect(back?.regionalDefault).toBe("fuelEconomy");
+  });
+});
+
+describe("起動シーケンスの通し確認（lib/calculator-store.tsx の読み込み処理と同じ順序）", () => {
+  // Reactのテスト環境が無いので Provider は動かせないが、読み込み処理が呼ぶ関数を
+  // **同じ順序・同じ条件**で並べれば、データの流れは決定的に検証できる。
+  // 実装側の順序は「付け直し（移行フラグが無いときだけ1回）→ 現在の地域へ揃える」。
+  const boot = (stored: CalculationNotebook[], regionalDefaults: ReturnType<typeof resolvePresetRegionalDefaults>, stampedFlag: boolean) => {
+    let notebooks = stored;
+    let markStamped = false;
+    if (!stampedFlag) {
+      const stamped = stampLegacyPresetRegionalDefaults(notebooks);
+      if (stamped.changed) notebooks = stamped.notebooks;
+      markStamped = true;
+    }
+    const applied = applyPresetRegionalDefaults(notebooks, regionalDefaults);
+    if (applied.changed) notebooks = applied.notebooks;
+    return { notebooks, stampedFlag: stampedFlag || markStamped };
+  };
+
+  const fuelOf = (notebooks: CalculationNotebook[]) =>
+    notebooks.flatMap((item) => item.localConstants).find((item) => item.symbol === "fuelEconomy")!;
+
+  it("旧データ→初回起動→利用者が編集→再起動→地域変更、を通して編集が守られる", () => {
+    // 1) 目印を保存する前の保存データ（目印なし・日本で投入された値）
+    let stored: CalculationNotebook[] = buildPresetNotebooksFromSeeds(["vehicles"], "ja", JP, "2026-01-01T00:00:00.000Z").map((notebook) => ({
+      ...notebook,
+      localConstants: notebook.localConstants.map(({ regionalDefault: _dropped, ...rest }) => rest),
+    }));
+    let stampedFlag = false;
+
+    // 2) 米国で初回起動: 目印が付き直り、値も米国式へ揃う。フラグが立つ。
+    ({ notebooks: stored, stampedFlag } = boot(stored, US, stampedFlag));
+    expect(fuelOf(stored).expression).toBe("35mpg");
+    expect(stampedFlag).toBe(true);
+
+    // 3) 利用者が自分の車の実燃費に書き換えて保存（保存の入口で目印が外れる）
+    const target = stored.find((notebook) => notebook.localConstants.some((item) => item.symbol === "fuelEconomy"))!;
+    stored = stored.map((notebook) =>
+      notebook.id !== target.id
+        ? notebook
+        : {
+            ...notebook,
+            localConstants: releaseEditedRegionalDefaults(
+              notebook.localConstants.map((item) => (item.symbol === "fuelEconomy" ? { ...item, expression: "28mpg" } : item)),
+              notebook.localConstants,
+            ),
+          },
+    );
+    expect(fuelOf(stored).expression).toBe("28mpg");
+    expect(fuelOf(stored).regionalDefault).toBeUndefined();
+
+    // 4) 再起動（フラグが立っているので付け直しは走らない）→ 編集が残る
+    ({ notebooks: stored } = boot(stored, US, stampedFlag));
+    expect(fuelOf(stored).expression).toBe("28mpg");
+
+    // 5) 英国へ引っ越して起動 → **利用者の値は触られない**（ここが守るべき一点）
+    ({ notebooks: stored } = boot(stored, resolvePresetRegionalDefaults(null, "GB", "en"), stampedFlag));
+    expect(fuelOf(stored).expression).toBe("28mpg");
+
+    // 6) 一方、編集していない燃料単価は英国の値へ追従している
+    const price = stored.flatMap((item) => item.localConstants).find((item) => item.symbol === "price")!;
+    expect(price.expression).toBe(resolvePresetRegionalDefaults(null, "GB", "en").fuelPerLiter);
+    expect(price.regionalDefault).toBe("fuelPerLiter");
+  });
+
+  it("フラグを立て忘れると（＝毎回付け直すと）4の時点で編集が消える", () => {
+    // 移行フラグが必要な理由そのものを固定する。実装で `markRegionalDefaultsStamped` の
+    // 保存を落とすと、この期待どおり編集が消えて上のテストが落ちる。
+    const seeded = buildPresetNotebooksFromSeeds(["vehicles"], "en", US, "2026-01-01T00:00:00.000Z");
+    const target = seeded.find((notebook) => notebook.localConstants.some((item) => item.symbol === "fuelEconomy"))!;
+    const edited = seeded.map((notebook) =>
+      notebook.id !== target.id
+        ? notebook
+        : {
+            ...notebook,
+            localConstants: releaseEditedRegionalDefaults(
+              notebook.localConstants.map((item) => (item.symbol === "fuelEconomy" ? { ...item, expression: "28mpg" } : item)),
+              notebook.localConstants,
+            ),
+          },
+    );
+    const { notebooks } = boot(edited, resolvePresetRegionalDefaults(null, "GB", "en"), false);
+    expect(fuelOf(notebooks).expression).toBe("42mpgUK");
+  });
+});
+
+describe("未知の目印が保存されていてもノートを失わない", () => {
+  // 種類を減らしたアプリで古いデータを開いたときの経路。`isCalculationNotebook` が false を
+  // 返すと、読み込み時の filter でノートが**丸ごと**捨てられ、利用者の手順や編集ごと消える
+  // （しかも投入済みカテゴリは seededPresetIds に残るので二度と復活しない）。独立レビューで検出。
+  const withUnknownMarker = () => {
+    const notebook = buildPresetNotebooksFromSeeds(["vehicles"], "ja", JP, "2026-01-01T00:00:00.000Z")
+      .find((item) => item.localConstants.some((constant) => constant.symbol === "fuelEconomy"))!;
+    return {
+      ...notebook,
+      localConstants: notebook.localConstants.map((item) =>
+        item.symbol === "fuelEconomy" ? { ...item, regionalDefault: "somethingRemoved" as never } : item,
+      ),
+    };
+  };
+
+  it("未知の目印は検証を通す（ノートを捨てない）", () => {
+    expect(isCalculationNotebook(withUnknownMarker())).toBe(true);
+  });
+
+  it("読み込み時に未知の目印だけを落とし、式と手順は残す", () => {
+    const sanitized = sanitizeStoredLocalConstants(withUnknownMarker().localConstants);
+    const fuel = sanitized.find((item) => item.symbol === "fuelEconomy")!;
+    expect(fuel.regionalDefault).toBeUndefined();
+    expect(fuel.expression).toBe("15km/L");
+    // 既知の目印は残る（落とすのは未知のものだけ）。
+    expect(sanitized.find((item) => item.symbol === "price")?.regionalDefault).toBe("fuelPerLiter");
+  });
+});
+
+describe("旧データの付け直しは記号も一致させる", () => {
+  it("シード内で定数を並べ替えたときに別の定数へ目印を付けない", () => {
+    // idは「カテゴリID＋スラグ＋添字」なので、並べ替えると別の定数のidと一致してしまう。
+    // 記号を見ずに付けると、直後の後追い反映が distance を 230V などで上書きする。
+    const notebook = buildPresetNotebooksFromSeeds(["vehicles"], "ja", JP, "2026-01-01T00:00:00.000Z")
+      .find((item) => item.localConstants.some((constant) => constant.symbol === "distance"))!;
+    const ids = notebook.localConstants.map((item) => item.id);
+    const shuffled = {
+      ...notebook,
+      // idだけを入れ替える（＝シード側の並びが変わった状況の再現）。目印は落としておく。
+      localConstants: notebook.localConstants.map(({ regionalDefault: _dropped, ...rest }, index) => ({
+        ...rest,
+        id: ids[(index + 1) % ids.length],
+      })),
+    };
+    const stamped = stampLegacyPresetRegionalDefaults([shuffled]);
+    const { notebooks } = applyPresetRegionalDefaults(stamped.notebooks, US);
+    const distance = notebooks[0].localConstants.find((item) => item.symbol === "distance");
+    // 空振りしていないこと（distance が実在すること）を先に確かめる。
+    expect(distance).toBeDefined();
+    // 記号と食い違うidには目印が付かないので、値は元のまま保たれる。
+    expect(distance?.expression).toBe("300km");
+    expect(distance?.regionalDefault).toBeUndefined();
   });
 });

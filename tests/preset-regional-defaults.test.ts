@@ -290,6 +290,18 @@ describe("燃費の地域別既定値", () => {
     }
   });
 
+  it("地域が読めず通貨だけ取れる端末でも、燃費が金額・電気と同じ国を指す", () => {
+    // 金額と電気は通貨まで落ちるのに燃費は地域しか見ていなかったため、
+    // **価格はUSDで電圧は120Vなのに燃費だけ km/L** という食い違いが出ていた（独立レビューで検出）。
+    expect(resolvePresetFuelEconomy(null, "USD")).toBe("35mpg");
+    expect(resolvePresetFuelEconomy(null, "GBP")).toBe("42mpgUK");
+    // 通貨から一意に決まらないものは世界の多数派へ倒す（EUR圏は L/100km 表記だが km/L で計算できる）。
+    expect(resolvePresetFuelEconomy(null, "EUR")).toBe(DEFAULT_PRESET_FUEL_ECONOMY);
+    expect(resolvePresetFuelEconomy(null, null)).toBe(DEFAULT_PRESET_FUEL_ECONOMY);
+    // 地域が読めればそちらが優先される（通貨より地域が強い、という既存の原則を崩さない）。
+    expect(resolvePresetFuelEconomy("JP", "USD")).toBe(DEFAULT_PRESET_FUEL_ECONOMY);
+  });
+
   it("燃費もローカル定数の regionalDefault として差し替えられる", () => {
     const constant = { symbol: "fuelEconomy", expression: "15km/L", regionalDefault: "fuelEconomy" as const };
     expect(presetConstantExpression(constant, resolvePresetRegionalDefaults(null, "US", "en"))).toBe("35mpg");

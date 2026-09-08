@@ -228,15 +228,16 @@ function isLegacyCalculationNote(value: unknown): value is LegacyCalculationNote
   return typeof candidate.id === "string" && typeof candidate.title === "string" && typeof candidate.description === "string" && Array.isArray(candidate.steps) && candidate.steps.every((step) => step && typeof step.id === "string" && typeof step.title === "string" && typeof step.expression === "string" && typeof step.targetUnit === "string") && typeof candidate.createdAt === "string" && typeof candidate.updatedAt === "string";
 }
 
-function isCalculationNotebook(value: unknown): value is CalculationNotebook {
+export function isCalculationNotebook(value: unknown): value is CalculationNotebook {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<CalculationNotebook>;
   return typeof candidate.id === "string" && typeof candidate.title === "string" && typeof candidate.description === "string" && typeof candidate.categoryId === "string"
     && (candidate.formulas === undefined || (Array.isArray(candidate.formulas) && candidate.formulas.every((item) => item && typeof item.id === "string" && typeof item.explanation === "string" && typeof item.latex === "string")))
-    && Array.isArray(candidate.localConstants) && candidate.localConstants.every((item) => item && typeof item.id === "string" && typeof item.symbol === "string" && typeof item.expression === "string"
-      // 未知の種類を通すと regionalDefaults[kind] が undefined になり、式が空のまま解決できない
-      // 定数が生まれる。目印として認めず、ただの利用者の値として扱う（式はそのまま残る）。
-      && (item.regionalDefault === undefined || isPresetRegionalDefaultKind(item.regionalDefault)))
+    // regionalDefault の中身はここで検証しない。**未知の種類を理由にfalseを返すと、この後の
+    // filter でノートが丸ごと捨てられ、利用者の手順や編集ごと消える**（しかも投入済みカテゴリは
+    // seededPresetIds に残るので二度と復活しない）。目印は sanitizeStoredLocalConstants で
+    // 落とし、式と手順は残す。
+    && Array.isArray(candidate.localConstants) && candidate.localConstants.every((item) => item && typeof item.id === "string" && typeof item.symbol === "string" && typeof item.expression === "string")
     && Array.isArray(candidate.steps) && candidate.steps.every((step) => step && typeof step.id === "string" && typeof step.title === "string" && typeof step.expression === "string" && typeof step.targetUnit === "string" && (step.resultSymbol === undefined || typeof step.resultSymbol === "string"))
     && typeof candidate.createdAt === "string" && typeof candidate.updatedAt === "string";
 }
@@ -251,6 +252,20 @@ function isNotebookHistoryEntry(value: unknown): value is NotebookHistoryEntry {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<NotebookHistoryEntry>;
   return typeof candidate.id === "string" && typeof candidate.notebookId === "string" && typeof candidate.title === "string" && typeof candidate.categoryId === "string" && typeof candidate.openedAt === "string";
+}
+
+/**
+ * 保存済みのローカル定数から、**現在のアプリが解釈できない `regionalDefault` だけ**を落とす。
+ * 種類を減らしたアプリで古いデータを開くと `regionalDefaults[kind]` が undefined になるため、
+ * 目印としては認めない。ただし式はそのまま残す（利用者が入れた値として扱う）。
+ * ノートごと捨てないのが要点。
+ */
+export function sanitizeStoredLocalConstants(localConstants: NotebookLocalConstant[]): NotebookLocalConstant[] {
+  return localConstants.map((constant) => {
+    if (constant.regionalDefault === undefined || isPresetRegionalDefaultKind(constant.regionalDefault)) return constant;
+    const { regionalDefault: _unknown, ...rest } = constant;
+    return rest;
+  });
 }
 
 function parseStoredArray(raw: string | null): unknown[] {
@@ -540,19 +555,25 @@ function stampSeedRegionalDefaults(notebook: CalculationNotebook): NotebookLocal
   const seed = !seeds || seedId === undefined ? undefined : seeds.find((candidate) => seedSlug(candidate) === seedId);
   if (!seed || seedId === undefined) return notebook.localConstants;
 
-  const kindByConstantId = new Map<string, PresetRegionalDefaultKind>();
+  // idは「カテゴリID＋シードのスラグ＋添字」なので、シード内で定数を並べ替えると別の定数の
+  // idと一致してしまう。**記号も一致させる**ことで、並べ替えたときに間違った定数へ目印を付けて
+  // 直後の後追い反映が `distance` を `230V` で上書きする、という事故を防ぐ
+  // （配列位置から採番して既存データが別シードに結び付いたPR #51と同じ種類の危険）。
+  const seedByConstantId = new Map<string, { symbol: string; kind: PresetRegionalDefaultKind }>();
   seed.localConstants.forEach((constant, constantIndex) => {
-    if (constant.regionalDefault) kindByConstantId.set(presetConstantId(notebook.categoryId, seedId, constantIndex), constant.regionalDefault);
+    if (constant.regionalDefault) {
+      seedByConstantId.set(presetConstantId(notebook.categoryId, seedId, constantIndex), { symbol: constant.symbol, kind: constant.regionalDefault });
+    }
   });
-  if (!kindByConstantId.size) return notebook.localConstants;
+  if (!seedByConstantId.size) return notebook.localConstants;
 
   let changed = false;
   const next = notebook.localConstants.map((constant) => {
     if (constant.regionalDefault) return constant;
-    const kind = kindByConstantId.get(constant.id);
-    if (!kind) return constant;
+    const seeded = seedByConstantId.get(constant.id);
+    if (!seeded || seeded.symbol !== constant.symbol) return constant;
     changed = true;
-    return { ...constant, regionalDefault: kind };
+    return { ...constant, regionalDefault: seeded.kind };
   });
   return changed ? next : notebook.localConstants;
 }
@@ -701,7 +722,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           AsyncStorage.getItem(ACTIVE_NOTEBOOK_STORAGE_KEY),
         ]);
 
-        let nextNotebooks = parseStoredArray(notebooksRaw).filter(isCalculationNotebook).map((item) => ({ ...item, formulas: item.formulas ?? [], pinned: item.pinned === true, isPreset: item.isPreset === true }));
+        let nextNotebooks = parseStoredArray(notebooksRaw).filter(isCalculationNotebook).map((item) => ({ ...item, formulas: item.formulas ?? [], pinned: item.pinned === true, isPreset: item.isPreset === true, localConstants: sanitizeStoredLocalConstants(item.localConstants) }));
         let seededPresetIds = parseStoredArray(seededPresetsRaw).filter((id): id is string => typeof id === "string");
         let notebooksDirty = false;
         let markMigrated = false;

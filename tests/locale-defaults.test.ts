@@ -44,6 +44,14 @@ describe("既定のカップ・大さじの規格", () => {
     expect(resolveDefaultMeasuringStandard(undefined, "de")).toBe("metric");
   });
 
+  it("地域が読めない en は米国式にする（通貨・電気の推測と揃える）", () => {
+    // 同じ状況で金額は USD、電圧は米国の120Vに落ちる。ここだけメートル法にすると
+    // 「電気代はドル・電圧は120Vなのにカップは250mL」という食い違った端末になる。
+    // 英国・豪州の可能性は残るが、地域が読めない以上どの資源も同じ推測に賭けるほかない。
+    expect(resolveDefaultMeasuringStandard({ regionCode: null }, "en")).toBe("us");
+    expect(resolveDefaultMeasuringStandard(undefined, "en")).toBe("us");
+  });
+
   it("どの言語でも必ず解決できる（未定義を返さない）", () => {
     for (const language of APP_LANGUAGES) {
       expect(MEASURING_STANDARDS).toContain(resolveDefaultMeasuringStandard(undefined, language));
