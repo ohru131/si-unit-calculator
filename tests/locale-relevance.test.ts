@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { APP_LANGUAGES } from "../lib/i18n";
+import { APP_LANGUAGES, type AppLanguage } from "../lib/i18n";
 import {
   NOTEBOOK_CATEGORY_RELEVANCE,
   SAMPLE_CATEGORY_RELEVANCE,
@@ -75,6 +75,22 @@ describe("関連度順の並べ替え", () => {
     expect(orderNotebookCategoriesForLanguage(topLevel, "es")[0].id).toBe("high-school-physics");
     expect(orderNotebookCategoriesForLanguage(topLevel, "pt-BR")[0].id).toBe("high-school-physics");
     expect(orderNotebookCategoriesForLanguage(topLevel, "en")[1].id).toBe("engineering-design");
+  });
+
+  it("exam から分野のタブへ移した3件が、狙った言語ではそのタブの先頭に出る", () => {
+    // `exam` のラベルは言語ごとに現地の試験名になるので、一般物理の3件は motion / mechanics に置いてある
+    // （lib/sample-calculations.ts）。その代わり、これらを試験のサンプルとして拾わせたい言語では
+    // タブの中の先頭に来ていないと到達できない。補う口が SAMPLE_CATEGORY_RELEVANCE（タブ自体の順）と
+    // SAMPLE_RELEVANCE（タブの中の順）の2つあり、独語のようにタブ順を動かせない言語では後者だけが効くため、
+    // 「タブの何番目か」ではなく「タブの中で先頭か」を固定する。
+    const samplesIn = (category: string, language: AppLanguage) =>
+      orderSamplesForLanguage(SAMPLE_CALCULATIONS.filter((sample) => sample.category === category), language).map((sample) => sample.id);
+
+    for (const language of ["de", "es", "pt-BR", "fr"] as const) {
+      expect(samplesIn("motion", language)[0], `${language}/motion`).toBe("kmh-to-ms");
+      // 重力場とクーロンの法則はどちらが先でもよいが、2件そろって先頭に来ること。
+      expect(new Set(samplesIn("mechanics", language).slice(0, 2)), `${language}/mechanics`).toEqual(new Set(["gravity-field", "coulomb-force"]));
+    }
   });
 
   it("最上位カテゴリを並べ替えても、親カテゴリだけが最上位に残る", () => {
