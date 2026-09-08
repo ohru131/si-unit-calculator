@@ -67,6 +67,10 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - **`B`（バイト）を BASE_UNITS に足してはいけない。** 完全一致→接頭辞分解の順なので、`B` を足した瞬間に `dB` が `d`（デシ）+`B` として解決され、**`3dB` が黙って 0.3 になる**（今は `Unsupported unit "dB"` と正直に落ちる）。デシベルは対数量で `siValue = value*scale + offset` では表現できない以上、この誤解決を防ぐ方が価値が高い。データ量のカテゴリを作るなら `bit`/`byte` と綴った記号（`Mbit`・`Gbyte` は接頭辞分解で通る）にすること。音響ノートのdBは無次元＋`log`で出している。
   - **ユーザー定義単位は解決順の一番最後**に引く（`resolveUnitSymbol`）。既存の解決（動的な計量カップ → `BASE_UNITS` の完全一致 → SI接頭辞分解）は `resolveBuiltInUnitSymbol` に切り出してあり、**それが解決できなかった場合にだけ**ユーザー定義を見る。この順序のおかげで「今日すでに解決できている記号」の意味はユーザーが何を登録しても変わらない。登録時にも `isBuiltInUnitSymbol` で衝突を弾くので、`dm` はデシメートルのまま。**この順序を入れ替えないこと。**
   - **オフセットを持つ単位は裸の識別子として使うとoffsetが落ちる**（`evaluateExpression` の識別子フォールバックが `scale`/`dimension` しか見ないため）。組み込みの `°C`/`°F` は記号に `°` を含み識別子トークンにならないので従来は到達不能だったが、**英字のみの単位（＝ユーザー定義単位）を足すと踏む**。現在は `temperatureUnitStandalone` を投げて塞いである（`32fah` は273.15Kだが `2*fah` は1.111Kになっていた）。
+- `lib/locale-relevance.ts` — **サンプルと計算ノートを言語ごとのターゲット層に合わせて並べ替える純関数**。並び順の根拠は `docs/target-users-by-locale-2026-09.md` 第1節（de=Ausbildung Elektroniker と Klausur、en=FE受験者と工学部生、fr=lycée の physique-chimie、es=EBAU、pt-BR=ENEM、ja=電験・電工）。
+  - **表に書くのは「先頭へ持ち上げるIDの列」だけ**で、書かなかったIDは元の配列順のまま後ろに続く（`orderByRelevance` は安定ソート）。全件を6言語ぶん書き並べる形にすると、項目を1つ足すたびに6箇所直すことになり必ずどこかが漏れる。列に無いIDは無視されるだけなので、項目を消すときに表を直し忘れても壊れない。**代わりに綴り間違いも黙って無視される**ので、`tests/locale-relevance.test.ts` が「列に書かれたIDが実在すること」を機械的に検証している。
+  - **並べ替えは表示のときだけ行う。`SAMPLE_CALCULATIONS` と `PRESET_NOTEBOOK_CATEGORIES` の配列そのものは言語に依らない正順のまま保つこと。** 後者はプリセット投入の順＝保存データ上のノートの並びを決めるので、配列自体を言語で入れ替えると同じ端末でも言語を変えるたびに保存順が変わる。
+  - 効く場所は3つ: サンプルシートのカテゴリタブ・カテゴリ内のサンプル（`app/(tabs)/index.tsx`）と、計算ノートのカテゴリカード（`components/notebooks/notebook-category-grid.tsx`。最上位と子の両方）。**サンプルシートの既定タブは固定値ではなく並べ替え後の先頭**にしてある（`sampleCategory` state は「まだ自分で選んでいない」を表す `null` 始まりで、表示は `activeSampleCategory` を見る）。以前の `useState("basic")` に戻さないこと。
 - `lib/notebook-search.ts` — 計算ノートの絞り込み（`searchNotebooks`）。タイトル・説明文・**カテゴリ名**を横断で見る純関数。
   - **並べ替えではなく絞り込み**。スコアは「タイトル先頭一致 → タイトル → 説明文 → カテゴリ名」の優先順を作るためだけに使い、同じ強さのものは渡された順（＝カテゴリの表示順）のまま返す。検索のたびに並びが変わると、一覧のどこを見ていたか分からなくなる。
   - 空白区切りの語は**すべて**当たる必要がある（AND）。全角スペースも区切りとして扱う（日本語入力では混ざるのが普通で、区切れないと1件も当たらない）。
@@ -336,6 +340,13 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - **独語のダッシュは `–`（Halbgeviertstrich）。`—` は独語の組版では使わない。** 既存の掲載文が `—` で書かれていたので混在していた。
 - **人を並べる文に目的を混ぜない。** 独語の締めを字数のために `für Physik- und Chemie-Klausuren` と圧縮したら、人の列挙の中に「クラウズーアのために」が混ざって崩れた。
 
+26. **[完了]** 各言語版ターゲットに合わせて**サンプルと計算ノートをブラッシュアップし、関連度順に並べ替えた**（`lib/locale-relevance.ts`）。
+    - **並べ替え**: サンプルのカテゴリタブ・カテゴリ内のサンプル・計算ノートのカテゴリカード（最上位＋子）。例えば独語では「Klausur & Prüfung」→「Elektrizität」の順にタブが出て、カテゴリカードは「Elektrizität & Energie」が先頭になる。仏語は「Compte rendu de TP」と「Physique (lycée)」が先頭。
+    - **追加したサンプル6件**: `imperial-to-si`（`12ft + 3in` → m。en の FE・英国 C&G）、`psi-to-kpa`、`metric-horsepower`（`1PS` → kW。de/fr。hp との1.4%差を説明文で名指し）、`voltage-drop`（配線の電圧降下。de/ja/pt-BR の電気系）、`gravity-field`・`coulomb-force`（EBAU / ENEM / lycée / Klausur の定番）。
+    - **追加した計算ノート4件**: `electricity-basics` に「電圧降下と必要な電線の太さ」「変圧器の巻数比」「モーターの効率・損失・線電流」、`physics-electricity` に「点電荷の電場と電位」。前3件は Ausbildung Elektroniker / 電工二種・電験 / C&G 2365 / NR-10 / FP Instalaciones Eléctricas が共通して扱う計算。
+    - **電圧降下のノートは `regionalDefault: "mainsVoltage"` を効かせてある**ので、100V の地域では 2.5mm² が3%制限を割り込み（5.6%）、必要断面積が 4.67mm² と出る。230V なら 2.43% で収まる。**既定値が地域で変わることで「検定の合否が出る値」になる**（既定値は実在する材料×実在するカタログ品で組む、という既存の方針の延長）。
+    - **モーターのノートは定格を `5PS` で置いた。** PS を単位として足した（履歴25）ことがプリセットに現れる最初の場所で、1手順目の「出力を kW で見る」がそのまま PS→kW の実演になる。
+
 ### 現在の基準値（2026-09-08時点、各言語版ターゲット施策のP0・P1を入れた後）
 
 - `npx tsc --noEmit` → **`app/(tabs)/constants.tsx` の `"/notebook"` ルート型で2件のみ**（mainに元からあるもので、このPRは `constants.tsx` を触っていない）。**「`npx expo export` で型が再生成されれば消える」という以前の記述は誤り**で、実際にexportし直しても消えないことを確認した（生成される型に `"/(tabs)/notebook"` は入るが `"/notebook"` は入らない）。直すなら `router.push("/(tabs)/notebook")` にするか型を広げる別作業。
@@ -343,9 +354,18 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - `npx expo lint` → **2エラー・0警告**（`app/(tabs)/index.tsx` の既存分のまま）。
 - **`vitest.config.ts` を追加してある。** `@/lib/units` のような `@/` の**実行時import**（型だけのimportと違う）を解決するため。これが無いとテストから `lib/locale-defaults.ts` を読めない。
 
+### 現在の基準値（2026-09-08時点、サンプル・ノートを言語ごとの関連度順にした後）
+
+- `npx tsc --noEmit` → **`app/(tabs)/constants.tsx` の `"/notebook"` ルート型で2件のみ**（上と同じ既存分）。
+- `npx vitest run` → **861 passed / 2 failed / 1 skipped**。失敗2件は従来どおり `tests/revenuecat.credentials.test.ts`（環境依存）。新規: `tests/locale-relevance.test.ts`（7件）。
+- `npx expo lint` → **2エラー・0警告**（`app/(tabs)/index.tsx` の既存分のまま）。
+- プリセット計算ノートは **194件・カテゴリ38件（最上位9枚）・全361手順**、サンプルは **32件**。件数は資料を書くたびに実測すること（`lib/notebook-formulas` を tsx で読んで数える）。
+- `npx expo export --platform web --clear` が通る。`dist` を `python3 -m http.server` で配って Playwright（`/opt/pw-browsers/chromium`）で `locale` を変えて開くと、カテゴリカードとサンプルタブの並びが言語ごとに変わることを目視できる（de / fr / ja で確認済み）。
+
 ## 次にやりそうなこと（ユーザーから明示的な指示待ち）
 
 - **各言語版ターゲットに沿った施策の残り（`docs/target-users-by-locale-2026-09.md` 第5節）**: P0・P1は履歴25で全て実施済み。残るのは **P2=分数インチ（`3ft + 1/8in`）とAWG/kcmil**で、これは**米国の職人を取ると決めた場合のみ**入れる（単体では入れない。エンジンの守備範囲を広げるほど「単位を厳密に扱う」中核の保証が薄まるため、`B`（バイト）を足さない判断と同じ）。
+- **関連度順（`lib/locale-relevance.ts`）を広げるか**。今効いているのはサンプルシートとカテゴリグリッドだけで、**ノート編集シートのカテゴリピッカー（`components/notebooks/notebook-editor-sheet.tsx`）と `app/(tabs)/constants.tsx` の `categoryOptions` は元の順のまま**。「見るとき」と「割り当てるとき」で並びが違うのは小さな引っかかりなので揃える価値はある（`orderNotebookCategoriesForLanguage` をプリセット部分に噛ませるだけ）。カテゴリ内のノートの並べ替えは別問題で、保存データ側の配列順なので表示側だけでは閉じない。
 - **ブラッシュアップ方針の続き（`docs/brushup-plan-2026-09.md` 第3節）**: (1) ストア掲載文・スクショ1枚目を「検算」に寄せる、(2) 接頭語の入力補助（`4.7k` の後に kΩ / kV を候補に）、(3) ノート入力欄の「記号＝値＋単位▾」3分割と単位候補の意味的な絞り込み（曲げモーメントに BTU を出さない）、(4) サンプルカテゴリに「電験・電工の計算」「実験レポートの単位換算」、(5) タブ再編・Pro機能の鍵バッジ・単位説明モーダル（`setUnitInfoSymbol` が全箇所 `null` で到達不能）の復活または削除。UX監査で見つかった小さな不具合も未対応: 「電卓画面にピン留め」を押しても電卓に何も出ない、`mn` の修正候補に `min`/`mm` が出ない、比較表に `au`/`ly` の雑音、ノート結果の10桁表示、`Ohm` と `Ω` の混在、新規ノートのカテゴリ初期値が直前に閲覧したカテゴリになる。
 - **既存6カテゴリのノート追加と重複整理**（約30件の案あり）。重複が実害になっているのは、`electricity-basics`の直列並列合成とブレーカー容量が`science-electricity`と同じ式、`chemistry`の質量パーセント濃度が`science-density`と重複、`vehicles`の制動距離が停止距離ノートの2手順目そのもの、`astronomy`の光の到達時間2件が同じ`t=d/c`。**ただしシードから消しても既存インストールには届かない**（投入はカテゴリID単位で1回きり）ので、消し方は別途要検討。
 - **投入済みプリセットの後追い更新（残り）**。**地域依存の既定値は #54 で解決した**（`lib/preset-regional-sync.ts` の目印方式。電気代・燃料単価・フィラメント単価・電圧・ブレーカー定格・燃費の6種すべてに効く）。残っているのは**手順の式・タイトル・説明文**で、シードを直しても既存インストールには届かない（#46 で作り直した「はり・柱」は既存ユーザーには旧・材料力学のまま）。こちらは「利用者が編集したか」の目印が無く、`PRESET_NOTEBOOK_SEEDS_AS_SEEDED` との突き合わせで推測するしかない。**式にも目印方式を広げるのが筋**だが、定数と違って利用者が式を編集する頻度が低いぶん優先度は下がる。
