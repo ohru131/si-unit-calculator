@@ -73,6 +73,14 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - **電気は地域が読めた時点で確定させ、通貨・言語へ落とさない。** 表に無い＝低電圧圏ではないということなので、既定の230V/16Aにする。ここを金額と同じ「通貨→言語」の連鎖にすると、**オーストラリアの英語UIが en→米国→120V に落ちて黙って誤る**（テストで固定してある）。
   - 解決結果（`PresetRegionalDefaults`）は値ではなく**そのまま定数の式として使える文字列**。金額は裸の数値（`"0.29"`）、電気は単位付き（`"230V"`）と形が違うので、単位を付ける場所が呼び出し側に散らばらないようここで確定させる。
   - **ノートの説明文に地域固有の言い回しを残さないこと。** ブレーカー容量ノートは「契約電圧」（日本のアンペア契約に固有）と書いていて、値だけ地域別にしても文面が他の地域で意味を成さなかった。
+- `lib/display-unit.ts` — 電卓の結果カードの**表示単位を決める純関数**（`resolveDisplayUnit`）。`targetUnit`（ユーザーが明示的に選んだ単位）はstateとして持ち続けるが、**表示・チップの点灯・比較表・進数チップの条件・履歴の保存はすべて `displayUnit`（この関数の結果）を見る**。優先順は「明示的な選択（結果と同じ次元のときだけ）→ 式の中で最初に使った同じ次元の単位（`5cm + 1mm` → cm）→ 1〜1000に収まるSI接頭語（`12V/4.7kΩ` → mA、`100N/0.01m²` → kPa）または倍率1の名前付き単位（`2kg×9.8m/s²` → N。無いと `m·kg/s²` と出る）→ SI」。
+  - **明示的な選択が結果の次元に合わないときはエラーにせず黙って自動へ戻す。** 以前は長さの計算で cm を選んだあと `255` や `1/3` を打つと「cmへ変換できません」の赤字が出て進数チップまで消えていた（2026-09のUX監査）。`targetUnit` を直接 `convertQuantity` に渡す箇所を復活させないこと。
+  - 接頭語の候補は**倍率が10のべき乗でオフセットを持たない単位だけ**（in・ft・km/h・°C は自動では選ばない）。無次元の結果は常に裸の数値（`%`・`rad` を勝手に付けない）。
+  - 電卓のクイックスタート3件（`QUICK_START`）は表示単位を指定せず、この自動選択に任せている（5.1 cm / 2.55 mA / 90 km になることがそのままデモになる）。
+- `lib/calculator-input.ts` の `diagnoseCalculatorInput` / `isDiagnosableInputError` — **= を押す前のリアルタイム診断**。評価エラーの `UnitError` を返し、結果カードの中で「長さ (m)と質量 (kg)は足し引きできません」のように説明する（`liveDiagnosis`）。書きかけの式で出る構文系のコード（`unexpectedEndOfExpression`・`missingClosingParen` 等、`INCOMPLETE_INPUT_ERROR_CODES`）は診断として出さない（一文字打つごとに赤くなるため）。**以前は `previewCalculatorInput` がエラーを全部握りつぶしていて、中核の次元チェックが `=` を押した人にしか見えなかった。** `=` のエラー帯は、結果カードに同じ診断が出ているときは重ねない（帯の挿入でレイアウトが100px跳ねる）。
+  - 進数入力モード中（`baseInputMode !== null`）は `FF` のような生の桁が式として解析されて診断が出るので、**診断の表示は `baseInputMode === null` を条件にしている**。
+- `lib/unit-group-names.ts` — 単位グループの表示名（旧 `lib/global-settings.tsx` の `GROUP_NAMES`）。**計算エンジンのエラー文言からも引く**ため、Reactに依存しない純データとして切り出した。`lib/units.ts` の `add`/`subtract` は次元不一致のとき `describeDimension` で両辺の**グループid とSI表記**（言語に依存しない）をエラーの `params` に載せ、`lib/unit-errors.ts` の `describeMismatchSides` が現在の言語で名前に変える。`unit-errors.ts` は `units.ts` から import される側なので `units.ts` を import できない（循環）。グループ名が無い合成次元（`N·m²/C²`）はSI表記だけ、無次元は「無次元の値」。
+  - 6言語の `dimensionMismatchAddSubtract` は `params` が無い旧形式なら従来の一般文言に戻る。テストは `tests/calculator-diagnosis.test.ts`。
 - `lib/unit-comparison.ts` — 1つの値を複数単位で並べる比較表の行を組み立てる純関数（`buildUnitComparisonRows`）。換算は既存の `convertQuantity` / `formatNumberForLocale`、候補は既存の `compatibleUnitOptionsFromHints` に任せ、**新しい換算ロジックは持たない**。
   - 電卓の結果カードの単位チップ列のすぐ下に、折りたたみで出している（`app/(tabs)/index.tsx`）。**候補の集合・並び順・タップ時の挙動をチップ列と揃える**ことで「チップ列を縦に開いたもの」として読ませる設計なので、ここで並べ替えないこと（テストで固定してある）。
   - チップ列（`conversionUnits`）は `getCompatibleUnitGroups` だけで作るため合成次元（`N·m²/C²` など）では空になるが、比較表は手掛かり方式を通すので候補を出せる。
@@ -254,6 +262,13 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - `npx expo lint` → **2エラー・0警告**。どちらも `app/(tabs)/index.tsx` の既存分（`react-hooks/purity` と `react-hooks/set-state-in-effect`）。
 - `npx expo export --platform web` が通る。**UIを実際に触れない環境では、この`dist`を`python3 -m http.server`で配ってPlaywright（`/opt/pw-browsers/chromium`）で叩くと画面を確認できる**（初回はオンボーディングのモーダルが被さるので "Skip" を先に押す）。
 
+### 現在の基準値（2026-09-08時点、「検算する電卓」ブラッシュアップ後）
+
+- `npx tsc --noEmit` → **エラー0**（`.expo/types/router.d.ts` が古いサンドボックスでは `constants.tsx` の `"/notebook"` ルート型で2件出るが、`npx expo export` で型が再生成されれば消える環境依存）
+- `npx vitest run` → **786 passed / 2 failed / 1 skipped**。失敗2件は `tests/revenuecat.credentials.test.ts`（環境依存）。新規: `tests/display-unit.test.ts`（10件）・`tests/calculator-diagnosis.test.ts`（10件）・`tests/exact-value.test.ts` に2件。
+- `npx expo lint` → **2エラー・0警告**（`app/(tabs)/index.tsx` の既存分のまま）。
+- `npx expo export --platform web --clear` が通る。Playwrightで `5cm + 1mm → 5.1 cm`・`12V / 4.7kΩ → 2.553191489 mA`・`3m + 2kg → 長さ (m) と 質量 (kg) は足し引きできません`・`255`（cm選択後でも進数チップが出る）を en/ja・light/dark で確認済み。
+
 21. **[完了]** 計算ノートの**検索**（`lib/notebook-search.ts`）と、商用電源の電圧・ブレーカー定格の**地域別解決**（`lib/preset-regional-defaults.ts`）を追加した。前者は184件・2階層でカテゴリを覚えていないと辿り着けなかった問題、後者は`100V`が3ノート・`30A`が1ノートに日本前提で残っていた問題への対応。
 
 22. **[完了]** Shipaton提出資料一式（`docs/` の掲載文・台本・撮影計画・審査員手順と `submission-assets/`）を、PR #41以降にmainへ入った #42（厳密値表示）・#46（ノート112→184件）・#48（ノート検索・地域別既定値）に合わせて更新した。スクリーンショット28枚とデモ動画を撮り直し、撮影・録画のスクリプトを `scripts/capture-submission-assets.mjs` / `scripts/record-demo-video.mjs` として残した。
@@ -269,8 +284,18 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - **字幕バンドは下端に置く。** 入力欄・結果カード・単位チップ・厳密値チップが全部画面上部にあるので、上バンドは説明対象そのものを隠す。下バンドが隠すのはタブバーだけ。
 - **旧 `scripts/build_shipaton_demo.sh` / `scripts/build_submission_assets.py` は `/home/ubuntu/...` を直書きした過去環境の遺物で動かない。** 参考にはなるので残してあるが、実際に使うのは上記の新2スクリプト。
 
+23. **[完了]** 「検算する電卓」への見せ方のブラッシュアップ（`docs/brushup-plan-2026-09.md`）。競合・ターゲットユーザー・実機UX監査の3調査を並行して行い、メインターゲットを**電気系の学習者・受験者（電験三種・電工二種・乙4）**、サブを理工系大学1〜2年（実験レポート）と機械・建築のジュニアエンジニアに定めた。実装は結果カード1枚に絞った: リアルタイム診断（`3m + 2kg` → 「長さ (m)と質量 (kg)は足し引きできません」）、表示単位の自動選択（`5cm + 1mm` → 5.1 cm、`12V / 4.7kΩ` → 2.55 mA、`2kg × 9.8m/s²` → 19.6 N）、結果値 28→36px、空状態にクイックスタート3件、オンボーディング2〜3枚目の差し替え（次元チェックを見せる・誘導先を「ライブラリ」に修正）、有限小数では厳密値チップを出さない、設定の言語チップの重なり修正。
+
+### この作業で分かったこと（次に電卓画面を触るとき用）
+
+- **リアルタイム計算の設計では、`=` を押したときだけ出るものはユーザーに存在しない。** 次元チェックはエンジンの一番の強みなのに、UX監査で撮った `3m + 2kg` の画面は「式を入力すると結果が出ます」だった。新しい表示や診断を足すときは「= を押さない人にも見えるか」を必ず確認する。
+- **力の結果は `19.6 m·kg/s²` と出ていた。** `formatQuantity(q, undefined)` はSI基本単位の積で組むだけで N に簡約しない。表示側で名前付きの単位（倍率1・オフセット無し）を選ぶことで対処した（`lib/display-unit.ts`）。エンジンに簡約を入れる方向にはしていない（`formatDimension` はSI標準行・エラー文言でそのまま使うため）。
+- **UX監査は `npx expo export --platform web --clear` + Playwright で回せる**（初回の `expo export` は `react-native-css-interop/.cache/web.css` のSHA-1不一致で落ちることがあり `--clear` で直る）。監査の生データ（スクショ94枚・計測）は一時ディレクトリで消えるので、結論は `docs/brushup-plan-2026-09.md` に写してある。
+- **提出資料（スクショ・動画・掲載文）は結果カードの見た目に依存している。** 今回の変更で `5cm + 1mm` の結果は `0.051 m` から `5.1 cm` に変わった。`docs/store-listing-copy.md`・`docs/screenshot-capture-plan.md` の該当箇所は次に資料を触るときに撮り直しが要る（履歴22の「資料は黙って陳腐化する」がそのまま当たる）。
+
 ## 次にやりそうなこと（ユーザーから明示的な指示待ち）
 
+- **ブラッシュアップ方針の続き（`docs/brushup-plan-2026-09.md` 第3節）**: (1) ストア掲載文・スクショ1枚目を「検算」に寄せる、(2) 接頭語の入力補助（`4.7k` の後に kΩ / kV を候補に）、(3) ノート入力欄の「記号＝値＋単位▾」3分割と単位候補の意味的な絞り込み（曲げモーメントに BTU を出さない）、(4) サンプルカテゴリに「電験・電工の計算」「実験レポートの単位換算」、(5) タブ再編・Pro機能の鍵バッジ・単位説明モーダル（`setUnitInfoSymbol` が全箇所 `null` で到達不能）の復活または削除。UX監査で見つかった小さな不具合も未対応: 「電卓画面にピン留め」を押しても電卓に何も出ない、`mn` の修正候補に `min`/`mm` が出ない、比較表に `au`/`ly` の雑音、ノート結果の10桁表示、`Ohm` と `Ω` の混在、新規ノートのカテゴリ初期値が直前に閲覧したカテゴリになる。
 - **中南米・台湾の価格プロファイルが無い**。`lib/preset-regional-defaults.ts` の `PRESET_PRICE_PROFILES` は6通貨（JPY/USD/EUR/GBP/BRL/MXN）しか持たないので、電気の地域表には入れた `CO`・`CR`・`DO`・`GT`・`HN`・`NI`・`VE`（自国通貨）と `TW` は、**金額だけ言語からの推測に落ちる**（西語→EUR）。電圧は地域表で正しく解決されるので、同じ国で電気と金額の根拠が食い違う状態。足すには各国の電気代・燃料・フィラメントの実勢価格の裏付けが要るため #48 のスコープ外にした。**米ドルを自国通貨にしている地域（EC・SV・PA・PR）は #48 で `CURRENCY_BY_REGION` に追加済み**。
 - **`km/L` の燃費が日本前提のまま**（`practical.ts` の走行コスト系）。米国は `mpg`、英国は英ガロンの `mpg`、欧州は `L/100km` と**単位そのものが違う**ので、`regionalDefault` のような値の差し替えでは足りず、手順の式と `targetUnit` ごと地域で変える必要がある。100Vの件（下の履歴21）より一段重い。
 - **既存6カテゴリのノート追加と重複整理**（約30件の案あり）。重複が実害になっているのは、`electricity-basics`の直列並列合成とブレーカー容量が`science-electricity`と同じ式、`chemistry`の質量パーセント濃度が`science-density`と重複、`vehicles`の制動距離が停止距離ノートの2手順目そのもの、`astronomy`の光の到達時間2件が同じ`t=d/c`。**ただしシードから消しても既存インストールには届かない**（投入はカテゴリID単位で1回きり）ので、消し方は別途要検討。

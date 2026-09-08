@@ -143,3 +143,20 @@ export function findExactValue(value: number): ExactValue | null {
 
   return null;
 }
+
+/**
+ * 有限小数（分母が 2 と 5 の積だけで作れる分数）かどうか。`0.051` を `51/1000`、`2.5` を `5/2` と
+ * 見せても「言い換え」になっていないので、結果カードの 小数 ⇔ 厳密値 チップはこの場合は出さない。
+ * 判定は表示用テキスト（`51/1000` の形）から分母を読む。整数は findExactValue が null を返すので
+ * ここには来ない。π や √ の形は分母に関係なく常に言い換えとして価値がある。
+ */
+export function isTerminatingDecimalFraction(value: ExactValue): boolean {
+  if (value.kind !== "rational") return false;
+  const match = /\/(\d+)$/.exec(value.text);
+  if (!match) return true;
+  let denominator = Number(match[1]);
+  if (!Number.isFinite(denominator) || denominator <= 0) return false;
+  while (denominator % 2 === 0) denominator /= 2;
+  while (denominator % 5 === 0) denominator /= 5;
+  return denominator === 1;
+}
