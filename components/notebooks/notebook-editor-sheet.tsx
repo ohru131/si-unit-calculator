@@ -19,6 +19,7 @@ import { clampSelectionRange, getLocalConstantFieldSuggestions, getStepFieldSugg
 import { evaluateNotebookSteps, formatNameValue, normalizeStepForSave, parseNameValue, resolveNotebookLocalConstants } from "@/lib/notebook-engine";
 import { notebookFormulaRows } from "@/lib/notebook-formula-rows";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
+import { orderNotebookCategoriesForLanguage } from "@/lib/locale-relevance";
 import { nextStepNamePatch } from "@/lib/notebook-step-title";
 import { getUnitInsertionRange, replaceExpressionRange } from "@/lib/unit-input";
 import { unitErrorMessage } from "@/lib/unit-errors";
@@ -255,9 +256,11 @@ export function NotebookEditorSheet({
   const [newCategoryName, setNewCategoryName] = useState("");
 
   // 親カテゴリID→子カテゴリ一覧。編集シートのカテゴリピッカーを2段（大分類→サブカテゴリ）にするための対応表。
+  // 並びはカテゴリグリッド（notebook-category-grid.tsx）と同じ関連度順にする。ノートを「見るとき」と
+  // 「割り当てるとき」で並びが違うと、グリッドで覚えた位置がピッカーで通用しない。
   const childCategoriesByParentId = useMemo(() => {
     const map = new Map<string, { id: string; label: string }[]>();
-    PRESET_NOTEBOOK_CATEGORIES.forEach((category) => {
+    orderNotebookCategoriesForLanguage(PRESET_NOTEBOOK_CATEGORIES.filter((category) => category.parentId), language).forEach((category) => {
       if (!category.parentId) return;
       const label = localizedText(category.label, language);
       map.set(category.parentId, [...(map.get(category.parentId) ?? []), { id: category.id, label }]);
@@ -266,8 +269,9 @@ export function NotebookEditorSheet({
   }, [language]);
 
   // ピッカーの第1段（最上位）。プリセットの大分類・葉カテゴリ、ユーザー作成カテゴリ、未分類の順に並べる。
+  // プリセットの部分だけカテゴリグリッドと同じ関連度順にする（ユーザー作成カテゴリと未分類の位置は変えない）。
   const topLevelCategoryOptions = useMemo(() => [
-    ...PRESET_NOTEBOOK_CATEGORIES.filter((category) => !category.parentId).map((category) => ({ id: category.id, label: localizedText(category.label, language), hasChildren: childCategoriesByParentId.has(category.id) })),
+    ...orderNotebookCategoriesForLanguage(PRESET_NOTEBOOK_CATEGORIES.filter((category) => !category.parentId), language).map((category) => ({ id: category.id, label: localizedText(category.label, language), hasChildren: childCategoriesByParentId.has(category.id) })),
     ...notebookCategories.map((category) => ({ id: category.id, label: category.name, hasChildren: false })),
     { id: UNCATEGORIZED_CATEGORY_ID, label: copy.uncategorized, hasChildren: false },
   ], [childCategoriesByParentId, copy.uncategorized, language, notebookCategories]);
