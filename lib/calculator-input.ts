@@ -74,7 +74,6 @@ const INCOMPLETE_INPUT_ERROR_CODES: ReadonlySet<UnitErrorCode> = new Set<UnitErr
   "customFunctionMissingClosingParen",
   "invalidExpressionSyntax",
   "invalidConstantDefinitionFormat",
-  "unparsableCharacter",
 ]);
 
 /** リアルタイム診断として表示すべきエラーか（書きかけの式で出る構文系のエラーは除く）。 */

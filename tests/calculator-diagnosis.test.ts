@@ -39,6 +39,17 @@ describe("diagnoseCalculatorInput", () => {
       expect(isDiagnosableInputError(error!), input).toBe(true);
     }
   });
+
+  it("式に使えない文字は書きかけではなく間違いなので、その場で診断として出す", () => {
+    // `@` や `√` は式のどこにも現れ得ない文字で、打ち終わっても正しくならない。
+    // 「まだ書きかけ」扱いで隠すと、= を押すまで何が悪いのか分からなくなる。
+    for (const input of ["3m + @", "5cm $ 2", "√9"]) {
+      const { error } = diagnose(input);
+      expect(error, input).toBeInstanceOf(UnitError);
+      expect((error as UnitError).code, input).toBe("unparsableCharacter");
+      expect(isDiagnosableInputError(error!), input).toBe(true);
+    }
+  });
 });
 
 describe("次元不一致のエラー文言", () => {
