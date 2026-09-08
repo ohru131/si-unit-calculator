@@ -10,7 +10,7 @@
 | パス | 内容 |
 |---|---|
 | `screenshots/` | ストア掲載用スクリーンショット。**6言語（en / ja / es / pt-BR / de / fr）・各16枚**。すべて 1080×1800px |
-| `demo/unit-calculator-demo-en-silent.webm` | デモ動画（無音・英語字幕を焼き込み済み・**1分53秒**・1080×1800・25fps・VP8） |
+| `demo/unit-calculator-demo-en-silent.webm` | デモ動画（無音・英語字幕を焼き込み済み・**1分53秒**・1080×1800・25fps・VP8）。**アプリ名を UnitCalc に改名する前の録画で、タブバーが旧名「Unit Calculator」のまま。** 提出前に撮り直すこと（`node scripts/record-demo-video.mjs`。字幕の文言は `demo/demo-captions-en.srt` と `docs/shipaton-demo-script.md` を先に直す） |
 | `demo/demo-captions-en.srt` | 同じ文言・同じ尺の字幕トラック。YouTubeに別途アップロードするとオン/オフ切替ができる |
 | `demo/caption-style-reference.png` | 字幕の位置・書式の確認用フレーム（動画の 0:28 を抜いたもの） |
 | `store/play-store-icon-512.png` | Playのストアアイコン（512×512・不透明） |
@@ -76,6 +76,14 @@ Play のスマートフォン用スクリーンショットは**最大8枚**で�
 接頭語の打ち消しと次元エラーを先に出す。**西語は減点が採点基準に明文化されている**ので次元エラーが最初。
 **英語・仏語・葡語は「何ができるアプリか」が先**で、基本の単位付き計算から入る。
 どの言語でも `14-exam-samples` を上位に入れているのは、**その国の試験名がそのまま写っている1枚**だから。
+
+### アプリ名について
+
+**アプリ名は `UnitCalc` で、言語ごとに訳さない**（`app.config.ts` の `appName`・電卓タブ名・
+フィーチャーグラフィックの見出し・Pro画面のヒーロー行・PDFのフッターまで全部同じ）。
+Playのタイトルに付く副題だけが言語ごとに違う（`UnitCalc - 電験・電工の単位計算` など。
+一覧は `docs/store-listing-copy.md`）。スクリーンショットのタブバーにこの名前が写るので、
+**改名したら全言語ぶん撮り直しが必要**（今回撮り直し済み）。
 
 ## 撮影方法と、その限界
 

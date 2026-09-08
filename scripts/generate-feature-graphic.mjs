@@ -34,41 +34,45 @@ const SAFE_WIDTH = 712;
 // （掲載文と食い違わないよう、数字はここ1箇所だけに置く。docs/store-listing-copy.md と同じ値）。
 const NOTEBOOK_COUNT = 194;
 
-// 見出し（title）はアプリ内のタブ名（lib/global-settings.tsx の `calculator`）と同じにして、
-// ストアで見た名前とアプリ内の名前がずれないようにする。
+// 短い説明と同じ実例。抽象的な約束より実物1つの方が効く（docs/store-listing-copy.md と同じ値で、
+// tests/sample-calculations.test.ts が実エンジンで 1kΩ × 1mA = 1V を検証している）。
+const EXAMPLE = "1kΩ × 1mA ⇒ 1V";
+
+// 見出し（title）はアプリ名 "UnitCalc"（lib/global-settings.tsx の `calculator`・app.config.ts の
+// appName と同じ）。**固有名詞なので言語ごとに訳さない。**
 // headline はその言語のターゲットに効く一言、sub は「件数＋誰向けか」。
 // **訳文ではない。** 独語は Einheitenfehler と Klausur、西語は EBAU の採点基準の言い回し、
 // 葡語は ENEM と NR-10、日本語は電験・電工、英語は FE と City & Guilds、仏語は各段階で単位を保つ話。
 const LOCALES = {
   en: {
-    title: "Unit Calculator",
-    headline: "The calculator that checks your units.",
+    title: "UnitCalc",
+    headline: "Just type the units. Prefixes and conversions are automatic.",
     sub: `${NOTEBOOK_COUNT} formula notebooks · FE & City & Guilds`,
   },
   ja: {
     cjk: true,
-    title: "単位付き電卓",
-    headline: "単位ごと計算して、桁ミスをゼロに。",
+    title: "UnitCalc",
+    headline: "桁合わせや単位換算は、すべて自動。",
     sub: `${NOTEBOOK_COUNT}件の計算ノート・電験／電工の検算に`,
   },
   es: {
-    title: "Calculadora de unidades",
-    headline: "Las unidades son parte de la respuesta.",
+    title: "UnitCalc",
+    headline: "Prefijos y conversiones, automáticos.",
     sub: `${NOTEBOOK_COUNT} cuadernos de fórmulas · EBAU y FP`,
   },
   "pt-BR": {
-    title: "Calculadora de unidades",
-    headline: "Calcule com as unidades juntas.",
+    title: "UnitCalc",
+    headline: "Prefixos e conversões, automáticos.",
     sub: `${NOTEBOOK_COUNT} cadernos de fórmulas · ENEM e NR-10`,
   },
   de: {
-    title: "Einheitenrechner",
-    headline: "Findet Einheitenfehler vor der Klausur.",
+    title: "UnitCalc",
+    headline: "Vorsatzzeichen und Umrechnen: automatisch.",
     sub: `${NOTEBOOK_COUNT} Rechenhefte · Ausbildung & Prüfung`,
   },
   fr: {
-    title: "Calculatrice d'unités",
-    headline: "Les unités à chaque étape du calcul.",
+    title: "UnitCalc",
+    headline: "Préfixes et conversions, automatiques.",
     sub: `${NOTEBOOK_COUNT} carnets de formules · lycée, prépa, BTS`,
   },
 };
@@ -93,20 +97,24 @@ function buildHtml(locale, iconDataUri) {
   /* タイトルは1行に収まらない言語（Calculadora de unidades）があるので折り返しを許し、
      行間を詰めて2行でも収まるようにする。 */
   .title { font-size: 46px; font-weight: 800; line-height: 1.1; letter-spacing: -0.5px; }
-  .headline { font-size: 24px; font-weight: 700; line-height: 1.3; margin-top: 14px; color: #C9E7F4; }
+  .headline { font-size: 24px; font-weight: 700; line-height: 1.35; margin-top: 18px; color: #C9E7F4; }
   /* この環境の CJK フォントは IPAGothic（ボールド無し）しかなく、font-weight を上げても
      太くならないので、縁取りで太字相当にする。ラテン文字には既に実ボールドが当たるので
      掛けない（二重に太くなる）。Android 実機で撮り直すときは Noto Sans CJK に実ボールドが
      あるため、この補正は不要になる。 */
   body.cjk .title { -webkit-text-stroke: 1.1px currentColor; }
-  body.cjk .headline { -webkit-text-stroke: 0.5px currentColor; }
-  .sub { font-size: 18px; font-weight: 600; line-height: 1.3; margin-top: 10px; color: #8FC6E2; }
+  /* 和文は字面が大きく行間が詰まって見えるので、見出しだけ少し小さくして余白を足す。 */
+  body.cjk .headline { -webkit-text-stroke: 0.4px currentColor; font-size: 22px; margin-top: 22px; }
+  /* 実例だけは等幅にして「これが入力そのもの」と分かるようにする（アプリの入力欄と同じ見え方）。 */
+  .example { font-family: "DejaVu Sans Mono", monospace; font-size: 22px; font-weight: 700; margin-top: 14px; color: #FFFFFF; }
+  .sub { font-size: 17px; font-weight: 600; line-height: 1.3; margin-top: 10px; color: #8FC6E2; }
 </style></head><body class="${locale.cjk ? "cjk" : ""}">
   <div class="safe">
     <img class="icon" src="${iconDataUri}" alt="">
     <div class="copy">
       <div class="title">${escapeHtml(locale.title)}</div>
       <div class="headline">${escapeHtml(locale.headline)}</div>
+      <div class="example">${escapeHtml(EXAMPLE)}</div>
       <div class="sub">${escapeHtml(locale.sub)}</div>
     </div>
   </div>

@@ -370,6 +370,18 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
     - **この環境のCJKフォントは IPAGothic（ボールド無し）しかない**ので、日本語の見出しは `-webkit-text-stroke` で太字相当にしている。Android実機（Noto Sans CJK）で撮り直すときはこの補正は要らない。
     - Playへ上げる8枚の順は言語ごとに変えてある（`submission-assets/README.md`）。**独語・日本語は接頭語の打ち消しと次元エラーを先頭**（桁を落とす痛みが言語化されている層）、**西語は次元エラーが先頭**（減点が採点基準に明文化されている）、**英・仏・葡は基本の単位付き計算から**。
 
+29. **[完了]** **アプリ名を `UnitCalc` に改名し、電気系サンプルを8件追加した。**
+    - **アプリ名は固有名詞なので全言語で `UnitCalc`**（`app.config.ts` の `appName`、iOSウィジェットの `displayName`、`lib/global-settings.tsx` の `calculator`＝電卓タブ名、フィーチャーグラフィックの見出し）。**言語ごとに訳さないこと**（以前は「単位付き電卓」「Einheitenrechner」等に訳していて、ストアのタイトルと食い違っていた）。言語ごとに変えるのは**ストアのタイトルに付く副題だけ**（`UnitCalc - 電験・電工の単位計算` / `- Unit Calculator` / `- Einheitenrechner` …）。
+    - **Playのアプリ名は30字上限で、`UnitCalc - ` の11字を引くと19字しか残らない。** 西語 `calculadora con unidades`（24字）と仏語 `convertisseur d'unités`（22字）はASO第一検索語をタイトルに入れられないので、**短い説明と詳しい説明の地の文で受ける**（Playは本文の語で引く）。
+    - **短い説明は6言語とも「利用者の動作 → 全部自動 → 実例1つ」の3拍に統一した。** 以前は言語ごとに別のフックを立てていたが、同じアプリの説明とは思えないほどバラけていた。差別化はタイトルの副題と詳しい説明のターゲット段落が担う。実例 `1kΩ × 1mA ⇒ 1V` は全言語共通で入れる。
+    - **改名で英語のASO第一検索語 `unit calculator` が本文から消える事故を踏んだ。** 唯一残っていたのが `UNIT CALCULATOR PRO` という見出しで、その見出し自体も改名で矛盾していた（→ `UNITCALC PRO`）。**製品名を一括置換したら、第一検索語が地の文に残っているかを必ず確認する**（`docs/store-listing-copy.md` 末尾の照合コマンド。見出し行を除いて判定すること）。
+    - **電気系サンプル8件追加**（`electric` カテゴリ、`lib/sample-calculations.ts`）: `ohm-law-current`（230V÷10kΩ→mA）・`megohm-microamp`（0.47MΩ×20µA→V。M と µ がちょうど打ち消える）・`millivolt-shunt`（750mV÷150Ω→mA）・`three-phase-current`（三相から電流を逆算）・`power-minutes`（750W×40min→Wh）・`wire-resistance`（抵抗率×長さ÷断面積）・`joule-heat`（I²R）・`capacitive-reactance`（1/(2πfC)）。
+    - **式の表記で踏んだこと（テストでも型でも拾えないもの）**:
+      - **`√3` は通らない。** `Could not interpret "√"` になるので `sqrt(3)` と書く。
+      - **`20A²` は「20平方アンペア」で 5.16 W、`(20A)^2` は 103.2 W。** I²R を書くときは**必ず括弧で括る**。エラーにならず桁だけ20倍外れるので、`tests/sample-calculations.test.ts` で両方の値を固定してある。
+      - `1.72×10⁻⁸` のような上付き表記は使えない（`1.72e-8`）。抵抗率は `Ohm*m` でも `Ω*m` でも `Ohm*mm²/m` でも通る。
+      - ギリシャ小文字 `μ`（U+03BC）も数値直後なら µF として通るが、既存サンプルに合わせて**マイクロ記号 `µ`（U+00B5）で書く**。
+
 ### 現在の基準値（2026-09-08時点、サンプル・ノートを言語ごとの関連度順にした後）
 
 - `npx tsc --noEmit` → **`app/(tabs)/constants.tsx` の `"/notebook"` ルート型で2件のみ**（上と同じ既存分）。

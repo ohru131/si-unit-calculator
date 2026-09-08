@@ -35,30 +35,55 @@ Google Play Console の文字数上限（短い説明 80字・詳しい説明 4,
 
 ---
 
+## アプリ名（App name、上限30字）
+
+**アプリ名は `UnitCalc`**（`app.config.ts` の `appName`・アプリ内の電卓タブ名・フィーチャーグラフィックの見出しと同じ）。
+**固有名詞なので言語ごとに訳さない。** ストアのタイトルに付く副題だけを言語ごとに変え、
+その言語のASO第一検索語かターゲットの試験名を入れる。
+
+| 言語 | 字数 | タイトル | 副題に入れたもの |
+|---|---|---|---|
+| en | 26 | UnitCalc - UnitCalc | ASO第一検索語 `unit calculator` |
+| ja | 21 | UnitCalc - 電験・電工の単位計算 | ターゲットの資格名（電験三種・第二種電気工事士） |
+| es | 28 | UnitCalc - Unidades y física | EBAU の física |
+| pt-BR | 28 | UnitCalc - Unidades e física | ENEM の física |
+| de | 27 | UnitCalc - Einheitenrechner | ASO第一検索語 `Einheitenrechner` |
+| fr | 26 | UnitCalc - Calcul d'unités | lycée の physique-chimie（第一検索語 `convertisseur d'unités` は11+22字で30字に入らない） |
+
+**30字は「UnitCalc - 」の11字を引くと19字しか残らない。** 西語の `calculadora con unidades`（24字）と
+仏語の `convertisseur d'unités`（22字）は第一検索語をタイトルに入れられないので、
+**短い説明と詳しい説明の本文で受ける**（Google Play は本文の語で引くのでタイトルに無くても効く）。
+
 ## 短い説明（Short description、上限80字）
 
 | 言語 | 文字数 | 本文 |
 |---|---|---|
-| en | 71 | Type 12V/4.7kΩ and read 2.55 mA. The calculator that checks your units. |
-| ja | 33 | 単位ごと計算して桁ミスをゼロに。電験・電工・物理レポートの検算に。 |
-| es | 77 | Las unidades son parte de la respuesta: calcula con ellas y detecta el error. |
-| pt-BR | 76 | Calcule com as unidades juntas: 12V ÷ 4,7kΩ dá 2,55 mA, e m + kg ele recusa. |
-| de | 76 | Rechnen mit Einheiten: findet Einheitenfehler, bevor die Klausur sie findet. |
-| fr | 77 | La calculatrice qui garde les unités à chaque étape et rend l'erreur visible. |
+| en | 75 | Just type the units. Prefixes and conversions are automatic: 1kΩ × 1mA ⇒ 1V |
+| ja | 44 | 単位をつけて計算するだけ。桁合わせや単位換算は、すべて自動。1kΩ × 1mA ⇒ 1V |
+| es | 73 | Escribe las unidades: prefijos y conversiones automáticos. 1kΩ × 1mA ⇒ 1V |
+| pt-BR | 73 | Digite com as unidades: prefixos e conversões automáticos. 1kΩ × 1mA ⇒ 1V |
+| de | 78 | Einheiten eintippen. Vorsatzzeichen und Umrechnen: automatisch. 1kΩ × 1mA ⇒ 1V |
+| fr | 75 | Saisissez les unités : préfixes et conversions automatiques. 1kΩ × 1mA ⇒ 1V |
 
-**6言語で同じ文を訳したものではない。** 以前は「単位付きで計算し、次元をチェック。194件の公式ノートも使える電卓」の直訳を6言語に並べていたが、
-短い説明は80字しかなく、**その言語の読み手にとって一番痛いところを1つだけ言う枠**として使う方が効く（`docs/target-users-by-locale-2026-09.md` 第4節）。
-いまは言語ごとにフックが違う: en/pt-BR は**実際の入力と答え**（`12V/4.7kΩ` → `2.55 mA`）、de は**Einheitenfehler と Klausur**、
-fr は**各段階で単位を保つ**という教育現場の言い回し、es は**採点基準そのままの言い方**（"las unidades... son parte de la respuesta"）、ja は**電験・電工の検算**。
+**短い説明は「利用者の動作 → 全部自動 → 実例1つ」の3拍で6言語そろえてある。**
+以前は言語ごとに別のフックを立てていたが、**短い説明で言語ごとに主張を変えると、同じアプリの説明とは思えない**ほど
+バラけた（en は入力と答え、de は Einheitenfehler、es は採点基準…）。差別化は**タイトルの副題**（上の表）と
+詳しい説明のターゲット段落が担うので、短い説明は全言語で同じ構造にして**実例 `1kΩ × 1mA ⇒ 1V` を必ず入れる**。
+
+- **抽象的な約束をやめた。** 旧 ja 版の「単位ごと計算して桁ミスをゼロに」は、アプリの仕組みが主語で
+  「で、何が嬉しいのか」を読み手に翻訳させていた。「単位をつけて計算するだけ」は利用者の動作が主語。
+- **実例は必ず本物にする。** `1kΩ × 1mA ⇒ 1V` は `tests/sample-calculations.test.ts` が実エンジンで検証している。
+- 独語だけ80字にほぼ張り付いている（78字）ので、**足すときは必ず測り直すこと**（`Einheiten mit eintippen` の
+  分離動詞を落として `Einheiten eintippen` にして2字空けた）。
 
 厳密値表示とノート件数はどの言語の短い説明にも入れていない（80字に収まらないため、詳しい説明の機能ブロックに置いた）。
 
 ## 詳しい説明（Full description、上限4,000字）
 
-### English（3,952字）
+### English（3,924字）
 
 ```
-Type 12V/4.7kΩ and read 2.55 mA. Type 3m + 2kg and it tells you that a length and a mass cannot be added. Unit Calculator is a dimensional calculator and unit converter in one: it normalizes every value to SI base units before calculating, checks that the dimensions actually match, then converts the result into any compatible unit.
+Type 12V/4.7kΩ and read 2.55 mA. Type 3m + 2kg and it tells you that a length and a mass cannot be added. UnitCalc is a unit calculator and unit converter in one: it normalizes every value to SI base units before calculating, checks that the dimensions actually match, then converts the result into any compatible unit.
 
 WHAT MAKES IT DIFFERENT
 • Real-time dimensional analysis as you type: every value is normalized to SI and the dimensions are checked as you type.
@@ -90,20 +115,20 @@ The interface, unit names, error messages, and every one of the 194 notebooks ar
 FREE AND UNLIMITED
 Your full calculation history is unlimited for everyone — it is never trimmed or locked behind a purchase. Back up your notebooks, global constants, and custom units to a file and restore them on another device.
 
-UNIT CALCULATOR PRO
+UNITCALC PRO
 A single one-time purchase — no subscription, ever — unlocks:
 • An ad-free experience
 • CSV export of your calculation history
 • Your own saved unit sets, for faster entry of the units you use most
 • Sharing a notebook as a formatted document you can print or save as PDF
 
-Unit Calculator is built for engineering and science students, FE and City & Guilds candidates, makers, and anyone who wants to trust the number a calculator gives them.
+UnitCalc is built for engineering and science students, FE and City & Guilds candidates, makers, and anyone who wants to trust the number a calculator gives them.
 ```
 
-### 日本語（1,938字）
+### 日本語（1,946字）
 
 ```
-単位付き電卓は、単位変換と単位計算を1つにした、単位ごと数式を入力する電卓です。「12V ÷ 4.7kΩ」と入力すればその場で「2.55 mA」、「3m + 2kg」と入力すれば「長さ (m) と 質量 (kg) は足し引きできません」と返します。すべての値をまずSI基本単位に正規化してから計算し、次元（単位の種類）が本当に合っているかをチェックし、結果を好きな単位に換算して表示します。単位を間違えて足し引きしようとすると、誤った数値ではなく分かりやすいエラーが表示されます。
+UnitCalc は、単位変換と単位計算を1つにした、単位ごと数式を入力する電卓です。「12V ÷ 4.7kΩ」と入力すればその場で「2.55 mA」、「3m + 2kg」と入力すれば「長さ (m) と 質量 (kg) は足し引きできません」と返します。すべての値をまずSI基本単位に正規化してから計算し、次元（単位の種類）が本当に合っているかをチェックし、結果を好きな単位に換算して表示します。単位を間違えて足し引きしようとすると、誤った数値ではなく分かりやすいエラーが表示されます。
 
 このアプリが違う理由
 ・入力するそばからSI正規化と次元チェックをしてリアルタイムに計算
@@ -135,20 +160,20 @@ UI・単位名・エラーメッセージ・194件のノートの中身まで、
 無料でも制限なし
 計算履歴は誰でも無制限。件数で切られたり購入を求められたりしません。計算ノート・グローバル定数・自作の単位はファイルへバックアップし、別端末で復元できます。
 
-単位付き電卓 Pro
+UnitCalc Pro
 買い切り1回（サブスクなし）で以下が使えます:
 ・広告なし
 ・計算履歴のCSVエクスポート
 ・よく使う単位をまとめたマイ単位セット（入力が速くなる）
 ・計算ノートを整形済みの書類として書き出し、印刷やPDF保存が可能
 
-単位付き電卓は、電験・電工・乙4の受験者、理工系の学生、機械・建築のエンジニア、電子工作やDIYをする人など、電卓が出す数値を信頼したいすべての人のためのアプリです。
+UnitCalc は、電験・電工・乙4の受験者、理工系の学生、機械・建築のエンジニア、電子工作やDIYをする人など、電卓が出す数値を信頼したいすべての人のためのアプリです。
 ```
 
-### Español（3,995字）
+### Español（3,974字）
 
 ```
-Las unidades no son decoración: son parte de la respuesta. Escribe 12V ÷ 4,7kΩ y lee 2,55 mA; escribe 3m + 2kg y la app te dice que una longitud y una masa no se pueden sumar. Unit Calculator es una calculadora con unidades y un conversor de unidades a la vez: normaliza cada valor a unidades base del SI, comprueba que las dimensiones coincidan y te deja leer el resultado en cualquier unidad compatible.
+Las unidades no son decoración: son parte de la respuesta. Escribe 12V ÷ 4,7kΩ y lee 2,55 mA; escribe 3m + 2kg y la app te dice que una longitud y una masa no se pueden sumar. UnitCalc es una calculadora con unidades y un conversor de unidades a la vez: normaliza cada valor a unidades base del SI, comprueba que las dimensiones coincidan y te deja leer el resultado en cualquier unidad compatible.
 
 QUÉ LA HACE DIFERENTE
 • Cálculo en tiempo real con normalización SI y verificación de dimensiones mientras escribes.
@@ -180,20 +205,20 @@ La interfaz, los nombres de unidades, los mensajes de error y los 194 cuadernos 
 GRATIS Y SIN LÍMITES
 El historial de cálculos es ilimitado para todos, nunca se recorta ni se bloquea tras una compra. Haz copia de seguridad de tus cuadernos, constantes globales y unidades personalizadas en un archivo, y restáuralas en otro dispositivo.
 
-UNIT CALCULATOR PRO
+UNITCALC PRO
 Una única compra — sin suscripción, nunca — desbloquea:
 • Experiencia sin anuncios
 • Exportación CSV de tu historial de cálculos
 • Tus propios conjuntos de unidades guardados, para escribir más rápido
 • Compartir un cuaderno como documento con formato que puedes imprimir o guardar como PDF
 
-Unit Calculator está pensada para quienes preparan la EBAU, para el alumnado de FP de electricidad y electrónica, para estudiantes de ingeniería, makers y cualquiera que quiera confiar en el número que le da su calculadora.
+UnitCalc está pensada para quienes preparan la EBAU, para el alumnado de FP de electricidad y electrónica, para estudiantes de ingeniería, makers y cualquiera que quiera confiar en el número que le da su calculadora.
 ```
 
-### Português (Brasil)（3,952字）
+### Português (Brasil)（3,938字）
 
 ```
-Calcule com as unidades juntas. Digite 12V ÷ 4,7kΩ e leia 2,55 mA; digite 3m + 2kg e o app avisa que comprimento e massa não podem ser somados. O Unit Calculator é uma calculadora de unidades e um conversor de unidades: normaliza cada valor para unidades base do SI, verifica se as dimensões coincidem e permite ler o resultado em qualquer unidade compatível.
+Calcule com as unidades juntas. Digite 12V ÷ 4,7kΩ e leia 2,55 mA; digite 3m + 2kg e o app avisa que comprimento e massa não podem ser somados. O UnitCalc é uma calculadora de unidades e um conversor de unidades: normaliza cada valor para unidades base do SI, verifica se as dimensões coincidem e permite ler o resultado em qualquer unidade compatível.
 
 O QUE TORNA O APP DIFERENTE
 • Cálculo em tempo real com normalização SI e verificação de dimensões enquanto você digita.
@@ -225,7 +250,7 @@ A interface, os nomes das unidades, as mensagens de erro e todos os 194 cadernos
 GRATUITO E SEM LIMITES
 O histórico de cálculos é ilimitado para todos: nunca é reduzido nem bloqueado por trás de uma compra. Faça backup dos seus cadernos, constantes e unidades personalizadas em um arquivo e restaure-os em outro dispositivo.
 
-UNIT CALCULATOR PRO
+UNITCALC PRO
 Uma única compra avulsa — sem assinatura, nunca — desbloqueia:
 • Experiência sem anúncios
 • Exportação em CSV do seu histórico de cálculos
@@ -235,10 +260,10 @@ Uma única compra avulsa — sem assinatura, nunca — desbloqueia:
 Gratuito e completo para estudar: histórico ilimitado e os 194 cadernos inclusos; o Pro é só para quem preferir usar sem anúncios. Feito para quem presta o ENEM e os vestibulares, técnicos em eletrotécnica, estudantes de engenharia, makers e qualquer pessoa que queira confiar no número que a calculadora mostra.
 ```
 
-### Deutsch（3,995字）
+### Deutsch（3,974字）
 
 ```
-Der Rechner, der mit Einheiten rechnet – und Einheitenfehler findet, bevor die Klausur sie findet. Gib 12V ÷ 4,7kΩ ein und lies 2,55 mA; gib 3m + 2kg ein, und die App sagt dir, dass sich eine Länge und eine Masse nicht addieren lassen. Unit Calculator ist ein Einheitenrechner: Er normiert jeden Wert auf SI-Basiseinheiten, prüft die Dimensionen und kann das Ergebnis in jede passende Einheit umrechnen.
+Der Rechner, der mit Einheiten rechnet – und Einheitenfehler findet, bevor die Klausur sie findet. Gib 12V ÷ 4,7kΩ ein und lies 2,55 mA; gib 3m + 2kg ein, und die App sagt dir, dass sich eine Länge und eine Masse nicht addieren lassen. UnitCalc ist ein Einheitenrechner: Er normiert jeden Wert auf SI-Basiseinheiten, prüft die Dimensionen und kann das Ergebnis in jede passende Einheit umrechnen.
 
 WAS DIE APP ANDERS MACHT
 • Echtzeitberechnung mit automatischer SI-Normierung und Dimensionsprüfung, während du tippst.
@@ -270,20 +295,20 @@ Die Oberfläche, Einheitennamen, Fehlermeldungen und alle 194 Rechenhefte gibt e
 KOSTENLOS UND UNBEGRENZT
 Der komplette Berechnungsverlauf ist für alle unbegrenzt – er wird nie gekürzt oder hinter einem Kauf versteckt. Sichere deine Rechenhefte, globalen Konstanten und eigenen Einheiten in einer Datei und stelle sie auf einem anderen Gerät wieder her.
 
-UNIT CALCULATOR PRO
+UNITCALC PRO
 Ein einmaliger Kauf – nie ein Abo – schaltet frei:
 • Werbefreie Nutzung
 • CSV-Export deines Berechnungsverlaufs
 • Deine eigenen gespeicherten Einheitensets für schnellere Eingabe deiner meistgenutzten Einheiten
 • Ein Rechenheft als formatiertes Dokument teilen, das du drucken oder als PDF speichern kannst
 
-Unit Calculator ist für Auszubildende in der Elektrotechnik, für Schülerinnen und Schüler, Studierende, Technikerinnen und Techniker, Ingenieurinnen und Ingenieure und alle gemacht, die der Zahl aus ihrem Rechner vertrauen wollen.
+UnitCalc ist für Auszubildende in der Elektrotechnik, für Schülerinnen und Schüler, Studierende, Technikerinnen und Techniker, Ingenieurinnen und Ingenieure und alle gemacht, die der Zahl aus ihrem Rechner vertrauen wollen.
 ```
 
-### Français（3,987字）
+### Français（3,966字）
 
 ```
-La calculatrice qui garde les unités à chaque étape : si elles ne se simplifient pas, l'erreur devient visible. Saisissez 12V ÷ 4,7kΩ et lisez 2,55 mA ; saisissez 3m + 2kg et l'application refuse d'additionner une longueur et une masse. Unit Calculator est une calculatrice d'unités et un convertisseur d'unités : il normalise chaque valeur en unités de base du SI, vérifie les dimensions, puis convertit le résultat dans l'unité que vous voulez.
+La calculatrice qui garde les unités à chaque étape : si elles ne se simplifient pas, l'erreur devient visible. Saisissez 12V ÷ 4,7kΩ et lisez 2,55 mA ; saisissez 3m + 2kg et l'application refuse d'additionner une longueur et une masse. UnitCalc est une calculatrice d'unités et un convertisseur d'unités : il normalise chaque valeur en unités de base du SI, vérifie les dimensions, puis convertit le résultat dans l'unité que vous voulez.
 
 CE QUI LA REND DIFFÉRENTE
 • Calcul en temps réel avec normalisation SI et vérification des dimensions pendant la saisie.
@@ -315,14 +340,14 @@ L'interface, les noms d'unités, les messages d'erreur et les 194 carnets sont d
 GRATUIT ET SANS LIMITE
 L'historique des calculs est illimité pour tout le monde : jamais réduit, jamais verrouillé derrière un achat. Sauvegardez carnets, constantes et unités personnalisées dans un fichier, et restaurez-les sur un autre appareil.
 
-UNIT CALCULATOR PRO
+UNITCALC PRO
 Un achat unique — jamais d'abonnement — débloque :
 • Une expérience sans publicité
 • L'export CSV de votre historique de calculs
 • Vos propres ensembles d'unités enregistrés, pour saisir plus vite
 • Le partage d'un carnet en document mis en forme, à imprimer ou enregistrer en PDF
 
-Unit Calculator est conçue pour les lycéens et lycéennes en physique-chimie, les étudiants de prépa, de BTS et d'école d'ingénieurs, les électriciens en formation, les makers et toute personne qui veut faire confiance au nombre affiché par sa calculatrice.
+UnitCalc est conçue pour les lycéens et lycéennes en physique-chimie, les étudiants de prépa, de BTS et d'école d'ingénieurs, les électriciens en formation, les makers et toute personne qui veut faire confiance au nombre affiché par sa calculatrice.
 ```
 
 ## ASOキーワード（言語ごと・英語からの直訳をしない）
@@ -334,12 +359,12 @@ Google Play に iOS のようなキーワード欄は無く、**タイトル・�
 `docs/android-submission-checklist.md` の手順でこのファイルをPlay Consoleへコピーすると、本文の語がそのまま検索対象になる。
 そのため**表と本文が食い違っていると、狙った語で引けないのに引けているつもりになる**
 （実際に一度、表に `dimensional analysis` と書いてあるのに英語本文に無く、日本語も表の `単位 電卓` と
-本文の `単位付き電卓` が一致していなかった。CodeRabbitが検出）。
+本文の `UnitCalc` が一致していなかった。CodeRabbitが検出）。
 
 **第一検索語**は本文に**必ずその並びで**入れる（下の照合コマンドで確認できる）。
 **その他の検索語**は狙ってはいるが本文に無くてよい欄で、そもそも本文に書けないものも混ざる
 （独語の `Einheiten umrechnen` は文中では分離動詞になる。日本語の `単位 電卓` は分かち書きの検索形で、
-本文では両方の語を含む `単位付き電卓` で受ける）。**この2列を混ぜないこと。**
+本文では両方の語を含む `UnitCalc` で受ける）。**この2列を混ぜないこと。**
 
 | 言語 | 第一検索語（本文に必ず入れる） | その他の検索語（本文に無くてよい） |
 |---|---|---|

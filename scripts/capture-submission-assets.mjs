@@ -89,7 +89,7 @@ const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // ---------------------------------------------------------------- 画面操作の共通部品
 
 // 画面から拾う文言。**すべてアプリのCOPYからそのまま写したもの**で、ここで訳し直さないこと
-// （lib/global-settings.tsx の calculator / notebook / constants / settings / language / expression /
+// （lib/global-settings.tsx の calculator（=アプリ名 UnitCalc・全言語共通） / notebook / constants / settings / language / expression /
 // result、app/(tabs)/index.tsx の compareUnits / decimalForm / exactForm / samples、
 // app/(tabs)/constants.tsx の notebookSearch、app/(tabs)/pro.tsx の previewNote）。
 // examCategory は lib/sample-calculations.ts の "exam" カテゴリのラベルで、**言語ごとに
@@ -107,7 +107,7 @@ const LABELS = {
     languageOption: "English",
     deviceLocale: "en-US",
     languageSection: "App language",
-    tabs: { calculator: "Unit Calculator", notebook: "Notebooks", library: "Library", settings: "Preferences" },
+    tabs: { calculator: "UnitCalc", notebook: "Notebooks", library: "Library", settings: "Preferences" },
     search: "Search all notebooks",
     searchQuery: "solar",
     // Web 版だけに出る注記（Android 実機では出ない）。撮影前に要素ごと消す。
@@ -124,7 +124,7 @@ const LABELS = {
     languageOption: "日本語",
     deviceLocale: "ja-JP",
     languageSection: "アプリの言語",
-    tabs: { calculator: "単位付き電卓", notebook: "ノート", library: "ライブラリ", settings: "設定" },
+    tabs: { calculator: "UnitCalc", notebook: "ノート", library: "ライブラリ", settings: "設定" },
     search: "すべての計算ノートを検索",
     searchQuery: "太陽光",
     webOnlyNotes: ["現在はWebプレビューです", "購入はiOSまたはAndroidのストア版で利用できます。"],
@@ -140,7 +140,7 @@ const LABELS = {
     languageOption: "Español",
     deviceLocale: "es-ES",
     languageSection: "Idioma de la app",
-    tabs: { calculator: "Calculadora de unidades", notebook: "Cuadernos", library: "Biblioteca", settings: "Preferencias" },
+    tabs: { calculator: "UnitCalc", notebook: "Cuadernos", library: "Biblioteca", settings: "Preferencias" },
     search: "Buscar en todos los cuadernos",
     searchQuery: "campo",
     webOnlyNotes: ["Esto es una vista previa web", "Las compras reales están disponibles en la versión de la tienda de iOS/Android."],
@@ -156,7 +156,7 @@ const LABELS = {
     languageOption: "Português (Brasil)",
     deviceLocale: "pt-BR",
     languageSection: "Idioma do app",
-    tabs: { calculator: "Calculadora de unidades", notebook: "Cadernos", library: "Biblioteca", settings: "Preferências" },
+    tabs: { calculator: "UnitCalc", notebook: "Cadernos", library: "Biblioteca", settings: "Preferências" },
     search: "Buscar em todos os cadernos",
     searchQuery: "tensão",
     webOnlyNotes: ["Esta é uma prévia web", "As compras reais estão disponíveis na versão da loja iOS/Android."],
@@ -172,7 +172,7 @@ const LABELS = {
     languageOption: "Deutsch",
     deviceLocale: "de-DE",
     languageSection: "App-Sprache",
-    tabs: { calculator: "Einheitenrechner", notebook: "Rechenhefte", library: "Bibliothek", settings: "Einstellungen" },
+    tabs: { calculator: "UnitCalc", notebook: "Rechenhefte", library: "Bibliothek", settings: "Einstellungen" },
     search: "Alle Rechenhefte durchsuchen",
     searchQuery: "Spannung",
     webOnlyNotes: ["Dies ist eine Web-Vorschau", "Echte Käufe sind in der iOS/Android-Store-Version verfügbar."],
@@ -188,7 +188,7 @@ const LABELS = {
     languageOption: "Français",
     deviceLocale: "fr-FR",
     languageSection: "Langue de l'app",
-    tabs: { calculator: "Calculatrice d'unités", notebook: "Carnets", library: "Bibliothèque", settings: "Préférences" },
+    tabs: { calculator: "UnitCalc", notebook: "Carnets", library: "Bibliothèque", settings: "Préférences" },
     search: "Rechercher dans tous les carnets",
     searchQuery: "masse volumique",
     webOnlyNotes: ["Ceci est un aperçu web", "Les achats réels sont disponibles dans la version du store iOS/Android."],

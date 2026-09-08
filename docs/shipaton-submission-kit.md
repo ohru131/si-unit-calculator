@@ -1,4 +1,4 @@
-# Unit Calculator — Shipaton 2026 Submission Kit（Android版）
+# UnitCalc — Shipaton 2026 Submission Kit（Android版）
 
 **このドキュメントは全面更新版。** 旧版は計算ノート・単位比較表・ユーザー定義単位・進数・6言語対応・買い切り課金への移行・履歴無制限化のいずれも記載が無く、CSVエクスポート中心の古い機能一覧のまま（Pro機能一覧も実際は4点なのに3点しか無かった）iOS想定のサイズで書かれていたため、全面的に書き直した。
 
@@ -57,7 +57,7 @@ Pro機能は憶測ではなく `app/(tabs)/pro.tsx` の `EN_COPY.features`（読
 
 ### プライバシーポリシー・ドラフト（差し替え前提）
 
-> Unit Calculator stores calculation history, saved constants, custom units, and preferences locally on the device. Purchase status is processed by RevenueCat and Google Play. Banner ads are served via Google AdMob, which may collect device/advertising identifiers as described in Google's own disclosures. The app does not require an account and does not upload your calculation content to our servers.
+> UnitCalc stores calculation history, saved constants, custom units, and preferences locally on the device. Purchase status is processed by RevenueCat and Google Play. Banner ads are served via Google AdMob, which may collect device/advertising identifiers as described in Google's own disclosures. The app does not require an account and does not upload your calculation content to our servers.
 >
 > **提出前に、上記ドラフトを実在の法人・個人情報（データ管理者の名称・所在地）、削除依頼の連絡先、最終的な広告・課金設定を反映した本物のプライバシーポリシーに差し替え、公開URLでホストすること。**
 

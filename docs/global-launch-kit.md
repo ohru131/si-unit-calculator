@@ -1,4 +1,4 @@
-# Unit Calculator — Global Launch Kit（Android向けに更新）
+# UnitCalc — Global Launch Kit（Android向けに更新）
 
 **旧版は「初回リリースはen/ja 2言語」「App Store and/or Google Play」「Pro=ad-free/CSV/personal unit set」という前提だったが、いずれも現状と食い違っていた。** 6言語対応は既に実装済み、今回の提出対象はGoogle Playのみ、Proの特典は4点（ノート共有／PDF書き出しが抜けていた）。本節はその前提で更新した。詳しいストア掲載文・チェックリストは以下を参照:
 
@@ -8,7 +8,7 @@
 
 ## 製品ポジショニング
 
-**Unit Calculator** は、学生・エンジニア・メーカー・現場スタッフ向けのオフラインファーストな次元計算アプリ。式をまずSI単位に正規化してから計算し、次元を検証したうえで、ユーザーが選んだ互換単位で結果を表示する。**6言語（en/ja/es/pt-BR/de/fr）に対応済み**（`lib/i18n.ts`の`APP_LANGUAGES`が唯一の情報源。CLAUDE.md「直近の作業履歴」7〜9番で実装・PR #21〜#23でマージ済み）。
+**UnitCalc** は、学生・エンジニア・メーカー・現場スタッフ向けのオフラインファーストな次元計算アプリ。式をまずSI単位に正規化してから計算し、次元を検証したうえで、ユーザーが選んだ互換単位で結果を表示する。**6言語（en/ja/es/pt-BR/de/fr）に対応済み**（`lib/i18n.ts`の`APP_LANGUAGES`が唯一の情報源。CLAUDE.md「直近の作業履歴」7〜9番で実装・PR #21〜#23でマージ済み）。
 
 差別化要素は次の3点（`docs/market-research-2026-09.md`第2節）:
 1. 単位付きの数式をそのまま計算し、次元不一致をエラーとして検出する
@@ -19,7 +19,7 @@
 
 | 項目 | 内容 |
 |---|---|
-| App name | Unit Calculator |
+| App name | UnitCalc |
 | Short description | `docs/store-listing-copy.md`の短い説明（英語71字）を参照。**6言語で同じ文の訳ではなく、言語ごとにフックが違う** |
 | Full description | 同ドキュメントの詳しい説明（英語、6言語すべて掲載済み） |
 
@@ -37,7 +37,7 @@
 
 ## プライバシーと問い合わせ先のドラフト
 
-> Unit Calculator stores saved constants, custom units, notebooks, and calculation history locally on the device. Purchase status is processed by RevenueCat and Google Play. Banner ads are served via Google AdMob. The app does not require an account and does not upload your calculation content to our servers.
+> UnitCalc stores saved constants, custom units, notebooks, and calculation history locally on the device. Purchase status is processed by RevenueCat and Google Play. Banner ads are served via Google AdMob. The app does not require an account and does not upload your calculation content to our servers.
 >
 > **公開前に、実在の法人・個人情報、削除依頼の連絡先を反映した本物のプライバシーポリシーに差し替え、公開URLでホストすること。** 詳細は `docs/shipaton-submission-kit.md` の「提出前に差し替えが必要な箇所」を参照。
 

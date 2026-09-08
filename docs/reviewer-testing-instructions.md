@@ -4,7 +4,7 @@ This document is written for Shipaton judges and Google Play reviewers who need 
 
 ## 1. Getting the app
 
-- Install Unit Calculator from the Google Play Store listing link provided in the submission.
+- Install UnitCalc from the Google Play Store listing link provided in the submission.
 - The app works fully offline after install; no account or sign-in is required.
 
 ## 2. Trying the free experience
@@ -36,7 +36,7 @@ Everything below is available with no purchase:
 
 ## 3. Verifying Pro (one-time purchase, no subscription)
 
-Unit Calculator Pro unlocks four things (see `app/(tabs)/pro.tsx`):
+UnitCalc Pro unlocks four things (see `app/(tabs)/pro.tsx`):
 
 1. An ad-free experience (the free version shows banner ads only — never full-screen ads).
 2. CSV export of your calculation history.
