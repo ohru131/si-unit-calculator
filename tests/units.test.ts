@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { resolveDisplayUnit } from "../lib/display-unit";
+
 import {
   canonicalUnitSymbol,
   convertQuantity,
@@ -10,6 +12,7 @@ import {
   getRegionalUnits,
   getUnitRegistration,
   parseConstantDefinition,
+  parseUnit,
   searchUnitOptions,
   type UnitGroup,
   UNIT_GROUPS,
@@ -398,5 +401,118 @@ describe("燃費（走行距離÷燃料）", () => {
     expect(getRegionalUnits(fuelEconomy!, "metric").map((unitOption) => unitOption.symbol)[0]).toBe("km/L");
     expect(getRegionalUnits(fuelEconomy!, "us").map((unitOption) => unitOption.symbol)[0]).toBe("mpg");
     expect(getRegionalUnits(fuelEconomy!, "uk").map((unitOption) => unitOption.symbol)[0]).toBe("mpgUK");
+  });
+});
+
+describe("科学表記（×10 のべき乗）", () => {
+  it("上付き数字はべき乗として読む", () => {
+    // ASCIIの桁に直すだけの実装では 10⁸ が 108 になり、エラーにならないまま別の値を返していた。
+    expect(evaluateExpression("10⁸").siValue).toBe(1e8);
+    expect(evaluateExpression("1.72×10⁻⁸").siValue).toBeCloseTo(1.72e-8, 20);
+    expect(evaluateExpression("2⁻³").siValue).toBeCloseTo(0.125);
+    // 連なった上付き（⁻¹¹ や ¹²）は1つの指数としてまとめる。桁ごとに ^ を挟むと 10^1^2 になる。
+    expect(evaluateExpression("10¹²").siValue).toBe(1e12);
+    expect(evaluateExpression("6.674×10⁻¹¹").siValue).toBeCloseTo(6.674e-11, 20);
+  });
+
+  it("べき乗のあとに単位を直接続けられる（括弧も * も要らない）", () => {
+    // 指数の位置に来た数値の単位サフィックスを貪欲に取り込むと m/s が指数として読まれ、
+    // 「指数は無次元でなければ」で落ちていた（3×10^8*m/s と書く必要があった）。
+    expect(convertQuantity(evaluateExpression("3×10^8m/s"), "m/s").value).toBeCloseTo(3e8);
+    expect(convertQuantity(evaluateExpression("3×10⁸m/s"), "m/s").value).toBeCloseTo(3e8);
+    expect(convertQuantity(evaluateExpression("1.72×10⁻⁸Ohm*m"), "Ohm*m").value).toBeCloseTo(1.72e-8, 20);
+    expect(convertQuantity(evaluateExpression("10⁻³m"), "mm").value).toBeCloseTo(1);
+    // 後続の演算も普通に続けられる（以前は 3×108×2 = 648 m と黙って桁が違った）。
+    expect(convertQuantity(evaluateExpression("3×10⁸m/s × 2s"), "m").value).toBeCloseTo(6e8);
+  });
+
+  it("従来の e 表記と単位付きの書き方は変わらない", () => {
+    expect(convertQuantity(evaluateExpression("1.72e-8Ohm*m"), "Ohm*m").value).toBeCloseTo(1.72e-8, 20);
+    expect(convertQuantity(evaluateExpression("6.674e-11N*m²/kg² × 5.97e24kg ÷ (6371km)^2"), "m/s²").value).toBeCloseTo(9.8162, 3);
+    // 上付きの単位（m²）は従来どおり単位サフィックスとして解決する。
+    expect(convertQuantity(evaluateExpression("100N ÷ 0.01m²"), "kPa").value).toBeCloseTo(10);
+    expect(convertQuantity(evaluateExpression("20A² × 0.258Ohm"), "W").value).toBeCloseTo(5.16);
+    expect(convertQuantity(evaluateExpression("(20A)^2 × 0.258Ohm"), "W").value).toBeCloseTo(103.2);
+  });
+
+  it("括弧のあとの上付きもべき乗になる", () => {
+    // 以前は (2m)³ が (2m)3 になり「式の構文が正しくありません」で落ちていた。
+    expect(convertQuantity(evaluateExpression("(2m)³"), "m³").value).toBeCloseTo(8);
+    expect(convertQuantity(evaluateExpression("(20A)² × 0.258Ohm"), "W").value).toBeCloseTo(103.2);
+  });
+
+  it("無次元の単位は指数として意味を持つので取り込みを変えない", () => {
+    // % と ° は無次元なので 2^3% = 2^0.03 は今も正しい式。ここまで切り離すと値が変わる。
+    expect(evaluateExpression("2^3%").siValue).toBeCloseTo(1.0210121);
+    // 次元を持つ単位を指数に置いた式は、切り離さず従来どおりエラーにする（意味が無いため）。
+    expect(() => evaluateExpression("2^(3m)")).toThrow();
+    expect(() => evaluateExpression("2^3°C")).toThrow();
+  });
+});
+
+describe("圧力・応力の単位（N/mm² と重量キログラム）", () => {
+  it("N/mm² は MPa と同じ値で、複合単位として解決する", () => {
+    expect(convertQuantity(evaluateExpression("1N/mm²"), "MPa").value).toBeCloseTo(1);
+    expect(convertQuantity(evaluateExpression("205000N/mm²"), "GPa").value).toBeCloseTo(205);
+    // 別表記（上付きを使わない書き方）も同じ値。
+    expect(convertQuantity(evaluateExpression("1N/mm2"), "MPa").value).toBeCloseTo(1);
+    expect(convertQuantity(evaluateExpression("1N/mm^2"), "MPa").value).toBeCloseTo(1);
+  });
+
+  it("hPa / GPa と重量キログラム系が通る", () => {
+    expect(convertQuantity(evaluateExpression("1013hPa"), "atm").value).toBeCloseTo(0.99975, 4);
+    expect(convertQuantity(evaluateExpression("205GPa"), "MPa").value).toBeCloseTo(205000);
+    expect(convertQuantity(evaluateExpression("1kgf"), "N").value).toBeCloseTo(9.80665);
+    // 独語圏の Kilopond。英字の別表記は BASE_UNITS へ自動登録されるので式でも使える。
+    expect(convertQuantity(evaluateExpression("1kp"), "N").value).toBeCloseTo(9.80665);
+    expect(convertQuantity(evaluateExpression("1kgf/cm²"), "kPa").value).toBeCloseTo(98.0665);
+    expect(convertQuantity(evaluateExpression("2kgf/cm²"), "psi").value).toBeCloseTo(28.4468, 3);
+  });
+
+  it("圧力・力グループへ足しても表示単位の自動選択が変わらない", () => {
+    // N/mm² は MPa と同じ倍率1e6。**MPa より後ろに置いてある**ので、応力の結果は MPa のまま
+    // （前に置くと同じ倍率の先着だけが残る仕様のせいで N/mm² と表示されるようになる）。
+    const at = (expression: string) =>
+      resolveDisplayUnit({ quantity: evaluateExpression(expression), requestedUnit: "", expressionUnits: [], system: "metric", isAdvancedMode: true }).unit;
+    expect(at("1e6Pa")).toBe("MPa");
+    expect(at("100N ÷ 0.01m²")).toBe("kPa");
+    // hPa（倍率100）を足しても kPa の方が数字が小さくなるので選ばれない。
+    expect(at("50000Pa")).toBe("kPa");
+    expect(at("500Pa")).toBe("Pa");
+    // kgf（倍率9.80665）は10のべき乗でないため自動選択の候補に入らない。
+    expect(at("2kg × 9.8m/s²")).toBe("N");
+    // GPa は新しく候補に入る倍率なので、ヤング率がSI表記のまま出ていたのが読めるようになる。
+    expect(at("205e9Pa")).toBe("GPa");
+  });
+});
+
+describe("指数と単位サフィックスの境界（CodeRabbitの提案で明示的に固定）", () => {
+  it("引き算の右辺を指数と誤判定しない", () => {
+    // isExponentPosition は単項の符号（+ / -）を跨いで `^` を探すので、`2^3 - 8m` の
+    // `8m` を指数と読む余地がある。指数として読まれると「指数は無次元でなければ」で
+    // 落ちるので、**どのエラーで落ちるか**で判別できる（次元不一致＝8mは量として読めている）。
+    let code = "";
+    try {
+      evaluateExpression("2^3 - 8m");
+    } catch (error) {
+      code = (error as { code?: string }).code ?? "";
+    }
+    expect(code).toBe("dimensionMismatchAddSubtract");
+    // 引き算の中でも指数の切り離しは効く（`2^3m` は 2^3 × 1m ＝ 8 m）。
+    expect(convertQuantity(evaluateExpression("100m - 2^3m"), "m").value).toBeCloseTo(92);
+    expect(convertQuantity(evaluateExpression("2^-3m"), "mm").value).toBeCloseTo(125);
+  });
+
+  it("上付き数字を ^n へ書き換えても単位サフィックスは従来どおり解決する", () => {
+    // normalize が上付きを桁だけに直していた頃は `m²` が `m2` として通っていた。
+    // `^` を補う形に変えたので、`m^2` としても同じ単位に解決できることを固定する。
+    expect(parseUnit("m²").scale).toBe(1);
+    expect(parseUnit("m²").dimension).toEqual(parseUnit("m^2").dimension);
+    expect(parseUnit("m²").dimension).toEqual(parseUnit("m2").dimension);
+    expect(parseUnit("N/mm²").scale).toBeCloseTo(1e6);
+    expect(parseUnit("N/mm²").dimension).toEqual(parseUnit("MPa").dimension);
+    // 負の指数（`m⁻²` → `m^-2`）も1因子あたりの正規表現が受け付ける。逆面積の次元になる
+    // （`1/m²` は parseUnit では書けない——1因子あたり数字を受け付けないため）。
+    expect(parseUnit("m⁻²").dimension).toEqual([-2, 0, 0, 0, 0, 0, 0]);
   });
 });

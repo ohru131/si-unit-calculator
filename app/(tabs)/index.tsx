@@ -42,7 +42,9 @@ import { SAMPLE_CALCULATIONS, SAMPLE_CATEGORIES, type SampleCalculation } from "
 import { orderSampleCategoriesForLanguage, orderSamplesForLanguage } from "@/lib/locale-relevance";
 import {
   analyzeExpression,
+  getPrefixedUnitSuggestions,
   getUnitInputHint,
+  requiredUnitGroupFromError,
   getUnitInsertionRange,
   getUnitSuggestions,
   replaceExpressionRange,
@@ -56,7 +58,23 @@ import { convertQuantity, formatDimension, formatNumberForLocale, formatQuantity
 // ⌫（一文字削除）を動かし、空いた最上段の右端（従来⌫があった場所）にACを置く。
 // AC（全消去・元に戻せない）は"="からできるだけ離し、逆に押し間違えても被害が小さい⌫の方を
 // "="の隣に残すことで、誤爆したときの実害を最小にする配置にしている。
-const KEYS = ["(", ")", "÷", "AC", "7", "8", "9", "×", "4", "5", "6", "-", "1", "2", "3", "+", ".", "0", "⌫", "="];
+// 一般的な電卓（iOS・Android）と関数電卓（Casio fx 系）に共通する並びに揃えてある。
+// 5列4段。**キーの数は20のまま変わらず、段が1つ減るので縦が42pxぶん縮む**（キーパッド直上に
+// 足した編集キー・接頭語の2行と釣り合う）。
+//
+//   7 8 9 ⌫ AC     ⌫ と AC は隣同士で右上（以前は AC が右上・⌫ が下段の数字の並びに混在）
+//   4 5 6 ÷ ×      演算子は数字の右に2×2のひとかたまり。**列で見ると ÷ × − + の順**で、
+//   1 2 3 − +      これは iOS の演算子列を縦に読んだ順と同じ（以前は ÷ だけ別の列にあった）
+//   0 . ( ) =      0 は 1 の真下、= は右下（どちらもどの電卓でも同じ位置）
+//
+// カーソルキー（`<` `>`）はキーパッドに入れず編集キーの行に置いたまま。関数電卓でも
+// カーソルは数字キーの外の別クラスタなので、ここへ入れて5段に戻す方が不自然になる。
+const KEYS = [
+  "7", "8", "9", "⌫", "AC",
+  "4", "5", "6", "÷", "×",
+  "1", "2", "3", "-", "+",
+  "0", ".", "(", ")", "=",
+];
 const ADVANCED_KEYS = ["sin(", "cos(", "tan(", "asin(", "acos(", "atan(", "atan2(", "ln(", "log(", "log2(", "sqrt(", "^", "π", "e"];
 // 結果の見せ方。小数を先頭にする（分数・πで出せる値の方が少ないため、既定は常に小数）。
 const VALUE_FORMS = ["decimal", "exact"] as const;
@@ -82,6 +100,28 @@ const QUICK_START: { id: "ohms_law" | "current" | "distance"; expression: string
 // 進数入力モード中に押せてはいけないキー（演算子・小数点・括弧）。16進の桁のまま演算に入ると
 // 評価器が解釈できないため、まず = で10進へ確定させてから通常の式に組み込む運用にする。
 const BASE_INPUT_DISABLED_KEYS = ["(", ")", "÷", "×", "-", "+", "."];
+// キーパッドだけで式を組み立てられるようにするための編集キー（キャレット移動と、べき乗まわり）。
+// 入力欄をタップするとOSのキーボードが上がってキーパッドがほぼ隠れてしまうので、
+// 入力欄を触らずに済む範囲を広げる。^ は数学シートにしか無く、しかも上級モード限定だった。
+// 上付きの ² ³ は normalize が ^2 / ^3 へ書き換えるので ^ を打つのと同じ結果になる
+// （lib/units.ts。単位に付けば m² のように単位の指数としても解決する）。
+// ×10ⁿ は押すと ×10^ が入る。科学表記は単位を続けて書けるので括弧は要らない（3×10^8m/s）。
+// ラベルは電卓の慣例に揃える（x² / x³ / xʸ）。上付き数字だけを置くと字面が小さすぎて
+// 何のキーか分からず、「^」単体も打つ記号としては読めても「べき乗」には見えない。
+// SI接頭語のキー。単位の英字はキーパッドに無く、レールに出る候補（kΩ・mA…）で足りない組み合わせ
+// （MΩ・nF・GPa など）はOSのキーボードを出さないと打てなかった。押すと接頭語1文字が入り、
+// **その直後にレールがその接頭語で始まる単位を候補に出す**（lib/unit-input.ts の綴り一致優先）。
+// マイクロはマイクロ記号 µ(U+00B5)。ギリシャ小文字の μ(U+03BC) は定数名用で別コードポイント。
+// 範囲はピコ〜ギガに絞る（この電卓が扱う電気・機械の量はこの間に収まる）。
+const PREFIX_KEYS = ["p", "n", "µ", "m", "c", "k", "M", "G"] as const;
+const isPrefixKey = (key: string) => (PREFIX_KEYS as readonly string[]).includes(key);
+
+const EDIT_KEYS: readonly { label: string; insert: string }[] = [
+  { label: "x²", insert: "²" },
+  { label: "x³", insert: "³" },
+  { label: "xʸ", insert: "^" },
+  { label: "×10ⁿ", insert: "×10^" },
+];
 const RAIL_LIMIT = 8;
 const RECENT_UNIT_LIMIT = 8;
 
@@ -101,7 +141,7 @@ const EN_COPY = {
   savedItemLoaded: "Saved item loaded. Tap = to run it.",
   couldNotCopyCalculation: "Could not copy this calculation.",
   expressionPlaceholder: "Example: 1kΩ × 1mA",
-  deleteKey: "Delete",
+  deleteKey: "Delete", caretLeft: "Move cursor left", caretRight: "Move cursor right",
   clearAllKey: "Clear all",
   skip: "Skip",
   getStarted: "Get started",
@@ -140,7 +180,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     savedItemLoaded: "保存した項目を読み込みました。「=」を押して実行できます。",
     couldNotCopyCalculation: "計算結果をコピーできませんでした。",
     expressionPlaceholder: "例：1kΩ × 1mA",
-    deleteKey: "一文字削除",
+    deleteKey: "一文字削除", caretLeft: "カーソルを左へ", caretRight: "カーソルを右へ",
     clearAllKey: "全消去",
     skip: "スキップ",
     getStarted: "はじめる",
@@ -177,7 +217,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     savedItemLoaded: "Elemento guardado cargado. Toca = para ejecutarlo.",
     couldNotCopyCalculation: "No se pudo copiar este cálculo.",
     expressionPlaceholder: "Ejemplo: 1kΩ × 1mA",
-    deleteKey: "Eliminar",
+    deleteKey: "Eliminar", caretLeft: "Mover el cursor a la izquierda", caretRight: "Mover el cursor a la derecha",
     clearAllKey: "Borrar todo",
     skip: "Omitir",
     getStarted: "Comenzar",
@@ -214,7 +254,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     savedItemLoaded: "Item salvo carregado. Toque em = para executá-lo.",
     couldNotCopyCalculation: "Não foi possível copiar este cálculo.",
     expressionPlaceholder: "Exemplo: 1kΩ × 1mA",
-    deleteKey: "Excluir",
+    deleteKey: "Excluir", caretLeft: "Mover o cursor para a esquerda", caretRight: "Mover o cursor para a direita",
     clearAllKey: "Limpar tudo",
     skip: "Pular",
     getStarted: "Começar",
@@ -251,7 +291,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     savedItemLoaded: "Gespeicherter Eintrag geladen. Tippe auf =, um ihn auszuführen.",
     couldNotCopyCalculation: "Diese Berechnung konnte nicht kopiert werden.",
     expressionPlaceholder: "Beispiel: 1kΩ × 1mA",
-    deleteKey: "Rücktaste",
+    deleteKey: "Rücktaste", caretLeft: "Cursor nach links", caretRight: "Cursor nach rechts",
     clearAllKey: "Alles löschen",
     skip: "Überspringen",
     getStarted: "Loslegen",
@@ -288,7 +328,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     savedItemLoaded: "Élément enregistré chargé. Appuyez sur = pour l'exécuter.",
     couldNotCopyCalculation: "Impossible de copier ce calcul.",
     expressionPlaceholder: "Exemple : 1kΩ × 1mA",
-    deleteKey: "Supprimer",
+    deleteKey: "Supprimer", caretLeft: "Déplacer le curseur vers la gauche", caretRight: "Déplacer le curseur vers la droite",
     clearAllKey: "Tout effacer",
     skip: "Passer",
     getStarted: "Commencer",
@@ -402,6 +442,11 @@ export default function CalculatorScreen() {
   const [unitSearch, setUnitSearch] = useState("");
   const [recentUnits, setRecentUnits] = useState<string[]>([]);
   const [fixSelection, setFixSelection] = useState<{ start: number; end: number; text: string } | null>(null);
+  // 接頭語キーで入れた1文字を「まだ単位を選んでいる途中」として覚えておく。**この意図は式の
+  // 見た目からは復元できない**: `m` は単体でメートルとして解決できるので、状態を持たないと
+  // 単位の差し替え（`5m` → cm・km…）の経路に入り、mA・mV・ms が候補から消える
+  // （CodeRabbitが#59で🟡として検出。`G` も標準重力として解決するので同じ穴だった）。
+  const [prefixEntry, setPrefixEntry] = useState<{ start: number; end: number; prefix: string } | null>(null);
   const [showInlineUnitSearch, setShowInlineUnitSearch] = useState(false);
   const [inlineUnitQuery, setInlineUnitQuery] = useState("");
   const unitSearchRef = useRef<TextInput>(null);
@@ -535,6 +580,15 @@ export default function CalculatorScreen() {
     [expressionUnits, isAdvancedMode, result, targetUnit, unitSystem],
   );
   const targetUnitRegistration = useMemo(() => getUnitRegistration(displayUnit), [displayUnit]);
+  // 「この数値には何の単位を付けるべきか」が式から分かる場合の手掛かり。裸の数値を足し引きして
+  // 次元不一致になっている式では、反対側の次元がそのまま答えになる（lib/unit-input.ts）。
+  const requiredUnitGroup = useMemo(() => requiredUnitGroupFromError(diagnosis.error), [diagnosis.error]);
+  // 単位を打っている途中（レールが「確定」の候補を出している最中）は赤い診断を出さない。
+  // 接頭語キーを押すと必ず一度は「未対応の単位「M」です」を通るので、そのままだと
+  // 押すたびに赤くなる。補完候補はレールに並んでいて、当たっている綴りも入力欄の下の
+  // プレビューで赤く示されるので、結果カードで重ねて言う必要が無い。
+  // **`=` の赤帯の重複判定も同じ値を見ること**（liveDiagnosis のままにすると、カードには
+  // 出ていないのに「既に出ている」と判断されてエラーがどこにも出なくなる）。
   const hint = useMemo<UnitInputHint>(() => {
     if (fixSelection) {
       return { kind: "fix", fragment: fixSelection.text, start: fixSelection.start, end: fixSelection.end, candidates: getUnitSuggestions(fixSelection.text, { system: unitSystem, limit: RAIL_LIMIT, includeUnit }) };
@@ -542,8 +596,22 @@ export default function CalculatorScreen() {
     // 直前に計算済みの analysis を渡して、同じ式をもう一度解析しないようにする。
     // キャレット位置（selection.start）を渡すことで、末尾ではなく今カーソルがある単位・数値を対象にする。
     const caret = Math.min(selection.start, expression.length);
-    return getUnitInputHint(expression, { system: unitSystem, recentUnits, identifiers, includeUnit, limit: RAIL_LIMIT, analysis, caret });
-  }, [analysis, expression, fixSelection, identifiers, includeUnit, recentUnits, selection, unitSystem]);
+    // 接頭語キーを押した直後は、その1文字を単位として確定させずに「その接頭語で始まる単位」を出す。
+    // **式とキャレットが押した直後のままかを毎回確かめる**ので、あとから打ち換え・削除・全消しが
+    // あっても勝手に復活しない（この検証があるので、状態を消す場所を各所に足す必要がない）。
+    if (prefixEntry && caret === prefixEntry.end && expression.slice(prefixEntry.start, prefixEntry.end) === prefixEntry.prefix) {
+      return {
+        kind: "complete",
+        fragment: prefixEntry.prefix,
+        start: prefixEntry.start,
+        end: prefixEntry.end,
+        candidates: getPrefixedUnitSuggestions(prefixEntry.prefix, { system: unitSystem, limit: RAIL_LIMIT, includeUnit }),
+      };
+    }
+    return getUnitInputHint(expression, { system: unitSystem, recentUnits, identifiers, includeUnit, limit: RAIL_LIMIT, analysis, caret, requiredGroup: requiredUnitGroup });
+  }, [analysis, expression, fixSelection, identifiers, includeUnit, prefixEntry, recentUnits, requiredUnitGroup, selection, unitSystem]);
+
+  const visibleDiagnosis = hint.kind === "complete" ? "" : liveDiagnosis;
 
   /** 結果のすぐ横で切り替えられる、同じ次元の単位。 */
   const conversionUnits = useMemo(() => {
@@ -774,7 +842,7 @@ export default function CalculatorScreen() {
       // Error.message をそのまま出す（バックアップ処理など別系統のエラーもここを通るため）。
       // 結果カードに同じ診断（liveDiagnosis）が既に出ているときは赤帯を重ねない。同じ文言が
       // 2箇所に出るうえ、帯の挿入で結果カード以下が100px近く押し下げられるため。
-      const alreadyDiagnosed = !expressionOverride && cause instanceof UnitError && Boolean(liveDiagnosis);
+      const alreadyDiagnosed = !expressionOverride && cause instanceof UnitError && Boolean(visibleDiagnosis);
       if (!alreadyDiagnosed) setError(cause instanceof Error ? (unitErrorMessage(cause, language) ?? cause.message) : copy.expressionCalculationFailed);
       playErrorShake();
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -819,6 +887,18 @@ export default function CalculatorScreen() {
       return;
     }
     void calculate();
+  };
+
+  /** 編集キーでキャレットを1文字ずつ動かす。選択範囲があるときは、その端へ寄せるだけにする。 */
+  const moveCaret = (delta: -1 | 1) => {
+    markUserInteraction();
+    const start = Math.min(selection.start, expression.length);
+    const end = Math.min(selection.end, expression.length);
+    if (start !== end) {
+      placeCaret(delta < 0 ? start : end);
+      return;
+    }
+    placeCaret(Math.max(0, Math.min(expression.length, start + delta)));
   };
 
   const pressKey = (key: string) => {
@@ -867,6 +947,7 @@ export default function CalculatorScreen() {
     setExpression(replaceExpressionRange(expression, start, end, inserted));
     placeCaret(start + inserted.length);
     setFixSelection(null);
+    setPrefixEntry(isPrefixKey(key) ? { start, end: start + inserted.length, prefix: inserted } : null);
   };
 
   // 進数入力を始められるのは、式が空か、そのまま別の基数へ読み替えられる10進の整数のときだけ。
@@ -950,6 +1031,7 @@ export default function CalculatorScreen() {
     setExpression(replaceExpressionRange(expression, start, end, symbol));
     placeCaret(start + symbol.length);
     setFixSelection(null);
+    setPrefixEntry(null);
     rememberUnit(symbol);
     setError("");
     setNotice("");
@@ -965,6 +1047,7 @@ export default function CalculatorScreen() {
     setExpression(replaceExpressionRange(expression, start, end, symbol));
     placeCaret(start + symbol.length);
     setFixSelection(null);
+    setPrefixEntry(null);
     rememberUnit(symbol);
     setError("");
     setNotice("");
@@ -1519,13 +1602,13 @@ export default function CalculatorScreen() {
                   ) : null}
                   {display.error ? <Text style={styles.errorText}>{display.error}</Text> : null}
                 </>
-              ) : baseInputMode === null && liveDiagnosis ? (
+              ) : baseInputMode === null && visibleDiagnosis ? (
                 // 式の意味の誤り（次元不一致・使えない単位・ゼロ除算…）はここでリアルタイムに説明する。
                 // 結果カードの中に出すので、= を押したときのエラー帯のようにレイアウトが跳ねない。
                 <View style={styles.diagnosisWrap}>
                   <IconSymbol name="exclamationmark.triangle.fill" size={15} color={colors.error} />
                   <View style={styles.diagnosisBody}>
-                    <Text style={styles.diagnosisText}>{liveDiagnosis}</Text>
+                    <Text style={styles.diagnosisText}>{visibleDiagnosis}</Text>
                     {analysis.unresolved.some((segment) => segment.kind === "unknown-unit") ? <Text style={styles.diagnosisHint}>{copy.fixTap}</Text> : null}
                   </View>
                 </View>
@@ -1598,17 +1681,52 @@ export default function CalculatorScreen() {
 
         <CalculatorBannerAd />
 
-        {/* 数学はキャレット位置への挿入だけで書きかけの式を壊さないので、キーパッドの一部に
-            見えるデザインでキーパッド直上に置く（式を丸ごと置き換えるサンプルとは分ける）。 */}
-        <View style={styles.keypadTools}>
+        {/* 入力欄をタップせずに式を組み立てられるようにする行。キャレット移動は進数入力モード中も
+            使えるが、べき乗まわりは桁以外を受け付けないモードなので無効にする（pressKey 側でも弾く）。
+            数学ボタンもこの行に入れてある（単独の行にすると 360×640 の端末でキーパッド下段の
+            「. 0 ⌫ =」が画面外へ押し出される。行を増やせるのは1行ぶんだけ）。 */}
+        <View style={styles.editKeyRow}>
+          <Pressable accessibilityLabel={copy.caretLeft} onPress={() => moveCaret(-1)} style={({ pressed }) => [styles.editKey, pressed && styles.pressed]}>
+            <IconSymbol name="chevron.left" size={16} color={colors.primary} />
+          </Pressable>
+          <Pressable accessibilityLabel={copy.caretRight} onPress={() => moveCaret(1)} style={({ pressed }) => [styles.editKey, pressed && styles.pressed]}>
+            <IconSymbol name="chevron.right" size={16} color={colors.primary} />
+          </Pressable>
+          {EDIT_KEYS.map((editKey) => (
+            <Pressable
+              accessibilityLabel={editKey.insert}
+              disabled={baseInputMode !== null}
+              key={editKey.label}
+              onPress={() => pressKey(editKey.insert)}
+              style={({ pressed }) => [styles.editKey, baseInputMode !== null && styles.keyDisabled, pressed && styles.pressed]}
+            >
+              <Text style={styles.editKeyText}>{editKey.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* 接頭語は単位の一部なので、演算子まわりの編集キーとは行を分ける（同じ行に混ぜると
+            どれが式の記号でどれが単位の文字か見分けられない）。 */}
+        <View style={styles.editKeyRow}>
+          {PREFIX_KEYS.map((prefix) => (
+            <Pressable
+              accessibilityLabel={prefix}
+              disabled={baseInputMode !== null}
+              key={prefix}
+              onPress={() => pressKey(prefix)}
+              style={({ pressed }) => [styles.prefixKey, baseInputMode !== null && styles.keyDisabled, pressed && styles.pressed]}
+            >
+              <Text style={styles.prefixKeyText}>{prefix}</Text>
+            </Pressable>
+          ))}
+          {/* 数学はキャレット位置への挿入だけで書きかけの式を壊さないので、編集キーと同じ行に置く。 */}
           {isAdvancedMode ? (
             <Pressable
               disabled={baseInputMode !== null}
               onPress={() => setShowAdvancedKeys(true)}
-              style={({ pressed }) => [styles.keypadToolButton, baseInputMode !== null && styles.keyDisabled, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.editKey, styles.mathKey, baseInputMode !== null && styles.keyDisabled, pressed && styles.pressed]}
             >
-              <IconSymbol name="function" size={14} color={colors.primary} />
-              <Text style={styles.keypadToolButtonText}>{copy.math}</Text>
+              <Text style={styles.editKeyText}>{copy.math}</Text>
             </Pressable>
           ) : null}
         </View>
@@ -1985,13 +2103,11 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   historyBarCount: { color: colors.primary, fontSize: 11, fontWeight: "800" },
 
   // 数学・進数はキーパッドの一部に見せたいので、advancedKeyと同じprimarySurface系の色使いにする。
-  keypadTools: { flexDirection: "row", gap: 8 },
-  keypadToolButton: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 10, borderWidth: 1, flexDirection: "row", gap: 5, justifyContent: "center", minHeight: 38, paddingHorizontal: 14 },
-  keypadToolButtonText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
 
   // 画面幅に関係なく必ず4列で並ぶよう、25%幅のセルに収める。
   keypad: { flexDirection: "row", flexWrap: "wrap", marginHorizontal: -3 },
-  keyCell: { padding: 3, width: "25%" },
+  // 5列（KEYS のコメント参照）。4列に戻すなら KEYS の並びも組み直すこと。
+  keyCell: { padding: 3, width: "20%" },
   key: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 12, borderWidth: 1, height: 42, justifyContent: "center" },
   keyOperator: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder },
   keyAction: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
@@ -2029,6 +2145,18 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
 
   // advancedKeyの色使いを踏襲した、16進入力モード専用の小さめのA〜F行。キーパッド本体
   // （styles.keypad/key）はここでは一切変えない。
+  // 編集キーは hexKeyRow と同じ「等幅で横に並べる」形。数と演算子のキーパッドとは役割が違うので
+  // 面ではなく枠だけの見た目にして、キーパッド本体（styles.key）と見分けが付くようにする。
+  // 高さと余白は詰めてある。2行足すと 360×640 の端末でキーパッド下段がタブバーに潜るため
+  // （変更前も下段は既に際どく、行を足すぶんはここで取り戻している）。
+  editKeyRow: { flexDirection: "row", gap: 6, marginBottom: 6 },
+  editKey: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, flex: 1, justifyContent: "center", minHeight: 32 },
+  editKeyText: { color: colors.primary, fontFamily: mono, fontSize: 15, fontWeight: "800" },
+  // 接頭語は「単位の文字」なので、単位チップと同じ面の色にして編集キー（枠だけ）と区別する。
+  prefixKey: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, flex: 1, justifyContent: "center", minHeight: 32 },
+  prefixKeyText: { color: colors.primary, fontFamily: mono, fontSize: 15, fontWeight: "800" },
+  // 数学は文字数が多いので、他の編集キーより少し広く取る（アイコンは外した。1行に収めるため）。
+  mathKey: { backgroundColor: colors.primarySurface, flex: 1.6 },
   hexKeyRow: { flexDirection: "row", gap: 6, marginTop: 6 },
   hexKey: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, flex: 1, justifyContent: "center", minHeight: 32 },
   hexKeyText: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },

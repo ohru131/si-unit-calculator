@@ -7,9 +7,13 @@ import {
   getUnitInputHint,
   getUnitInsertionRange,
   getUnitSuggestions,
+  getPrefixedUnitSuggestions,
+  getUnitGroupSuggestions,
   insertUnitAtEnd,
   replaceExpressionRange,
+  requiredUnitGroupFromError,
 } from "../lib/unit-input";
+import { diagnoseCalculatorInput } from "../lib/calculator-input";
 
 const kinds = (input: string, identifiers: string[] = []) =>
   analyzeExpression(input, identifiers).segments.filter((segment) => segment.kind !== "space").map((segment) => `${segment.text}:${segment.kind}`);
@@ -357,5 +361,127 @@ describe("数値直後の単位サフィックス", () => {
   it("区切りの先が既知の識別子なら単位に巻き込まない", () => {
     const segments = analyzeExpression("kg*s", ["s"]).segments.map((segment) => [segment.kind, segment.text]);
     expect(segments).toEqual([["unit", "kg"], ["operator", "*"], ["identifier", "s"]]);
+  });
+});
+
+describe("式が要求している次元の単位を出す", () => {
+  const requiredGroupFor = (expression: string) => requiredUnitGroupFromError(diagnoseCalculatorInput(expression, []).error);
+
+  it("裸の数値を足し引きしている式から、反対側の単位グループを読む", () => {
+    // 2kg×0.25×9.8m/s²-5 の 5 に付けるべき単位は力。よく使う単位（m・km・g・s）では見当違いになる。
+    expect(requiredGroupFor("2kg×0.25×9.8m/s²-5")).toBe("force");
+    expect(requiredGroupFor("5cm + 1")).toBe("length");
+    expect(requiredGroupFor("3 + 12V")).toBe("voltage");
+  });
+
+  it("どちらへ寄せたいか決められない式では何も返さない", () => {
+    // 両辺とも次元を持つ式は、キャレットが単位の上にあり同じ次元での差し替え候補が出る経路になる。
+    expect(requiredGroupFor("3m + 2kg")).toBeUndefined();
+    // 次元不一致以外のエラー・エラーなしの式も対象外。
+    expect(requiredGroupFor("3m × 2kg")).toBeUndefined();
+    expect(requiredGroupFor("1 ÷ 0")).toBeUndefined();
+    expect(requiredUnitGroupFromError(null)).toBeUndefined();
+    expect(requiredUnitGroupFromError(new Error("boom"))).toBeUndefined();
+  });
+
+  it("グループidを渡すと、その次元の単位だけを地域優先で並べる", () => {
+    const force = getUnitGroupSuggestions("force", { system: "metric" });
+    expect(force.length).toBeGreaterThan(0);
+    expect(force.every((suggestion) => suggestion.group.id === "force")).toBe(true);
+    expect(force.map((suggestion) => suggestion.unit.symbol)).toContain("N");
+    // 未知のid・空文字は空を返す（呼び出し側でよく使う単位へフォールバックできるようにするため）。
+    expect(getUnitGroupSuggestions("", { system: "metric" })).toEqual([]);
+    expect(getUnitGroupSuggestions("no-such-group", { system: "metric" })).toEqual([]);
+  });
+
+  it("単位付けの候補が、要求されている次元の単位に入れ替わる", () => {
+    const expression = "2kg×0.25×9.8m/s²-5";
+    const common = getUnitInputHint(expression, { system: "metric", caret: expression.length });
+    const required = getUnitInputHint(expression, { system: "metric", caret: expression.length, requiredGroup: requiredGroupFor(expression) });
+    expect(common.kind).toBe("attach");
+    expect(required.kind).toBe("attach");
+    // 案内する範囲（単位を差し込む位置）は変えず、候補だけを差し替える。
+    expect(required.start).toBe(common.start);
+    expect(required.end).toBe(common.end);
+    expect(required.candidates.map((candidate) => candidate.unit.symbol)).toContain("N");
+    expect(required.candidates.every((candidate) => candidate.group.id === "force")).toBe(true);
+  });
+
+  it("要求が読めないときは従来どおりよく使う単位を出す", () => {
+    const hint = getUnitInputHint("5", { system: "metric", caret: 1, requiredGroup: undefined });
+    expect(hint.kind).toBe("attach");
+    expect(hint.candidates.map((candidate) => candidate.unit.symbol)).toEqual(
+      getCommonUnitSuggestions("metric", [], { limit: 8 }).map((candidate) => candidate.unit.symbol),
+    );
+  });
+});
+
+describe("接頭語を打った直後の候補", () => {
+  const after = (expression: string) =>
+    getUnitInputHint(expression, { system: "metric", caret: expression.length, limit: 6 }).candidates.map((candidate) => candidate.unit.symbol);
+
+  it("その接頭語で始まる単位を先に出す（大文字小文字を取り違えない）", () => {
+    // 接頭語キー（app/(tabs)/index.tsx の PREFIX_KEYS）を押した直後に見える候補。
+    // m=ミリ / M=メガ・k=キロ / K=ケルビン は別物なので、綴りが一致する候補を先に出す。
+    expect(after("4.7M")[0]).toBe("MHz");
+    expect(after("4.7M")).toContain("MΩ");
+    expect(after("4.7M")).toContain("MPa");
+    // 以前は大文字小文字を無視した完全一致が勝ち、M の1位が m（メートル）・k の1位が K（ケルビン）だった。
+    expect(after("4.7k")[0]).not.toBe("K");
+    expect(after("4.7k")[0]).toBe("km");
+    expect(after("2n")[0]).toBe("nC");
+    expect(after("100µ")[0]).toBe("µA");
+    expect(after("5c")[0]).toBe("cm");
+  });
+
+  it("綴りが崩れた入力では従来のスコア順のまま（打ち間違いを拾い続ける）", () => {
+    // 綴り一致をスコアより強くしても、全候補が同じ扱いになる入力では並びが変わらない。
+    const suggest = (query: string) => getUnitSuggestions(query, { system: "metric", limit: 4 }).map((candidate) => candidate.unit.symbol);
+    expect(suggest("mpa")[0]).toBe("MPa");
+    expect(suggest("MPA")[0]).toBe("MPa");
+    expect(suggest("newtn")[0]).toBe("N");
+    expect(suggest("ohm")[0]).toBe("Ω");
+    // 今回足した圧力・応力の単位も別表記から引ける。
+    expect(suggest("n/mm2")[0]).toBe("N/mm²");
+    expect(suggest("kgf/cm2")[0]).toBe("kgf/cm²");
+    expect(suggest("pascal")).toContain("hPa");
+  });
+});
+
+describe("接頭語キーの候補（記号そのものが単位でもある接頭語）", () => {
+  const after = (prefix: string) =>
+    getPrefixedUnitSuggestions(prefix, { system: "metric", limit: 8 }).map((candidate) => candidate.unit.symbol);
+
+  it("m を押したら milli の単位が出る（メートルの差し替え候補にならない）", () => {
+    // `m` は単体でメートルとして解決できるので、接頭語キーで入れたという意図を状態で持たないと
+    // 「単位の差し替え」の経路に入り、レールが長さの単位（cm・km・µm・in・ft）だけになって
+    // mA・mV・ms が消える（app/(tabs)/index.tsx の prefixEntry）。
+    expect(after("m")).toContain("mA");
+    expect(after("m")).toContain("mV");
+    expect(after("m")).toContain("ms");
+    // 押した本人がメートルを打ちたかった場合もあるので、完全一致は先頭に残す。
+    expect(after("m")[0]).toBe("m");
+    // 長さの差し替え候補（cm・km）はここには出ない。接頭語 m で始まらないため。
+    expect(after("m")).not.toContain("cm");
+    expect(after("m")).not.toContain("km");
+  });
+
+  it("G も同じ穴だった（標準重力として解決するため）", () => {
+    expect(after("G")).toEqual(["G", "GPa", "Gal"]);
+  });
+
+  it("接頭語＋単位に分解できる記号を、同じ長さの別物より先に出す", () => {
+    // 記号の長さだけで並べると mi（マイル）・m²・m³ が mA・mV を8件の枠から押し出す。
+    const m = after("m");
+    expect(m.indexOf("mA")).toBeLessThan(8);
+    expect(m).not.toContain("mi");
+    // 判定に isBuiltInUnitSymbol は使えない（接頭辞分解も通るので Gal の残り "al" が
+    // a(アト)+l(リットル) として真になる）。登録済み単位の一覧で見ていることの担保。
+    expect(after("G").indexOf("GPa")).toBeLessThan(after("G").indexOf("Gal"));
+  });
+
+  it("接頭語で始まる単位が無ければ空（呼び出し側が困らないこと）", () => {
+    expect(getPrefixedUnitSuggestions("", { system: "metric" })).toEqual([]);
+    expect(getPrefixedUnitSuggestions("zz", { system: "metric" })).toEqual([]);
   });
 });
