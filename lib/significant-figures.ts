@@ -7,7 +7,7 @@
  * 全部組み立てられていて、そこへ「有効桁を持った量」を混ぜると全面書き直しになるため。
  */
 
-import { NUMBER_TOKEN_PATTERN, formatNumberForLocale, isUnitStart, normalizeExpression, unitSuffixEnd } from "@/lib/units";
+import { IDENTIFIER_PATTERN, NUMBER_TOKEN_PATTERN, formatNumberForLocale, isUnitStart, normalizeExpression, parseUnit, unitSuffixEnd } from "@/lib/units";
 
 export type ScientificNotation = {
   /** ロケール整形済みの仮数（絶対値が1以上10未満）。有効数字ぶんの末尾の0を保つ。 */
@@ -126,7 +126,9 @@ export function inferSignificantDigits(expression: string): number | null {
       continue;
     }
 
-    if (character === "(") {
+    // カンマは関数の引数の区切り。値として扱うと直後の符号が二項の引き算に見え、
+    // atan2(2.0, -3.00) のような式で桁を読めなくなる（丸めが効かない）。
+    if (character === "(" || character === ",") {
       tokens.push({ kind: "open" });
       index += 1;
       continue;
@@ -138,13 +140,45 @@ export function inferSignificantDigits(expression: string): number | null {
       continue;
     }
 
-    // 識別子（定数名・関数名・裸の単位）。値として扱えば加減算の判定に足りる。
+    // 識別子（定数名・関数名・裸の単位）は**丸ごと**読み飛ばす。1文字ずつ進めると
+    // `atan2` の 2・履歴参照の `a1`・手順参照の `s1` の末尾の数字が数値リテラルとして
+    // 数えられ、**有効数字が黙って1桁に落ちる**（エラーにならないので気付けない）。
     // 定数の値そのものの桁数は数えない（保存された値の精度は利用者が意図した桁とは限らない）。
+    const identifierMatch = IDENTIFIER_PATTERN.exec(source.slice(index));
+    if (identifierMatch) {
+      tokens.push({ kind: "value" });
+      index += identifierMatch[0].length;
+      continue;
+    }
+
+    // 単位専用の記号（Ω・µ・°・%）など、識別子にも数値にもならない1文字。
     tokens.push({ kind: "value" });
     index += 1;
   }
 
   return minimum;
+}
+
+/**
+ * 表示単位への換算を挟んだあとに、まだ有効数字を主張してよいかを判定する。
+ *
+ * **オフセットを持つ単位（°C・°F）への換算では桁は持ち越せない。** 換算が
+ * `値*scale + offset` のアフィン変換になり、有効数字ではなく「小数点以下の位」で決まる量に
+ * 変わるため。実際に `300K`（3桁）を°Cにすると 26.85 で、3桁のまま丸めると 26.9°C になるが、
+ * 元の精度は1Kなので正しくは 27°C。位で追う話は加減算と同じ理由でこのモジュールの外なので、
+ * ここでは丸めない（null）方を選ぶ。倍率だけの換算（cm・mA・kPa…）は桁を保つのでそのまま。
+ */
+export function significantDigitsAfterConversion(digits: number | null, displayUnitSymbol: string): number | null {
+  if (digits === null) return null;
+  const symbol = displayUnitSymbol.trim();
+  // 表示単位なし＝SI標準そのままなので換算は挟まらない。
+  if (!symbol) return digits;
+  try {
+    return parseUnit(symbol).offset === undefined ? digits : null;
+  } catch {
+    // 解決できない記号のときは表示側がSI表記へフォールバックしている（＝換算は挟まらない）。
+    return digits;
+  }
 }
 
 /**

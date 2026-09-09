@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { inferSignificantDigits, significantDigitsOfLiteral, toScientificNotation } from "../lib/significant-figures";
-import { evaluateExpression } from "../lib/units";
+import { inferSignificantDigits, significantDigitsAfterConversion, significantDigitsOfLiteral, toScientificNotation } from "../lib/significant-figures";
+import { convertQuantity, evaluateExpression } from "../lib/units";
 
 const digitsOf = (expression: string) => inferSignificantDigits(expression);
 
@@ -61,6 +61,19 @@ describe("入力式から読む有効数字", () => {
   it("単位サフィックスの中の指数は桁に数えない", () => {
     // m² の 2 を桁として数えていると 1 になる。
     expect(digitsOf("100N / 0.25m²")).toBe(2);
+  });
+
+  // 1文字ずつ進めると `atan2` の 2 が1桁のリテラルとして数えられ、有効数字が黙って
+  // 1桁に落ちる（エラーにならないので気付けない）。履歴参照の `a1`・手順参照の `s1` も同じ。
+  it("識別子の末尾の数字を桁として数えない", () => {
+    expect(digitsOf("atan2(2.0, 3.00)")).toBe(2);
+    expect(digitsOf("log2(8.00)")).toBe(3);
+    expect(digitsOf("a1 × 4.7")).toBe(2);
+  });
+
+  // カンマを値として扱うと直後の符号が二項の引き算に見え、桁を読めなくなる。
+  it("関数の引数の区切りを跨いだ符号は単項として扱う", () => {
+    expect(digitsOf("atan2(2.0, -3.00)")).toBe(2);
   });
 
   it("リテラルが無い式ではnull", () => {
@@ -140,5 +153,41 @@ describe("実際の式を通した値（エンジン込み）", () => {
     const result = toScientificNotation(value, { significantDigits: inferSignificantDigits(expression), locale: "en-US" });
     expect(result?.text).toBe("6 × 10⁸");
     expect(result?.roundedFrom).toBeNull();
+  });
+});
+
+// オフセットを持つ単位への換算は `値*scale + offset` のアフィン変換なので、有効数字ではなく
+// 「小数点以下の位」で決まる量に変わる。300K（3桁）→ 26.85°C を3桁で丸めると 26.9°C になるが、
+// 元の精度は1Kなので正しくは 27°C。加減算と同じ理由で、ここでは丸めない方を選ぶ。
+describe("表示単位への換算を挟んだあとの桁数", () => {
+  it("オフセットを持つ単位では桁を持ち越さない", () => {
+    expect(significantDigitsAfterConversion(3, "°C")).toBeNull();
+    expect(significantDigitsAfterConversion(3, "°F")).toBeNull();
+  });
+
+  it("倍率だけの換算は桁を保つ", () => {
+    expect(significantDigitsAfterConversion(3, "cm")).toBe(3);
+    expect(significantDigitsAfterConversion(2, "mA")).toBe(2);
+    expect(significantDigitsAfterConversion(3, "K")).toBe(3);
+  });
+
+  it("表示単位なし・解決できない記号ではそのまま（換算が挟まらない）", () => {
+    expect(significantDigitsAfterConversion(3, "")).toBe(3);
+    expect(significantDigitsAfterConversion(3, "  ")).toBe(3);
+    expect(significantDigitsAfterConversion(3, "zzz")).toBe(3);
+  });
+
+  it("読み取れていない桁数はそのままnull", () => {
+    expect(significantDigitsAfterConversion(null, "cm")).toBeNull();
+  });
+
+  it("300K を °C で見ると丸めずに出る", () => {
+    const expression = "300K";
+    const converted = convertQuantity(evaluateExpression(expression, []), "°C", "en-US");
+    const digits = significantDigitsAfterConversion(inferSignificantDigits(expression), converted.unit);
+    expect(digits).toBeNull();
+    const result = toScientificNotation(converted.value, { significantDigits: digits, locale: "en-US" });
+    expect(result?.roundedFrom).toBeNull();
+    expect(result?.text.startsWith("≈")).toBe(false);
   });
 });

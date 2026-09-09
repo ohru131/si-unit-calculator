@@ -23,7 +23,7 @@ import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { isSampleCategoryVisible, isUnitGroupVisible, isUnitVisible, visibleUnits } from "@/lib/advanced-display";
 import { findExactValue, isTerminatingDecimalFraction } from "@/lib/exact-value";
-import { inferSignificantDigits, toScientificNotation } from "@/lib/significant-figures";
+import { inferSignificantDigits, significantDigitsAfterConversion, toScientificNotation } from "@/lib/significant-figures";
 import { useCalculatorStore } from "@/lib/calculator-store";
 import { diagnoseCalculatorInput, evaluateCalculatorInput, isDiagnosableInputError } from "@/lib/calculator-input";
 import { resolveDisplayUnit } from "@/lib/display-unit";
@@ -774,11 +774,15 @@ export default function CalculatorScreen() {
   // 選択肢を並べても読み替えになっていない。
   const scientificValue = useMemo(() => {
     if (!display || baseInputMode !== null) return null;
-    const notation = toScientificNotation(display.numeric, { significantDigits: inferredSignificantDigits, locale });
+    // display.numeric は表示単位へ換算済みの値。オフセットを持つ単位（°C・°F）への換算を
+    // 挟んだ場合は有効数字を持ち越せないので桁数を落とす（significantDigitsAfterConversion）。
+    // SI表記へフォールバックしているときは換算が挟まらないので空文字を渡す。
+    const significantDigits = significantDigitsAfterConversion(inferredSignificantDigits, display.isFallback ? "" : displayUnit);
+    const notation = toScientificNotation(display.numeric, { significantDigits, locale });
     if (!notation) return null;
     const worthShowing = notation.roundedFrom !== null || notation.exponent >= 3 || notation.exponent <= -3;
     return worthShowing ? notation : null;
-  }, [baseInputMode, display, inferredSignificantDigits, locale]);
+  }, [baseInputMode, display, displayUnit, inferredSignificantDigits, locale]);
 
   // 並べるチップ。小数は常に、それ以外はその形で出せるときだけ。stateが出せない形を
   // 指していても表示側で小数へ戻る（exactValueと同じ扱い）ので、stateは消しに行かない。
@@ -1296,7 +1300,7 @@ export default function CalculatorScreen() {
         <Pressable
           accessibilityLabel={BASE_META[base].label}
           key={base}
-          onPress={() => { markUserInteraction(); setActiveBase(base); }}
+          onPress={() => { markUserInteraction(); setValueForm("decimal"); setActiveBase(base); }}
           style={({ pressed }) => [styles.baseChip, activeBase === base && styles.baseChipActive, pressed && styles.pressed]}
         >
           <Text style={[styles.baseChipText, activeBase === base && styles.baseChipTextActive]}>{BASE_META[base].label}</Text>
@@ -1305,6 +1309,10 @@ export default function CalculatorScreen() {
     </View>
   ) : null;
 
+  // **表示モードと基数は排他。** 無次元の安全整数で桁が大きい値（例 `2000*3`）は
+  // 基数チップと科学表記チップの両方が出るので、片方を選んだらもう片方を既定へ戻す。
+  // 戻さないと、HEXを選んだあと科学表記に切り替えたときに**HEXが光ったまま科学表記の値が出て**、
+  // その状態で別の基数を押しても画面が変わらない（進数チップと入力バーを分けたときと同じ食い違い）。
   // 小数 ⇔ 厳密値 ⇔ 科学表記の切り替え列。出せる形が2つ以上あるときだけ出す（常に出すと、
   // 押しても何も変わらないボタンが並ぶことになる）。進数チップと同じ位置に置くが、色は
   // 単位まわりと同じprimary系にして「値そのものの読み替え」と「桁の読み替え」を見分けられる
@@ -1316,7 +1324,7 @@ export default function CalculatorScreen() {
         <Pressable
           accessibilityLabel={valueFormLabel(form)}
           key={form}
-          onPress={() => { markUserInteraction(); setValueForm(form); }}
+          onPress={() => { markUserInteraction(); setActiveBase(10); setValueForm(form); }}
           style={({ pressed }) => [styles.valueFormChip, valueForm === form && styles.valueFormChipActive, pressed && styles.pressed]}
         >
           <Text style={[styles.valueFormChipText, valueForm === form && styles.valueFormChipTextActive]}>
