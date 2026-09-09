@@ -7,6 +7,7 @@ import {
   getUnitInputHint,
   getUnitInsertionRange,
   getUnitSuggestions,
+  getPrefixedUnitSuggestions,
   getUnitGroupSuggestions,
   insertUnitAtEnd,
   replaceExpressionRange,
@@ -444,5 +445,43 @@ describe("接頭語を打った直後の候補", () => {
     expect(suggest("n/mm2")[0]).toBe("N/mm²");
     expect(suggest("kgf/cm2")[0]).toBe("kgf/cm²");
     expect(suggest("pascal")).toContain("hPa");
+  });
+});
+
+describe("接頭語キーの候補（記号そのものが単位でもある接頭語）", () => {
+  const after = (prefix: string) =>
+    getPrefixedUnitSuggestions(prefix, { system: "metric", limit: 8 }).map((candidate) => candidate.unit.symbol);
+
+  it("m を押したら milli の単位が出る（メートルの差し替え候補にならない）", () => {
+    // `m` は単体でメートルとして解決できるので、接頭語キーで入れたという意図を状態で持たないと
+    // 「単位の差し替え」の経路に入り、レールが長さの単位（cm・km・µm・in・ft）だけになって
+    // mA・mV・ms が消える（app/(tabs)/index.tsx の prefixEntry）。
+    expect(after("m")).toContain("mA");
+    expect(after("m")).toContain("mV");
+    expect(after("m")).toContain("ms");
+    // 押した本人がメートルを打ちたかった場合もあるので、完全一致は先頭に残す。
+    expect(after("m")[0]).toBe("m");
+    // 長さの差し替え候補（cm・km）はここには出ない。接頭語 m で始まらないため。
+    expect(after("m")).not.toContain("cm");
+    expect(after("m")).not.toContain("km");
+  });
+
+  it("G も同じ穴だった（標準重力として解決するため）", () => {
+    expect(after("G")).toEqual(["G", "GPa", "Gal"]);
+  });
+
+  it("接頭語＋単位に分解できる記号を、同じ長さの別物より先に出す", () => {
+    // 記号の長さだけで並べると mi（マイル）・m²・m³ が mA・mV を8件の枠から押し出す。
+    const m = after("m");
+    expect(m.indexOf("mA")).toBeLessThan(8);
+    expect(m).not.toContain("mi");
+    // 判定に isBuiltInUnitSymbol は使えない（接頭辞分解も通るので Gal の残り "al" が
+    // a(アト)+l(リットル) として真になる）。登録済み単位の一覧で見ていることの担保。
+    expect(after("G").indexOf("GPa")).toBeLessThan(after("G").indexOf("Gal"));
+  });
+
+  it("接頭語で始まる単位が無ければ空（呼び出し側が困らないこと）", () => {
+    expect(getPrefixedUnitSuggestions("", { system: "metric" })).toEqual([]);
+    expect(getPrefixedUnitSuggestions("zz", { system: "metric" })).toEqual([]);
   });
 });

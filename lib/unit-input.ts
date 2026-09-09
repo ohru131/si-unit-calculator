@@ -332,6 +332,48 @@ export function getUnitGroupSuggestions(groupId: string, options: { system: Unit
   return suggestionsForGroups(group ? [group] : [], options);
 }
 
+/**
+ * 接頭語キーを押した直後の候補。**その接頭語で始まる単位を、記号の短い順**に並べる。
+ *
+ * 短い順にするのは、接頭語＋1文字の基本単位（mA・mV・mF・mW・mΩ・ms・mg・mL）が
+ * 実際に打ちたいものなのに、`getUnitSuggestions` の並び（スコア→グループの定義順）では
+ * 電流のグループが後ろにあるため `mA` が12件目までに入らなかったから。長さの `m/s`・
+ * 時間の `min`・燃費の `mpg` のように「接頭語ではない m 始まり」は3文字以上なので自然に後ろへ回る。
+ *
+ * 記号そのものが単位でもある接頭語（`m`＝メートル・`G`＝標準重力）は完全一致を先頭に置く。
+ * 接頭語キーをメートルの近道として押す人もいるので、候補から外すと打ち直しになる。
+ */
+export function getPrefixedUnitSuggestions(prefix: string, options: { system: UnitSystem; limit?: number; includeUnit?: UnitFilter }): UnitSuggestion[] {
+  const { system, limit = 8, includeUnit } = options;
+  if (!prefix) return [];
+
+  const exact: UnitSuggestion[] = [];
+  const prefixed: { suggestion: UnitSuggestion; decomposes: number; length: number; order: number }[] = [];
+  let order = 0;
+
+  UNIT_GROUPS.forEach((group) => {
+    group.units.forEach((unitOption) => {
+      order += 1;
+      if (includeUnit && !includeUnit(group, unitOption)) return;
+      if (!unitOption.symbol.startsWith(prefix)) return;
+      if (unitOption.symbol === prefix) {
+        exact.push({ group, unit: unitOption });
+        return;
+      }
+      // **「その接頭語＋単位チップに出る単位」に分解できるものを先に出す。** 記号の長さだけで
+      // 並べると、接頭語ではない同じ長さの記号（`mi`＝マイル・`m²`・`m³`）が mA・mV を押し出す。
+      // 判定に `isBuiltInUnitSymbol` は使えない——あれは接頭辞分解も通すので `Gal` の残り `al` が
+      // `a`(アト)+`l`(リットル) として真になり、ほぼ何でも「分解できる」ことになってしまう。
+      const decomposes = findRegisteredUnit(unitOption.symbol.slice(prefix.length)) ? 0 : 1;
+      prefixed.push({ suggestion: { group, unit: unitOption }, decomposes, length: unitOption.symbol.length, order });
+    });
+  });
+
+  void system;
+  prefixed.sort((left, right) => left.decomposes - right.decomposes || left.length - right.length || left.order - right.order);
+  return [...exact, ...prefixed.map((entry) => entry.suggestion)].slice(0, limit);
+}
+
 function suggestionsForGroups(groups: readonly UnitGroup[], options: { system: UnitSystem; recentUnits?: string[]; limit?: number; includeUnit?: UnitFilter }): UnitSuggestion[] {
   const { system, recentUnits = [], limit = 8, includeUnit } = options;
   if (!groups.length) return [];

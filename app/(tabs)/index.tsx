@@ -42,6 +42,7 @@ import { SAMPLE_CALCULATIONS, SAMPLE_CATEGORIES, type SampleCalculation } from "
 import { orderSampleCategoriesForLanguage, orderSamplesForLanguage } from "@/lib/locale-relevance";
 import {
   analyzeExpression,
+  getPrefixedUnitSuggestions,
   getUnitInputHint,
   requiredUnitGroupFromError,
   getUnitInsertionRange,
@@ -113,6 +114,7 @@ const BASE_INPUT_DISABLED_KEYS = ["(", ")", "÷", "×", "-", "+", "."];
 // マイクロはマイクロ記号 µ(U+00B5)。ギリシャ小文字の μ(U+03BC) は定数名用で別コードポイント。
 // 範囲はピコ〜ギガに絞る（この電卓が扱う電気・機械の量はこの間に収まる）。
 const PREFIX_KEYS = ["p", "n", "µ", "m", "c", "k", "M", "G"] as const;
+const isPrefixKey = (key: string) => (PREFIX_KEYS as readonly string[]).includes(key);
 
 const EDIT_KEYS: readonly { label: string; insert: string }[] = [
   { label: "x²", insert: "²" },
@@ -440,6 +442,11 @@ export default function CalculatorScreen() {
   const [unitSearch, setUnitSearch] = useState("");
   const [recentUnits, setRecentUnits] = useState<string[]>([]);
   const [fixSelection, setFixSelection] = useState<{ start: number; end: number; text: string } | null>(null);
+  // 接頭語キーで入れた1文字を「まだ単位を選んでいる途中」として覚えておく。**この意図は式の
+  // 見た目からは復元できない**: `m` は単体でメートルとして解決できるので、状態を持たないと
+  // 単位の差し替え（`5m` → cm・km…）の経路に入り、mA・mV・ms が候補から消える
+  // （CodeRabbitが#59で🟡として検出。`G` も標準重力として解決するので同じ穴だった）。
+  const [prefixEntry, setPrefixEntry] = useState<{ start: number; end: number; prefix: string } | null>(null);
   const [showInlineUnitSearch, setShowInlineUnitSearch] = useState(false);
   const [inlineUnitQuery, setInlineUnitQuery] = useState("");
   const unitSearchRef = useRef<TextInput>(null);
@@ -589,8 +596,20 @@ export default function CalculatorScreen() {
     // 直前に計算済みの analysis を渡して、同じ式をもう一度解析しないようにする。
     // キャレット位置（selection.start）を渡すことで、末尾ではなく今カーソルがある単位・数値を対象にする。
     const caret = Math.min(selection.start, expression.length);
+    // 接頭語キーを押した直後は、その1文字を単位として確定させずに「その接頭語で始まる単位」を出す。
+    // **式とキャレットが押した直後のままかを毎回確かめる**ので、あとから打ち換え・削除・全消しが
+    // あっても勝手に復活しない（この検証があるので、状態を消す場所を各所に足す必要がない）。
+    if (prefixEntry && caret === prefixEntry.end && expression.slice(prefixEntry.start, prefixEntry.end) === prefixEntry.prefix) {
+      return {
+        kind: "complete",
+        fragment: prefixEntry.prefix,
+        start: prefixEntry.start,
+        end: prefixEntry.end,
+        candidates: getPrefixedUnitSuggestions(prefixEntry.prefix, { system: unitSystem, limit: RAIL_LIMIT, includeUnit }),
+      };
+    }
     return getUnitInputHint(expression, { system: unitSystem, recentUnits, identifiers, includeUnit, limit: RAIL_LIMIT, analysis, caret, requiredGroup: requiredUnitGroup });
-  }, [analysis, expression, fixSelection, identifiers, includeUnit, recentUnits, requiredUnitGroup, selection, unitSystem]);
+  }, [analysis, expression, fixSelection, identifiers, includeUnit, prefixEntry, recentUnits, requiredUnitGroup, selection, unitSystem]);
 
   const visibleDiagnosis = hint.kind === "complete" ? "" : liveDiagnosis;
 
@@ -928,6 +947,7 @@ export default function CalculatorScreen() {
     setExpression(replaceExpressionRange(expression, start, end, inserted));
     placeCaret(start + inserted.length);
     setFixSelection(null);
+    setPrefixEntry(isPrefixKey(key) ? { start, end: start + inserted.length, prefix: inserted } : null);
   };
 
   // 進数入力を始められるのは、式が空か、そのまま別の基数へ読み替えられる10進の整数のときだけ。
@@ -1011,6 +1031,7 @@ export default function CalculatorScreen() {
     setExpression(replaceExpressionRange(expression, start, end, symbol));
     placeCaret(start + symbol.length);
     setFixSelection(null);
+    setPrefixEntry(null);
     rememberUnit(symbol);
     setError("");
     setNotice("");
@@ -1026,6 +1047,7 @@ export default function CalculatorScreen() {
     setExpression(replaceExpressionRange(expression, start, end, symbol));
     placeCaret(start + symbol.length);
     setFixSelection(null);
+    setPrefixEntry(null);
     rememberUnit(symbol);
     setError("");
     setNotice("");
