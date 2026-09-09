@@ -57,7 +57,23 @@ import { convertQuantity, formatDimension, formatNumberForLocale, formatQuantity
 // ⌫（一文字削除）を動かし、空いた最上段の右端（従来⌫があった場所）にACを置く。
 // AC（全消去・元に戻せない）は"="からできるだけ離し、逆に押し間違えても被害が小さい⌫の方を
 // "="の隣に残すことで、誤爆したときの実害を最小にする配置にしている。
-const KEYS = ["(", ")", "÷", "AC", "7", "8", "9", "×", "4", "5", "6", "-", "1", "2", "3", "+", ".", "0", "⌫", "="];
+// 一般的な電卓（iOS・Android）と関数電卓（Casio fx 系）に共通する並びに揃えてある。
+// 5列4段。**キーの数は20のまま変わらず、段が1つ減るので縦が42pxぶん縮む**（キーパッド直上に
+// 足した編集キー・接頭語の2行と釣り合う）。
+//
+//   7 8 9 ⌫ AC     ⌫ と AC は隣同士で右上（以前は AC が右上・⌫ が下段の数字の並びに混在）
+//   4 5 6 ÷ ×      演算子は数字の右に2×2のひとかたまり。**列で見ると ÷ × − + の順**で、
+//   1 2 3 − +      これは iOS の演算子列を縦に読んだ順と同じ（以前は ÷ だけ別の列にあった）
+//   0 . ( ) =      0 は 1 の真下、= は右下（どちらもどの電卓でも同じ位置）
+//
+// カーソルキー（`<` `>`）はキーパッドに入れず編集キーの行に置いたまま。関数電卓でも
+// カーソルは数字キーの外の別クラスタなので、ここへ入れて5段に戻す方が不自然になる。
+const KEYS = [
+  "7", "8", "9", "⌫", "AC",
+  "4", "5", "6", "÷", "×",
+  "1", "2", "3", "-", "+",
+  "0", ".", "(", ")", "=",
+];
 const ADVANCED_KEYS = ["sin(", "cos(", "tan(", "asin(", "acos(", "atan(", "atan2(", "ln(", "log(", "log2(", "sqrt(", "^", "π", "e"];
 // 結果の見せ方。小数を先頭にする（分数・πで出せる値の方が少ないため、既定は常に小数）。
 const VALUE_FORMS = ["decimal", "exact"] as const;
@@ -2068,7 +2084,8 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
 
   // 画面幅に関係なく必ず4列で並ぶよう、25%幅のセルに収める。
   keypad: { flexDirection: "row", flexWrap: "wrap", marginHorizontal: -3 },
-  keyCell: { padding: 3, width: "25%" },
+  // 5列（KEYS のコメント参照）。4列に戻すなら KEYS の並びも組み直すこと。
+  keyCell: { padding: 3, width: "20%" },
   key: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 12, borderWidth: 1, height: 42, justifyContent: "center" },
   keyOperator: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder },
   keyAction: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
