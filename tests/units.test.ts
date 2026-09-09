@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { resolveDisplayUnit } from "../lib/display-unit";
+
 import {
   canonicalUnitSymbol,
   convertQuantity,
@@ -444,5 +446,41 @@ describe("科学表記（×10 のべき乗）", () => {
     // 次元を持つ単位を指数に置いた式は、切り離さず従来どおりエラーにする（意味が無いため）。
     expect(() => evaluateExpression("2^(3m)")).toThrow();
     expect(() => evaluateExpression("2^3°C")).toThrow();
+  });
+});
+
+describe("圧力・応力の単位（N/mm² と重量キログラム）", () => {
+  it("N/mm² は MPa と同じ値で、複合単位として解決する", () => {
+    expect(convertQuantity(evaluateExpression("1N/mm²"), "MPa").value).toBeCloseTo(1);
+    expect(convertQuantity(evaluateExpression("205000N/mm²"), "GPa").value).toBeCloseTo(205);
+    // 別表記（上付きを使わない書き方）も同じ値。
+    expect(convertQuantity(evaluateExpression("1N/mm2"), "MPa").value).toBeCloseTo(1);
+    expect(convertQuantity(evaluateExpression("1N/mm^2"), "MPa").value).toBeCloseTo(1);
+  });
+
+  it("hPa / GPa と重量キログラム系が通る", () => {
+    expect(convertQuantity(evaluateExpression("1013hPa"), "atm").value).toBeCloseTo(0.99975, 4);
+    expect(convertQuantity(evaluateExpression("205GPa"), "MPa").value).toBeCloseTo(205000);
+    expect(convertQuantity(evaluateExpression("1kgf"), "N").value).toBeCloseTo(9.80665);
+    // 独語圏の Kilopond。英字の別表記は BASE_UNITS へ自動登録されるので式でも使える。
+    expect(convertQuantity(evaluateExpression("1kp"), "N").value).toBeCloseTo(9.80665);
+    expect(convertQuantity(evaluateExpression("1kgf/cm²"), "kPa").value).toBeCloseTo(98.0665);
+    expect(convertQuantity(evaluateExpression("2kgf/cm²"), "psi").value).toBeCloseTo(28.4468, 3);
+  });
+
+  it("圧力・力グループへ足しても表示単位の自動選択が変わらない", () => {
+    // N/mm² は MPa と同じ倍率1e6。**MPa より後ろに置いてある**ので、応力の結果は MPa のまま
+    // （前に置くと同じ倍率の先着だけが残る仕様のせいで N/mm² と表示されるようになる）。
+    const at = (expression: string) =>
+      resolveDisplayUnit({ quantity: evaluateExpression(expression), requestedUnit: "", expressionUnits: [], system: "metric", isAdvancedMode: true }).unit;
+    expect(at("1e6Pa")).toBe("MPa");
+    expect(at("100N ÷ 0.01m²")).toBe("kPa");
+    // hPa（倍率100）を足しても kPa の方が数字が小さくなるので選ばれない。
+    expect(at("50000Pa")).toBe("kPa");
+    expect(at("500Pa")).toBe("Pa");
+    // kgf（倍率9.80665）は10のべき乗でないため自動選択の候補に入らない。
+    expect(at("2kg × 9.8m/s²")).toBe("N");
+    // GPa は新しく候補に入る倍率なので、ヤング率がSI表記のまま出ていたのが読めるようになる。
+    expect(at("205e9Pa")).toBe("GPa");
   });
 });

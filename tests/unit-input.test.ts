@@ -414,3 +414,35 @@ describe("式が要求している次元の単位を出す", () => {
     );
   });
 });
+
+describe("接頭語を打った直後の候補", () => {
+  const after = (expression: string) =>
+    getUnitInputHint(expression, { system: "metric", caret: expression.length, limit: 6 }).candidates.map((candidate) => candidate.unit.symbol);
+
+  it("その接頭語で始まる単位を先に出す（大文字小文字を取り違えない）", () => {
+    // 接頭語キー（app/(tabs)/index.tsx の PREFIX_KEYS）を押した直後に見える候補。
+    // m=ミリ / M=メガ・k=キロ / K=ケルビン は別物なので、綴りが一致する候補を先に出す。
+    expect(after("4.7M")[0]).toBe("MHz");
+    expect(after("4.7M")).toContain("MΩ");
+    expect(after("4.7M")).toContain("MPa");
+    // 以前は大文字小文字を無視した完全一致が勝ち、M の1位が m（メートル）・k の1位が K（ケルビン）だった。
+    expect(after("4.7k")[0]).not.toBe("K");
+    expect(after("4.7k")[0]).toBe("km");
+    expect(after("2n")[0]).toBe("nC");
+    expect(after("100µ")[0]).toBe("µA");
+    expect(after("5c")[0]).toBe("cm");
+  });
+
+  it("綴りが崩れた入力では従来のスコア順のまま（打ち間違いを拾い続ける）", () => {
+    // 綴り一致をスコアより強くしても、全候補が同じ扱いになる入力では並びが変わらない。
+    const suggest = (query: string) => getUnitSuggestions(query, { system: "metric", limit: 4 }).map((candidate) => candidate.unit.symbol);
+    expect(suggest("mpa")[0]).toBe("MPa");
+    expect(suggest("MPA")[0]).toBe("MPa");
+    expect(suggest("newtn")[0]).toBe("N");
+    expect(suggest("ohm")[0]).toBe("Ω");
+    // 今回足した圧力・応力の単位も別表記から引ける。
+    expect(suggest("n/mm2")[0]).toBe("N/mm²");
+    expect(suggest("kgf/cm2")[0]).toBe("kgf/cm²");
+    expect(suggest("pascal")).toContain("hPa");
+  });
+});

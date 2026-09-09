@@ -128,8 +128,12 @@ const BASE_UNIT_GROUPS: UnitGroup[] = [
   // 以前 G だけ "G (標準重力)" と日本語の補足が入っていて、英語UIでも日本語が出ていた。
   // 単位の正式名称は UNIT_META の name(LocalizedText) と lib/unit-explanations.ts が持っている。
   { id: "acceleration", label: "加速度", dimension: [1, 0, -2, 0, 0, 0, 0], units: [{ symbol: "m/s²", label: "m/s²" }, { symbol: "cm/s²", label: "cm/s²" }, { symbol: "Gal", label: "Gal (gal)" }, { symbol: "mGal", label: "mGal" }, { symbol: "µGal", label: "µGal" }, { symbol: "G", label: "G" }, { symbol: "ft/s²", label: "ft/s²" }] },
-  { id: "force", label: "力", dimension: [1, 1, -2, 0, 0, 0, 0], units: [{ symbol: "N", label: "N" }, { symbol: "kN", label: "kN" }] },
-  { id: "pressure", label: "圧力", dimension: [-1, 1, -2, 0, 0, 0, 0], units: [{ symbol: "Pa", label: "Pa" }, { symbol: "kPa", label: "kPa" }, { symbol: "MPa", label: "MPa" }, { symbol: "bar", label: "bar" }, { symbol: "psi", label: "psi" }, { symbol: "atm", label: "atm" }] },
+  { id: "force", label: "力", dimension: [1, 1, -2, 0, 0, 0, 0], units: [{ symbol: "N", label: "N" }, { symbol: "kN", label: "kN" }, { symbol: "kgf", label: "kgf" }] },
+  // 応力も圧力と同じ次元なのでこのグループが受ける。**N/mm² は MPa より後ろに置くこと**:
+  // lib/display-unit.ts の自動選択は同じ倍率の候補を先に見つけたものだけ残すので、前に置くと
+  // 応力の結果が MPa ではなく N/mm² と表示されるようになる（どちらも倍率1e6）。
+  // kgf/cm² は倍率が10のべき乗でないため自動選択の候補には入らない（チップからは選べる）。
+  { id: "pressure", label: "圧力", dimension: [-1, 1, -2, 0, 0, 0, 0], units: [{ symbol: "Pa", label: "Pa" }, { symbol: "hPa", label: "hPa" }, { symbol: "kPa", label: "kPa" }, { symbol: "MPa", label: "MPa" }, { symbol: "N/mm²", label: "N/mm²" }, { symbol: "GPa", label: "GPa" }, { symbol: "bar", label: "bar" }, { symbol: "psi", label: "psi" }, { symbol: "atm", label: "atm" }, { symbol: "kgf/cm²", label: "kgf/cm²" }] },
   { id: "energy", label: "エネルギー", dimension: [2, 1, -2, 0, 0, 0, 0], units: [{ symbol: "J", label: "J" }, { symbol: "kJ", label: "kJ" }, { symbol: "Wh", label: "Wh" }, { symbol: "BTU", label: "BTU" }, { symbol: "cal", label: "cal" }, { symbol: "kcal", label: "kcal" }, { symbol: "eV", label: "eV" }] },
   { id: "power", label: "電力", dimension: [2, 1, -3, 0, 0, 0, 0], units: [{ symbol: "W", label: "W" }, { symbol: "kW", label: "kW" }, { symbol: "MW", label: "MW" }, { symbol: "hp", label: "hp" }, { symbol: "PS", label: "PS" }] },
   // 燃費（走行距離÷燃料）。次元は逆面積で、既存のどのグループとも衝突しない。
@@ -224,6 +228,15 @@ const UNIT_META: Record<string, UnitMeta> = {
   Pa: { aliases: ["pascal", "pascals", "パスカル"], name: { en: "pascal", ja: "パスカル", es: "pascal", "pt-BR": "pascal", de: "Pascal", fr: "pascal" } },
   kPa: { aliases: ["kilopascal", "キロパスカル"], name: { en: "kilopascal", ja: "キロパスカル", es: "kilopascal", "pt-BR": "quilopascal", de: "Kilopascal", fr: "kilopascal" } },
   MPa: { aliases: ["megapascal", "メガパスカル"], name: { en: "megapascal", ja: "メガパスカル", es: "megapascal", "pt-BR": "megapascal", de: "Megapascal", fr: "mégapascal" } },
+  hPa: { aliases: ["hectopascal", "ヘクトパスカル"], name: { en: "hectopascal", ja: "ヘクトパスカル", es: "hectopascal", "pt-BR": "hectopascal", de: "Hektopascal", fr: "hectopascal" } },
+  GPa: { aliases: ["gigapascal", "ギガパスカル"], name: { en: "gigapascal", ja: "ギガパスカル", es: "gigapascal", "pt-BR": "gigapascal", de: "Gigapascal", fr: "gigapascal" } },
+  // 応力を N/mm² と書くのは JIS・欧州の機械設計の標準（値は MPa と同じ）。別表記に MPa は
+  // 入れない——検索で MPa を打った人に別名の行が並ぶと、同じ値の単位が2つあるように見える。
+  "N/mm²": { aliases: ["N/mm2", "N/mm^2", "ニュートン毎平方ミリメートル"], name: { en: "newton per square millimeter", ja: "ニュートン毎平方ミリメートル", es: "newton por milímetro cuadrado", "pt-BR": "newton por milímetro quadrado", de: "Newton pro Quadratmillimeter", fr: "newton par millimètre carré" } },
+  // 独語圏では Kilopond(kp) という別名で呼ぶ。kp は接頭辞分解では解決できない（p 単体の単位が
+  // 無い）ので、英字の別表記として自動登録される分だけ増える。
+  kgf: { aliases: ["kp", "kilogramforce", "kilogram-force", "重量キログラム", "キログラム重"], name: { en: "kilogram-force", ja: "重量キログラム", es: "kilogramo-fuerza", "pt-BR": "quilograma-força", de: "Kilopond", fr: "kilogramme-force" } },
+  "kgf/cm²": { aliases: ["kgf/cm2", "kgf/cm^2", "重量キログラム毎平方センチメートル"], name: { en: "kilogram-force per square centimeter", ja: "重量キログラム毎平方センチメートル", es: "kilogramo-fuerza por centímetro cuadrado", "pt-BR": "quilograma-força por centímetro quadrado", de: "Kilopond pro Quadratzentimeter", fr: "kilogramme-force par centimètre carré" } },
   bar: { aliases: ["bars", "バール"], name: { en: "bar", ja: "バール", es: "bar", "pt-BR": "bar", de: "Bar", fr: "bar" } },
   psi: { aliases: ["lbf/in²"], name: { en: "pound per square inch", ja: "重量ポンド毎平方インチ", es: "libra-fuerza por pulgada cuadrada", "pt-BR": "libra-força por polegada quadrada", de: "Pfund-Kraft pro Quadratzoll", fr: "livre-force par pouce carré" } },
   atm: { aliases: ["atmosphere", "気圧"], name: { en: "standard atmosphere", ja: "気圧", es: "atmósfera estándar", "pt-BR": "atmosfera padrão", de: "physikalische Atmosphäre", fr: "atmosphère normale" } },
@@ -421,6 +434,10 @@ const BASE_UNITS: Record<string, UnitDefinition> = {
   // 小文字の ps は p(ピコ)+s でピコ秒として既に解決できるので、別表記に小文字を足してはいけない。
   PS: unit(735.49875, [2, 1, -3, 0, 0, 0, 0]),
   CV: unit(735.49875, [2, 1, -3, 0, 0, 0, 0]),
+  // 重量キログラム（1kgf = 9.80665 N）。日本の油圧・空圧の圧力計と車のカタログ、独語圏の
+  // Kilopond(kp) がまだこの単位で書かれている。**完全一致が接頭辞分解より先**なので、
+  // "kgf" が k(キロ)+gf として誤解決される心配は無い（そもそも gf は登録していない）。
+  kgf: unit(9.80665, [1, 1, -2, 0, 0, 0, 0]),
   // 燃費。米国ガロン(3.785411784L)と英ガロン(4.54609L)で**同じ "mpg" が20%違う**ため、
   // 記号を分ける。値は割り算のまま書いて、どのガロンで割ったのかをコードから読めるようにする。
   mpg: unit(1609.344 / 0.003785411784, [-2, 0, 0, 0, 0, 0, 0]),

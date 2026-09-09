@@ -219,7 +219,8 @@ export function analyzeExpression(input: string, identifiers: string[] = []): Ex
 /** 表記ゆれ・打ち間違いも拾って、登録済み単位の候補を近い順に返す。 */
 export function getUnitSuggestions(query: string, options: UnitSuggestionOptions): UnitSuggestion[] {
   const { system, limit = 8, includeUnit } = options;
-  const normalized = query.trim().toLowerCase();
+  const raw = query.trim();
+  const normalized = raw.toLowerCase();
   if (!normalized) return [];
 
   const scored: { suggestion: UnitSuggestion; score: number; order: number }[] = [];
@@ -248,8 +249,16 @@ export function getUnitSuggestions(query: string, options: UnitSuggestionOptions
         const lowered = alias.toLowerCase();
         return lowered === normalized || lowered.startsWith(normalized) || editDistance(lowered, normalized) <= tolerance;
       });
+      // **接頭語は大文字小文字で別物**（m=ミリ / M=メガ）なので、綴りがそのまま前方一致する
+      // 候補を同スコア内で先に見せる。照合自体を大文字小文字を区別する形にはしない——
+      // ここは打ち間違いも拾う場所で、"mpa" から MPa を出せなくなる。これが無いと
+      // 接頭語キーで M を押した直後の候補が m・mm・mL・ms（＝ミリ側）で埋まる。
+      // **綴り一致はスコアより強い。** そうしないと大文字小文字を無視した完全一致が勝ってしまい、
+      // M を押した直後の1位が m（メートル）・k の1位が K（ケルビン）になる。逆に "mpa" のような
+      // 綴りが崩れた入力では全候補が同じ扱いになるので、従来のスコア順がそのまま残る。
+      const caseMismatch = unitOption.symbol.startsWith(raw) ? 0 : 1;
       // 地域の優先単位を同スコア内で先に見せる。
-      const positioned = score * 10 + (prioritized.includes(unitOption) ? 0 : 1);
+      const positioned = caseMismatch * 1000 + score * 100 + (prioritized.includes(unitOption) ? 0 : 1);
       scored.push({ suggestion: { group, unit: unitOption, matchedAlias }, score: positioned, order });
     });
   });
