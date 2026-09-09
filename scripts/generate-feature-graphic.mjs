@@ -23,91 +23,96 @@ import { chromium } from "playwright";
 const ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const OUT_DIR = join(ROOT, "submission-assets", "store");
 const ICON = join(ROOT, "assets", "images", "icon.png");
-const CHROMIUM_PATH = process.env.CHROMIUM_PATH ?? "/opt/pw-browsers/chromium";
+const CHROMIUM_PATH =
+  process.env.CHROMIUM_PATH ??
+  (existsSync("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe")
+    ? "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+    : existsSync("C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe")
+      ? "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
+      : "/opt/pw-browsers/chromium");
 
 const WIDTH = 1024;
 const HEIGHT = 500;
 // Play はデバイスによって左右を切り落とすことがあるので、文字とアイコンは中央 712px の安全域に収める。
 const SAFE_WIDTH = 712;
 
-// プリセット計算ノートの件数。lib/notebook-formulas から実測した値を渡す
-// （掲載文と食い違わないよう、数字はここ1箇所だけに置く。docs/store-listing-copy.md と同じ値）。
-const NOTEBOOK_COUNT = 194;
-
 // 短い説明と同じ実例。抽象的な約束より実物1つの方が効く（docs/store-listing-copy.md と同じ値で、
 // tests/sample-calculations.test.ts が実エンジンで 1kΩ × 1mA = 1V を検証している）。
-const EXAMPLE = "1kΩ × 1mA ⇒ 1V";
+const EXAMPLE = "1kΩ × 1mA → 1V";
 
 // 見出し（title）はアプリ名 "UnitCalc"（lib/global-settings.tsx の `calculator`・app.config.ts の
 // appName と同じ）。**固有名詞なので言語ごとに訳さない。**
-// headline はその言語のターゲットに効く一言、sub は「件数＋誰向けか」。
-// **訳文ではない。** 独語は Einheitenfehler と Klausur、西語は EBAU の採点基準の言い回し、
-// 葡語は ENEM と NR-10、日本語は電験・電工、英語は FE と City & Guilds、仏語は各段階で単位を保つ話。
+// headline は計算への集中と単位処理の自動化、sub は資格・現場から科学・技術計算までの広がりを訴求。
 const LOCALES = {
   en: {
     title: "UnitCalc",
-    headline: "Just type the units. Prefixes and conversions are automatic.",
-    sub: `${NOTEBOOK_COUNT} formula notebooks · FE & City & Guilds`,
+    headline: "Focus on calculations.<br>Leave the units to UnitCalc.",
+    sub: "From electrical exams to science & engineering.",
   },
   ja: {
     cjk: true,
     title: "UnitCalc",
-    headline: "桁合わせや単位換算は、すべて自動。",
-    sub: `${NOTEBOOK_COUNT}件の計算ノート・電験／電工の検算に`,
+    headline: "計算に集中。単位合わせはUnitCalcに。",
+    sub: "電工試験から、科学・技術計算まで。",
   },
   es: {
     title: "UnitCalc",
-    headline: "Prefijos y conversiones, automáticos.",
-    sub: `${NOTEBOOK_COUNT} cuadernos de fórmulas · EBAU y FP`,
+    headline: "Concéntrate en el cálculo.<br>Deja las unidades a UnitCalc.",
+    sub: "De exámenes de electricidad al cálculo científico y técnico.",
   },
   "pt-BR": {
     title: "UnitCalc",
-    headline: "Prefixos e conversões, automáticos.",
-    sub: `${NOTEBOOK_COUNT} cadernos de fórmulas · ENEM e NR-10`,
+    headline: "Foque no cálculo.<br>Deixe as unidades com o UnitCalc.",
+    sub: "De provas de elétrica a cálculos científicos e técnicos.",
   },
   de: {
     title: "UnitCalc",
-    headline: "Vorsatzzeichen und Umrechnen: automatisch.",
-    sub: `${NOTEBOOK_COUNT} Rechenhefte · Ausbildung & Prüfung`,
+    headline: "Fokus aufs Rechnen.<br>Die Einheiten übernimmt UnitCalc.",
+    sub: "Von Elektroprüfungen bis zu Wissenschaft & Technik.",
   },
   fr: {
     title: "UnitCalc",
-    headline: "Préfixes et conversions, automatiques.",
-    sub: `${NOTEBOOK_COUNT} carnets de formules · lycée, prépa, BTS`,
+    headline: "Concentrez-vous sur le calcul.<br>UnitCalc gère les unités.",
+    sub: "Des examens d'électricité aux sciences & techniques.",
   },
 };
 
-const escapeHtml = (text) => text.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
+const escapeHtml = (text) =>
+  text.replace(/[&"']/g, (ch) => ({ "&": "&amp;", '"': "&quot;", "'": "&#39;" })[ch]);
 
 function buildHtml(locale, iconDataUri) {
-  return `<!doctype html><html><head><meta charset="utf-8"><style>
+  return `<!doctype html><html><head><meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800&family=JetBrains+Mono:wght@700&family=Noto+Sans+JP:wght@600;700;800&display=swap" rel="stylesheet">
+  <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: ${WIDTH}px; height: ${HEIGHT}px; }
   body {
     /* アプリのテーマ色（theme.config.js の primaryStrong → primary）。 */
     background: linear-gradient(135deg, #0E4964 0%, #146C94 100%);
     display: flex; align-items: center; justify-content: center;
-    font-family: "Noto Sans", "Noto Sans CJK JP", "DejaVu Sans", system-ui, sans-serif;
+    font-family: "Inter", "Noto Sans JP", "Segoe UI", "Yu Gothic UI", system-ui, sans-serif;
     color: #FFFFFF;
     -webkit-font-smoothing: antialiased;
   }
   .safe { width: ${SAFE_WIDTH}px; display: flex; align-items: center; gap: 40px; }
   .icon { width: 176px; height: 176px; border-radius: 38px; flex: none; box-shadow: 0 10px 30px rgba(0,0,0,0.28); }
   .copy { flex: 1; min-width: 0; }
-  /* タイトルは全言語 "UnitCalc" なので折り返さないが、行間の指定は残す
-     （副題を入れる形に戻した場合に2行でも収まるようにしておくため）。 */
+  /* タイトルは全言語 "UnitCalc" なので折り返さないが、行間の指定は残す */
   .title { font-size: 46px; font-weight: 800; line-height: 1.1; letter-spacing: -0.5px; }
   .headline { font-size: 24px; font-weight: 700; line-height: 1.35; margin-top: 18px; color: #C9E7F4; }
-  /* この環境の CJK フォントは IPAGothic（ボールド無し）しかなく、font-weight を上げても
-     太くならないので、縁取りで太字相当にする。ラテン文字には既に実ボールドが当たるので
-     掛けない（二重に太くなる）。Android 実機で撮り直すときは Noto Sans CJK に実ボールドが
-     あるため、この補正は不要になる。 */
-  body.cjk .title { -webkit-text-stroke: 1.1px currentColor; }
-  /* 和文は字面が大きく行間が詰まって見えるので、見出しだけ少し小さくして余白を足す。 */
-  body.cjk .headline { -webkit-text-stroke: 0.4px currentColor; font-size: 22px; margin-top: 22px; }
-  /* 実例だけは等幅にして「これが入力そのもの」と分かるようにする（アプリの入力欄と同じ見え方）。 */
-  .example { font-family: "DejaVu Sans Mono", monospace; font-size: 22px; font-weight: 700; margin-top: 14px; color: #FFFFFF; }
-  .sub { font-size: 17px; font-weight: 600; line-height: 1.3; margin-top: 10px; color: #8FC6E2; }
+  body.cjk .headline { font-size: 23px; margin-top: 18px; letter-spacing: 0.2px; }
+  /* 実例は等幅フォントで数式を美しく表示 */
+  .example {
+    font-family: "JetBrains Mono", "Consolas", "Roboto Mono", monospace;
+    font-size: 23px;
+    font-weight: 700;
+    margin-top: 14px;
+    color: #FFFFFF;
+    letter-spacing: 0.5px;
+  }
+  .sub { font-size: 17px; font-weight: 600; line-height: 1.35; margin-top: 12px; color: #8FC6E2; }
 </style></head><body class="${locale.cjk ? "cjk" : ""}">
   <div class="safe">
     <img class="icon" src="${iconDataUri}" alt="">
