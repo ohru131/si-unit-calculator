@@ -15,6 +15,7 @@ import {
   type UnitOption,
   type UnitSystem,
 } from "@/lib/units";
+import { UnitError } from "@/lib/unit-errors";
 
 /** 式の中の役割ごとに色分け・タップ操作を割り当てるための区分。 */
 export type ExpressionSegmentKind = "number" | "unit" | "unknown-unit" | "identifier" | "unknown-identifier" | "operator" | "space";
@@ -218,7 +219,8 @@ export function analyzeExpression(input: string, identifiers: string[] = []): Ex
 /** 表記ゆれ・打ち間違いも拾って、登録済み単位の候補を近い順に返す。 */
 export function getUnitSuggestions(query: string, options: UnitSuggestionOptions): UnitSuggestion[] {
   const { system, limit = 8, includeUnit } = options;
-  const normalized = query.trim().toLowerCase();
+  const raw = query.trim();
+  const normalized = raw.toLowerCase();
   if (!normalized) return [];
 
   const scored: { suggestion: UnitSuggestion; score: number; order: number }[] = [];
@@ -247,8 +249,16 @@ export function getUnitSuggestions(query: string, options: UnitSuggestionOptions
         const lowered = alias.toLowerCase();
         return lowered === normalized || lowered.startsWith(normalized) || editDistance(lowered, normalized) <= tolerance;
       });
+      // **接頭語は大文字小文字で別物**（m=ミリ / M=メガ）なので、綴りがそのまま前方一致する
+      // 候補を同スコア内で先に見せる。照合自体を大文字小文字を区別する形にはしない——
+      // ここは打ち間違いも拾う場所で、"mpa" から MPa を出せなくなる。これが無いと
+      // 接頭語キーで M を押した直後の候補が m・mm・mL・ms（＝ミリ側）で埋まる。
+      // **綴り一致はスコアより強い。** そうしないと大文字小文字を無視した完全一致が勝ってしまい、
+      // M を押した直後の1位が m（メートル）・k の1位が K（ケルビン）になる。逆に "mpa" のような
+      // 綴りが崩れた入力では全候補が同じ扱いになるので、従来のスコア順がそのまま残る。
+      const caseMismatch = unitOption.symbol.startsWith(raw) ? 0 : 1;
       // 地域の優先単位を同スコア内で先に見せる。
-      const positioned = score * 10 + (prioritized.includes(unitOption) ? 0 : 1);
+      const positioned = caseMismatch * 1000 + score * 100 + (prioritized.includes(unitOption) ? 0 : 1);
       scored.push({ suggestion: { group, unit: unitOption, matchedAlias }, score: positioned, order });
     });
   });
@@ -303,14 +313,69 @@ function unitInsertionRange(target: ExpressionSegment | undefined, caret: number
 
 /** ある単位と同じ次元の単位だけを、地域優先・直近使用優先で並べる。次元が解決できなければ空を返す（呼び出し側でよく使う単位へフォールバックする）。 */
 export function getSameDimensionUnitSuggestions(unitText: string, options: { system: UnitSystem; recentUnits?: string[]; limit?: number; includeUnit?: UnitFilter }): UnitSuggestion[] {
-  const { system, recentUnits = [], limit = 8, includeUnit } = options;
   let dimension;
   try {
     dimension = parseUnit(unitText).dimension;
   } catch {
     return [];
   }
-  const groups = getCompatibleUnitGroups(dimension);
+  return suggestionsForGroups(getCompatibleUnitGroups(dimension), options);
+}
+
+/**
+ * 単位グループのidから、そのグループの単位を地域優先・直近使用優先で並べる。
+ * 「式がこの次元を要求している」と分かっているときに使う（requiredUnitGroupFromError）。
+ * 未知のid・空文字は空を返すので、呼び出し側でよく使う単位へフォールバックできる。
+ */
+export function getUnitGroupSuggestions(groupId: string, options: { system: UnitSystem; recentUnits?: string[]; limit?: number; includeUnit?: UnitFilter }): UnitSuggestion[] {
+  const group = groupId ? UNIT_GROUPS.find((candidate) => candidate.id === groupId) : undefined;
+  return suggestionsForGroups(group ? [group] : [], options);
+}
+
+/**
+ * 接頭語キーを押した直後の候補。**その接頭語で始まる単位を、記号の短い順**に並べる。
+ *
+ * 短い順にするのは、接頭語＋1文字の基本単位（mA・mV・mF・mW・mΩ・ms・mg・mL）が
+ * 実際に打ちたいものなのに、`getUnitSuggestions` の並び（スコア→グループの定義順）では
+ * 電流のグループが後ろにあるため `mA` が12件目までに入らなかったから。長さの `m/s`・
+ * 時間の `min`・燃費の `mpg` のように「接頭語ではない m 始まり」は3文字以上なので自然に後ろへ回る。
+ *
+ * 記号そのものが単位でもある接頭語（`m`＝メートル・`G`＝標準重力）は完全一致を先頭に置く。
+ * 接頭語キーをメートルの近道として押す人もいるので、候補から外すと打ち直しになる。
+ */
+export function getPrefixedUnitSuggestions(prefix: string, options: { system: UnitSystem; limit?: number; includeUnit?: UnitFilter }): UnitSuggestion[] {
+  const { system, limit = 8, includeUnit } = options;
+  if (!prefix) return [];
+
+  const exact: UnitSuggestion[] = [];
+  const prefixed: { suggestion: UnitSuggestion; decomposes: number; length: number; order: number }[] = [];
+  let order = 0;
+
+  UNIT_GROUPS.forEach((group) => {
+    group.units.forEach((unitOption) => {
+      order += 1;
+      if (includeUnit && !includeUnit(group, unitOption)) return;
+      if (!unitOption.symbol.startsWith(prefix)) return;
+      if (unitOption.symbol === prefix) {
+        exact.push({ group, unit: unitOption });
+        return;
+      }
+      // **「その接頭語＋単位チップに出る単位」に分解できるものを先に出す。** 記号の長さだけで
+      // 並べると、接頭語ではない同じ長さの記号（`mi`＝マイル・`m²`・`m³`）が mA・mV を押し出す。
+      // 判定に `isBuiltInUnitSymbol` は使えない——あれは接頭辞分解も通すので `Gal` の残り `al` が
+      // `a`(アト)+`l`(リットル) として真になり、ほぼ何でも「分解できる」ことになってしまう。
+      const decomposes = findRegisteredUnit(unitOption.symbol.slice(prefix.length)) ? 0 : 1;
+      prefixed.push({ suggestion: { group, unit: unitOption }, decomposes, length: unitOption.symbol.length, order });
+    });
+  });
+
+  void system;
+  prefixed.sort((left, right) => left.decomposes - right.decomposes || left.length - right.length || left.order - right.order);
+  return [...exact, ...prefixed.map((entry) => entry.suggestion)].slice(0, limit);
+}
+
+function suggestionsForGroups(groups: readonly UnitGroup[], options: { system: UnitSystem; recentUnits?: string[]; limit?: number; includeUnit?: UnitFilter }): UnitSuggestion[] {
+  const { system, recentUnits = [], limit = 8, includeUnit } = options;
   if (!groups.length) return [];
 
   const suggestions: UnitSuggestion[] = [];
@@ -332,6 +397,27 @@ export function getSameDimensionUnitSuggestions(unitText: string, options: { sys
 }
 
 /**
+ * 次元不一致のエラーから「式が要求している単位グループ」を1つ選ぶ。
+ *
+ * `2kg×9.8m/s²-5` のように裸の数値を足し引きしている式では、反対側の次元がそのまま
+ * 「その数値に付けるべき単位」になる。エンジンは add/subtract で両辺のグループidを
+ * エラーの params に載せているので（lib/units.ts の dimensionMismatchParams）、
+ * 単位候補をそこから引ける。無次元でない側を選ぶのは、裸の数値の側が必ず無次元だから。
+ *
+ * 両辺とも次元を持つ式（`3m + 2kg`）では、どちらへ寄せたいのか決められないので何も返さない
+ * （その場合キャレットは単位の上にあり、同じ次元での差し替え候補が出る経路になる）。
+ * グループidが空の合成次元（`N·m²/C²`）も、並べられる単位の一覧が無いので返さない。
+ */
+export function requiredUnitGroupFromError(error: unknown): string | undefined {
+  if (!(error instanceof UnitError) || error.code !== "dimensionMismatchAddSubtract") return undefined;
+  const { leftGroup, rightGroup } = error.params;
+  const sides = [leftGroup, rightGroup].filter((group): group is string => typeof group === "string");
+  if (sides.length !== 2) return undefined;
+  const dimensional = sides.filter((group) => group && group !== "dimensionless");
+  return dimensional.length === 1 ? dimensional[0] : undefined;
+}
+
+/**
  * 今の式・キャレット位置に合わせた入力補助を決める。
  * 1. キャレット上（直後含む）に解釈できない単位があれば修正・補完、
  * 2. キャレット上の区間が単位なら（同じ次元の候補で）差し替え、
@@ -340,18 +426,25 @@ export function getSameDimensionUnitSuggestions(unitText: string, options: { sys
  */
 export function getUnitInputHint(
   expression: string,
-  options: { system: UnitSystem; recentUnits?: string[]; identifiers?: string[]; includeUnit?: UnitFilter; limit?: number; analysis?: ExpressionAnalysis; caret?: number },
+  options: { system: UnitSystem; recentUnits?: string[]; identifiers?: string[]; includeUnit?: UnitFilter; limit?: number; analysis?: ExpressionAnalysis; caret?: number; requiredGroup?: string },
 ): UnitInputHint {
-  const { system, recentUnits = [], identifiers = [], includeUnit, limit = 8 } = options;
+  const { system, recentUnits = [], identifiers = [], includeUnit, limit = 8, requiredGroup } = options;
   const analysis = options.analysis ?? analyzeExpression(expression, identifiers);
   const caret = options.caret ?? expression.length;
-  const insertHint = (start: number, kind: UnitInputHintKind): UnitInputHint => ({
-    kind,
-    fragment: "",
-    start,
-    end: start,
-    candidates: getCommonUnitSuggestions(system, recentUnits, { limit, includeUnit }),
-  });
+  // 式が特定の次元を要求しているなら、その次元の単位を出す（requiredUnitGroupFromError）。
+  // よく使う単位の一覧（m・km・g・s…）は「何を付けたいか分からないとき」の並びなので、
+  // 2kg×9.8m/s²-5 のように付けるべき単位が力だと分かっている場面では見当違いになる。
+  // 要求が読めない・その次元の単位を並べられないときは従来どおりよく使う単位へ落とす。
+  const insertHint = (start: number, kind: UnitInputHintKind): UnitInputHint => {
+    const required = requiredGroup ? getUnitGroupSuggestions(requiredGroup, { system, recentUnits, limit, includeUnit }) : [];
+    return {
+      kind,
+      fragment: "",
+      start,
+      end: start,
+      candidates: required.length ? required : getCommonUnitSuggestions(system, recentUnits, { limit, includeUnit }),
+    };
+  };
 
   const target = segmentAtCaret(analysis.segments, caret);
 
