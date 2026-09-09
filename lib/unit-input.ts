@@ -15,6 +15,7 @@ import {
   type UnitOption,
   type UnitSystem,
 } from "@/lib/units";
+import { UnitError } from "@/lib/unit-errors";
 
 /** 式の中の役割ごとに色分け・タップ操作を割り当てるための区分。 */
 export type ExpressionSegmentKind = "number" | "unit" | "unknown-unit" | "identifier" | "unknown-identifier" | "operator" | "space";
@@ -303,14 +304,27 @@ function unitInsertionRange(target: ExpressionSegment | undefined, caret: number
 
 /** ある単位と同じ次元の単位だけを、地域優先・直近使用優先で並べる。次元が解決できなければ空を返す（呼び出し側でよく使う単位へフォールバックする）。 */
 export function getSameDimensionUnitSuggestions(unitText: string, options: { system: UnitSystem; recentUnits?: string[]; limit?: number; includeUnit?: UnitFilter }): UnitSuggestion[] {
-  const { system, recentUnits = [], limit = 8, includeUnit } = options;
   let dimension;
   try {
     dimension = parseUnit(unitText).dimension;
   } catch {
     return [];
   }
-  const groups = getCompatibleUnitGroups(dimension);
+  return suggestionsForGroups(getCompatibleUnitGroups(dimension), options);
+}
+
+/**
+ * 単位グループのidから、そのグループの単位を地域優先・直近使用優先で並べる。
+ * 「式がこの次元を要求している」と分かっているときに使う（requiredUnitGroupFromError）。
+ * 未知のid・空文字は空を返すので、呼び出し側でよく使う単位へフォールバックできる。
+ */
+export function getUnitGroupSuggestions(groupId: string, options: { system: UnitSystem; recentUnits?: string[]; limit?: number; includeUnit?: UnitFilter }): UnitSuggestion[] {
+  const group = groupId ? UNIT_GROUPS.find((candidate) => candidate.id === groupId) : undefined;
+  return suggestionsForGroups(group ? [group] : [], options);
+}
+
+function suggestionsForGroups(groups: readonly UnitGroup[], options: { system: UnitSystem; recentUnits?: string[]; limit?: number; includeUnit?: UnitFilter }): UnitSuggestion[] {
+  const { system, recentUnits = [], limit = 8, includeUnit } = options;
   if (!groups.length) return [];
 
   const suggestions: UnitSuggestion[] = [];
@@ -332,6 +346,27 @@ export function getSameDimensionUnitSuggestions(unitText: string, options: { sys
 }
 
 /**
+ * 次元不一致のエラーから「式が要求している単位グループ」を1つ選ぶ。
+ *
+ * `2kg×9.8m/s²-5` のように裸の数値を足し引きしている式では、反対側の次元がそのまま
+ * 「その数値に付けるべき単位」になる。エンジンは add/subtract で両辺のグループidを
+ * エラーの params に載せているので（lib/units.ts の dimensionMismatchParams）、
+ * 単位候補をそこから引ける。無次元でない側を選ぶのは、裸の数値の側が必ず無次元だから。
+ *
+ * 両辺とも次元を持つ式（`3m + 2kg`）では、どちらへ寄せたいのか決められないので何も返さない
+ * （その場合キャレットは単位の上にあり、同じ次元での差し替え候補が出る経路になる）。
+ * グループidが空の合成次元（`N·m²/C²`）も、並べられる単位の一覧が無いので返さない。
+ */
+export function requiredUnitGroupFromError(error: unknown): string | undefined {
+  if (!(error instanceof UnitError) || error.code !== "dimensionMismatchAddSubtract") return undefined;
+  const { leftGroup, rightGroup } = error.params;
+  const sides = [leftGroup, rightGroup].filter((group): group is string => typeof group === "string");
+  if (sides.length !== 2) return undefined;
+  const dimensional = sides.filter((group) => group && group !== "dimensionless");
+  return dimensional.length === 1 ? dimensional[0] : undefined;
+}
+
+/**
  * 今の式・キャレット位置に合わせた入力補助を決める。
  * 1. キャレット上（直後含む）に解釈できない単位があれば修正・補完、
  * 2. キャレット上の区間が単位なら（同じ次元の候補で）差し替え、
@@ -340,18 +375,25 @@ export function getSameDimensionUnitSuggestions(unitText: string, options: { sys
  */
 export function getUnitInputHint(
   expression: string,
-  options: { system: UnitSystem; recentUnits?: string[]; identifiers?: string[]; includeUnit?: UnitFilter; limit?: number; analysis?: ExpressionAnalysis; caret?: number },
+  options: { system: UnitSystem; recentUnits?: string[]; identifiers?: string[]; includeUnit?: UnitFilter; limit?: number; analysis?: ExpressionAnalysis; caret?: number; requiredGroup?: string },
 ): UnitInputHint {
-  const { system, recentUnits = [], identifiers = [], includeUnit, limit = 8 } = options;
+  const { system, recentUnits = [], identifiers = [], includeUnit, limit = 8, requiredGroup } = options;
   const analysis = options.analysis ?? analyzeExpression(expression, identifiers);
   const caret = options.caret ?? expression.length;
-  const insertHint = (start: number, kind: UnitInputHintKind): UnitInputHint => ({
-    kind,
-    fragment: "",
-    start,
-    end: start,
-    candidates: getCommonUnitSuggestions(system, recentUnits, { limit, includeUnit }),
-  });
+  // 式が特定の次元を要求しているなら、その次元の単位を出す（requiredUnitGroupFromError）。
+  // よく使う単位の一覧（m・km・g・s…）は「何を付けたいか分からないとき」の並びなので、
+  // 2kg×9.8m/s²-5 のように付けるべき単位が力だと分かっている場面では見当違いになる。
+  // 要求が読めない・その次元の単位を並べられないときは従来どおりよく使う単位へ落とす。
+  const insertHint = (start: number, kind: UnitInputHintKind): UnitInputHint => {
+    const required = requiredGroup ? getUnitGroupSuggestions(requiredGroup, { system, recentUnits, limit, includeUnit }) : [];
+    return {
+      kind,
+      fragment: "",
+      start,
+      end: start,
+      candidates: required.length ? required : getCommonUnitSuggestions(system, recentUnits, { limit, includeUnit }),
+    };
+  };
 
   const target = segmentAtCaret(analysis.segments, caret);
 

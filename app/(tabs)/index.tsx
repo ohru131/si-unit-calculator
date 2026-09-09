@@ -43,6 +43,7 @@ import { orderSampleCategoriesForLanguage, orderSamplesForLanguage } from "@/lib
 import {
   analyzeExpression,
   getUnitInputHint,
+  requiredUnitGroupFromError,
   getUnitInsertionRange,
   getUnitSuggestions,
   replaceExpressionRange,
@@ -82,6 +83,20 @@ const QUICK_START: { id: "length" | "current" | "distance"; expression: string }
 // 進数入力モード中に押せてはいけないキー（演算子・小数点・括弧）。16進の桁のまま演算に入ると
 // 評価器が解釈できないため、まず = で10進へ確定させてから通常の式に組み込む運用にする。
 const BASE_INPUT_DISABLED_KEYS = ["(", ")", "÷", "×", "-", "+", "."];
+// キーパッドだけで式を組み立てられるようにするための編集キー（キャレット移動と、べき乗まわり）。
+// 入力欄をタップするとOSのキーボードが上がってキーパッドがほぼ隠れてしまうので、
+// 入力欄を触らずに済む範囲を広げる。^ は数学シートにしか無く、しかも上級モード限定だった。
+// 上付きの ² ³ は normalize が ^2 / ^3 へ書き換えるので ^ を打つのと同じ結果になる
+// （lib/units.ts。単位に付けば m² のように単位の指数としても解決する）。
+// ×10ⁿ は押すと ×10^ が入る。科学表記は単位を続けて書けるので括弧は要らない（3×10^8m/s）。
+// ラベルは電卓の慣例に揃える（x² / x³ / xʸ）。上付き数字だけを置くと字面が小さすぎて
+// 何のキーか分からず、「^」単体も打つ記号としては読めても「べき乗」には見えない。
+const EDIT_KEYS: readonly { label: string; insert: string }[] = [
+  { label: "x²", insert: "²" },
+  { label: "x³", insert: "³" },
+  { label: "xʸ", insert: "^" },
+  { label: "×10ⁿ", insert: "×10^" },
+];
 const RAIL_LIMIT = 8;
 const RECENT_UNIT_LIMIT = 8;
 
@@ -101,7 +116,7 @@ const EN_COPY = {
   savedItemLoaded: "Saved item loaded. Tap = to run it.",
   couldNotCopyCalculation: "Could not copy this calculation.",
   expressionPlaceholder: "Example: 5cm + 1mm",
-  deleteKey: "Delete",
+  deleteKey: "Delete", caretLeft: "Move cursor left", caretRight: "Move cursor right",
   clearAllKey: "Clear all",
   skip: "Skip",
   getStarted: "Get started",
@@ -140,7 +155,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     savedItemLoaded: "保存した項目を読み込みました。「=」を押して実行できます。",
     couldNotCopyCalculation: "計算結果をコピーできませんでした。",
     expressionPlaceholder: "例：5cm + 1mm",
-    deleteKey: "一文字削除",
+    deleteKey: "一文字削除", caretLeft: "カーソルを左へ", caretRight: "カーソルを右へ",
     clearAllKey: "全消去",
     skip: "スキップ",
     getStarted: "はじめる",
@@ -177,7 +192,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     savedItemLoaded: "Elemento guardado cargado. Toca = para ejecutarlo.",
     couldNotCopyCalculation: "No se pudo copiar este cálculo.",
     expressionPlaceholder: "Ejemplo: 5cm + 1mm",
-    deleteKey: "Eliminar",
+    deleteKey: "Eliminar", caretLeft: "Mover el cursor a la izquierda", caretRight: "Mover el cursor a la derecha",
     clearAllKey: "Borrar todo",
     skip: "Omitir",
     getStarted: "Comenzar",
@@ -214,7 +229,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     savedItemLoaded: "Item salvo carregado. Toque em = para executá-lo.",
     couldNotCopyCalculation: "Não foi possível copiar este cálculo.",
     expressionPlaceholder: "Exemplo: 5cm + 1mm",
-    deleteKey: "Excluir",
+    deleteKey: "Excluir", caretLeft: "Mover o cursor para a esquerda", caretRight: "Mover o cursor para a direita",
     clearAllKey: "Limpar tudo",
     skip: "Pular",
     getStarted: "Começar",
@@ -251,7 +266,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     savedItemLoaded: "Gespeicherter Eintrag geladen. Tippe auf =, um ihn auszuführen.",
     couldNotCopyCalculation: "Diese Berechnung konnte nicht kopiert werden.",
     expressionPlaceholder: "Beispiel: 5cm + 1mm",
-    deleteKey: "Rücktaste",
+    deleteKey: "Rücktaste", caretLeft: "Cursor nach links", caretRight: "Cursor nach rechts",
     clearAllKey: "Alles löschen",
     skip: "Überspringen",
     getStarted: "Loslegen",
@@ -288,7 +303,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     savedItemLoaded: "Élément enregistré chargé. Appuyez sur = pour l'exécuter.",
     couldNotCopyCalculation: "Impossible de copier ce calcul.",
     expressionPlaceholder: "Exemple : 5cm + 1mm",
-    deleteKey: "Supprimer",
+    deleteKey: "Supprimer", caretLeft: "Déplacer le curseur vers la gauche", caretRight: "Déplacer le curseur vers la droite",
     clearAllKey: "Tout effacer",
     skip: "Passer",
     getStarted: "Commencer",
@@ -535,6 +550,9 @@ export default function CalculatorScreen() {
     [expressionUnits, isAdvancedMode, result, targetUnit, unitSystem],
   );
   const targetUnitRegistration = useMemo(() => getUnitRegistration(displayUnit), [displayUnit]);
+  // 「この数値には何の単位を付けるべきか」が式から分かる場合の手掛かり。裸の数値を足し引きして
+  // 次元不一致になっている式では、反対側の次元がそのまま答えになる（lib/unit-input.ts）。
+  const requiredUnitGroup = useMemo(() => requiredUnitGroupFromError(diagnosis.error), [diagnosis.error]);
   const hint = useMemo<UnitInputHint>(() => {
     if (fixSelection) {
       return { kind: "fix", fragment: fixSelection.text, start: fixSelection.start, end: fixSelection.end, candidates: getUnitSuggestions(fixSelection.text, { system: unitSystem, limit: RAIL_LIMIT, includeUnit }) };
@@ -542,8 +560,8 @@ export default function CalculatorScreen() {
     // 直前に計算済みの analysis を渡して、同じ式をもう一度解析しないようにする。
     // キャレット位置（selection.start）を渡すことで、末尾ではなく今カーソルがある単位・数値を対象にする。
     const caret = Math.min(selection.start, expression.length);
-    return getUnitInputHint(expression, { system: unitSystem, recentUnits, identifiers, includeUnit, limit: RAIL_LIMIT, analysis, caret });
-  }, [analysis, expression, fixSelection, identifiers, includeUnit, recentUnits, selection, unitSystem]);
+    return getUnitInputHint(expression, { system: unitSystem, recentUnits, identifiers, includeUnit, limit: RAIL_LIMIT, analysis, caret, requiredGroup: requiredUnitGroup });
+  }, [analysis, expression, fixSelection, identifiers, includeUnit, recentUnits, requiredUnitGroup, selection, unitSystem]);
 
   /** 結果のすぐ横で切り替えられる、同じ次元の単位。 */
   const conversionUnits = useMemo(() => {
@@ -819,6 +837,18 @@ export default function CalculatorScreen() {
       return;
     }
     void calculate();
+  };
+
+  /** 編集キーでキャレットを1文字ずつ動かす。選択範囲があるときは、その端へ寄せるだけにする。 */
+  const moveCaret = (delta: -1 | 1) => {
+    markUserInteraction();
+    const start = Math.min(selection.start, expression.length);
+    const end = Math.min(selection.end, expression.length);
+    if (start !== end) {
+      placeCaret(delta < 0 ? start : end);
+      return;
+    }
+    placeCaret(Math.max(0, Math.min(expression.length, start + delta)));
   };
 
   const pressKey = (key: string) => {
@@ -1598,6 +1628,28 @@ export default function CalculatorScreen() {
 
         <CalculatorBannerAd />
 
+        {/* 入力欄をタップせずに式を組み立てられるようにする行。キャレット移動は進数入力モード中も
+            使えるが、べき乗まわりは桁以外を受け付けないモードなので無効にする（pressKey 側でも弾く）。 */}
+        <View style={styles.editKeyRow}>
+          <Pressable accessibilityLabel={copy.caretLeft} onPress={() => moveCaret(-1)} style={({ pressed }) => [styles.editKey, pressed && styles.pressed]}>
+            <IconSymbol name="chevron.left" size={16} color={colors.primary} />
+          </Pressable>
+          <Pressable accessibilityLabel={copy.caretRight} onPress={() => moveCaret(1)} style={({ pressed }) => [styles.editKey, pressed && styles.pressed]}>
+            <IconSymbol name="chevron.right" size={16} color={colors.primary} />
+          </Pressable>
+          {EDIT_KEYS.map((editKey) => (
+            <Pressable
+              accessibilityLabel={editKey.insert}
+              disabled={baseInputMode !== null}
+              key={editKey.label}
+              onPress={() => pressKey(editKey.insert)}
+              style={({ pressed }) => [styles.editKey, baseInputMode !== null && styles.keyDisabled, pressed && styles.pressed]}
+            >
+              <Text style={styles.editKeyText}>{editKey.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+
         {/* 数学はキャレット位置への挿入だけで書きかけの式を壊さないので、キーパッドの一部に
             見えるデザインでキーパッド直上に置く（式を丸ごと置き換えるサンプルとは分ける）。 */}
         <View style={styles.keypadTools}>
@@ -2029,6 +2081,11 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
 
   // advancedKeyの色使いを踏襲した、16進入力モード専用の小さめのA〜F行。キーパッド本体
   // （styles.keypad/key）はここでは一切変えない。
+  // 編集キーは hexKeyRow と同じ「等幅で横に並べる」形。数と演算子のキーパッドとは役割が違うので
+  // 面ではなく枠だけの見た目にして、キーパッド本体（styles.key）と見分けが付くようにする。
+  editKeyRow: { flexDirection: "row", gap: 6, marginBottom: 8 },
+  editKey: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, flex: 1, justifyContent: "center", minHeight: 34 },
+  editKeyText: { color: colors.primary, fontFamily: mono, fontSize: 15, fontWeight: "800" },
   hexKeyRow: { flexDirection: "row", gap: 6, marginTop: 6 },
   hexKey: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, flex: 1, justifyContent: "center", minHeight: 32 },
   hexKeyText: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },

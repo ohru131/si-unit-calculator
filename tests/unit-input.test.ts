@@ -7,9 +7,12 @@ import {
   getUnitInputHint,
   getUnitInsertionRange,
   getUnitSuggestions,
+  getUnitGroupSuggestions,
   insertUnitAtEnd,
   replaceExpressionRange,
+  requiredUnitGroupFromError,
 } from "../lib/unit-input";
+import { diagnoseCalculatorInput } from "../lib/calculator-input";
 
 const kinds = (input: string, identifiers: string[] = []) =>
   analyzeExpression(input, identifiers).segments.filter((segment) => segment.kind !== "space").map((segment) => `${segment.text}:${segment.kind}`);
@@ -357,5 +360,57 @@ describe("数値直後の単位サフィックス", () => {
   it("区切りの先が既知の識別子なら単位に巻き込まない", () => {
     const segments = analyzeExpression("kg*s", ["s"]).segments.map((segment) => [segment.kind, segment.text]);
     expect(segments).toEqual([["unit", "kg"], ["operator", "*"], ["identifier", "s"]]);
+  });
+});
+
+describe("式が要求している次元の単位を出す", () => {
+  const requiredGroupFor = (expression: string) => requiredUnitGroupFromError(diagnoseCalculatorInput(expression, []).error);
+
+  it("裸の数値を足し引きしている式から、反対側の単位グループを読む", () => {
+    // 2kg×0.25×9.8m/s²-5 の 5 に付けるべき単位は力。よく使う単位（m・km・g・s）では見当違いになる。
+    expect(requiredGroupFor("2kg×0.25×9.8m/s²-5")).toBe("force");
+    expect(requiredGroupFor("5cm + 1")).toBe("length");
+    expect(requiredGroupFor("3 + 12V")).toBe("voltage");
+  });
+
+  it("どちらへ寄せたいか決められない式では何も返さない", () => {
+    // 両辺とも次元を持つ式は、キャレットが単位の上にあり同じ次元での差し替え候補が出る経路になる。
+    expect(requiredGroupFor("3m + 2kg")).toBeUndefined();
+    // 次元不一致以外のエラー・エラーなしの式も対象外。
+    expect(requiredGroupFor("3m × 2kg")).toBeUndefined();
+    expect(requiredGroupFor("1 ÷ 0")).toBeUndefined();
+    expect(requiredUnitGroupFromError(null)).toBeUndefined();
+    expect(requiredUnitGroupFromError(new Error("boom"))).toBeUndefined();
+  });
+
+  it("グループidを渡すと、その次元の単位だけを地域優先で並べる", () => {
+    const force = getUnitGroupSuggestions("force", { system: "metric" });
+    expect(force.length).toBeGreaterThan(0);
+    expect(force.every((suggestion) => suggestion.group.id === "force")).toBe(true);
+    expect(force.map((suggestion) => suggestion.unit.symbol)).toContain("N");
+    // 未知のid・空文字は空を返す（呼び出し側でよく使う単位へフォールバックできるようにするため）。
+    expect(getUnitGroupSuggestions("", { system: "metric" })).toEqual([]);
+    expect(getUnitGroupSuggestions("no-such-group", { system: "metric" })).toEqual([]);
+  });
+
+  it("単位付けの候補が、要求されている次元の単位に入れ替わる", () => {
+    const expression = "2kg×0.25×9.8m/s²-5";
+    const common = getUnitInputHint(expression, { system: "metric", caret: expression.length });
+    const required = getUnitInputHint(expression, { system: "metric", caret: expression.length, requiredGroup: requiredGroupFor(expression) });
+    expect(common.kind).toBe("attach");
+    expect(required.kind).toBe("attach");
+    // 案内する範囲（単位を差し込む位置）は変えず、候補だけを差し替える。
+    expect(required.start).toBe(common.start);
+    expect(required.end).toBe(common.end);
+    expect(required.candidates.map((candidate) => candidate.unit.symbol)).toContain("N");
+    expect(required.candidates.every((candidate) => candidate.group.id === "force")).toBe(true);
+  });
+
+  it("要求が読めないときは従来どおりよく使う単位を出す", () => {
+    const hint = getUnitInputHint("5", { system: "metric", caret: 1, requiredGroup: undefined });
+    expect(hint.kind).toBe("attach");
+    expect(hint.candidates.map((candidate) => candidate.unit.symbol)).toEqual(
+      getCommonUnitSuggestions("metric", [], { limit: 8 }).map((candidate) => candidate.unit.symbol),
+    );
   });
 });
