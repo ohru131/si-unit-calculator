@@ -544,6 +544,12 @@ const normalize = (input: string) =>
     // 連なり（⁻⁸ や ¹²）は1つの指数としてまとめる。
     .replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+/g, (run) => `^${[...run].map((character) => SUPERSCRIPTS[character]).join("")}`);
 
+// 有効数字の推定（lib/significant-figures.ts）は式の数値リテラルを自前で走査するので、
+// トークナイザと**同じ前処理を通す**必要がある。上付き数字を `^n` へ直す前の文字列を
+// 走査すると `10⁸` の 8 を指数ではなく桁として数えてしまう（`unitSuffixEnd` を
+// 唯一の情報源にしているのと同じ理由）。
+export { normalize as normalizeExpression };
+
 export type MeasuringStandard = "us" | "jis" | "metric" | "au";
 
 export const MEASURING_STANDARDS: readonly MeasuringStandard[] = ["us", "jis", "metric", "au"];

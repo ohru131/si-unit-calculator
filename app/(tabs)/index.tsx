@@ -23,6 +23,7 @@ import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { isSampleCategoryVisible, isUnitGroupVisible, isUnitVisible, visibleUnits } from "@/lib/advanced-display";
 import { findExactValue, isTerminatingDecimalFraction } from "@/lib/exact-value";
+import { inferSignificantDigits, toScientificNotation } from "@/lib/significant-figures";
 import { useCalculatorStore } from "@/lib/calculator-store";
 import { diagnoseCalculatorInput, evaluateCalculatorInput, isDiagnosableInputError } from "@/lib/calculator-input";
 import { resolveDisplayUnit } from "@/lib/display-unit";
@@ -76,9 +77,17 @@ const KEYS = [
   "0", ".", "(", ")", "=",
 ];
 const ADVANCED_KEYS = ["sin(", "cos(", "tan(", "asin(", "acos(", "atan(", "atan2(", "ln(", "log(", "log2(", "sqrt(", "^", "π", "e"];
-// 結果の見せ方。小数を先頭にする（分数・πで出せる値の方が少ないため、既定は常に小数）。
-const VALUE_FORMS = ["decimal", "exact"] as const;
+// 結果の見せ方。小数を先頭にする（分数・π や科学表記で出せる値の方が少ないため、既定は常に小数）。
+// exact・scientific は出せるときだけチップを並べる（押しても何も変わらないボタンを作らない）。
+const VALUE_FORMS = ["decimal", "exact", "scientific"] as const;
 type ValueForm = (typeof VALUE_FORMS)[number];
+// 科学表記のチップは記号そのものを出す（10ⁿ は言語に依らず読める表記で、独語の
+// "Wissenschaftlich" のような長い語だとチップ列が1行に収まらない）。読み上げ用のラベルだけ
+// copy.scientificForm を使う。**キーパッド上の編集キー（×10ⁿ）と同じ字面にしないこと**——
+// あちらは式に `×10^` を挿入するキーで、こちらは表示の読み替えなので、同じ見た目だと
+// 「押すと式が変わるのか表示が変わるのか」が区別できない（進数チップと入力バーを
+// 分けたときと同じ失敗）。
+const SCIENTIFIC_FORM_LABEL = "10ⁿ";
 // 表示単位の初期値・AC後の値。空文字は「表示単位を指定しない＝SI標準で出す」という意味。
 // 以前は "cm" を入れていたが、これだと 3 のような無次元の値を打った瞬間に「cm へ変換できません」
 // という的外れなエラーが出るうえ、進数チップの表示条件（表示単位が空）も満たせず、
@@ -155,7 +164,8 @@ const EN_COPY = {
   compareUnits: "Compare units",
   compareUnitsHint: "Tap a row to show the result in that unit.",
   baseInput: "Base input",
-  decimalForm: "Decimal", exactForm: "Exact",
+  decimalForm: "Decimal", exactForm: "Exact", scientificForm: "Scientific notation",
+  significantDigits: (count: number) => `${count} s.f.`,
   sampleConfirmTitle: "Load an example?",
   sampleConfirmMessage: "The expression you have typed will be replaced.",
   sampleConfirmButton: "Load",
@@ -194,7 +204,8 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     compareUnits: "単位を比較",
     compareUnitsHint: "行をタップするとその単位で表示します。",
     baseInput: "進数入力",
-    decimalForm: "小数", exactForm: "分数・π",
+    decimalForm: "小数", exactForm: "分数・π", scientificForm: "科学表記",
+    significantDigits: (count: number) => `有効${count}桁`,
     sampleConfirmTitle: "サンプルを読み込みますか？",
     sampleConfirmMessage: "入力中の式は置き換えられます。",
     sampleConfirmButton: "読み込む",
@@ -205,7 +216,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     quickStartDistance: "速さ × 時間を km で表示",
   },
   es: {
-    definitionHint: "Definir una constante: W = 3cm", calculate: "=", siBase: "Base SI", emptyResult: "Escribe una expresión para ver el resultado. Toca = para guardarlo en el historial.", pickUnit: "Elige una unidad registrada", speedTitle: "Distancia, tiempo y velocidad", speedFormula: "Velocidad = distancia ÷ tiempo     Distancia = velocidad × tiempo", findSpeed: "Calcular velocidad", findDistance: "Calcular distancia", findTime: "Calcular tiempo", savedHistory: "Cálculos guardados", historyHint: "Los últimos resultados están disponibles como a1, a2, etc.", clear: "Borrar", helpTitle: "Ejemplos", helpDone: "Listo", unitSearch: "Buscar unidades, nombres o categorías", copied: "Cálculo copiado", copy: "Copiar", unitDetails: "Detalles de la unidad", siConversion: "Conversión SI", commonUse: "Uso común", close: "Cerrar", advancedMath: "Matemáticas avanzadas", advancedMathHint: "Los ángulos usan rad, deg o °. Incluye trigonometría inversa, logaritmos y atan2(y, x).", saveTemplate: "Guardar", samples: "Ejemplos", math: "Matemáticas", outputUnit: "Unidad mostrada", insertUnit: "Insertar unidad", registered: "Registrada", supported: "Compatible, sin listar", unknown: "Unidad no válida", unknownHint: "Revisa el símbolo o elige un candidato abajo.", history: "Historial", use: "Usar", noUnit: "Base SI", compatible: "Compatible con este resultado", allCandidates: "Candidatos más cercanos", hintFix: "Corregir", hintComplete: "Completar", hintAttach: "Añadir", hintReplace: "Sustituir", hintInsert: "Insertar", more: "Más", showAs: "Mostrar como", fixTap: "Toca la unidad en rojo para corregirla.", noCandidates: "No se encontró ningún candidato. Revisa el símbolo.", aliasNote: "igual a", noSearchResults: "Ninguna unidad coincide con esta búsqueda.", noSearchResultsHint: "Prueba otro símbolo, nombre o categoría.", noHistory: "Aún no hay cálculos guardados.", noHistoryHint: "Cada resultado que calculas se guarda aquí automáticamente.", browseUnits: "Explorar categorías",
+    definitionHint: "Definir una constante: W = 3cm", calculate: "=", siBase: "Base SI", emptyResult: "Escribe una expresión para ver el resultado. Toca = para guardarlo en el historial.", pickUnit: "Elige una unidad registrada", speedTitle: "Distancia, tiempo y velocidad", speedFormula: "Velocidad = distancia ÷ tiempo     Distancia = velocidad × tiempo", findSpeed: "Calcular velocidad", findDistance: "Calcular distancia", findTime: "Calcular tiempo", savedHistory: "Cálculos guardados", historyHint: "Los últimos resultados están disponibles como a1, a2, etc.", clear: "Borrar", helpTitle: "Ejemplos", helpDone: "Listo", unitSearch: "Buscar unidades, nombres o categorías", copied: "Cálculo copiado", copy: "Copiar", unitDetails: "Detalles de la unidad", siConversion: "Conversión SI", commonUse: "Uso común", close: "Cerrar", advancedMath: "Matemáticas avanzadas", advancedMathHint: "Los ángulos usan rad, deg o °. Incluye trigonometría inversa, logaritmos y atan2(y, x).", saveTemplate: "Guardar", samples: "Ejemplos", math: "Mat.", outputUnit: "Unidad mostrada", insertUnit: "Insertar unidad", registered: "Registrada", supported: "Compatible, sin listar", unknown: "Unidad no válida", unknownHint: "Revisa el símbolo o elige un candidato abajo.", history: "Historial", use: "Usar", noUnit: "Base SI", compatible: "Compatible con este resultado", allCandidates: "Candidatos más cercanos", hintFix: "Corregir", hintComplete: "Completar", hintAttach: "Añadir", hintReplace: "Sustituir", hintInsert: "Insertar", more: "Más", showAs: "Mostrar como", fixTap: "Toca la unidad en rojo para corregirla.", noCandidates: "No se encontró ningún candidato. Revisa el símbolo.", aliasNote: "igual a", noSearchResults: "Ninguna unidad coincide con esta búsqueda.", noSearchResultsHint: "Prueba otro símbolo, nombre o categoría.", noHistory: "Aún no hay cálculos guardados.", noHistoryHint: "Cada resultado que calculas se guarda aquí automáticamente.", browseUnits: "Explorar categorías",
     cannotConvertUnit: "No se pudo convertir a esta unidad.",
     unresolvedUnitSuggestion: (text: string, canonical: string) => `“${text}” no es una unidad válida. ¿Quisiste decir ${canonical}?`,
     unresolvedUnitUnknown: (text: string) => `“${text}” no es una unidad registrada ni compatible.`,
@@ -231,7 +242,8 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     compareUnits: "Comparar unidades",
     compareUnitsHint: "Toca una fila para mostrar el resultado en esa unidad.",
     baseInput: "Introducir en otra base",
-    decimalForm: "Decimal", exactForm: "Exacto",
+    decimalForm: "Decimal", exactForm: "Exacto", scientificForm: "Notación científica",
+    significantDigits: (count: number) => `${count} c.s.`,
     sampleConfirmTitle: "¿Cargar un ejemplo?",
     sampleConfirmMessage: "Se reemplazará la expresión que has escrito.",
     sampleConfirmButton: "Cargar",
@@ -242,7 +254,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     quickStartDistance: "Velocidad × tiempo, mostrado en km",
   },
   "pt-BR": {
-    definitionHint: "Definir uma constante: W = 3cm", calculate: "=", siBase: "Base SI", emptyResult: "Digite uma expressão para ver o resultado. Toque em = para salvá-lo no histórico.", pickUnit: "Escolha uma unidade registrada", speedTitle: "Distância, tempo e velocidade", speedFormula: "Velocidade = distância ÷ tempo     Distância = velocidade × tempo", findSpeed: "Calcular velocidade", findDistance: "Calcular distância", findTime: "Calcular tempo", savedHistory: "Cálculos salvos", historyHint: "Os últimos resultados ficam disponíveis como a1, a2 etc.", clear: "Limpar", helpTitle: "Exemplos", helpDone: "Concluído", unitSearch: "Buscar unidades, nomes ou categorias", copied: "Cálculo copiado", copy: "Copiar", unitDetails: "Detalhes da unidade", siConversion: "Conversão SI", commonUse: "Uso comum", close: "Fechar", advancedMath: "Matemática avançada", advancedMathHint: "Os ângulos usam rad, deg ou °. Inclui trigonometria inversa, logaritmos e atan2(y, x).", saveTemplate: "Salvar", samples: "Exemplos", math: "Matemática", outputUnit: "Unidade de exibição", insertUnit: "Inserir unidade", registered: "Registrada", supported: "Compatível, não listada", unknown: "Unidade inválida", unknownHint: "Verifique o símbolo ou escolha um candidato abaixo.", history: "Histórico", use: "Usar", noUnit: "Base SI", compatible: "Compatível com este resultado", allCandidates: "Candidatos mais próximos", hintFix: "Corrigir", hintComplete: "Concluir", hintAttach: "Adicionar", hintReplace: "Substituir", hintInsert: "Inserir", more: "Mais", showAs: "Exibir como", fixTap: "Toque na unidade em vermelho para corrigi-la.", noCandidates: "Nenhum candidato encontrado. Verifique o símbolo.", aliasNote: "igual a", noSearchResults: "Nenhuma unidade corresponde a esta busca.", noSearchResultsHint: "Tente outro símbolo, nome ou categoria.", noHistory: "Ainda não há cálculos salvos.", noHistoryHint: "Cada resultado calculado é salvo aqui automaticamente.", browseUnits: "Explorar categorias",
+    definitionHint: "Definir uma constante: W = 3cm", calculate: "=", siBase: "Base SI", emptyResult: "Digite uma expressão para ver o resultado. Toque em = para salvá-lo no histórico.", pickUnit: "Escolha uma unidade registrada", speedTitle: "Distância, tempo e velocidade", speedFormula: "Velocidade = distância ÷ tempo     Distância = velocidade × tempo", findSpeed: "Calcular velocidade", findDistance: "Calcular distância", findTime: "Calcular tempo", savedHistory: "Cálculos salvos", historyHint: "Os últimos resultados ficam disponíveis como a1, a2 etc.", clear: "Limpar", helpTitle: "Exemplos", helpDone: "Concluído", unitSearch: "Buscar unidades, nomes ou categorias", copied: "Cálculo copiado", copy: "Copiar", unitDetails: "Detalhes da unidade", siConversion: "Conversão SI", commonUse: "Uso comum", close: "Fechar", advancedMath: "Matemática avançada", advancedMathHint: "Os ângulos usam rad, deg ou °. Inclui trigonometria inversa, logaritmos e atan2(y, x).", saveTemplate: "Salvar", samples: "Exemplos", math: "Mat.", outputUnit: "Unidade de exibição", insertUnit: "Inserir unidade", registered: "Registrada", supported: "Compatível, não listada", unknown: "Unidade inválida", unknownHint: "Verifique o símbolo ou escolha um candidato abaixo.", history: "Histórico", use: "Usar", noUnit: "Base SI", compatible: "Compatível com este resultado", allCandidates: "Candidatos mais próximos", hintFix: "Corrigir", hintComplete: "Concluir", hintAttach: "Adicionar", hintReplace: "Substituir", hintInsert: "Inserir", more: "Mais", showAs: "Exibir como", fixTap: "Toque na unidade em vermelho para corrigi-la.", noCandidates: "Nenhum candidato encontrado. Verifique o símbolo.", aliasNote: "igual a", noSearchResults: "Nenhuma unidade corresponde a esta busca.", noSearchResultsHint: "Tente outro símbolo, nome ou categoria.", noHistory: "Ainda não há cálculos salvos.", noHistoryHint: "Cada resultado calculado é salvo aqui automaticamente.", browseUnits: "Explorar categorias",
     cannotConvertUnit: "Não foi possível converter para esta unidade.",
     unresolvedUnitSuggestion: (text: string, canonical: string) => `“${text}” não é uma unidade válida. Você quis dizer ${canonical}?`,
     unresolvedUnitUnknown: (text: string) => `“${text}” não é uma unidade registrada nem compatível.`,
@@ -268,7 +280,8 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     compareUnits: "Comparar unidades",
     compareUnitsHint: "Toque em uma linha para exibir o resultado nessa unidade.",
     baseInput: "Inserir em outra base",
-    decimalForm: "Decimal", exactForm: "Exato",
+    decimalForm: "Decimal", exactForm: "Exato", scientificForm: "Notação científica",
+    significantDigits: (count: number) => `${count} a.s.`,
     sampleConfirmTitle: "Carregar um exemplo?",
     sampleConfirmMessage: "A expressão que você digitou será substituída.",
     sampleConfirmButton: "Carregar",
@@ -279,7 +292,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     quickStartDistance: "Velocidade × tempo, exibido em km",
   },
   de: {
-    definitionHint: "Konstante definieren: W = 3cm", calculate: "=", siBase: "SI-Basis", emptyResult: "Gib einen Ausdruck ein, um das Ergebnis zu sehen. Tippe auf =, um es im Verlauf zu speichern.", pickUnit: "Registrierte Einheit wählen", speedTitle: "Strecke, Zeit & Geschwindigkeit", speedFormula: "Geschwindigkeit = Strecke ÷ Zeit     Strecke = Geschwindigkeit × Zeit", findSpeed: "Geschwindigkeit berechnen", findDistance: "Strecke berechnen", findTime: "Zeit berechnen", savedHistory: "Gespeicherte Berechnungen", historyHint: "Die letzten Ergebnisse stehen als a1, a2 usw. zur Verfügung.", clear: "Löschen", helpTitle: "Beispiele", helpDone: "Fertig", unitSearch: "Einheiten, Namen oder Kategorien suchen", copied: "Berechnung kopiert", copy: "Kopieren", unitDetails: "Details zur Einheit", siConversion: "SI-Umrechnung", commonUse: "Typische Verwendung", close: "Schließen", advancedMath: "Erweiterte Mathematik", advancedMathHint: "Winkel in rad, deg oder °. Enthält inverse Trigonometrie, Logarithmen und atan2(y, x).", saveTemplate: "Speichern", samples: "Beispiele", math: "Mathematik", outputUnit: "Anzeigeeinheit", insertUnit: "Einheit einfügen", registered: "Registriert", supported: "Unterstützt, nicht gelistet", unknown: "Keine gültige Einheit", unknownHint: "Prüfe das Symbol oder wähle unten einen Vorschlag.", history: "Verlauf", use: "Verwenden", noUnit: "SI-Basis", compatible: "Passt zu diesem Ergebnis", allCandidates: "Nächste Vorschläge", hintFix: "Beheben", hintComplete: "Fertig", hintAttach: "Anfügen", hintReplace: "Ersetzen", hintInsert: "Einfügen", more: "Mehr", showAs: "Anzeigen als", fixTap: "Tippe auf die rote Einheit, um sie zu korrigieren.", noCandidates: "Kein Vorschlag gefunden. Prüfe das Symbol.", aliasNote: "entspricht", noSearchResults: "Keine Einheit passt zu dieser Suche.", noSearchResultsHint: "Versuche ein anderes Symbol, einen anderen Namen oder eine andere Kategorie.", noHistory: "Noch keine gespeicherten Berechnungen.", noHistoryHint: "Jedes berechnete Ergebnis wird hier automatisch gespeichert.", browseUnits: "Kategorien durchsuchen",
+    definitionHint: "Konstante definieren: W = 3cm", calculate: "=", siBase: "SI-Basis", emptyResult: "Gib einen Ausdruck ein, um das Ergebnis zu sehen. Tippe auf =, um es im Verlauf zu speichern.", pickUnit: "Registrierte Einheit wählen", speedTitle: "Strecke, Zeit & Geschwindigkeit", speedFormula: "Geschwindigkeit = Strecke ÷ Zeit     Strecke = Geschwindigkeit × Zeit", findSpeed: "Geschwindigkeit berechnen", findDistance: "Strecke berechnen", findTime: "Zeit berechnen", savedHistory: "Gespeicherte Berechnungen", historyHint: "Die letzten Ergebnisse stehen als a1, a2 usw. zur Verfügung.", clear: "Löschen", helpTitle: "Beispiele", helpDone: "Fertig", unitSearch: "Einheiten, Namen oder Kategorien suchen", copied: "Berechnung kopiert", copy: "Kopieren", unitDetails: "Details zur Einheit", siConversion: "SI-Umrechnung", commonUse: "Typische Verwendung", close: "Schließen", advancedMath: "Erweiterte Mathematik", advancedMathHint: "Winkel in rad, deg oder °. Enthält inverse Trigonometrie, Logarithmen und atan2(y, x).", saveTemplate: "Speichern", samples: "Beispiele", math: "Math.", outputUnit: "Anzeigeeinheit", insertUnit: "Einheit einfügen", registered: "Registriert", supported: "Unterstützt, nicht gelistet", unknown: "Keine gültige Einheit", unknownHint: "Prüfe das Symbol oder wähle unten einen Vorschlag.", history: "Verlauf", use: "Verwenden", noUnit: "SI-Basis", compatible: "Passt zu diesem Ergebnis", allCandidates: "Nächste Vorschläge", hintFix: "Beheben", hintComplete: "Fertig", hintAttach: "Anfügen", hintReplace: "Ersetzen", hintInsert: "Einfügen", more: "Mehr", showAs: "Anzeigen als", fixTap: "Tippe auf die rote Einheit, um sie zu korrigieren.", noCandidates: "Kein Vorschlag gefunden. Prüfe das Symbol.", aliasNote: "entspricht", noSearchResults: "Keine Einheit passt zu dieser Suche.", noSearchResultsHint: "Versuche ein anderes Symbol, einen anderen Namen oder eine andere Kategorie.", noHistory: "Noch keine gespeicherten Berechnungen.", noHistoryHint: "Jedes berechnete Ergebnis wird hier automatisch gespeichert.", browseUnits: "Kategorien durchsuchen",
     cannotConvertUnit: "Umrechnung in diese Einheit nicht möglich.",
     unresolvedUnitSuggestion: (text: string, canonical: string) => `„${text}“ ist keine gültige Einheit. Meintest du ${canonical}?`,
     unresolvedUnitUnknown: (text: string) => `„${text}“ ist keine registrierte oder unterstützte Einheit.`,
@@ -305,7 +318,8 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     compareUnits: "Einheiten vergleichen",
     compareUnitsHint: "Tippe auf eine Zeile, um das Ergebnis in dieser Einheit anzuzeigen.",
     baseInput: "Eingabe im Zahlensystem",
-    decimalForm: "Dezimal", exactForm: "Exakt",
+    decimalForm: "Dezimal", exactForm: "Exakt", scientificForm: "Wissenschaftliche Notation",
+    significantDigits: (count: number) => `${count} gelt. Ziffern`,
     sampleConfirmTitle: "Beispiel laden?",
     sampleConfirmMessage: "Der eingegebene Ausdruck wird ersetzt.",
     sampleConfirmButton: "Laden",
@@ -342,7 +356,8 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     compareUnits: "Comparer les unités",
     compareUnitsHint: "Touchez une ligne pour afficher le résultat dans cette unité.",
     baseInput: "Saisie dans une base",
-    decimalForm: "Décimal", exactForm: "Exact",
+    decimalForm: "Décimal", exactForm: "Exact", scientificForm: "Notation scientifique",
+    significantDigits: (count: number) => `${count} c.s.`,
     sampleConfirmTitle: "Charger un exemple ?",
     sampleConfirmMessage: "L'expression que vous avez saisie sera remplacée.",
     sampleConfirmButton: "Charger",
@@ -749,11 +764,38 @@ export default function CalculatorScreen() {
   const isStackedExactValue = Boolean(exactValue?.latex.includes("\\frac"));
   const exactFontSize = isStackedExactValue ? 26 : 36;
 
+  // 入力式から読める有効数字の桁数（lib/significant-figures.ts）。加減算が混ざる式や
+  // リテラルが無い式ではnullになり、そのときは丸めずに科学表記だけを出す。
+  const inferredSignificantDigits = useMemo(() => inferSignificantDigits(expression), [expression]);
+
+  // 結果を「a × 10ⁿ」で読む表示モード。**役に立つときだけチップを出す**ため、ここでnullを
+  // 返した場合はチップも並べない。役に立つのは (1) 有効数字で丸めて桁が落ちたとき、
+  // (2) 桁が大きい・小さいとき（10³以上か10⁻³未満）。5.1 のような値に「5.1 × 10⁰」の
+  // 選択肢を並べても読み替えになっていない。
+  const scientificValue = useMemo(() => {
+    if (!display || baseInputMode !== null) return null;
+    const notation = toScientificNotation(display.numeric, { significantDigits: inferredSignificantDigits, locale });
+    if (!notation) return null;
+    const worthShowing = notation.roundedFrom !== null || notation.exponent >= 3 || notation.exponent <= -3;
+    return worthShowing ? notation : null;
+  }, [baseInputMode, display, inferredSignificantDigits, locale]);
+
+  // 並べるチップ。小数は常に、それ以外はその形で出せるときだけ。stateが出せない形を
+  // 指していても表示側で小数へ戻る（exactValueと同じ扱い）ので、stateは消しに行かない。
+  const availableValueForms = useMemo(
+    () => VALUE_FORMS.filter((form) => form === "decimal" || (form === "exact" ? Boolean(exactValue) : Boolean(scientificValue))),
+    [exactValue, scientificValue],
+  );
+
   // コピーには画面に出ているものと同じ表記を渡す。厳密値に切り替えているのに小数がコピーされると、
   // 画面と手元のメモが食い違う。
-  const shownValueText = !display ? "" : valueForm === "exact" && exactValue
-    ? `${exactValue.text}${display.unitLabel ? ` ${display.unitLabel}` : ""}`
-    : display.value;
+  const shownValueText = !display
+    ? ""
+    : valueForm === "exact" && exactValue
+      ? `${exactValue.text}${display.unitLabel ? ` ${display.unitLabel}` : ""}`
+      : valueForm === "scientific" && scientificValue
+        ? `${scientificValue.text}${display.unitLabel ? ` ${display.unitLabel}` : ""}`
+        : display.value;
 
   const rememberUnit = (symbol: string) => {
     const trimmed = symbol.trim();
@@ -1263,20 +1305,22 @@ export default function CalculatorScreen() {
     </View>
   ) : null;
 
-  // 小数 ⇔ 厳密値の切り替え列。厳密な形が見つかったときだけ出す（常に出すと、押しても何も
-  // 変わらないボタンが並ぶことになる）。進数チップと同じ位置に置くが、色は単位まわりと同じ
-  // primary系にして「値そのものの読み替え」と「桁の読み替え」を見分けられるようにしている。
-  const valueFormRow = exactValue ? (
+  // 小数 ⇔ 厳密値 ⇔ 科学表記の切り替え列。出せる形が2つ以上あるときだけ出す（常に出すと、
+  // 押しても何も変わらないボタンが並ぶことになる）。進数チップと同じ位置に置くが、色は
+  // 単位まわりと同じprimary系にして「値そのものの読み替え」と「桁の読み替え」を見分けられる
+  // ようにしている。
+  const valueFormLabel = (form: ValueForm) => (form === "decimal" ? copy.decimalForm : form === "exact" ? copy.exactForm : copy.scientificForm);
+  const valueFormRow = availableValueForms.length > 1 ? (
     <View style={styles.baseChipRow}>
-      {VALUE_FORMS.map((form) => (
+      {availableValueForms.map((form) => (
         <Pressable
-          accessibilityLabel={form === "decimal" ? copy.decimalForm : copy.exactForm}
+          accessibilityLabel={valueFormLabel(form)}
           key={form}
           onPress={() => { markUserInteraction(); setValueForm(form); }}
           style={({ pressed }) => [styles.valueFormChip, valueForm === form && styles.valueFormChipActive, pressed && styles.pressed]}
         >
           <Text style={[styles.valueFormChipText, valueForm === form && styles.valueFormChipTextActive]}>
-            {form === "decimal" ? copy.decimalForm : copy.exactForm}
+            {form === "scientific" ? SCIENTIFIC_FORM_LABEL : valueFormLabel(form)}
           </Text>
         </Pressable>
       ))}
@@ -1527,6 +1571,24 @@ export default function CalculatorScreen() {
                       <LatexView latex={`\\displaystyle ${exactValue.latex}`} color={colors.primaryStrong} fontSize={exactFontSize} displayMode={false} fitContent />
                       {display.unitLabel ? <Text style={[styles.exactValueUnit, { fontSize: isStackedExactValue ? 26 : 32 }]}>{display.unitLabel}</Text> : null}
                     </View>
+                  ) : valueForm === "scientific" && scientificValue ? (
+                    // 科学表記も厳密値と同じくKaTeXで描く（10ⁿ の指数を上付きで組み、丸めた
+                    // ときは先頭に ≈ が付く。どちらも文字の並びでは表現しきれない）。
+                    <>
+                      <View style={styles.exactValueRow}>
+                        <LatexView latex={`\\displaystyle ${scientificValue.latex}`} color={colors.primaryStrong} fontSize={32} displayMode={false} fitContent />
+                        {display.unitLabel ? <Text style={styles.exactValueUnit}>{display.unitLabel}</Text> : null}
+                      </View>
+                      {scientificValue.roundedFrom ? (
+                        // 丸めたことが分かるように、丸める前の値を小さく併記する。桁数も添えて
+                        // 「なぜその桁で丸まったか」（式の中でいちばん桁の少ないリテラル）まで読めるようにする。
+                        <Text style={styles.roundedFromText}>
+                          {scientificValue.roundedFrom}
+                          {display.unitLabel ? ` ${display.unitLabel}` : ""}
+                          {scientificValue.significantDigits !== null ? ` · ${copy.significantDigits(scientificValue.significantDigits)}` : ""}
+                        </Text>
+                      ) : null}
+                    </>
                   ) : (
                     <Animated.Text numberOfLines={2} adjustsFontSizeToFit style={[styles.resultValue, resultAnimatedStyle]}>
                       {activeBase !== 10 && resultBaseParts ? (
@@ -1726,7 +1788,10 @@ export default function CalculatorScreen() {
               onPress={() => setShowAdvancedKeys(true)}
               style={({ pressed }) => [styles.editKey, styles.mathKey, baseInputMode !== null && styles.keyDisabled, pressed && styles.pressed]}
             >
-              <Text style={styles.editKeyText}>{copy.math}</Text>
+              {/* 訳語が長い言語（独 Mathematik・西 Matemáticas・葡 Matemática）ではキーの
+                  内容幅が flex の割り当てを超え、接頭語の G キーに重なって画面外へはみ出す。
+                  1行に固定して縮める（flexは幅の上限を決めるだけで、Textの内容幅は縮まない）。 */}
+              <Text numberOfLines={1} style={styles.editKeyText}>{copy.math}</Text>
             </Pressable>
           ) : null}
         </View>
@@ -2066,6 +2131,8 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   // （分数の分子・根号の上線）、RNのViewは既定でoverflow:hiddenなので余白が無いと上が欠ける。
   exactValueRow: { alignItems: "center", flexDirection: "row", gap: 6, marginTop: 2, minHeight: 44, paddingVertical: 4 },
   exactValueUnit: { color: colors.primaryStrong, fontFamily: mono, fontSize: 32, fontWeight: "700" },
+  // 丸める前の値の併記。結果の値より明らかに小さく・淡くして、主役が丸めた値であることを保つ。
+  roundedFromText: { color: colors.muted, fontFamily: mono, fontSize: 12, fontWeight: "600", marginTop: -2 },
   valueFormChip: { backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 9, borderWidth: 1, justifyContent: "center", minHeight: 30, paddingHorizontal: 10 },
   valueFormChipActive: { backgroundColor: colors.primarySurface, borderColor: colors.primary },
   valueFormChipText: { color: colors.muted, fontSize: 12, fontWeight: "800" },
@@ -2156,7 +2223,8 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   prefixKey: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, flex: 1, justifyContent: "center", minHeight: 32 },
   prefixKeyText: { color: colors.primary, fontFamily: mono, fontSize: 15, fontWeight: "800" },
   // 数学は文字数が多いので、他の編集キーより少し広く取る（アイコンは外した。1行に収めるため）。
-  mathKey: { backgroundColor: colors.primarySurface, flex: 1.6 },
+  // minWidth: 0 が無いと、内容幅が flex の割り当てより大きい言語で行からはみ出す。
+  mathKey: { backgroundColor: colors.primarySurface, flex: 1.6, minWidth: 0, paddingHorizontal: 2 },
   hexKeyRow: { flexDirection: "row", gap: 6, marginTop: 6 },
   hexKey: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, flex: 1, justifyContent: "center", minHeight: 32 },
   hexKeyText: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },
