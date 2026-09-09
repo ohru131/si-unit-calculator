@@ -12,6 +12,7 @@ import {
   getRegionalUnits,
   getUnitRegistration,
   parseConstantDefinition,
+  parseUnit,
   searchUnitOptions,
   type UnitGroup,
   UNIT_GROUPS,
@@ -482,5 +483,36 @@ describe("圧力・応力の単位（N/mm² と重量キログラム）", () => 
     expect(at("2kg × 9.8m/s²")).toBe("N");
     // GPa は新しく候補に入る倍率なので、ヤング率がSI表記のまま出ていたのが読めるようになる。
     expect(at("205e9Pa")).toBe("GPa");
+  });
+});
+
+describe("指数と単位サフィックスの境界（CodeRabbitの提案で明示的に固定）", () => {
+  it("引き算の右辺を指数と誤判定しない", () => {
+    // isExponentPosition は単項の符号（+ / -）を跨いで `^` を探すので、`2^3 - 8m` の
+    // `8m` を指数と読む余地がある。指数として読まれると「指数は無次元でなければ」で
+    // 落ちるので、**どのエラーで落ちるか**で判別できる（次元不一致＝8mは量として読めている）。
+    let code = "";
+    try {
+      evaluateExpression("2^3 - 8m");
+    } catch (error) {
+      code = (error as { code?: string }).code ?? "";
+    }
+    expect(code).toBe("dimensionMismatchAddSubtract");
+    // 引き算の中でも指数の切り離しは効く（`2^3m` は 2^3 × 1m ＝ 8 m）。
+    expect(convertQuantity(evaluateExpression("100m - 2^3m"), "m").value).toBeCloseTo(92);
+    expect(convertQuantity(evaluateExpression("2^-3m"), "mm").value).toBeCloseTo(125);
+  });
+
+  it("上付き数字を ^n へ書き換えても単位サフィックスは従来どおり解決する", () => {
+    // normalize が上付きを桁だけに直していた頃は `m²` が `m2` として通っていた。
+    // `^` を補う形に変えたので、`m^2` としても同じ単位に解決できることを固定する。
+    expect(parseUnit("m²").scale).toBe(1);
+    expect(parseUnit("m²").dimension).toEqual(parseUnit("m^2").dimension);
+    expect(parseUnit("m²").dimension).toEqual(parseUnit("m2").dimension);
+    expect(parseUnit("N/mm²").scale).toBeCloseTo(1e6);
+    expect(parseUnit("N/mm²").dimension).toEqual(parseUnit("MPa").dimension);
+    // 負の指数（`m⁻²` → `m^-2`）も1因子あたりの正規表現が受け付ける。逆面積の次元になる
+    // （`1/m²` は parseUnit では書けない——1因子あたり数字を受け付けないため）。
+    expect(parseUnit("m⁻²").dimension).toEqual([-2, 0, 0, 0, 0, 0, 0]);
   });
 });
