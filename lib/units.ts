@@ -521,7 +521,11 @@ const normalize = (input: string) =>
     .replace(/÷/g, "/")
     .replace(/[−–]/g, "-")
     .replace(/\s+/g, " ")
-    .replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]/g, (character) => SUPERSCRIPTS[character]);
+    // 上付き数字は「べき乗」なので `^` を補う。ASCIIの桁だけに直すと連結されてしまい、
+    // 10⁸ が 108・1.72×10⁻⁸ が 9.2・2⁻³ が -1 と**エラーにならないまま別の値**になる
+    // （単位サフィックス側は m2 でも m^2 でも通るので、桁だけの書き換えでも表に出なかった）。
+    // 連なり（⁻⁸ や ¹²）は1つの指数としてまとめる。
+    .replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+/g, (run) => `^${[...run].map((character) => SUPERSCRIPTS[character]).join("")}`);
 
 export type MeasuringStandard = "us" | "jis" | "metric" | "au";
 
@@ -814,6 +818,25 @@ export function unitSuffixEnd(source: string, start: number): number {
   return index;
 }
 
+/**
+ * 直前に確定したトークンが `^` か（＝これから読む数値が指数の位置にあるか）。
+ * 単項の符号は読み飛ばす（10^-8 は `^` `-` `8` の並びになるため）。符号を跨いでも
+ * 誤検出しないのは、指数でない引き算には必ず量が挟まるから（2^3 - 8m の 8m の手前は 3）。
+ */
+function isExponentPosition(tokens: readonly Token[]): boolean {
+  let index = tokens.length - 1;
+  while (index >= 0) {
+    const token = tokens[index];
+    if (token.type !== "operator") return false;
+    if (token.value === "+" || token.value === "-") {
+      index -= 1;
+      continue;
+    }
+    return token.value === "^";
+  }
+  return false;
+}
+
 function tokenize(input: string, knownIdentifiers: ReadonlySet<string> = new Set()): Token[] {
   const tokens: Token[] = [];
   const source = normalize(input);
@@ -859,7 +882,20 @@ function tokenize(input: string, knownIdentifiers: ReadonlySet<string> = new Set
         index = unitSuffixEnd(source, index);
         const unitText = source.slice(unitStart, index);
         const parsed = parseUnit(unitText);
-        tokens.push({ type: "quantity", value: quantity(numericValue * parsed.scale + (parsed.offset ?? 0), parsed.dimension) });
+        // 指数の位置に来た数値は「単位付きの量」ではなく純粋な数。単位サフィックスを貪欲に
+        // 取り込むと 3×10^8m/s の m/s が指数として読まれ、「指数は無次元でなければ」で落ちる
+        // （科学表記に単位を付けるには 3×10^8*m/s か (3×10^8)*m/s と書くしかなかった）。
+        // 次元を持つ単位が来たときだけ数値を切り離し、単位は掛ける側の因子として並べ直す。
+        // 無次元の単位（% や °）は指数として意味を持ち今も通るので、そのまま取り込む
+        // （2^3% は 2^0.03 のまま）。オフセットを持つ単位（°C）も従来どおりエラーにする
+        // ——指数に置いても意味が無いうえ、1℃=274.15K を黙って掛けるほうが分かりにくい。
+        if (isExponentPosition(tokens) && parsed.offset === undefined && !sameDimension(parsed.dimension, ZERO)) {
+          tokens.push({ type: "quantity", value: quantity(numericValue) });
+          tokens.push({ type: "operator", value: "*" });
+          tokens.push({ type: "quantity", value: quantity(parsed.scale, parsed.dimension) });
+        } else {
+          tokens.push({ type: "quantity", value: quantity(numericValue * parsed.scale + (parsed.offset ?? 0), parsed.dimension) });
+        }
       } else {
         index = whitespaceStart;
         tokens.push({ type: "quantity", value: quantity(numericValue) });

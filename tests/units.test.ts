@@ -400,3 +400,49 @@ describe("燃費（走行距離÷燃料）", () => {
     expect(getRegionalUnits(fuelEconomy!, "uk").map((unitOption) => unitOption.symbol)[0]).toBe("mpgUK");
   });
 });
+
+describe("科学表記（×10 のべき乗）", () => {
+  it("上付き数字はべき乗として読む", () => {
+    // ASCIIの桁に直すだけの実装では 10⁸ が 108 になり、エラーにならないまま別の値を返していた。
+    expect(evaluateExpression("10⁸").siValue).toBe(1e8);
+    expect(evaluateExpression("1.72×10⁻⁸").siValue).toBeCloseTo(1.72e-8, 20);
+    expect(evaluateExpression("2⁻³").siValue).toBeCloseTo(0.125);
+    // 連なった上付き（⁻¹¹ や ¹²）は1つの指数としてまとめる。桁ごとに ^ を挟むと 10^1^2 になる。
+    expect(evaluateExpression("10¹²").siValue).toBe(1e12);
+    expect(evaluateExpression("6.674×10⁻¹¹").siValue).toBeCloseTo(6.674e-11, 20);
+  });
+
+  it("べき乗のあとに単位を直接続けられる（括弧も * も要らない）", () => {
+    // 指数の位置に来た数値の単位サフィックスを貪欲に取り込むと m/s が指数として読まれ、
+    // 「指数は無次元でなければ」で落ちていた（3×10^8*m/s と書く必要があった）。
+    expect(convertQuantity(evaluateExpression("3×10^8m/s"), "m/s").value).toBeCloseTo(3e8);
+    expect(convertQuantity(evaluateExpression("3×10⁸m/s"), "m/s").value).toBeCloseTo(3e8);
+    expect(convertQuantity(evaluateExpression("1.72×10⁻⁸Ohm*m"), "Ohm*m").value).toBeCloseTo(1.72e-8, 20);
+    expect(convertQuantity(evaluateExpression("10⁻³m"), "mm").value).toBeCloseTo(1);
+    // 後続の演算も普通に続けられる（以前は 3×108×2 = 648 m と黙って桁が違った）。
+    expect(convertQuantity(evaluateExpression("3×10⁸m/s × 2s"), "m").value).toBeCloseTo(6e8);
+  });
+
+  it("従来の e 表記と単位付きの書き方は変わらない", () => {
+    expect(convertQuantity(evaluateExpression("1.72e-8Ohm*m"), "Ohm*m").value).toBeCloseTo(1.72e-8, 20);
+    expect(convertQuantity(evaluateExpression("6.674e-11N*m²/kg² × 5.97e24kg ÷ (6371km)^2"), "m/s²").value).toBeCloseTo(9.8162, 3);
+    // 上付きの単位（m²）は従来どおり単位サフィックスとして解決する。
+    expect(convertQuantity(evaluateExpression("100N ÷ 0.01m²"), "kPa").value).toBeCloseTo(10);
+    expect(convertQuantity(evaluateExpression("20A² × 0.258Ohm"), "W").value).toBeCloseTo(5.16);
+    expect(convertQuantity(evaluateExpression("(20A)^2 × 0.258Ohm"), "W").value).toBeCloseTo(103.2);
+  });
+
+  it("括弧のあとの上付きもべき乗になる", () => {
+    // 以前は (2m)³ が (2m)3 になり「式の構文が正しくありません」で落ちていた。
+    expect(convertQuantity(evaluateExpression("(2m)³"), "m³").value).toBeCloseTo(8);
+    expect(convertQuantity(evaluateExpression("(20A)² × 0.258Ohm"), "W").value).toBeCloseTo(103.2);
+  });
+
+  it("無次元の単位は指数として意味を持つので取り込みを変えない", () => {
+    // % と ° は無次元なので 2^3% = 2^0.03 は今も正しい式。ここまで切り離すと値が変わる。
+    expect(evaluateExpression("2^3%").siValue).toBeCloseTo(1.0210121);
+    // 次元を持つ単位を指数に置いた式は、切り離さず従来どおりエラーにする（意味が無いため）。
+    expect(() => evaluateExpression("2^(3m)")).toThrow();
+    expect(() => evaluateExpression("2^3°C")).toThrow();
+  });
+});
