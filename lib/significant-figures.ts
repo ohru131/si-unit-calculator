@@ -102,7 +102,14 @@ export function inferSignificantDigits(expression: string): number | null {
       // 数値直後の単位サフィックスは丸ごと読み飛ばす。中の指数（m^2 の 2）を桁として
       // 数えないため。走査規則は unitSuffixEnd に任せる（評価器と同じものを使う）。
       if (isUnitStart(source[next])) next = unitSuffixEnd(source, next);
-      const isScientificBase = literal === "10" && source[next] === "^";
+      // 科学表記の底の判定は**空白を読み飛ばしてから**行う。`normalizeExpression` は空白を
+      // 1つに詰めるだけで消さず、評価器は数値と演算子の間の空白を許すので、`123 × 10 ^ 8` は
+      // 評価器では `123 × 10^8` になる。読み飛ばさないとこの `10` を測定値として2桁と数え、
+      // 本来3桁の結果が2桁に丸まる（CodeRabbitが#60で検出）。単位サフィックスの側は
+      // 評価器も空白を跨がないので、そちらは詰めない。
+      let beforeCaret = next;
+      while (source[beforeCaret] === " ") beforeCaret += 1;
+      const isScientificBase = literal === "10" && source[beforeCaret] === "^";
       if (!isExponentPosition(tokens) && !isScientificBase) {
         const digits = significantDigitsOfLiteral(literal);
         if (digits !== null) minimum = minimum === null ? digits : Math.min(minimum, digits);
