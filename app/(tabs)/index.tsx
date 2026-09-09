@@ -88,11 +88,11 @@ const DEFAULT_TARGET_UNIT = "";
 const HEX_LETTER_KEYS = ["A", "B", "C", "D", "E", "F"];
 
 // 空状態の結果カードに置く「まず1つ試す」式。サンプルシート（SAMPLE_CALCULATIONS）の縮約版ではなく、
-// このアプリの3つの売り（単位のまま足せる・答えが読みやすい接頭語で返る・速さ×時間が距離になる）を
+// このアプリの3つの売り（オームの法則で電圧が求まる・答えが読みやすい接頭語で返る・速さ×時間が距離になる）を
 // 1タップずつで見せるための固定3件。表示単位は指定せず、表示単位の自動選択（lib/display-unit.ts）に
-// 任せる（5.1 cm / 2.55 mA / 90 km になることが、そのまま自動選択のデモになる）。
-const QUICK_START: { id: "length" | "current" | "distance"; expression: string }[] = [
-  { id: "length", expression: "5cm + 1mm" },
+// 任せる（1 V / 2.55 mA / 90 km になることが、そのまま自動選択のデモになる）。
+const QUICK_START: { id: "ohms_law" | "current" | "distance"; expression: string }[] = [
+  { id: "ohms_law", expression: "1kΩ × 1mA" },
   { id: "current", expression: "12V / 4.7kΩ" },
   { id: "distance", expression: "60km/h × 90min" },
 ];
@@ -138,7 +138,7 @@ const EN_COPY = {
   chooseSampleToStart: "Choose a sample calculation to begin.",
   savedItemLoaded: "Saved item loaded. Tap = to run it.",
   couldNotCopyCalculation: "Could not copy this calculation.",
-  expressionPlaceholder: "Example: 5cm + 1mm",
+  expressionPlaceholder: "Example: 1kΩ × 1mA",
   deleteKey: "Delete", caretLeft: "Move cursor left", caretRight: "Move cursor right",
   clearAllKey: "Clear all",
   skip: "Skip",
@@ -159,7 +159,7 @@ const EN_COPY = {
   sampleConfirmButton: "Load",
   incompleteHint: "Keep typing — the result appears as soon as the expression is complete.",
   quickStartTitle: "Try one",
-  quickStartLength: "Add lengths in different units",
+  quickStartOhmsLaw: "Ohm's law — the answer comes back in V",
   quickStartCurrent: "Ohm's law — the answer comes back in mA",
   quickStartDistance: "Speed × time, shown in km",
 };
@@ -177,7 +177,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     chooseSampleToStart: "サンプル計算式を選んで試せます。",
     savedItemLoaded: "保存した項目を読み込みました。「=」を押して実行できます。",
     couldNotCopyCalculation: "計算結果をコピーできませんでした。",
-    expressionPlaceholder: "例：5cm + 1mm",
+    expressionPlaceholder: "例：1kΩ × 1mA",
     deleteKey: "一文字削除", caretLeft: "カーソルを左へ", caretRight: "カーソルを右へ",
     clearAllKey: "全消去",
     skip: "スキップ",
@@ -198,7 +198,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     sampleConfirmButton: "読み込む",
     incompleteHint: "続けて入力すると、式が完成した時点で結果が出ます。",
     quickStartTitle: "試してみる",
-    quickStartLength: "単位の違う長さを足す",
+    quickStartOhmsLaw: "オームの法則 — 答えは 1 V で返る",
     quickStartCurrent: "オームの法則 — 答えは mA で返る",
     quickStartDistance: "速さ × 時間を km で表示",
   },
@@ -214,7 +214,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     chooseSampleToStart: "Elige un cálculo de ejemplo para empezar.",
     savedItemLoaded: "Elemento guardado cargado. Toca = para ejecutarlo.",
     couldNotCopyCalculation: "No se pudo copiar este cálculo.",
-    expressionPlaceholder: "Ejemplo: 5cm + 1mm",
+    expressionPlaceholder: "Ejemplo: 1kΩ × 1mA",
     deleteKey: "Eliminar", caretLeft: "Mover el cursor a la izquierda", caretRight: "Mover el cursor a la derecha",
     clearAllKey: "Borrar todo",
     skip: "Omitir",
@@ -235,7 +235,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     sampleConfirmButton: "Cargar",
     incompleteHint: "Sigue escribiendo: el resultado aparece en cuanto la expresión esté completa.",
     quickStartTitle: "Prueba uno",
-    quickStartLength: "Suma longitudes en distintas unidades",
+    quickStartOhmsLaw: "Ley de Ohm: la respuesta sale en V",
     quickStartCurrent: "Ley de Ohm: la respuesta sale en mA",
     quickStartDistance: "Velocidad × tiempo, mostrado en km",
   },
@@ -251,7 +251,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     chooseSampleToStart: "Escolha um cálculo de exemplo para começar.",
     savedItemLoaded: "Item salvo carregado. Toque em = para executá-lo.",
     couldNotCopyCalculation: "Não foi possível copiar este cálculo.",
-    expressionPlaceholder: "Exemplo: 5cm + 1mm",
+    expressionPlaceholder: "Exemplo: 1kΩ × 1mA",
     deleteKey: "Excluir", caretLeft: "Mover o cursor para a esquerda", caretRight: "Mover o cursor para a direita",
     clearAllKey: "Limpar tudo",
     skip: "Pular",
@@ -272,7 +272,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     sampleConfirmButton: "Carregar",
     incompleteHint: "Continue digitando: o resultado aparece assim que a expressão estiver completa.",
     quickStartTitle: "Experimente",
-    quickStartLength: "Some comprimentos em unidades diferentes",
+    quickStartOhmsLaw: "Lei de Ohm: a resposta sai em V",
     quickStartCurrent: "Lei de Ohm: a resposta sai em mA",
     quickStartDistance: "Velocidade × tempo, exibido em km",
   },
@@ -288,7 +288,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     chooseSampleToStart: "Wähle eine Beispielberechnung, um zu starten.",
     savedItemLoaded: "Gespeicherter Eintrag geladen. Tippe auf =, um ihn auszuführen.",
     couldNotCopyCalculation: "Diese Berechnung konnte nicht kopiert werden.",
-    expressionPlaceholder: "Beispiel: 5cm + 1mm",
+    expressionPlaceholder: "Beispiel: 1kΩ × 1mA",
     deleteKey: "Rücktaste", caretLeft: "Cursor nach links", caretRight: "Cursor nach rechts",
     clearAllKey: "Alles löschen",
     skip: "Überspringen",
@@ -309,7 +309,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     sampleConfirmButton: "Laden",
     incompleteHint: "Tippe weiter – das Ergebnis erscheint, sobald der Ausdruck vollständig ist.",
     quickStartTitle: "Probier eins",
-    quickStartLength: "Längen in verschiedenen Einheiten addieren",
+    quickStartOhmsLaw: "Ohmsches Gesetz – die Antwort kommt in V",
     quickStartCurrent: "Ohmsches Gesetz – die Antwort kommt in mA",
     quickStartDistance: "Geschwindigkeit × Zeit, angezeigt in km",
   },
@@ -325,7 +325,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     chooseSampleToStart: "Choisissez un calcul d'exemple pour commencer.",
     savedItemLoaded: "Élément enregistré chargé. Appuyez sur = pour l'exécuter.",
     couldNotCopyCalculation: "Impossible de copier ce calcul.",
-    expressionPlaceholder: "Exemple : 5cm + 1mm",
+    expressionPlaceholder: "Exemple : 1kΩ × 1mA",
     deleteKey: "Supprimer", caretLeft: "Déplacer le curseur vers la gauche", caretRight: "Déplacer le curseur vers la droite",
     clearAllKey: "Tout effacer",
     skip: "Passer",
@@ -346,7 +346,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     sampleConfirmButton: "Charger",
     incompleteHint: "Continuez à saisir : le résultat apparaît dès que l'expression est complète.",
     quickStartTitle: "Essayez",
-    quickStartLength: "Additionner des longueurs d'unités différentes",
+    quickStartOhmsLaw: "Loi d'Ohm : la réponse s'affiche en V",
     quickStartCurrent: "Loi d'Ohm : la réponse s'affiche en mA",
     quickStartDistance: "Vitesse × temps, affiché en km",
   },
@@ -356,34 +356,34 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
 type OnboardingSlide = { title: string; body: string; example: string };
 const ONBOARDING_SLIDES: Record<AppLanguage, OnboardingSlide[]> = {
   en: [
-    { title: "Calculate with units, directly", body: "Type an expression with units, such as 5cm + 1mm. The app normalizes it to SI before calculating.", example: "5cm + 1mm" },
+    { title: "Calculate with units, directly", body: "Type an expression with units, such as 1kΩ × 1mA. The app normalizes it to SI before calculating.", example: "1kΩ × 1mA" },
     { title: "Mistakes are caught, not calculated", body: "3m + 2kg is refused with the reason: length and mass cannot be added. Mistyped units turn red — tap one to fix it.", example: "3m + 2kg" },
-    { title: "Answers in the unit you mean", body: "5cm + 1mm comes back as 5.1 cm, and 12V / 4.7kΩ as 2.55 mA. Tap a chip under the result to switch units. Step-by-step formulas live in the Library tab.", example: "12V / 4.7kΩ" },
+    { title: "Answers in the unit you mean", body: "1kΩ × 1mA comes back as 1 V, and 12V / 4.7kΩ as 2.55 mA. Tap a chip under the result to switch units. Step-by-step formulas live in the Library tab.", example: "12V / 4.7kΩ" },
   ],
   ja: [
-    { title: "単位のまま計算できます", body: "5cm + 1mm のように単位を含む式を入力するだけです。計算前にSI標準へ正規化されます。", example: "5cm + 1mm" },
+    { title: "単位のまま計算できます", body: "1kΩ × 1mA のように単位を含む式を入力するだけです。計算前にSI標準へ正規化されます。", example: "1kΩ × 1mA" },
     { title: "間違いは計算せず、理由を教えます", body: "3m + 2kg は「長さと質量は足し引きできません」と止まります。入力ミスの単位は赤くなり、タップで直せます。", example: "3m + 2kg" },
-    { title: "答えは読みたい単位で", body: "5cm + 1mm は 5.1 cm、12V / 4.7kΩ は 2.55 mA で返ります。結果の下のチップで単位を切り替えられます。手順のある公式は「ライブラリ」タブにあります。", example: "12V / 4.7kΩ" },
+    { title: "答えは読みたい単位で", body: "1kΩ × 1mA は 1 V、12V / 4.7kΩ は 2.55 mA で返ります。結果の下のチップで単位を切り替えられます。手順のある公式は「ライブラリ」タブにあります。", example: "12V / 4.7kΩ" },
   ],
   es: [
-    { title: "Calcula directamente con unidades", body: "Escribe una expresión con unidades, como 5cm + 1mm. La app la normaliza a SI antes de calcular.", example: "5cm + 1mm" },
+    { title: "Calcula directamente con unidades", body: "Escribe una expresión con unidades, como 1kΩ × 1mA. La app la normaliza a SI antes de calcular.", example: "1kΩ × 1mA" },
     { title: "Los errores se detectan, no se calculan", body: "3m + 2kg se rechaza con el motivo: longitud y masa no se pueden sumar. Las unidades mal escritas aparecen en rojo; tócalas para corregirlas.", example: "3m + 2kg" },
-    { title: "Respuestas en la unidad que quieres", body: "5cm + 1mm devuelve 5.1 cm, y 12V / 4.7kΩ devuelve 2.55 mA. Toca un chip bajo el resultado para cambiar de unidad. Las fórmulas paso a paso están en la pestaña Biblioteca.", example: "12V / 4.7kΩ" },
+    { title: "Respuestas en la unidad que quieres", body: "1kΩ × 1mA devuelve 1 V, y 12V / 4.7kΩ devuelve 2.55 mA. Toca un chip bajo el resultado para cambiar de unidad. Las fórmulas paso a paso están en la pestaña Biblioteca.", example: "12V / 4.7kΩ" },
   ],
   "pt-BR": [
-    { title: "Calcule diretamente com unidades", body: "Digite uma expressão com unidades, como 5cm + 1mm. O app a normaliza para SI antes de calcular.", example: "5cm + 1mm" },
+    { title: "Calcule diretamente com unidades", body: "Digite uma expressão com unidades, como 1kΩ × 1mA. O app a normaliza para SI antes de calcular.", example: "1kΩ × 1mA" },
     { title: "Erros são detectados, não calculados", body: "3m + 2kg é recusado com o motivo: comprimento e massa não podem ser somados. Unidades digitadas errado ficam vermelhas; toque para corrigir.", example: "3m + 2kg" },
-    { title: "Respostas na unidade que você quer", body: "5cm + 1mm retorna 5.1 cm, e 12V / 4.7kΩ retorna 2.55 mA. Toque em um chip abaixo do resultado para trocar a unidade. As fórmulas passo a passo ficam na aba Biblioteca.", example: "12V / 4.7kΩ" },
+    { title: "Respostas na unidade que você quer", body: "1kΩ × 1mA retorna 1 V, e 12V / 4.7kΩ retorna 2.55 mA. Toque em um chip abaixo do resultado para trocar a unidade. As fórmulas passo a passo ficam na aba Biblioteca.", example: "12V / 4.7kΩ" },
   ],
   de: [
-    { title: "Direkt mit Einheiten rechnen", body: "Gib einen Ausdruck mit Einheiten ein, zum Beispiel 5cm + 1mm. Die App normalisiert ihn vor der Berechnung auf SI.", example: "5cm + 1mm" },
+    { title: "Direkt mit Einheiten rechnen", body: "Gib einen Ausdruck mit Einheiten ein, zum Beispiel 1kΩ × 1mA. Die App normalisiert ihn vor der Berechnung auf SI.", example: "1kΩ × 1mA" },
     { title: "Fehler werden erkannt, nicht gerechnet", body: "3m + 2kg wird mit Begründung abgelehnt: Länge und Masse lassen sich nicht addieren. Falsch geschriebene Einheiten werden rot – tippe darauf, um sie zu korrigieren.", example: "3m + 2kg" },
-    { title: "Antworten in der Einheit, die du meinst", body: "5cm + 1mm ergibt 5.1 cm, 12V / 4.7kΩ ergibt 2.55 mA. Tippe auf einen Chip unter dem Ergebnis, um die Einheit zu wechseln. Schrittweise Formeln findest du im Tab Bibliothek.", example: "12V / 4.7kΩ" },
+    { title: "Antworten in der Einheit, die du meinst", body: "1kΩ × 1mA ergibt 1 V, 12V / 4.7kΩ ergibt 2.55 mA. Tippe auf einen Chip unter dem Ergebnis, um die Einheit zu wechseln. Schrittweise Formeln findest du im Tab Bibliothek.", example: "12V / 4.7kΩ" },
   ],
   fr: [
-    { title: "Calculez directement avec des unités", body: "Saisissez une expression avec des unités, comme 5cm + 1mm. L'application la normalise en SI avant de calculer.", example: "5cm + 1mm" },
+    { title: "Calculez directement avec des unités", body: "Saisissez une expression avec des unités, comme 1kΩ × 1mA. L'application la normalise en SI avant de calculer.", example: "1kΩ × 1mA" },
     { title: "Les erreurs sont détectées, pas calculées", body: "3m + 2kg est refusé avec la raison : une longueur et une masse ne s'additionnent pas. Les unités mal saisies passent en rouge ; touchez-les pour les corriger.", example: "3m + 2kg" },
-    { title: "Des réponses dans l'unité voulue", body: "5cm + 1mm donne 5.1 cm et 12V / 4.7kΩ donne 2.55 mA. Touchez une puce sous le résultat pour changer d'unité. Les formules pas à pas sont dans l'onglet Bibliothèque.", example: "12V / 4.7kΩ" },
+    { title: "Des réponses dans l'unité voulue", body: "1kΩ × 1mA donne 1 V et 12V / 4.7kΩ donne 2.55 mA. Touchez une puce sous le résultat pour changer d'unité. Les formules pas à pas sont dans l'onglet Bibliothèque.", example: "12V / 4.7kΩ" },
   ],
 };
 
@@ -1611,7 +1611,7 @@ export default function CalculatorScreen() {
                         >
                           <Text style={styles.quickStartExpression}>{item.expression}</Text>
                           <Text numberOfLines={2} style={styles.quickStartHint}>
-                            {item.id === "length" ? copy.quickStartLength : item.id === "current" ? copy.quickStartCurrent : copy.quickStartDistance}
+                            {item.id === "ohms_law" ? copy.quickStartOhmsLaw : item.id === "current" ? copy.quickStartCurrent : copy.quickStartDistance}
                           </Text>
                           <IconSymbol name="chevron.right" size={11} color={colors.primary} />
                         </Pressable>
