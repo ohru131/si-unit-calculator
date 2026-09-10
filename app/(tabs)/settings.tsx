@@ -27,14 +27,13 @@ const PRO_PREVIEW_TAP_WINDOW_MS = 2000;
 export default function SettingsScreen() {
   const { language, locale, measuringStandard, setLanguage, setMeasuringStandard, t, unitSystem, setUnitSystem } = useGlobalSettings();
   const { themePreference, setThemePreference } = useThemeContext();
-  const { adFree, isAdsPlatformAvailable, redeemMessage, redeemCode } = useAds();
+  const { adFree, isAdsPlatformAvailable } = useAds();
   const { resetPresetNotebooks, customUnits, saveCustomUnit, deleteCustomUnit, constants } = useCalculatorStore();
   const { isProPreviewEnabled, isProPreviewSupported, setProPreviewEnabled } = usePro();
   // タップ回数はレンダーに関わらない一時状態なのでrefで持つ（stateにすると連打のたびに
   // 再レンダーが走る）。タイマーも同様にrefで持ち、ウィンドウ外の連打をリセットする。
   const proPreviewTapCountRef = useRef(0);
   const proPreviewTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [redeemInput, setRedeemInput] = useState("");
   const [customUnitSymbol, setCustomUnitSymbol] = useState("");
   const [customUnitDefinition, setCustomUnitDefinition] = useState("");
   const [customUnitError, setCustomUnitError] = useState("");
@@ -148,30 +147,9 @@ export default function SettingsScreen() {
           <View style={styles.cardTitle}><IconSymbol name="crown.fill" size={20} color={colors.primary} /><Text style={styles.label}>{t("adsTitle")}</Text></View>
           <Text style={styles.description}>{adFree ? t("adsFreeActive") : t("adsHint")}</Text>
           {!adFree ? (
-            <>
-              <Pressable onPress={() => router.push("/pro")} style={({ pressed }) => [styles.upgradeButton, pressed && styles.pressed]}>
-                <Text style={styles.upgradeButtonText}>{t("adsUpgrade")}</Text>
-              </Pressable>
-              <View style={styles.redeemRow}>
-                <TextInput
-                  value={redeemInput}
-                  onChangeText={setRedeemInput}
-                  placeholder={t("adsRedeemPlaceholder")}
-                  placeholderTextColor={colors.placeholder}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  style={styles.redeemInput}
-                />
-                <Pressable
-                  disabled={!redeemInput.trim()}
-                  onPress={() => { void redeemCode(redeemInput); setRedeemInput(""); }}
-                  style={({ pressed }) => [styles.redeemButton, !redeemInput.trim() && styles.redeemButtonDisabled, pressed && styles.pressed]}
-                >
-                  <Text style={styles.redeemButtonText}>{t("adsRedeemButton")}</Text>
-                </Pressable>
-              </View>
-              {redeemMessage ? <Text style={styles.redeemMessage}>{redeemMessage}</Text> : null}
-            </>
+            <Pressable onPress={() => router.push("/pro")} style={({ pressed }) => [styles.upgradeButton, pressed && styles.pressed]}>
+              <Text style={styles.upgradeButtonText}>{t("adsUpgrade")}</Text>
+            </Pressable>
           ) : null}
         </View>
       ) : null}
@@ -202,7 +180,7 @@ export default function SettingsScreen() {
         <Pressable
           disabled={!customUnitSymbol.trim() || !customUnitDefinition.trim()}
           onPress={() => void handleAddCustomUnit()}
-          style={({ pressed }) => [styles.resetButton, styles.customUnitAddButton, (!customUnitSymbol.trim() || !customUnitDefinition.trim()) && styles.redeemButtonDisabled, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.resetButton, styles.customUnitAddButton, (!customUnitSymbol.trim() || !customUnitDefinition.trim()) && styles.customUnitAddButtonDisabled, pressed && styles.pressed]}
         >
           <Text style={styles.customUnitAddButtonText}>{t("customUnitAdd")}</Text>
         </Pressable>
@@ -273,15 +251,11 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   regionCard: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 14, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 15, paddingVertical: 13 }, regionLabel: { color: colors.muted, fontSize: 12, fontWeight: "700" }, regionValue: { color: colors.primary, fontFamily: "monospace", fontSize: 13, fontWeight: "800" }, pressed: { opacity: 0.72, transform: [{ scale: 0.98 }] },
   linkRow: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 14, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 15, paddingVertical: 13 }, linkRowText: { color: colors.foreground, fontSize: 14, fontWeight: "700" },
   upgradeButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 12, marginTop: 14, paddingVertical: 11 }, upgradeButtonText: { color: colors.onPrimary, fontSize: 14, fontWeight: "800" },
-  redeemRow: { flexDirection: "row", gap: 8, marginTop: 10 },
-  redeemInput: { borderColor: colors.border, borderRadius: 12, borderWidth: 1, color: colors.foreground, flex: 1, fontSize: 14, paddingHorizontal: 12, paddingVertical: 10 },
-  redeemButton: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderRadius: 12, justifyContent: "center", paddingHorizontal: 14 }, redeemButtonDisabled: { opacity: 0.5 }, redeemButtonText: { color: colors.foreground, fontSize: 13, fontWeight: "700" },
-  redeemMessage: { color: colors.muted, fontSize: 12, marginTop: 8 },
   resetButton: { alignItems: "center", backgroundColor: colors.errorSurface, borderColor: colors.errorBorder, borderRadius: 12, borderWidth: 1, marginTop: 14, paddingVertical: 11 }, resetButtonText: { color: colors.error, fontSize: 14, fontWeight: "800" },
   customUnitInputRow: { flexDirection: "row", gap: 8, marginTop: 12 },
   customUnitSymbolInput: { borderColor: colors.border, borderRadius: 12, borderWidth: 1, color: colors.foreground, flex: 1, fontSize: 14, paddingHorizontal: 12, paddingVertical: 10 },
   customUnitDefinitionInput: { borderColor: colors.border, borderRadius: 12, borderWidth: 1, color: colors.foreground, flex: 2, fontSize: 14, paddingHorizontal: 12, paddingVertical: 10 },
-  customUnitAddButton: { backgroundColor: colors.primaryFill, borderWidth: 0 }, customUnitAddButtonText: { color: colors.onPrimary, fontSize: 14, fontWeight: "800" },
+  customUnitAddButton: { backgroundColor: colors.primaryFill, borderWidth: 0 }, customUnitAddButtonDisabled: { opacity: 0.5 }, customUnitAddButtonText: { color: colors.onPrimary, fontSize: 14, fontWeight: "800" },
   customUnitErrorText: { color: colors.error, fontSize: 12, marginTop: 8 },
   customUnitList: { gap: 8, marginTop: 14 },
   customUnitRow: { alignItems: "center", borderColor: colors.border, borderRadius: 12, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 },

@@ -19,8 +19,8 @@ const PRODUCTION_BANNER_UNIT_ID = process.env.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID;
 const BANNER_UNIT_ID = PRODUCTION_BANNER_UNIT_ID || TestIds.BANNER;
 
 /**
- * フリープランのユーザーにのみ表示するバナー広告。Web版・Pro・広告なし解除コード適用時は
- * 何も描画しない。Pro状態・解除コードの復元が終わる（isReady）まで、また同意取得と
+ * フリープランのユーザーにのみ表示するバナー広告。Web版・Pro利用時は
+ * 何も描画しない。Pro状態の復元が終わる（isReady）まで、また同意取得と
  * AdMob SDK初期化が完了する（canRequestAds）までは、広告リクエストを送らないよう描画を待つ。
  * 広告イベントはRevenueCat Ads（β）へも転送し、サブスク収益と広告収益をダッシュボード上で
  * まとめて確認できるようにする。
