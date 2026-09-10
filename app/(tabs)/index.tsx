@@ -638,8 +638,16 @@ export default function CalculatorScreen() {
   // （押しても何も起きないボタンにしない）。
   const caretAtStart = Math.min(selection.start, selection.end) <= 0;
   const caretAtEnd = Math.max(selection.start, selection.end) >= expression.length;
-  // 進数入力中のプレビューは桁を解析しないので、キャレット位置だけを式の長さに丸めて使う。
-  const baseCaret = Math.max(0, Math.min(expression.length, selection.start));
+  // 進数入力中のプレビューは桁を解析しないので、位置だけを式の長さに丸めて使う。両端を持つのは、
+  // 進数モードでも pressKey が選択範囲をまとめて置換・削除するため（baseInputMode は「どのキーを
+  // 受け付けるか」だけを絞っていて、範囲の置換はそのまま通る）。キャレット1本だけを描くと、
+  // 実際には複数桁が消えるのに1文字ぶんの挿入に見えてしまう。
+  const baseSelection = useMemo(() => {
+    const clamp = (value: number) => Math.max(0, Math.min(expression.length, value));
+    const start = clamp(Math.min(selection.start, selection.end));
+    const end = clamp(Math.max(selection.start, selection.end));
+    return { start, end, hasRange: start !== end };
+  }, [expression.length, selection.end, selection.start]);
 
   // 実際に表示へ使う単位。targetUnit（ユーザーが明示的に選んだ単位）はそのまま状態として持ち続け、
   // 結果の次元に合うときだけ使う。合わないとき・未選択のときは式中の単位→読みやすい接頭語→SI の順で
@@ -1442,10 +1450,17 @@ export default function CalculatorScreen() {
             <View style={styles.previewRow}>
               <Text style={styles.previewIdentifier}>{BASE_META[baseInputMode].prefix}</Text>
               {/* 進数入力中もキャレット移動は使えるので、ここでもカーソル位置を示す。
-                  桁は解析せず単純な文字列なので、セグメントを切らずに前後で分けるだけでよい。 */}
-              <Text style={styles.previewNumber}>{expression.slice(0, baseCaret)}</Text>
-              <PreviewCaret colors={colors} />
-              <Text style={styles.previewNumber}>{expression.slice(baseCaret)}</Text>
+                  桁は解析せず単純な文字列なので、セグメントを切らずに前後で分けるだけでよい。
+                  範囲選択中は通常のプレビューと同じく帯で示す（何が置き換わるかが要点）。 */}
+              <Text style={styles.previewNumber}>{expression.slice(0, baseSelection.start)}</Text>
+              {baseSelection.hasRange ? (
+                <Text style={[styles.previewNumber, styles.previewSelected]}>
+                  {expression.slice(baseSelection.start, baseSelection.end)}
+                </Text>
+              ) : (
+                <PreviewCaret colors={colors} />
+              )}
+              <Text style={styles.previewNumber}>{expression.slice(baseSelection.end)}</Text>
             </View>
           ) : expression.trim() ? (
             <View style={styles.previewRow}>
