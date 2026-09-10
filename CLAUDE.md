@@ -475,6 +475,30 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - `npx expo lint` → **2エラー・0警告**（`app/(tabs)/index.tsx` の既存分のまま）。
 - `npx expo export --platform web --clear` が通る。Playwrightで `12V / 4.7kΩ`（ja/de・light/dark）・`2kg × 9.8m/s²`・`3×10⁸ m/s × 2s`・`5cm + 1mm`（チップが出ないこと）・`255`（進数チップ側が出ること）を確認済み。数学キーの行は de 420px・es/pt-BR 360px で実測（はみ出しなし）。
 
+31. **[完了]** **スキャフォールド由来の未使用の権限・バックエンドを一掃した**（Play Consoleのデータセーフティと審査で「宣言しているが使っていない」を説明せずに済むようにするため）。プライバシーポリシー（#61）が「解析SDKは無い・メールアドレスは集めない」と書いている以上、コード側もそうなっている必要がある。
+
+### 未使用の権限・スキャフォールドを消したときに分かったこと（次に依存を足すとき用）
+
+- **`app.config.ts` の `android.permissions` を空にするだけでは権限は消えない。** ライブラリ側の `AndroidManifest.xml` がマニフェストマージャで合流するので、**依存そのものを外す**必要がある。実測（`node_modules/<pkg>/android/src/main/AndroidManifest.xml`）:
+  - `expo-notifications` → `POST_NOTIFICATIONS`・`RECEIVE_BOOT_COMPLETED`
+  - `expo-audio` → `MODIFY_AUDIO_SETTINGS`
+  - `expo-video` → `INTERNET`
+- **`expo-audio` のプラグインは既定値だけで大量に足す。** `withAudio` の既定は `recordAudioAndroid = true` / `enableBackgroundPlayback = true` なので、`microphonePermission` を書いた時点で `RECORD_AUDIO`・`MODIFY_AUDIO_SETTINGS`・`FOREGROUND_SERVICE`・`FOREGROUND_SERVICE_MEDIA_PLAYBACK` と `NSMicrophoneUsageDescription`・`UIBackgroundModes=audio`・mediaPlayback のフォアグラウンドサービス宣言まで入る。`expo-video` の `supportsBackgroundPlayback: true` も同じ2つの FOREGROUND_SERVICE 系を足す。**`FOREGROUND_SERVICE_MEDIA_PLAYBACK` はPlay Consoleで用途の申告フォームが必須**になるので、使わないなら必ず外す。
+- **消したもの**: `POST_NOTIFICATIONS`（`android.permissions`）、`expo-audio` / `expo-video` プラグイン、`expo-secure-store` プラグイン、OAuthクライアント一式（`app/oauth/callback.tsx`・`hooks/use-auth.ts`・`lib/_core/auth.ts`・`lib/_core/api.ts`・`constants/oauth.ts`・`lib/trpc.ts`）、バックエンド一式（`server/`・`shared/`・`drizzle/`・`drizzle.config.ts`・`tests/auth.logout.test.ts`）、`constants/const.ts`（`shared/const.ts` の重複で参照ゼロ）、`scripts/load-env.js` のOAuth環境変数マッピング。依存は21件（`@trpc/*`・`@tanstack/react-query`・`drizzle-orm`/`drizzle-kit`・`mysql2`・`express`・`jose`・`cookie`・`axios`・`superjson`・`zod`・`esbuild`・`concurrently`・上記のexpo 4件と型定義）で、`pnpm install` で **268パッケージ**減った。
+- **`app/_layout.tsx` の `trpc.Provider` と `QueryClientProvider` はマウントされているだけで、アプリはAPIを一度も叩いていなかった**（`trpc.` の参照がProviderの2行しか無い）。消してもWeb書き出し・Playwrightでの起動確認ともに差分なし。
+- **`dotenv` は消さないこと。** `vitest.config.ts` が使っている（サーバ用に見えるが違う）。同様に `expo-linking` は `expo-router` が要求するので残す。
+- **残した未使用の依存**: `react-native-purchases-ui`（`RevenueCatUI.presentPaywallIfNeeded` を撤去したときから未使用。権限は足さないので今回のスコープ外にした）。
+- **「OAuthを消したから個人情報は一切集めていない」と書かないこと。** 最初そう書いてCodeRabbitに🟠Majorで2回指摘された（README と `docs/android-submission-checklist.md`）。**`lib/ad-revenue-tracker.ts` が `Purchases.adTracker` でバナー広告のロード・表示・開封・収益のイベントをRevenueCatへ送っている**（RevenueCat Ads β。ダッシュボードで広告収益と購入収益をまとめて見るための連携）。加えてRevenueCatは購入検証で端末生成の匿名IDとレシートを、AdMobは配信・計測で端末IDと広告IDを受け取る。**端末内で完結しているのは「アプリのデータ」（計算履歴・ノート・自作単位・設定）だけ**なので、そう限定して書く。`app/privacy-policy.tsx` の本文は最初から正しく書けていて、要約した側（README・チェックリスト）だけがズレていた。
+- **`android.permissions: []` は「全権限がこれで確定」の意味ではない。** ネイティブ依存のマニフェストはマージャで合流するので、**実際の権限一覧はリリースAAB（または `npx expo prebuild -p android` 後の `android/app/build/intermediates/merged_manifests/`）でしか確定できない**。この環境ではprebuildできないため、チェックリストには「要確認」として確認手順ごと残してある。
+- **npmスクリプトに `${VAR:-default}` を書かないこと。** Windowsのpnpmは既定で `cmd.exe` を使うので POSIX のパラメータ展開が効かず、`pnpm dev` がそのまま失敗する（`shellEmulator` を有効にしていない限り）。旧 `dev:metro` が `--port ${EXPO_PORT:-8081}` を持っていたのをそのまま引き継いでいた。Expoの既定ポートが8081なので指定ごと外し、変えたい人は `pnpm dev --port 8082`（npmスクリプトは追加引数を末尾へ渡す）で済むようにした。
+
+### 現在の基準値（2026-09-10時点、未使用の権限・バックエンドを消した後）
+
+- `npx tsc --noEmit` → **`app/_layout.tsx` の `@/global.css` で1件のみ**（`expo-env.d.ts` が生成されていない真新しいチェックアウトで出る環境依存。`git stash` した素のmainでも同じ1件が出ることを確認済み。`.expo/types` が無いので `"/notebook"` の2件は出ない）。
+- `npx vitest run` → **913 passed / 2 failed**。失敗2件は従来どおり `tests/revenuecat.credentials.test.ts`（環境依存）。**skipped が1件減った**のは、唯一のskipを持っていた `tests/auth.logout.test.ts`（サーバのlogoutルートのテスト）を消したため。
+- `npx expo lint` → **2エラー・0警告**（`app/(tabs)/index.tsx` の既存分のまま）。
+- `npx expo export --platform web` が通り、ルート一覧から `/oauth/callback` が消える。Playwright（`/opt/pw-browsers/chromium`）で ja/en とも起動・キーパッド表示・式の入力を確認済み。**起動時に出る React error #418（ハイドレーション不一致）は素のmainでも同じように出る既存事象**で、この変更とは無関係（両方の`dist`で実測して比較した）。
+
 ## 次にやりそうなこと（ユーザーから明示的な指示待ち）
 
 - **各言語版ターゲットに沿った施策の残り（`docs/target-users-by-locale-2026-09.md` 第5節）**: P0・P1は履歴25で全て実施済み。残るのは **P2=分数インチ（`3ft + 1/8in`）とAWG/kcmil**で、これは**米国の職人を取ると決めた場合のみ**入れる（単体では入れない。エンジンの守備範囲を広げるほど「単位を厳密に扱う」中核の保証が薄まるため、`B`（バイト）を足さない判断と同じ）。
