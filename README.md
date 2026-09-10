@@ -90,7 +90,6 @@ pnpm android  # Android Studio + エミュレータが必要
 | `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY` / `..._ANDROID_API_KEY` | RevenueCat の公開SDKキー |
 | `EXPO_PUBLIC_ADMOB_ANDROID_APP_ID` / `..._IOS_APP_ID` | AdMob の App ID |
 | `EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID` | 無料版に出すバナーの広告ユニットID |
-| `EXPO_PUBLIC_ADFREE_REDEEM_CODE` | 広告非表示をローカルで試すためのコード |
 
 ## ディレクトリ構成
 

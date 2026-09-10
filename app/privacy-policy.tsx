@@ -41,7 +41,7 @@ const SECTIONS: { title: string; body: string[] }[] = [
   {
     title: "Advertising",
     body: [
-      "The free version of the app shows banner ads served by Google AdMob. If you purchase Pro (or redeem a code that removes ads), no ad SDK is initialized and no ads are shown.",
+      "The free version of the app shows banner ads served by Google AdMob. If you purchase Pro, no ad SDK is initialized and no ads are shown.",
       "AdMob may use device and advertising identifiers to serve and measure ads. Where required (for example, in the EEA, UK, and Switzerland), the app shows a consent form (Google's User Messaging Platform) before requesting ads, and ads are only requested according to the choice you make there.",
       "You can review or reset your ad personalization choices in your device's settings (e.g. Settings > Privacy > Ads on Android/iOS). See Google's policies at https://policies.google.com/privacy and https://support.google.com/admob/answer/6128543 for details.",
       "Aggregate ad performance data (such as ad loads, impressions, and revenue) is also shared with RevenueCat to combine it with purchase reporting in a single dashboard. This data does not identify you personally.",
