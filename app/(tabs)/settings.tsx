@@ -236,6 +236,14 @@ export default function SettingsScreen() {
         </Pressable>
         {resetPresetsNotice ? <Text style={styles.description}>{resetPresetsNotice}</Text> : null}
       </SettingsSection>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push("/privacy-policy")}
+        style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
+      >
+        <Text style={styles.linkRowText}>{t("privacyPolicy")}</Text>
+        <IconSymbol name="chevron.right" size={16} color={colors.muted} />
+      </Pressable>
       {/* Web限定の隠しスイッチ: この行を短時間に7回連打するとProプレビューを切り替える
           （lib/pro-preview.ts）。見た目は変えない（連打で偶然踏むのを避けるため意図的に無反応）。 */}
       <Pressable onPress={handleRegionTap} style={styles.regionCard}><Text style={styles.regionLabel}>{t("region")}</Text><Text selectable style={styles.regionValue}>{locale}</Text></Pressable>
@@ -263,6 +271,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   systemList: { gap: 8, marginTop: 15 }, systemRow: { alignItems: "center", borderColor: colors.border, borderRadius: 12, borderWidth: 1, flexDirection: "row", minHeight: 50, paddingHorizontal: 12 }, systemRowActive: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder }, systemText: { color: colors.foreground, fontSize: 14, fontWeight: "700", marginLeft: 10 },
   radio: { alignItems: "center", borderColor: colors.placeholder, borderRadius: 10, borderWidth: 1.5, height: 20, justifyContent: "center", width: 20 }, radioActive: { borderColor: colors.primary }, radioInner: { backgroundColor: colors.primary, borderRadius: 5, height: 10, width: 10 },
   regionCard: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 14, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 15, paddingVertical: 13 }, regionLabel: { color: colors.muted, fontSize: 12, fontWeight: "700" }, regionValue: { color: colors.primary, fontFamily: "monospace", fontSize: 13, fontWeight: "800" }, pressed: { opacity: 0.72, transform: [{ scale: 0.98 }] },
+  linkRow: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 14, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 15, paddingVertical: 13 }, linkRowText: { color: colors.foreground, fontSize: 14, fontWeight: "700" },
   upgradeButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 12, marginTop: 14, paddingVertical: 11 }, upgradeButtonText: { color: colors.onPrimary, fontSize: 14, fontWeight: "800" },
   redeemRow: { flexDirection: "row", gap: 8, marginTop: 10 },
   redeemInput: { borderColor: colors.border, borderRadius: 12, borderWidth: 1, color: colors.foreground, flex: 1, fontSize: 14, paddingHorizontal: 12, paddingVertical: 10 },
