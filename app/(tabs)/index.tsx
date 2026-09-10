@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -12,7 +12,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming } from "react-native-reanimated";
 
 import { CalculatorBannerAd } from "@/components/ads/calculator-banner-ad";
 import { ScreenContainer } from "@/components/screen-container";
@@ -22,6 +22,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { isSampleCategoryVisible, isUnitGroupVisible, isUnitVisible, visibleUnits } from "@/lib/advanced-display";
+import { buildCaretPreview } from "@/lib/expression-caret";
 import { findExactValue, isTerminatingDecimalFraction } from "@/lib/exact-value";
 import { inferSignificantDigits, significantDigitsAfterConversion, toScientificNotation } from "@/lib/significant-figures";
 import { useCalculatorStore } from "@/lib/calculator-store";
@@ -124,6 +125,50 @@ const BASE_INPUT_DISABLED_KEYS = ["(", ")", "÷", "×", "-", "+", "."];
 // 範囲はピコ〜ギガに絞る（この電卓が扱う電気・機械の量はこの間に収まる）。
 const PREFIX_KEYS = ["p", "n", "µ", "m", "c", "k", "M", "G"] as const;
 const isPrefixKey = (key: string) => (PREFIX_KEYS as readonly string[]).includes(key);
+
+/**
+ * 結果の値をKaTeXで描くときの共通ラッパ。
+ *
+ * KaTeXの既定の字体は Computer Modern（明朝＝セリフ体）なので、`小数` から `厳密値`・`10ⁿ` へ
+ * 切り替えると同じ数値なのに数字の字体だけが変わって見えていた。`\mathsf` を掛けると数字は
+ * KaTeX_SansSerif（ゴシック体）で組まれ、アプリの他の表示と字面が揃う。
+ *
+ * 記号は `\mathsf` の対象外で、KaTeXが数式用の字体を保つ（π は mathnormal のまま、√・×・≈ も
+ * 変わらない）。**これは都合が良い**: 字体を変えるのは数字だけで、記号の字幅は元のままなので
+ * 分数の横棒・根号の伸縮といったKaTeXの寸法計算が崩れない。CSSで `.katex` のフォントを
+ * 上書きする方法にしないのはこのため（あちらは全グリフの字幅が変わって組みが崩れる）。
+ *
+ * `\displaystyle` は `\mathsf` の外側に置く。付けないと分数が本文サイズで小さく組まれ、
+ * 隣の小数表示より明らかに小さく見える。
+ */
+const resultLatex = (latex: string) => `\\displaystyle \\mathsf{${latex}}`;
+
+/**
+ * プレビュー行に描くキャレット（カーソル）。
+ *
+ * 入力欄の TextInput はフォーカスが当たっていない間キャレットを描かないが、この電卓は
+ * 「入力欄を触らずキーパッドで式を組み立てる」設計（入力欄をタップするとOSのキーボードが
+ * 上がってキーパッドがほぼ隠れる）なので、`< >` を押しても位置がどこにも出ていなかった。
+ *
+ * 点滅させるのは、静止した縦棒だと式の一部（`|` のような記号）と見分けられないため。
+ * 点滅は reanimated の共有値だけで回し、setState を使わない（1秒ごとに再レンダーが走ると
+ * 入力のたびに式の解析までやり直すことになる）。
+ */
+function PreviewCaret({ colors }: { colors: ThemeColorPalette }) {
+  const opacity = useSharedValue(1);
+  useEffect(() => {
+    // 消えている時間を短くして「文字の隙間」に見えないようにする。
+    opacity.value = withRepeat(withSequence(withTiming(0.15, { duration: 480 }), withTiming(1, { duration: 480 })), -1, false);
+  }, [opacity]);
+  const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+  return (
+    <Animated.View
+      // 幅を持つ要素なので、キャレットの手前と後ろの文字が離れて見えないよう左右のマージンは負にしない。
+      // 等幅フォントの字送りより細くしてあるため、文字の並びは崩れない。
+      style={[{ backgroundColor: colors.primary, borderRadius: 1, height: 17, width: 2 }, animatedStyle]}
+    />
+  );
+}
 
 const EDIT_KEYS: readonly { label: string; insert: string }[] = [
   { label: "x²", insert: "²" },
@@ -583,6 +628,18 @@ export default function CalculatorScreen() {
     [autoConstants, constants],
   );
   const analysis = useMemo(() => analyzeExpression(expression, identifiers), [expression, identifiers]);
+  // プレビュー行をキャレットの位置で切り分けたもの。selection をそのまま渡すことで、単位チップの
+  // 挿入位置（selection.start を見る）と画面に出るキャレットが必ず同じ場所になる。
+  const caretPreview = useMemo(
+    () => buildCaretPreview(analysis.segments, selection.start, selection.end),
+    [analysis.segments, selection.end, selection.start],
+  );
+  // `< >` を端で無効にして、キャレットが先頭・末尾に着いていることを押す前に分かるようにする
+  // （押しても何も起きないボタンにしない）。
+  const caretAtStart = Math.min(selection.start, selection.end) <= 0;
+  const caretAtEnd = Math.max(selection.start, selection.end) >= expression.length;
+  // 進数入力中のプレビューは桁を解析しないので、キャレット位置だけを式の長さに丸めて使う。
+  const baseCaret = Math.max(0, Math.min(expression.length, selection.start));
 
   // 実際に表示へ使う単位。targetUnit（ユーザーが明示的に選んだ単位）はそのまま状態として持ち続け、
   // 結果の次元に合うときだけ使う。合わないとき・未選択のときは式中の単位→読みやすい接頭語→SI の順で
@@ -1384,40 +1441,70 @@ export default function CalculatorScreen() {
             // 既存のanalyzeExpressionによるハイライトは使わず「接頭辞＋生の桁」を単純に描く。
             <View style={styles.previewRow}>
               <Text style={styles.previewIdentifier}>{BASE_META[baseInputMode].prefix}</Text>
-              <Text style={styles.previewNumber}>{expression}</Text>
+              {/* 進数入力中もキャレット移動は使えるので、ここでもカーソル位置を示す。
+                  桁は解析せず単純な文字列なので、セグメントを切らずに前後で分けるだけでよい。 */}
+              <Text style={styles.previewNumber}>{expression.slice(0, baseCaret)}</Text>
+              <PreviewCaret colors={colors} />
+              <Text style={styles.previewNumber}>{expression.slice(baseCaret)}</Text>
             </View>
           ) : expression.trim() ? (
             <View style={styles.previewRow}>
-              {analysis.segments.map((segment, index) => {
+              {caretPreview.pieces.map((piece, index) => {
+                const { segment } = piece;
                 const isUnresolved = segment.kind === "unknown-unit" || segment.kind === "unknown-identifier";
                 const style = segment.kind === "unit" ? styles.previewUnit
                   : isUnresolved ? styles.previewUnknown
                   : segment.kind === "identifier" ? styles.previewIdentifier
                   : segment.kind === "number" ? styles.previewNumber
                   : styles.previewOperator;
-                if (!isUnresolved) return <Text key={`${segment.start}-${index}`} style={style}>{segment.text}</Text>;
+                // キャレットは「その一片の手前」に入る。文字の間に挟み込む形にすることで、
+                // 等幅フォントの文字幅を自前で計算しなくても位置が必ず合う。
+                const caret = caretPreview.caretIndex === index ? <PreviewCaret key="caret" colors={colors} /> : null;
+                const selectedStyle = piece.selected ? styles.previewSelected : null;
+                if (!isUnresolved) {
+                  return (
+                    <Fragment key={`${piece.start}-${index}`}>
+                      {caret}
+                      <Text style={[style, selectedStyle]}>{piece.text}</Text>
+                    </Fragment>
+                  );
+                }
                 // 単位の書き間違いだけをタップで修正できるようにする。定数・関数の未定義参照は
                 // 単位の候補を出しても意味がないため、見た目だけ知らせてタップ操作は付けない。
+                // 警告アイコンは分割後の最後の一片だけに出す（キャレットが単位の途中に来たときに
+                // アイコンが2つ並ばないようにする）。
+                const icon = piece.isSegmentEnd
+                  ? <IconSymbol name="exclamationmark.triangle.fill" size={11} color={colors.error} />
+                  : null;
                 if (segment.kind !== "unknown-unit") {
                   return (
-                    <View key={`${segment.start}-${index}`} style={styles.previewUnknownWrap}>
-                      <Text style={style}>{segment.text}</Text>
-                      <IconSymbol name="exclamationmark.triangle.fill" size={11} color={colors.error} />
-                    </View>
+                    <Fragment key={`${piece.start}-${index}`}>
+                      {caret}
+                      <View style={styles.previewUnknownWrap}>
+                        <Text style={[style, selectedStyle]}>{piece.text}</Text>
+                        {icon}
+                      </View>
+                    </Fragment>
                   );
                 }
                 return (
-                  <Pressable
-                    accessibilityLabel={`${segment.text} ${copy.unknown}`}
-                    key={`${segment.start}-${index}`}
-                    onPress={() => setFixSelection({ start: segment.start, end: segment.end, text: segment.text })}
-                    style={({ pressed }) => [styles.previewUnknownWrap, pressed && styles.pressed]}
-                  >
-                    <Text style={style}>{segment.text}</Text>
-                    <IconSymbol name="exclamationmark.triangle.fill" size={11} color={colors.error} />
-                  </Pressable>
+                  <Fragment key={`${piece.start}-${index}`}>
+                    {caret}
+                    <Pressable
+                      accessibilityLabel={`${segment.text} ${copy.unknown}`}
+                      // タップで開く修正範囲は分割前のセグメント全体。一片の範囲にすると
+                      // 単位の半分だけを差し替えることになる。
+                      onPress={() => setFixSelection({ start: segment.start, end: segment.end, text: segment.text })}
+                      style={({ pressed }) => [styles.previewUnknownWrap, pressed && styles.pressed]}
+                    >
+                      <Text style={[style, selectedStyle]}>{piece.text}</Text>
+                      {icon}
+                    </Pressable>
+                  </Fragment>
                 );
               })}
+              {/* 末尾（どの一片も始まらない位置）のキャレット。 */}
+              {caretPreview.caretIndex === caretPreview.pieces.length ? <PreviewCaret colors={colors} /> : null}
             </View>
           ) : null}
 
@@ -1576,7 +1663,7 @@ export default function CalculatorScreen() {
                       {/* \displaystyle を付けないと分数が本文サイズ（text style）で小さく組まれ、
                           隣の小数表示より明らかに小さく見える。displayMode自体は中央寄せ・上下の
                           余白が付いて結果カードの詰まった配置に合わないので false のままにする。 */}
-                      <LatexView latex={`\\displaystyle ${exactValue.latex}`} color={colors.primaryStrong} fontSize={exactFontSize} displayMode={false} fitContent />
+                      <LatexView latex={resultLatex(exactValue.latex)} color={colors.primaryStrong} fontSize={exactFontSize} displayMode={false} fitContent />
                       {display.unitLabel ? <Text style={[styles.exactValueUnit, { fontSize: isStackedExactValue ? 26 : 32 }]}>{display.unitLabel}</Text> : null}
                     </View>
                   ) : valueForm === "scientific" && scientificValue ? (
@@ -1584,7 +1671,7 @@ export default function CalculatorScreen() {
                     // ときは先頭に ≈ が付く。どちらも文字の並びでは表現しきれない）。
                     <>
                       <View style={styles.exactValueRow}>
-                        <LatexView latex={`\\displaystyle ${scientificValue.latex}`} color={colors.primaryStrong} fontSize={32} displayMode={false} fitContent />
+                        <LatexView latex={resultLatex(scientificValue.latex)} color={colors.primaryStrong} fontSize={32} displayMode={false} fitContent />
                         {display.unitLabel ? <Text style={styles.exactValueUnit}>{display.unitLabel}</Text> : null}
                       </View>
                       {scientificValue.roundedFrom ? (
@@ -1756,10 +1843,10 @@ export default function CalculatorScreen() {
             数学ボタンもこの行に入れてある（単独の行にすると 360×640 の端末でキーパッド下段の
             「. 0 ⌫ =」が画面外へ押し出される。行を増やせるのは1行ぶんだけ）。 */}
         <View style={styles.editKeyRow}>
-          <Pressable accessibilityLabel={copy.caretLeft} onPress={() => moveCaret(-1)} style={({ pressed }) => [styles.editKey, pressed && styles.pressed]}>
+          <Pressable accessibilityLabel={copy.caretLeft} disabled={caretAtStart} onPress={() => moveCaret(-1)} style={({ pressed }) => [styles.editKey, caretAtStart && styles.keyDisabled, pressed && styles.pressed]}>
             <IconSymbol name="chevron.left" size={16} color={colors.primary} />
           </Pressable>
-          <Pressable accessibilityLabel={copy.caretRight} onPress={() => moveCaret(1)} style={({ pressed }) => [styles.editKey, pressed && styles.pressed]}>
+          <Pressable accessibilityLabel={copy.caretRight} disabled={caretAtEnd} onPress={() => moveCaret(1)} style={({ pressed }) => [styles.editKey, caretAtEnd && styles.keyDisabled, pressed && styles.pressed]}>
             <IconSymbol name="chevron.right" size={16} color={colors.primary} />
           </Pressable>
           {EDIT_KEYS.map((editKey) => (
@@ -2052,6 +2139,8 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   previewUnit: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },
   previewIdentifier: { color: colors.warning, fontFamily: mono, fontSize: 13, fontWeight: "700" },
   previewOperator: { color: colors.muted, fontFamily: mono, fontSize: 13 },
+  // 範囲選択はキャレットではなく帯で示す（選択中はどこに挿入されるかではなく「何が置き換わるか」が要点）。
+  previewSelected: { backgroundColor: colors.primarySurface },
   previewUnknownWrap: { alignItems: "center", backgroundColor: colors.errorSurface, borderColor: colors.errorBorder, borderRadius: 6, borderWidth: 1, flexDirection: "row", gap: 3, paddingHorizontal: 4 },
   previewUnknown: { color: colors.error, fontFamily: mono, fontSize: 13, fontWeight: "800", textDecorationLine: "underline" },
 
