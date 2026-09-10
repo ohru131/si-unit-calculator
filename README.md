@@ -16,9 +16,9 @@
 - [Expo](https://expo.dev/) / [Expo Router](https://docs.expo.dev/router/introduction/)
 - React Native + React 19
 - NativeWind (Tailwind CSS for React Native)
-- tRPC + Express（サーバー）
-- Drizzle ORM + MySQL（データ永続化、任意）
 - TypeScript / Vitest
+
+データは全て端末内（AsyncStorage）に保存し、バックエンドは持ちません。
 
 ## セットアップ
 
@@ -41,19 +41,13 @@ pnpm install
 pnpm dev
 ```
 
-`pnpm dev` は API サーバー（`http://localhost:3000`）と Expo Web（`http://localhost:8081`）を同時に起動します。起動後、ブラウザで `http://localhost:8081` を開いてください。
+`pnpm dev` は Expo Web（`http://localhost:8081`）を起動します。起動後、ブラウザで `http://localhost:8081` を開いてください。
 
-> **Note:** Windows 環境で `pnpm dev` がポート解決エラーで失敗する場合は、以下のように API サーバーと Expo をそれぞれ個別に起動してください（`package.json` のデフォルトポート指定 `${EXPO_PORT:-8081}` は POSIX シェル構文のため、環境によっては別途ポートを指定する必要があります）。
+> **Note:** `package.json` のデフォルトポート指定 `${EXPO_PORT:-8081}` は POSIX シェル構文のため、Windows 環境ではポート解決に失敗することがあります。その場合や、既に別プロセスがポート 8081 を使用している場合は、`--port` で別のポートを指定してください。
 >
 > ```bash
-> # ターミナル1: APIサーバー
-> npx tsx watch server/_core/index.ts
->
-> # ターミナル2: Expo Web
 > npx expo start --web --port 8082
 > ```
->
-> また、既に別プロセス（他のアプリやセキュリティソフトなど）がポート 8081 を使用している場合は、`--port` オプションで別のポート（例: 8082）を指定してください。
 
 ### スマートフォン実機で確認する（Expo Go）
 
@@ -82,19 +76,17 @@ pnpm android  # Android Studio + エミュレータが必要
 | `pnpm lint` | ESLint (`expo lint`) |
 | `pnpm format` | Prettier によるフォーマット |
 | `pnpm test` | Vitest によるテスト実行 |
-| `pnpm build` | サーバーを本番用にビルド |
-| `pnpm db:push` | Drizzle でスキーマをマイグレーション |
 
 ## 環境変数
 
-`DATABASE_URL` などの環境変数は未設定でもローカル動作を確認できます（データベース未接続時は関連機能が無効化されます）。本番運用や認証機能を使う場合は以下を設定してください（`server/_core/env.ts` 参照）。
+いずれも未設定のままローカル動作を確認できます（購入まわりはRevenueCatのSDKキーが無いと無効化され、広告はGoogleのテストIDにフォールバックします）。設定する場合は `.env.example` をコピーして `.env` を作ってください。
 
 | 変数名 | 用途 |
 |---|---|
-| `DATABASE_URL` | MySQL 接続文字列 |
-| `JWT_SECRET` | Cookie 署名用シークレット |
-| `OAUTH_SERVER_URL` | OAuth 認証サーバーの URL |
-| `OWNER_OPEN_ID` | 管理者ユーザーの OpenID |
+| `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY` / `..._ANDROID_API_KEY` | RevenueCat の公開SDKキー |
+| `EXPO_PUBLIC_ADMOB_ANDROID_APP_ID` / `..._IOS_APP_ID` | AdMob の App ID |
+| `EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID` | 無料版に出すバナーの広告ユニットID |
+| `EXPO_PUBLIC_ADFREE_REDEEM_CODE` | 広告非表示をローカルで試すためのコード |
 
 ## ディレクトリ構成
 
@@ -103,8 +95,8 @@ app/            画面（Expo Router）
 components/     UIコンポーネント
 lib/            計算ロジック・ユーティリティ
 constants/      定数定義
-server/         API サーバー（tRPC / Express）
-drizzle/        DB スキーマ・マイグレーション
+widgets/        iOSウィジェット
+scripts/        生成・検証スクリプト
 docs/           設計・企画ドキュメント
 tests/          テスト
 ```
