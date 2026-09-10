@@ -18,7 +18,8 @@ const SECTIONS: { title: string; body: string[] }[] = [
     title: "Overview",
     body: [
       "UnitCalc (\"the app\") is a unit-aware calculator. This policy explains what data the app handles and why.",
-      "The app does not require you to create an account, and it does not collect your name, email address, or any other personal identifier.",
+      "The app does not require you to create an account, and it never asks for your name, email address, or phone number. Everything you enter into the app stays on your device.",
+      "The app does not operate its own server or user database. The only data that leaves your device is what the purchase and advertising providers described below need — device-generated and advertising identifiers, never your name or email address. See \"Purchases\" and \"Advertising\" for what each provider receives.",
     ],
   },
   {
