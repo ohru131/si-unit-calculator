@@ -21,6 +21,27 @@ export type CaretPreview = {
   caretIndex: number | null;
 };
 
+/** 正規化した選択範囲。`hasRange` が false ならキャレット1本（`start` の位置）を描く。 */
+export type NormalizedSelection = { start: number; end: number; hasRange: boolean };
+
+/**
+ * TextInput の selection を、式の長さに収まる「前→後ろ」の範囲に正規化する。
+ *
+ * 丸めが必要なのは、AC・履歴復元・プリセットの読み込みで式が短くなった直後に、前の式の
+ * 位置のままの selection が残ることがあるため。逆順（後ろから前へドラッグ）も来る。
+ *
+ * 通常のプレビュー（`buildCaretPreview`）と進数入力のプレビューの両方がこれを通る。
+ * **どちらか片方だけ独自に丸めると、同じ操作なのにモードによって表示位置が変わる。**
+ */
+export function normalizeSelection(length: number, selectionStart: number, selectionEnd: number): NormalizedSelection {
+  const clamp = (value: number) => Math.max(0, Math.min(length, Number.isFinite(value) ? Math.trunc(value) : 0));
+  const a = clamp(selectionStart);
+  const b = clamp(selectionEnd);
+  const start = Math.min(a, b);
+  const end = Math.max(a, b);
+  return { start, end, hasRange: start !== end };
+}
+
 /**
  * プレビュー行のセグメント列を、キャレット位置（と選択範囲の両端）で切り分ける。
  *
@@ -40,12 +61,7 @@ export function buildCaretPreview(
 ): CaretPreview {
   // セグメント列は式全体を隙間なく覆うので、末尾の end が式の長さになる。
   const length = segments.length > 0 ? segments[segments.length - 1].end : 0;
-  const clamp = (value: number) => Math.max(0, Math.min(length, Number.isFinite(value) ? Math.trunc(value) : 0));
-  const a = clamp(selectionStart);
-  const b = clamp(selectionEnd);
-  const low = Math.min(a, b);
-  const high = Math.max(a, b);
-  const hasRange = low !== high;
+  const { start: low, end: high, hasRange } = normalizeSelection(length, selectionStart, selectionEnd);
 
   // 切り口はキャレット位置（範囲選択なら両端）だけ。セグメントの内側に落ちるものだけが実際に切る。
   const cuts = hasRange ? [low, high] : [low];

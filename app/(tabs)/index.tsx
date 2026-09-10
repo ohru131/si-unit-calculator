@@ -22,7 +22,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { isSampleCategoryVisible, isUnitGroupVisible, isUnitVisible, visibleUnits } from "@/lib/advanced-display";
-import { buildCaretPreview } from "@/lib/expression-caret";
+import { buildCaretPreview, normalizeSelection } from "@/lib/expression-caret";
 import { findExactValue, isTerminatingDecimalFraction } from "@/lib/exact-value";
 import { inferSignificantDigits, significantDigitsAfterConversion, toScientificNotation } from "@/lib/significant-figures";
 import { useCalculatorStore } from "@/lib/calculator-store";
@@ -642,12 +642,10 @@ export default function CalculatorScreen() {
   // 進数モードでも pressKey が選択範囲をまとめて置換・削除するため（baseInputMode は「どのキーを
   // 受け付けるか」だけを絞っていて、範囲の置換はそのまま通る）。キャレット1本だけを描くと、
   // 実際には複数桁が消えるのに1文字ぶんの挿入に見えてしまう。
-  const baseSelection = useMemo(() => {
-    const clamp = (value: number) => Math.max(0, Math.min(expression.length, value));
-    const start = clamp(Math.min(selection.start, selection.end));
-    const end = clamp(Math.max(selection.start, selection.end));
-    return { start, end, hasRange: start !== end };
-  }, [expression.length, selection.end, selection.start]);
+  const baseSelection = useMemo(
+    () => normalizeSelection(expression.length, selection.start, selection.end),
+    [expression.length, selection.end, selection.start],
+  );
 
   // 実際に表示へ使う単位。targetUnit（ユーザーが明示的に選んだ単位）はそのまま状態として持ち続け、
   // 結果の次元に合うときだけ使う。合わないとき・未選択のときは式中の単位→読みやすい接頭語→SI の順で
