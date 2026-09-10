@@ -634,18 +634,20 @@ export default function CalculatorScreen() {
     () => buildCaretPreview(analysis.segments, selection.start, selection.end),
     [analysis.segments, selection.end, selection.start],
   );
-  // `< >` を端で無効にして、キャレットが先頭・末尾に着いていることを押す前に分かるようにする
-  // （押しても何も起きないボタンにしない）。
-  const caretAtStart = Math.min(selection.start, selection.end) <= 0;
-  const caretAtEnd = Math.max(selection.start, selection.end) >= expression.length;
-  // 進数入力中のプレビューは桁を解析しないので、位置だけを式の長さに丸めて使う。両端を持つのは、
-  // 進数モードでも pressKey が選択範囲をまとめて置換・削除するため（baseInputMode は「どのキーを
-  // 受け付けるか」だけを絞っていて、範囲の置換はそのまま通る）。キャレット1本だけを描くと、
-  // 実際には複数桁が消えるのに1文字ぶんの挿入に見えてしまう。
-  const baseSelection = useMemo(
+  // 前後の順に丸めた選択範囲。`< >` の有効・無効の判定と、進数入力プレビューの描画が共有する。
+  // 進数モードでも pressKey は選択範囲をまとめて置換・削除する（baseInputMode が絞るのは
+  // 「どのキーを受け付けるか」だけ）ので、あちらでもキャレット1本ではなく帯で示す必要がある。
+  const normalizedSelection = useMemo(
     () => normalizeSelection(expression.length, selection.start, selection.end),
     [expression.length, selection.end, selection.start],
   );
+  // `< >` を端で無効にして、キャレットが先頭・末尾に着いていることを押す前に分かるようにする
+  // （押しても何も起きないボタンにしない）。
+  // **範囲選択中はどちらも無効にしない。** そのときの `< >` は1文字ぶんの移動ではなく
+  // 「選択をどちらの端に畳むか」なので、端に接している選択でも押せば必ず状態が変わる
+  // （末尾までを選んだ状態で `>` を無効にすると、選択を末尾へ畳む操作が消えてしまう）。
+  const caretAtStart = !normalizedSelection.hasRange && normalizedSelection.start <= 0;
+  const caretAtEnd = !normalizedSelection.hasRange && normalizedSelection.end >= expression.length;
 
   // 実際に表示へ使う単位。targetUnit（ユーザーが明示的に選んだ単位）はそのまま状態として持ち続け、
   // 結果の次元に合うときだけ使う。合わないとき・未選択のときは式中の単位→読みやすい接頭語→SI の順で
@@ -998,12 +1000,16 @@ export default function CalculatorScreen() {
     void calculate();
   };
 
-  /** 編集キーでキャレットを1文字ずつ動かす。選択範囲があるときは、その端へ寄せるだけにする。 */
+  /** 編集キーでキャレットを1文字ずつ動かす。選択範囲があるときは、その端へ寄せるだけにする。
+   *
+   * **前後の順に正規化してから見ること。** Androidの選択は start=ドラッグの始点・end=終点なので、
+   * 後ろから前へドラッグすると start > end で届く。素の値のまま「< なら start・> なら end」に
+   * すると、逆順の選択のときだけ `<` が右へ・`>` が左へ動く（プレビューの帯は正規化して
+   * 描いているので、見えている選択と操作が食い違う）。 */
   const moveCaret = (delta: -1 | 1) => {
     markUserInteraction();
-    const start = Math.min(selection.start, expression.length);
-    const end = Math.min(selection.end, expression.length);
-    if (start !== end) {
+    const { start, end, hasRange } = normalizeSelection(expression.length, selection.start, selection.end);
+    if (hasRange) {
       placeCaret(delta < 0 ? start : end);
       return;
     }
@@ -1036,8 +1042,10 @@ export default function CalculatorScreen() {
       void Haptics.selectionAsync();
       return;
     }
-    const start = Math.min(selection.start, expression.length);
-    const end = Math.min(selection.end, expression.length);
+    // ここも前後の順に正規化してから使う。replaceExpressionRange は
+    // `slice(0, start) + 置換 + slice(end)` なので、start > end のまま渡すと**間の文字が重複**する
+    // （"12V/4.7kOhm" に start=7・end=4 で入れると "4.7" が重複して "12V/4.7X4.7kOhm" になる）。
+    const { start, end } = normalizeSelection(expression.length, selection.start, selection.end);
     if (key === "⌫") {
       // 選択範囲があればまとめて削除し、無ければキャレットの直前の1文字だけを消す
       // （末尾を問わず、常にキャレット基準で削除する）。
@@ -1128,8 +1136,7 @@ export default function CalculatorScreen() {
     if (selection.start === selection.end) {
       return { start: Math.min(fallback.start, expression.length), end: Math.min(fallback.end, expression.length) };
     }
-    const start = Math.min(Math.min(selection.start, selection.end), expression.length);
-    const end = Math.min(Math.max(selection.start, selection.end), expression.length);
+    const { start, end } = normalizeSelection(expression.length, selection.start, selection.end);
     return { start, end };
   };
 
@@ -1450,15 +1457,15 @@ export default function CalculatorScreen() {
               {/* 進数入力中もキャレット移動は使えるので、ここでもカーソル位置を示す。
                   桁は解析せず単純な文字列なので、セグメントを切らずに前後で分けるだけでよい。
                   範囲選択中は通常のプレビューと同じく帯で示す（何が置き換わるかが要点）。 */}
-              <Text style={styles.previewNumber}>{expression.slice(0, baseSelection.start)}</Text>
-              {baseSelection.hasRange ? (
+              <Text style={styles.previewNumber}>{expression.slice(0, normalizedSelection.start)}</Text>
+              {normalizedSelection.hasRange ? (
                 <Text style={[styles.previewNumber, styles.previewSelected]}>
-                  {expression.slice(baseSelection.start, baseSelection.end)}
+                  {expression.slice(normalizedSelection.start, normalizedSelection.end)}
                 </Text>
               ) : (
                 <PreviewCaret colors={colors} />
               )}
-              <Text style={styles.previewNumber}>{expression.slice(baseSelection.end)}</Text>
+              <Text style={styles.previewNumber}>{expression.slice(normalizedSelection.end)}</Text>
             </View>
           ) : expression.trim() ? (
             <View style={styles.previewRow}>

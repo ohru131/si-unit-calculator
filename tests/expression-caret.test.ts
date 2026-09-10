@@ -141,3 +141,39 @@ describe("normalizeSelection（進数入力プレビューと共有）", () => {
     }
   });
 });
+
+describe("逆順の選択（Androidの後ろから前へのドラッグ）", () => {
+  // Androidの選択は start=ドラッグの始点・end=終点なので、後ろから前へドラッグすると
+  // start > end で届く。素の値のまま使うと編集キーとキー入力の両方が壊れる。
+
+  it("< > の寄せ先が入れ替わらない", () => {
+    // moveCaret は「< なら start・> なら end」に寄せる。正規化しないと逆順の選択のときだけ
+    // < が右へ・> が左へ動く（CodeRabbitが#64で検出）。
+    const forward = normalizeSelection(11, 4, 7);
+    const reversed = normalizeSelection(11, 7, 4);
+    expect(reversed).toEqual(forward);
+    expect(reversed.start).toBe(4);  // < はここへ
+    expect(reversed.end).toBe(7);    // > はここへ
+  });
+
+  it("置換範囲が反転せず、文字が重複しない", () => {
+    // replaceExpressionRange は slice(0,start)+置換+slice(end) なので、start > end のまま
+    // 渡すと間の文字が重複する。正規化後の範囲なら必ず start <= end になる。
+    const expression = "12V/4.7kOhm";
+    const { start, end } = normalizeSelection(expression.length, 7, 4);
+    expect(start).toBeLessThanOrEqual(end);
+    const replaced = `${expression.slice(0, start)}X${expression.slice(end)}`;
+    expect(replaced).toBe("12V/XkOhm");
+    // 正規化しないと重複していた形（この文字列に戻らないことを固定する）
+    expect(replaced).not.toBe("12V/4.7X4.7kOhm");
+  });
+
+  it("プレビューの帯と寄せ先が同じ範囲を指す", () => {
+    // 見えている選択と操作が食い違わないこと。
+    const { pieces } = buildCaretPreview(analyze("12V/4.7kOhm"), 7, 4);
+    const selected = pieces.filter((piece) => piece.selected);
+    const { start, end } = normalizeSelection(11, 7, 4);
+    expect(selected[0].start).toBe(start);
+    expect(selected[selected.length - 1].end).toBe(end);
+  });
+});
