@@ -488,6 +488,9 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - **`app/_layout.tsx` の `trpc.Provider` と `QueryClientProvider` はマウントされているだけで、アプリはAPIを一度も叩いていなかった**（`trpc.` の参照がProviderの2行しか無い）。消してもWeb書き出し・Playwrightでの起動確認ともに差分なし。
 - **`dotenv` は消さないこと。** `vitest.config.ts` が使っている（サーバ用に見えるが違う）。同様に `expo-linking` は `expo-router` が要求するので残す。
 - **残した未使用の依存**: `react-native-purchases-ui`（`RevenueCatUI.presentPaywallIfNeeded` を撤去したときから未使用。権限は足さないので今回のスコープ外にした）。
+- **「OAuthを消したから個人情報は一切集めていない」と書かないこと。** 最初そう書いてCodeRabbitに🟠Majorで2回指摘された（README と `docs/android-submission-checklist.md`）。**`lib/ad-revenue-tracker.ts` が `Purchases.adTracker` でバナー広告のロード・表示・開封・収益のイベントをRevenueCatへ送っている**（RevenueCat Ads β。ダッシュボードで広告収益と購入収益をまとめて見るための連携）。加えてRevenueCatは購入検証で端末生成の匿名IDとレシートを、AdMobは配信・計測で端末IDと広告IDを受け取る。**端末内で完結しているのは「アプリのデータ」（計算履歴・ノート・自作単位・設定）だけ**なので、そう限定して書く。`app/privacy-policy.tsx` の本文は最初から正しく書けていて、要約した側（README・チェックリスト）だけがズレていた。
+- **`android.permissions: []` は「全権限がこれで確定」の意味ではない。** ネイティブ依存のマニフェストはマージャで合流するので、**実際の権限一覧はリリースAAB（または `npx expo prebuild -p android` 後の `android/app/build/intermediates/merged_manifests/`）でしか確定できない**。この環境ではprebuildできないため、チェックリストには「要確認」として確認手順ごと残してある。
+- **npmスクリプトに `${VAR:-default}` を書かないこと。** Windowsのpnpmは既定で `cmd.exe` を使うので POSIX のパラメータ展開が効かず、`pnpm dev` がそのまま失敗する（`shellEmulator` を有効にしていない限り）。旧 `dev:metro` が `--port ${EXPO_PORT:-8081}` を持っていたのをそのまま引き継いでいた。Expoの既定ポートが8081なので指定ごと外し、変えたい人は `pnpm dev --port 8082`（npmスクリプトは追加引数を末尾へ渡す）で済むようにした。
 
 ### 現在の基準値（2026-09-10時点、未使用の権限・バックエンドを消した後）
 

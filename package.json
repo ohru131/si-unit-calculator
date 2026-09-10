@@ -4,7 +4,7 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
-    "dev": "cross-env EXPO_USE_METRO_WORKSPACE_ROOT=1 npx expo start --web --port ${EXPO_PORT:-8081}",
+    "dev": "cross-env EXPO_USE_METRO_WORKSPACE_ROOT=1 npx expo start --web",
     "check": "tsc --noEmit",
     "lint": "expo lint",
     "format": "prettier --write .",

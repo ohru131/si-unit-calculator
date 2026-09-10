@@ -37,11 +37,11 @@
 | 課金（RevenueCat経由） | 購入履歴・アプリ内でのユーザー識別子をRevenueCatのバックエンドと連携 | 「購入履歴」の収集・第三者共有として申告が必要な可能性が高い（要確認: RevenueCat公式のData safety記入例を確認すること） |
 | プッシュ通知権限（`POST_NOTIFICATIONS`） | **削除済み**。テンプレート由来で通知送信のロジックは存在しなかった | 申告不要。`app.config.ts` の `android.permissions` は空、`expo-notifications` も依存から外した（ライブラリのマニフェストがマージされるため、依存を残すと権限だけ復活する） |
 | マイク権限（`RECORD_AUDIO`・`NSMicrophoneUsageDescription`） | **削除済み**。`expo-audio` プラグインがテンプレート由来で入っていただけで、音声は一切扱わない | 申告不要。あわせて `FOREGROUND_SERVICE_MEDIA_PLAYBACK`（用途の申告フォームが必須になる）と `UIBackgroundModes=audio` も消えた |
-| アカウント・メールアドレス | **削除済み**。OAuthログイン一式（端末側の `SecureStore` 保存も、サーバ側 `users.email` テーブルも）がテンプレート由来で未使用のまま残っていた | 申告不要。「個人情報を収集していません」と回答できる |
+| アカウント・メールアドレス | **削除済み**。OAuthログイン一式（端末側の `SecureStore` 保存も、サーバ側 `users.email` テーブルも）がテンプレート由来で未使用のまま残っていた | アカウントの作成を求めず、氏名・メールアドレス・電話番号は一切収集しない。**ただしこれをもって「個人情報を収集していません」と回答してよいわけではない**（上のAdMob・RevenueCatの行が別途あるため。RevenueCatには `lib/ad-revenue-tracker.ts` から広告のロード・表示・開封・収益のイベントも送っている） |
 
-**申告の原則**: 「実際に何を収集しているか」だけを書く。サードパーティSDK（AdMob・RevenueCat）が収集するものも自社の収集として申告義務がある（Googleの公式見解）。
+**申告の原則**: 「実際に何を収集しているか」だけを書く。サードパーティSDK（AdMob・RevenueCat）が収集するものも自社の収集として申告義務がある（Googleの公式見解）。**「OAuthを消したから何も収集していない」と早合点しないこと。**
 
-**マニフェストに実際に載る権限**（AdMob由来のみ。いずれも広告の表示に実際に使っている）: `INTERNET` / `ACCESS_NETWORK_STATE` / `com.google.android.gms.permission.AD_ID`。**未使用の権限をここに増やさないこと**（詳細は `CLAUDE.md` の「未使用の権限・スキャフォールドを消したときに分かったこと」）。
+**マニフェストに載る権限（要確認）**: 現時点で分かっているのはAdMob由来の `INTERNET` / `ACCESS_NETWORK_STATE` / `com.google.android.gms.permission.AD_ID` の3つで、いずれも広告の表示に実際に使っている。ただし**これが全権限だと断定するには、実際のリリースAAB（またはprebuild後のマージ済み `AndroidManifest.xml`）を見る必要がある** — `app.config.ts` の `android.permissions: []` は「アプリ側から追加しない」の意味でしかなく、ネイティブ依存のマニフェストはマージャで合流するため。**提出前に必ず実物で確認し、この一覧と申告内容を実測に合わせて更新すること**（確認手順: `eas build -p android --profile production` の成果物を `bundletool` か `aapt2 dump permissions` で開く、あるいは `npx expo prebuild -p android` 後に `android/app/build/intermediates/merged_manifests/` を見る）。**未使用の権限をここに増やさないこと**（詳細は `CLAUDE.md` の「未使用の権限・スキャフォールドを消したときに分かったこと」）。
 
 ### 4. 広告の申告
 

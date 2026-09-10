@@ -18,7 +18,9 @@
 - NativeWind (Tailwind CSS for React Native)
 - TypeScript / Vitest
 
-データは全て端末内（AsyncStorage）に保存し、バックエンドは持ちません。
+自前のバックエンドは持ちません。**アプリのデータ（計算履歴・計算ノート・自作単位・設定）は端末内（AsyncStorage）にのみ保存**し、どこへも送信しません。
+
+ただし端末外と通信するSDKが2つあります。**RevenueCat** は購入の検証（端末生成の匿名IDとレシート情報）に加え、`lib/ad-revenue-tracker.ts` から**バナー広告のロード・表示・開封・収益のイベント**を受け取ります。**AdMob** は広告の配信・計測に端末IDと広告IDを使うことがあります。詳細は `app/privacy-policy.tsx` を参照してください。
 
 ## セットアップ
 
@@ -41,13 +43,15 @@ pnpm install
 pnpm dev
 ```
 
-`pnpm dev` は Expo Web（`http://localhost:8081`）を起動します。起動後、ブラウザで `http://localhost:8081` を開いてください。
+`pnpm dev` は Expo Web を Expo 既定のポート（`http://localhost:8081`）で起動します。起動後、ブラウザで `http://localhost:8081` を開いてください。
 
-> **Note:** `package.json` のデフォルトポート指定 `${EXPO_PORT:-8081}` は POSIX シェル構文のため、Windows 環境ではポート解決に失敗することがあります。その場合や、既に別プロセスがポート 8081 を使用している場合は、`--port` で別のポートを指定してください。
+> **Note:** 既に別プロセス（他のアプリやセキュリティソフトなど）がポート 8081 を使用している場合は、`--port` で別のポートを指定してください。引数はそのまま `expo start` へ渡ります。
 >
 > ```bash
-> npx expo start --web --port 8082
+> pnpm dev --port 8082
 > ```
+>
+> **ポート指定を `package.json` に書き戻さないこと。** 以前は `--port ${EXPO_PORT:-8081}` と書いていたが、これは POSIX シェル構文で、**Windows の pnpm は既定で `cmd.exe` を使うため展開されず `pnpm dev` が失敗する**（`shellEmulator` を有効にしていない限り）。Expo の既定ポートが 8081 なので、指定を外しても挙動は変わらない。
 
 ### スマートフォン実機で確認する（Expo Go）
 
