@@ -62,7 +62,13 @@ const config: ExpoConfig = {
     },
     predictiveBackGestureEnabled: false,
     package: env.androidPackage,
-    permissions: ["POST_NOTIFICATIONS"],
+    // このアプリは通知を一切出さない（スキャフォールド由来の POST_NOTIFICATIONS を削除済み）。
+    // 空配列は「追加の権限を宣言しない」の明示で、@expo/config-plugins の withPermissions は
+    // 値が空なら何も足さない。実際にマニフェストに載るのは AdMob 由来の INTERNET・
+    // ACCESS_NETWORK_STATE・AD_ID だけで、これらは広告の表示に実際に使っている。
+    // **未使用の権限をここに戻さないこと**（Play Consoleのデータセーフティで
+    // 「宣言しているが使っていない」を説明する羽目になる）。
+    permissions: [],
     intentFilters: [
       {
         action: "VIEW",
@@ -89,7 +95,6 @@ const config: ExpoConfig = {
     "expo-asset",
     "expo-font",
     "expo-image",
-    "expo-secure-store",
     "expo-sharing",
     "expo-web-browser",
     "expo-status-bar",
@@ -119,19 +124,14 @@ const config: ExpoConfig = {
         ],
       },
     ],
-    [
-      "expo-audio",
-      {
-        microphonePermission: "Allow $(PRODUCT_NAME) to access your microphone.",
-      },
-    ],
-    [
-      "expo-video",
-      {
-        supportsBackgroundPlayback: true,
-        supportsPictureInPicture: true,
-      },
-    ],
+    // expo-audio / expo-video のプラグインはスキャフォールド由来で、アプリは音声も動画も
+    // 一切扱わないので削除した。残しておくと以下が黙ってマニフェスト・Info.plistに載る:
+    //   expo-audio → RECORD_AUDIO・MODIFY_AUDIO_SETTINGS・FOREGROUND_SERVICE・
+    //     FOREGROUND_SERVICE_MEDIA_PLAYBACK、NSMicrophoneUsageDescription、
+    //     UIBackgroundModes=audio、mediaPlayback のフォアグラウンドサービス
+    //   expo-video → FOREGROUND_SERVICE・FOREGROUND_SERVICE_MEDIA_PLAYBACK、
+    //     UIBackgroundModes=audio、同じくフォアグラウンドサービス
+    // FOREGROUND_SERVICE_MEDIA_PLAYBACK はPlay Consoleで用途の申告フォームが必須になる。
     [
       "expo-splash-screen",
       {
