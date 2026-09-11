@@ -450,6 +450,20 @@ const SHOTS = [
     },
   },
   {
+    // アプリアイコン・フィーチャーグラフィック・短い説明と**同じ式**（1kΩ × 1mA → 1V）。
+    // ストアで「アイコン → 図版 → スクショ」と見ていく導線で同じ式が3回出るので、
+    // 電工・電験の層には「この計算のためのアプリ」だと一目で伝わる。
+    // 15-prefix-cancel（4.7kΩ × 2mA → 9.4 V）と役割が違う: あちらは任意の値でも
+    // 桁が合うことを示す実演で、こちらは**k と m がちょうど打ち消える**ことの看板。
+    name: "16-ohms-law",
+    run: async (page, lang) => {
+      await openTab(page, LABELS[lang].tabs.calculator);
+      await typeExpression(page, lang, "1kΩ × 1mA");
+      await submitExpression(page, lang);
+      await blurInputs(page);
+    },
+  },
+  {
     name: "09-pro",
     run: async (page, lang, ctx) => {
       await page.goto(`${ctx.origin}/pro`);

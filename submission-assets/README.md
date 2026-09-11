@@ -9,7 +9,7 @@
 
 | パス | 内容 |
 |---|---|
-| `screenshots/` | ストア掲載用スクリーンショット。**6言語（en / ja / es / pt-BR / de / fr）・各16枚**。すべて 1080×1800px |
+| `screenshots/` | ストア掲載用スクリーンショット。**6言語（en / ja / es / pt-BR / de / fr）・各17枚**。すべて 1080×1800px |
 | `demo/unit-calculator-demo-en-silent.webm` | デモ動画（無音・英語字幕を焼き込み済み・**1分53秒**・1080×1800・25fps・VP8）。2026-09-11 に現行UIで録り直し済み（新しいキーパッド・アプリ名 UnitCalc）。**ファイル名だけは旧名のまま**で、`scripts/record-demo-video.mjs` の出力先と `submission-assets/README.md` の両方に書いてあるので、変えるなら両方を同時に直すこと |
 | `demo/demo-captions-en.srt` | 同じ文言・同じ尺の字幕トラック。YouTubeに別途アップロードするとオン/オフ切替ができる |
 | `demo/caption-style-reference.png` | 字幕の位置・書式の確認用フレーム（動画の 0:28 を抜いたもの） |
@@ -36,9 +36,17 @@
 | `13-notebook-search` | 計算ノートの検索（検索語は言語ごとに違う。下の表を参照） |
 | `14-exam-samples` | サンプルシートを開き、**その国の試験名になっているタブ**を選んだ状態 |
 | `15-prefix-cancel` | `4.7kΩ × 2mA` → `9.4 V`（k と m が打ち消える） |
+| `16-ohms-law` | `1kΩ × 1mA` → `1 V`（**アイコン・フィーチャーグラフィック・短い説明と同じ式**） |
 
 10〜13番は 2026-09-06 に追加したカット（PR #42 の厳密値表示と PR #48 のノート検索）。
 14・15番は 2026-09-08 に追加（言語ごとのターゲットに合わせた掲載用）。
+16番は 2026-09-11 に追加。
+
+**15 と 16 は似て見えるが役割が違う。** 16 はアイコン・図版・短い説明に出てくるのと**同じ式**で、
+ストアで「アイコン → フィーチャーグラフィック → スクショ」と見ていく導線に同じ計算を3回置くためのもの
+（k と m がちょうど打ち消えて `1 V` ちょうどになる、電工・電験の層には馴染みのある式）。
+15 は `4.7kΩ × 2mA` → `9.4 V` で、**半端な値でも桁が合う**ことの実演。片方だけにすると
+「看板の式」か「実際に使える証拠」のどちらかが欠ける。
 
 ### 言語ごとに中身が変わるカット
 
@@ -61,21 +69,30 @@
 ### Playへ上げる順（言語ごとに8枚）
 
 Play のスマートフォン用スクリーンショットは**最大8枚**で、**1枚目が一覧に出る**。
-撮影した16枚から言語ごとに8枚を選び、その言語のターゲットに一番効くカットを先頭に置く。
+撮影した17枚から言語ごとに8枚を選び、その言語のターゲットに一番効くカットを先頭に置く。
 
 | 言語 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
 |---|---|---|---|---|---|---|---|---|
-| en | 01-calc-basic | 02-dimension-error | 10-exact-fraction | 03-compare-units | 14-exam-samples | 05-library-grid | 07-notebooks-tab | 04-number-base |
-| ja | 15-prefix-cancel | 02-dimension-error | 14-exam-samples | 06-notebook-list | 07-notebooks-tab | 01-calc-basic | 10-exact-fraction | 05-library-grid |
-| de | 15-prefix-cancel | 02-dimension-error | 14-exam-samples | 06-notebook-list | 07-notebooks-tab | 01-calc-basic | 05-library-grid | 10-exact-fraction |
-| es | 02-dimension-error | 14-exam-samples | 01-calc-basic | 07-notebooks-tab | 15-prefix-cancel | 05-library-grid | 03-compare-units | 10-exact-fraction |
-| pt-BR | 01-calc-basic | 02-dimension-error | 14-exam-samples | 07-notebooks-tab | 15-prefix-cancel | 05-library-grid | 03-compare-units | 10-exact-fraction |
-| fr | 01-calc-basic | 02-dimension-error | 14-exam-samples | 07-notebooks-tab | 05-library-grid | 03-compare-units | 10-exact-fraction | 15-prefix-cancel |
+| en | 01-calc-basic | 02-dimension-error | 10-exact-fraction | 03-compare-units | 14-exam-samples | 05-library-grid | 07-notebooks-tab | 16-ohms-law |
+| ja | 16-ohms-law | 02-dimension-error | 14-exam-samples | 06-notebook-list | 07-notebooks-tab | 01-calc-basic | 10-exact-fraction | 05-library-grid |
+| de | 16-ohms-law | 02-dimension-error | 14-exam-samples | 06-notebook-list | 07-notebooks-tab | 01-calc-basic | 05-library-grid | 10-exact-fraction |
+| es | 02-dimension-error | 14-exam-samples | 01-calc-basic | 07-notebooks-tab | 16-ohms-law | 05-library-grid | 03-compare-units | 10-exact-fraction |
+| pt-BR | 01-calc-basic | 02-dimension-error | 14-exam-samples | 07-notebooks-tab | 16-ohms-law | 05-library-grid | 03-compare-units | 10-exact-fraction |
+| fr | 01-calc-basic | 02-dimension-error | 14-exam-samples | 07-notebooks-tab | 05-library-grid | 03-compare-units | 10-exact-fraction | 16-ohms-law |
 
 考え方: **独語と日本語は「桁を落とす痛み」が言語化されている層**（Zehnerpotenzen / 電験・電工）なので
 接頭語の打ち消しと次元エラーを先に出す。**西語は減点が採点基準に明文化されている**ので次元エラーが最初。
 **英語・仏語・葡語は「何ができるアプリか」が先**で、基本の単位付き計算から入る。
 どの言語でも `14-exam-samples` を上位に入れているのは、**その国の試験名がそのまま写っている1枚**だから。
+
+`16-ohms-law` は ja / de / es / pt-BR / fr では**`15-prefix-cancel` の位置にそのまま入れ替えた**。
+アイコンとフィーチャーグラフィックは言語に依らず `1kΩ × 1mA` を出しているので、掲載ページで
+「アイコン → 図版 → スクショ」と同じ式が続く方が読み手の頭に残る。`15-prefix-cancel`
+（`4.7kΩ × 2mA` → `9.4 V`）は撮影を続けてあるので、半端な値の方を見せたくなったら差し替えられる。
+
+**en だけは事情が違い、8枚に電気系が1枚も入っていなかった**（FE受験者と英国 C&G という
+ターゲットに対して取りこぼしだった）。進数（`04-number-base`）はこの層への訴求が弱いので、
+そこを `16-ohms-law` に譲っている。
 
 ### アプリ名について
 
@@ -97,7 +114,7 @@ Playのタイトルに付く副題だけが言語ごとに違う（`UnitCalc - �
 
 | 変えたもの | 影響する素材 |
 |---|---|
-| 電卓画面のUI（キーパッド・結果カード・チップ列・レール） | スクリーンショットのうち**電卓系12カット**とデモ動画 |
+| 電卓画面のUI（キーパッド・結果カード・チップ列・レール） | スクリーンショットのうち**電卓系13カット**とデモ動画 |
 | ライブラリ／ノート／設定／Pro の画面 | 該当するカットとデモ動画 |
 | アプリ名・タブ名 | **全カット**（タブバーに写る）とデモ動画 |
 | `assets/images/icon.png` | フィーチャーグラフィック6枚と `store/play-store-icon-512.png` |
@@ -139,7 +156,7 @@ npx expo export --platform web
 ### スクリーンショット
 
 ```sh
-node scripts/capture-submission-assets.mjs                  # 6言語 × 16枚 = 96枚（30分ほどかかる）
+node scripts/capture-submission-assets.mjs                  # 6言語 × 17枚 = 102枚（30分ほどかかる）
 node scripts/capture-submission-assets.mjs --lang de,fr
 node scripts/capture-submission-assets.mjs --lang ja --only 10-exact-fraction,13-notebook-search
 node scripts/capture-submission-assets.mjs --headed         # 目視デバッグ

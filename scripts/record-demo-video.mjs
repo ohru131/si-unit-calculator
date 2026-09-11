@@ -204,8 +204,15 @@ function buildTimeline(cues) {
       },
     },
     {
-      cue: 2, // 0:07–0:15 = を押さないまま結果カードを見せる
+      // 0:07–0:15 接頭語の打ち消し。**アイコン・フィーチャーグラフィック・短い説明と同じ式**を
+      // ここで出す（電工・電験の層にとっての看板の計算）。= を押さないまま結果が出るので、
+      // 「打っている途中から答えが出ている」ことも同時に見える。
+      // 以前はここが 5cm + 1mm の結果を眺めるだけの間で、動画に電気の式が一度も出なかった。
+      cue: 2,
       run: async (page, at) => {
+        await at(cueAt(2).start + 1.0);
+        await key(page, "Clear all");
+        await typeExpression(page, "1kΩ × 1mA", 150);
         await at(cueAt(2).end - 0.2);
       },
     },
