@@ -4,7 +4,7 @@ A calculator that checks your units.
 
 2
 00:00:07,000 --> 00:00:15,000
-Every value is normalized to SI — automatically, as you type.
+1kΩ × 1mA is exactly 1 V — the prefixes cancel themselves.
 
 3
 00:00:15,000 --> 00:00:22,000
@@ -28,7 +28,7 @@ Switch a number between decimal, binary, octal, and hex.
 
 8
 00:00:57,000 --> 00:01:04,000
-184 ready-made formula notebooks, in nine categories.
+194 ready-made formula notebooks, in nine categories.
 
 9
 00:01:04,000 --> 00:01:12,000
