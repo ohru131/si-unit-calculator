@@ -114,7 +114,7 @@ function parseArgs(argv) {
 const charLen = (s) => [...s].length;
 
 function readCopy() {
-  const src = readFileSync(COPY_PATH, "utf8");
+  const src = readFileSync(COPY_PATH, "utf8").replace(/\r\n/g, "\n");
 
   // **`| 言語 | 数 | …` の形の表が2つある**（アプリ名と短い説明）。見出し行で切り分けないと
   // 取り違える（実際に一括置換でアプリ名の表を短い説明で上書きする事故を踏んでいる）。
@@ -330,6 +330,14 @@ async function api(token, method, path, { json, body, contentType } = {}) {
   return parsed;
 }
 
+async function deleteImageIfPresent(token, path) {
+  try {
+    await api(token, "DELETE", path);
+  } catch (error) {
+    if (!error.message.includes(" が 404:")) throw error;
+  }
+}
+
 async function pushListing({ token, pkg, plan, mode }) {
   const edit = await api(token, "POST", `/applications/${pkg}/edits`);
   const id = edit.id;
@@ -348,11 +356,11 @@ async function pushListing({ token, pkg, plan, mode }) {
       if (e.screenshots.length) {
         // **並び替えの手段が「消して入れ直す」しかない。** 既存を残したまま足すと
         // 古い枚数ぶん後ろに残り、順番も混ざる。
-        await api(token, "DELETE", `/applications/${pkg}/edits/${id}/images/${loc}/phoneScreenshots`);
+        await deleteImageIfPresent(token, `/applications/${pkg}/edits/${id}/listings/${loc}/phoneScreenshots`);
         for (const s of e.screenshots) {
           // **アップロードした順がそのまま掲載順になる。** 並列にすると順が崩れるので直列。
           await api(token, "POST",
-            `${UPLOAD_API}/applications/${pkg}/edits/${id}/images/${loc}/phoneScreenshots?uploadType=media`,
+            `${UPLOAD_API}/applications/${pkg}/edits/${id}/listings/${loc}/phoneScreenshots?uploadType=media`,
             { body: s.buf, contentType: "image/png" });
         }
         console.log(`  [${loc}] スクショ ${e.screenshots.length}枚を差し替え`);
@@ -360,9 +368,9 @@ async function pushListing({ token, pkg, plan, mode }) {
 
       for (const [kind, asset] of [["featureGraphic", e.featureGraphic], ["icon", e.icon]]) {
         if (!asset) continue;
-        await api(token, "DELETE", `/applications/${pkg}/edits/${id}/images/${loc}/${kind}`);
+        await deleteImageIfPresent(token, `/applications/${pkg}/edits/${id}/listings/${loc}/${kind}`);
         await api(token, "POST",
-          `${UPLOAD_API}/applications/${pkg}/edits/${id}/images/${loc}/${kind}?uploadType=media`,
+          `${UPLOAD_API}/applications/${pkg}/edits/${id}/listings/${loc}/${kind}?uploadType=media`,
           { body: asset.buf, contentType: "image/png" });
         console.log(`  [${loc}] ${kind} を差し替え`);
       }
