@@ -102,6 +102,7 @@ const LABELS = {
     compareUnits: "Compare units",
     decimalForm: "Decimal",
     exactForm: "Exact",
+    scientificForm: "Scientific notation",
     samples: "Examples",
     examCategory: "Exam prep",
     languageOption: "English",
@@ -119,6 +120,7 @@ const LABELS = {
     compareUnits: "単位を比較",
     decimalForm: "小数",
     exactForm: "分数・π",
+    scientificForm: "科学表記",
     samples: "サンプル",
     examCategory: "試験対策（電験・電工）",
     languageOption: "日本語",
@@ -135,6 +137,7 @@ const LABELS = {
     compareUnits: "Comparar unidades",
     decimalForm: "Decimal",
     exactForm: "Exacto",
+    scientificForm: "Notación científica",
     samples: "Ejemplos",
     examCategory: "Preparación (EBAU)",
     languageOption: "Español",
@@ -151,6 +154,7 @@ const LABELS = {
     compareUnits: "Comparar unidades",
     decimalForm: "Decimal",
     exactForm: "Exato",
+    scientificForm: "Notação científica",
     samples: "Exemplos",
     examCategory: "Preparação (ENEM)",
     languageOption: "Português (Brasil)",
@@ -167,6 +171,7 @@ const LABELS = {
     compareUnits: "Einheiten vergleichen",
     decimalForm: "Dezimal",
     exactForm: "Exakt",
+    scientificForm: "Wissenschaftliche Notation",
     samples: "Beispiele",
     examCategory: "Klausur & Prüfung",
     languageOption: "Deutsch",
@@ -183,6 +188,7 @@ const LABELS = {
     compareUnits: "Comparer les unités",
     decimalForm: "Décimal",
     exactForm: "Exact",
+    scientificForm: "Notation scientifique",
     samples: "Exemples",
     examCategory: "Révisions (physique-chimie)",
     languageOption: "Français",
@@ -461,6 +467,21 @@ const SHOTS = [
       await typeExpression(page, lang, "1kΩ × 1mA");
       await submitExpression(page, lang);
       await blurInputs(page);
+    },
+  },
+  {
+    // 有効数字の自動判定。`12V / 4.7kΩ` は打ち込んだ数字が2桁なので、科学表記に切り替えると
+    // 2.553191489 mA → 2.6 × 10⁰ mA に丸まり、**丸める前の値と桁数が下に残る**。
+    // 「勝手に丸めた」ではなく「あなたが打った精度はここまで」と示す画。掲載文の
+    // 有効数字の節（2026-09-12に全言語へ追加）と同じ式にしてある。
+    name: "17-significant-figures",
+    run: async (page, lang) => {
+      await openTab(page, LABELS[lang].tabs.calculator);
+      await typeExpression(page, lang, "12V / 4.7kΩ");
+      await submitExpression(page, lang);
+      await blurInputs(page);
+      await page.getByLabel(LABELS[lang].scientificForm, { exact: true }).first().click();
+      await sleep(600);
     },
   },
   {
