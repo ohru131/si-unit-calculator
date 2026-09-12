@@ -202,6 +202,55 @@ Chromium は `/opt/pw-browsers/chromium`（`CHROMIUM_PATH` で上書き可）が
 フォールバックする**ので、素の開発機では先に `npx playwright install chromium` を実行するか、
 `CHROMIUM_PATH` で自前のChromiumを指すこと。録画スクリプトも同じ規則。
 
+### Play Console へ反映する（`scripts/push-play-listing.mjs`）
+
+**ビルドは要らない。** 掲載情報の更新は AAB のアップロードと別系統なので、
+**EAS のビルド枠を使い切っていても実行できる。**
+
+```sh
+node scripts/push-play-listing.mjs                          # ドライラン（通信しない）
+node scripts/push-play-listing.mjs --validate --key sa.json # Google側の検証まで。反映しない
+node scripts/push-play-listing.mjs --commit   --key sa.json # ★反映する（審査に入る）
+node scripts/push-play-listing.mjs --lang ja,de --validate --key sa.json
+```
+
+**文言も画像の並びもスクリプトには書いていない。** `docs/store-listing-copy.md` と
+この README の「Playへ上げる順」の表をパースして読む（写すと資料を直したときに黙って食い違うため）。
+表の形を変えるとスクリプトが**落ちる**ので、黙って古い内容が上がることはない。
+
+**モードは3段階で、既定はドライラン。**
+
+| モード | 何をするか |
+|---|---|
+| （既定） | ローカルの検証と「何を送るか」の表示だけ。ネットワークに出ないので鍵も要らない |
+| `--validate` | edit を作って全部適用し、Google 側の検証を通してから **edit を破棄する**。ストアには何も残らない |
+| `--commit` | 同じことをして commit する。**ここで初めて反映され、審査に入る** |
+
+送る前に次を機械的に検証し、1件でも問題があれば**送信せず終了する**（実際に発火することを確認済み）:
+
+- タイトル30字・短い説明80字・詳しい説明4,000字の上限
+- **`docs/store-listing-copy.md` に書いてある字数と本文の実測が一致すること**（ズレていたら資料が古い）
+- 8枚すべてのスクショが実在し、寸法・アスペクト比が Play の要件を満たすこと
+- フィーチャーグラフィックが 1024×500、ストアアイコンが 512×512 であること
+
+#### 事前に用意するもの
+
+**Google Play のサービスアカウント JSON 鍵**だけ。Play Console → 設定 → API アクセス で
+Google Cloud プロジェクトをリンクし、サービスアカウントを作って鍵をダウンロードしたあと、
+Play Console 側でそのアカウントに権限を付ける。**掲載情報の更新だけなら
+「ストアの掲載情報、価格、配布」の編集権限で足りる**（リリース権限は要らない）。
+
+**鍵はコミットしないこと。** `.gitignore` に `play-service-account*.json` ほかを入れてある。
+
+#### 注意
+
+- **アプリが Play Console に既に存在している必要がある。** API は新規アプリを作れない。
+- **スクショは「全消し→順にアップロード」で差し替える。** アップロードした順がそのまま掲載順になるので、
+  スクリプトは直列にアップロードしている（並列にすると順が崩れる）。
+- **`es` は `es-ES`（スペイン）へ送る。** ターゲットが EBAU なのでこの対応にしてある。
+  中南米も別掲載として取りに行くなら `es-419` を `PLAY_LOCALE` に足す（同じ本文を両方へ上げる運用）。
+- **`--commit` したものは自動では取り消せない。** 戻すには Play Console で手で直す。
+
 ### デモ動画
 
 ```sh

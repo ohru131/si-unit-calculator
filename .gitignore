@@ -65,3 +65,9 @@ Thumbs.db
 # Webdev artifacts (checkpoint zips, migrations, etc.)
 .webdev/
 .project-config.json
+
+# Google Play のサービスアカウント鍵（scripts/push-play-listing.mjs が読む）。
+# **絶対にコミットしない。** 鍵があれば掲載情報を書き換えられる。
+play-service-account*.json
+*-play-service-account.json
+google-play-key*.json
