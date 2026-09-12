@@ -88,6 +88,66 @@ Google Play Console の文字数上限（短い説明 80字・詳しい説明 4,
 
 ## 詳しい説明（Full description、上限4,000字）
 
+### 掲載文が「入力できない式」を書いていた（2026-09-12に全言語で修正）
+
+**`Escribe 12V/4,7kΩ` は打っても動かない。** エンジンはカンマを**関数の引数の区切り**として扱うので、
+`12V/4,7kΩ` は `The expression syntax is invalid.` で落ちる（実際に評価して確認）。
+es / es-419 / pt-BR / de / fr の5言語が、**動かない式を「こう打て」と書いていた**（計15箇所）。
+
+**入力と出力で扱いが違う**ので、片方だけ直すこと:
+
+| | 小数点 | 理由 |
+|---|---|---|
+| **打ち込む式** | **必ず `.`** | 評価器がカンマを受け付けない（`12V/4.7kΩ`） |
+| **表示される結果** | ロケールどおり `,` | `formatNumberForLocale` が言語別に整形する（`2,55 mA`。実行して確認） |
+
+散文の中で `12V/4.7kΩ y obtienes 2,55 mA` と混在するのは一見ちぐはぐだが、**画面でもそう見える**
+（入力欄はドット、結果はカンマ）ので、これが正しい。修正後の4式は実エンジンで値も確認済み
+（`12V/4.7kΩ`→0.002553…A / `2kg × 9.8m/s²`→19.6 / `470µF × 12V`→0.00564 / `1kΩ × 1mA`→1）。
+
+### es-419 に中南米の調査を反映した（2026-09-12）
+
+**調査の結論: EBAU の「0,25点減点」に相当する事実は中南米に無い。**
+主要な大学入学試験（Saber 11・PAES・EXANI-II・UNAM の admisión）は**すべて全問マークシート**で、
+記述の採点基準そのものが存在しない。つまり「単位を書き落とすと点が引かれる」という仕組みが無い。
+**この主張を中南米向けに書くと単純に嘘になる**ので、書いていない。
+
+代わりに入れたもの:
+
+- **試験名は「検算に使える対象」として並べるだけ**（`Saber 11`・`PAES`・`EXANI-II`・`examen de admisión`）。
+  減点の主張は付けない。いずれも2026年時点で実在・現行であることを確認した。
+- **「単位が成績の一部」と言えるのは `informe de laboratorio`**（大学の物理・化学の実験レポート）。
+  ここは採点基準に単位・有効数字・不確かさが明記されるのが普通で、**仏語版の `compte rendu de TP` と同じ筋**。
+- **電気の規格は具体的に書ける**（試験と違い裏取りができた）。`RETIE`・`NTC 2050`（コロンビア）、
+  `NOM-001-SEDE`（メキシコ）、`AEA 90364`（アルゼンチン）。電圧降下と電線の断面積はまさにこれらの計算。
+
+**絶対に書いてはいけない名前**（廃止・改称済み。書くと即座に古いと分かる）:
+
+| 書かない | 理由 |
+|---|---|
+| `COMIPEMS` | 2025年に廃止され ECOEMS に移行 |
+| `PSU` / `PDT` | 2022年の PAES で置き換え済み |
+| `Ser Bachiller` / `EAES` | エクアドルで2度改称（現行は Prueba Transformar。しかも物理が無い） |
+| `Pruebas FARO` | コスタリカで改称、2026年にさらに変更 |
+| アルゼンチンの「入学試験」 | **存在しない**（UBA は無選抜。CBC は入試ではなく1年目） |
+| `NOM-001-SEDE` の版数 | 2012 / 2018 / 2022 で資料が食い違う。**年を書かない** |
+
+**言い回しも中南米向けに直した**（Google 自身の es-419 のヘルプに合わせた）:
+`Pulsa` → `Toca`（`pulsa` はスペインの言い方で、UI文では最も目立つ違い）、
+燃費は `consumo`（スペインは L/100km）ではなく `rendimiento`（中南米は km/L。アプリの既定値も km/L）。
+**`tú` のまま**にしてある（アルゼンチンの `vos` は中南米全体では少数派で、19か国に1つの掲載を出す以上
+どの地域でも「間違いではない」`tú` が最善。Google も Microsoft の「中立スペイン語」も同じ判断）。
+
+#### アプリ側に残っている用語の問題（次のバージョンで）
+
+**`disyuntor` はアルゼンチンでは漏電遮断器（人を守る方）を指す。** 配線用遮断器は `llave térmica` で、
+別物。アプリの `lib/notebook-formulas/source/practical.ts` は `Capacidad del disyuntor` と表記しており、
+**アルゼンチンの利用者には意味が違って伝わる**。中南米で通じる正式名は `interruptor termomagnético`。
+掲載文だけ直すとストアとアプリで名前が食い違うので、**掲載文では語自体を避けた**（`el interruptor`）。
+同様に `caída de voltaje` は、NOM-001-SEDE・RETIE の本文では `caída de tensión`。
+**どちらもアプリ本体の訳語を直す話**なので、`docs/i18n-glossary.md` の方針（応力との衝突を避けて
+`voltaje` を使う）と併せて検討する必要がある。
+
 ### es-419（スペイン語圏の中南米）を別掲載として足した（2026-09-12）
 
 **ブラジルは pt-BR で最初から対応済み**（ENEM をターゲットに名指しした本文・専用のスクショ・図版がそろっている）。
@@ -239,12 +299,12 @@ UnitCalc Pro は買い切りです。広告が消え、履歴をCSVで書き出�
 ### Español（3,827字）
 
 ```
-Escribe 12V/4,7kΩ y obtienes 2,55 mA. Escribe 3m + 2kg y te responde que una longitud y una masa no se pueden sumar. Lo importante es lo segundo. UnitCalc es una calculadora con unidades que prefiere detenerse antes que darte un resultado equivocado con toda seguridad.
+Escribe 12V/4.7kΩ y obtienes 2,55 mA. Escribe 3m + 2kg y te responde que una longitud y una masa no se pueden sumar. Lo importante es lo segundo. UnitCalc es una calculadora con unidades que prefiere detenerse antes que darte un resultado equivocado con toda seguridad.
 
-Las unidades se escriben junto a los números. Cada valor pasa a SI antes de calcular, se comprueba que las dimensiones encajen y el resultado vuelve en la unidad que habría escrito una persona. 1kΩ × 1mA son 1 V. 470µF × 12V son 5,64 mC. 2kg × 9,8m/s² son 19,6 N, no 19,6 m·kg/s².
+Las unidades se escriben junto a los números. Cada valor pasa a SI antes de calcular, se comprueba que las dimensiones encajen y el resultado vuelve en la unidad que habría escrito una persona. 1kΩ × 1mA son 1 V. 470µF × 12V son 5,64 mC. 2kg × 9.8m/s² son 19,6 N, no 19,6 m·kg/s².
 
 LA PRECISIÓN LA LEE DE TUS PROPIOS NÚMEROS
-12V / 4,7kΩ da 2,553191489 mA, pero solo escribiste dos cifras significativas. Pulsa el chip 10ⁿ y el resultado pasa a 2,6 × 10⁰ mA, con el valor sin redondear debajo en pequeño y las cifras que ha usado. Donde la precisión no se puede leer con honestidad de lo que escribiste, renuncia a redondear: en una suma manda el decimal y no la cifra significativa, y 5cm + 1mm pone juntos dos pasos distintos. Prefiere callarse a afirmar más de lo que sabes.
+12V / 4.7kΩ da 2,553191489 mA, pero solo escribiste dos cifras significativas. Pulsa el chip 10ⁿ y el resultado pasa a 2,6 × 10⁰ mA, con el valor sin redondear debajo en pequeño y las cifras que ha usado. Donde la precisión no se puede leer con honestidad de lo que escribiste, renuncia a redondear: en una suma manda el decimal y no la cifra significativa, y 5cm + 1mm pone juntos dos pasos distintos. Prefiere callarse a afirmar más de lo que sabes.
 
 VES EL ERROR ANTES DE PULSAR IGUAL
 La vista previa bajo el campo se colorea mientras escribes: unidades en azul, constantes guardadas en amarillo y subrayado en rojo todo lo que no es una unidad utilizable. Pulsa el rojo y te ofrece correcciones. Con una expresión a medias se queda callada en vez de corregirte en cada tecla.
@@ -279,20 +339,20 @@ UnitCalc Pro es un pago único. Quita la publicidad, exporta el historial en CSV
 Sin cuenta que crear. Tus cálculos, tus cuadernos y tus unidades se quedan en el dispositivo.
 ```
 
-### Español (Latinoamérica)（3,845字）
+### Español (Latinoamérica)（3,967字）
 
 ```
-Escribe 12V/4,7kΩ y obtienes 2,55 mA. Escribe 3m + 2kg y te responde que una longitud y una masa no se pueden sumar. Lo importante es lo segundo. UnitCalc es una calculadora con unidades que prefiere detenerse antes que darte un resultado equivocado con toda seguridad.
+Escribe 12V/4.7kΩ y obtienes 2,55 mA. Escribe 3m + 2kg y te responde que una longitud y una masa no se pueden sumar. Lo importante es lo segundo. UnitCalc es una calculadora con unidades que prefiere detenerse antes que darte un resultado equivocado con toda seguridad.
 
-Las unidades se escriben junto a los números. Cada valor pasa a SI antes de calcular, se comprueba que las dimensiones encajen y el resultado vuelve en la unidad que habría escrito una persona. 1kΩ × 1mA son 1 V. 470µF × 12V son 5,64 mC. 2kg × 9,8m/s² son 19,6 N, no 19,6 m·kg/s².
+Las unidades se escriben junto a los números. Cada valor pasa a SI antes de calcular, se comprueba que las dimensiones encajen y el resultado vuelve en la unidad que habría escrito una persona. 1kΩ × 1mA son 1 V. 470µF × 12V son 5,64 mC. 2kg × 9.8m/s² son 19,6 N, no 19,6 m·kg/s².
 
 LA PRECISIÓN LA LEE DE TUS PROPIOS NÚMEROS
-12V / 4,7kΩ da 2,553191489 mA, pero solo escribiste dos cifras significativas. Pulsa el chip 10ⁿ y el resultado pasa a 2,6 × 10⁰ mA, con el valor sin redondear debajo en pequeño y las cifras que ha usado. Donde la precisión no se puede leer con honestidad de lo que escribiste, renuncia a redondear: en una suma manda el decimal y no la cifra significativa, y 5cm + 1mm pone juntos dos pasos distintos. Prefiere callarse a afirmar más de lo que sabes.
+12V / 4.7kΩ da 2,553191489 mA, pero solo escribiste dos cifras significativas. Toca el chip 10ⁿ y el resultado pasa a 2,6 × 10⁰ mA, con el valor sin redondear debajo en pequeño y las cifras que ha usado. Donde la precisión no se puede leer de lo que escribiste, renuncia a redondear: en una suma manda el decimal, y 5cm + 1mm pone juntos dos pasos distintos. Prefiere callarse a afirmar más de lo que sabes.
 
-VES EL ERROR ANTES DE PULSAR IGUAL
-La vista previa bajo el campo se colorea mientras escribes: unidades en azul, constantes guardadas en amarillo y subrayado en rojo todo lo que no es una unidad utilizable. Pulsa el rojo y te ofrece correcciones. Con una expresión a medias se queda callada en vez de corregirte en cada tecla.
+VES EL ERROR ANTES DE TOCAR IGUAL
+La vista previa bajo el campo se colorea mientras escribes: unidades en azul, constantes en amarillo y subrayado en rojo lo que no es una unidad utilizable. Toca el rojo y te ofrece correcciones. Con una expresión a medias se queda callada en vez de corregirte en cada tecla.
 
-Es justo donde se pierden puntos en física y química: la conversión que quedó a medias, el prefijo que no se canceló. Las unidades no son decoración, son parte de la respuesta.
+Ahí es donde se cae la física: la conversión que quedó a medias, el prefijo que no se canceló. Sirve para repasar física del Saber 11, la PAES, el EXANI-II o el examen de admisión, y en el informe de laboratorio, donde las unidades y las cifras significativas son parte de la nota.
 
 VARIAS FORMAS DE LEER UN RESULTADO
 • Exacto en lugar de redondeado: 1/3 sigue siendo 1/3, 2*pi*50 pasa a 100π, sqrt(8) pasa a 2√2 y sin(60deg) pasa a √3/2, compuestos como fracciones y radicales de verdad, y copiados tal cual.
@@ -307,12 +367,12 @@ CUADERNOS QUE CALCULAN, NO LA FOTO DE UNA FÓRMULA
 Nueve bibliotecas de cálculos ya hechos, con matemáticas compuestas de verdad y el resultado de cada paso a la vista:
 - Ciencias naturales, y Física (bachillerato)
 - Estequiometría química, y Astronomía y espacio
-- Electricidad y energía: caída de voltaje y la sección de cable que hace falta, relación de transformación, rendimiento y corriente de un motor, electrónica y solar
+- Electricidad y energía: caída de voltaje y la sección de conductor que hace falta, relación de transformación, rendimiento y corriente de un motor, electrónica y solar. Son las cuentas del RETIE y la NTC 2050, la NOM-001-SEDE y la AEA 90364
 - Aficiones y creación: fotografía, audio, bricolaje, impresión 3D
 - Hogar y vida diaria: cocina, café, forma física, meteorología
 - Física de los vehículos
 - Diseño mecánico y estructural: esfuerzo y deformación, vigas y columnas, ejes, elementos de máquinas
-Búscalos todos a la vez por título, descripción o categoría. Cada cuaderno recuerda los últimos valores que pusiste. Los que dependen de dónde vives se abren ya ajustados a tu país: 127 V en México, 120 V en Colombia, 230 V en Argentina o Chile, con la corriente del disyuntor, los precios de electricidad y combustible, el consumo y las medidas de taza y cuchara que se usan ahí.
+Búscalos todos por título, descripción o categoría. Cada cuaderno recuerda tus últimos valores. Los que dependen de dónde vives se abren ya ajustados a tu país: 127 V en México, 120 V en Colombia, 230 V en Argentina o Chile, con la corriente nominal del interruptor, los precios de electricidad y combustible, el rendimiento en km/L y las medidas de taza y cuchara que se usan ahí.
 
 SIN SUSCRIPCIÓN
 El historial es ilimitado para todos y nunca se recorta ni se guarda detrás de una compra. Haz copia de cuadernos, constantes y unidades propias en un archivo y restáuralos en otro dispositivo.
@@ -325,12 +385,12 @@ Sin cuenta que crear. Tus cálculos, tus cuadernos y tus unidades se quedan en e
 ### Português (Brasil)（3,719字）
 
 ```
-Digite 12V/4,7kΩ e você recebe 2,55 mA. Digite 3m + 2kg e você recebe o aviso de que um comprimento e uma massa não podem ser somados. O que importa é o segundo caso. O UnitCalc é uma calculadora de unidades que prefere parar a te entregar um resultado errado com toda a confiança.
+Digite 12V/4.7kΩ e você recebe 2,55 mA. Digite 3m + 2kg e você recebe o aviso de que um comprimento e uma massa não podem ser somados. O que importa é o segundo caso. O UnitCalc é uma calculadora de unidades que prefere parar a te entregar um resultado errado com toda a confiança.
 
-As unidades você digita junto com os números. Cada valor vai para o SI antes da conta, as dimensões são conferidas e o resultado volta na unidade que uma pessoa teria escrito. 1kΩ × 1mA dão 1 V. 470µF × 12V dão 5,64 mC. 2kg × 9,8m/s² dão 19,6 N, e não 19,6 m·kg/s².
+As unidades você digita junto com os números. Cada valor vai para o SI antes da conta, as dimensões são conferidas e o resultado volta na unidade que uma pessoa teria escrito. 1kΩ × 1mA dão 1 V. 470µF × 12V dão 5,64 mC. 2kg × 9.8m/s² dão 19,6 N, e não 19,6 m·kg/s².
 
 A PRECISÃO ELE LÊ DOS SEUS PRÓPRIOS NÚMEROS
-12V / 4,7kΩ dá 2,553191489 mA, mas você digitou só dois algarismos significativos. Toque no chip 10ⁿ e o resultado vira 2,6 × 10⁰ mA, com o valor sem arredondar logo abaixo em letra pequena e a quantidade de algarismos usada. Onde a precisão não dá para ler com honestidade do que você digitou, ele desiste de arredondar: numa soma quem manda é a casa decimal, não o algarismo significativo, e 5cm + 1mm junta dois passos diferentes. Ele prefere não dizer nada a afirmar mais do que você sabe.
+12V / 4.7kΩ dá 2,553191489 mA, mas você digitou só dois algarismos significativos. Toque no chip 10ⁿ e o resultado vira 2,6 × 10⁰ mA, com o valor sem arredondar logo abaixo em letra pequena e a quantidade de algarismos usada. Onde a precisão não dá para ler com honestidade do que você digitou, ele desiste de arredondar: numa soma quem manda é a casa decimal, não o algarismo significativo, e 5cm + 1mm junta dois passos diferentes. Ele prefere não dizer nada a afirmar mais do que você sabe.
 
 VOCÊ VÊ O ERRO ANTES DE APERTAR IGUAL
 A prévia embaixo do campo vai ganhando cor enquanto você digita: unidades em azul, constantes salvas em amarelo e sublinhado em vermelho tudo o que não é uma unidade utilizável. Toque no vermelho e ele sugere correções. Com a expressão pela metade ele fica quieto, em vez de te corrigir a cada tecla.
@@ -368,12 +428,12 @@ Sem conta para criar. Seus cálculos, seus cadernos e suas unidades ficam no apa
 ### Deutsch（3,908字）
 
 ```
-Tippe 12V/4,7kΩ und du bekommst 2,55 mA. Tippe 3m + 2kg und du bekommst die Auskunft, dass sich eine Länge und eine Masse nicht addieren lassen. Das Zweite ist der Punkt. UnitCalc ist ein Einheitenrechner, der lieber stehen bleibt, als dir ein selbstbewusstes falsches Ergebnis zu geben.
+Tippe 12V/4.7kΩ und du bekommst 2,55 mA. Tippe 3m + 2kg und du bekommst die Auskunft, dass sich eine Länge und eine Masse nicht addieren lassen. Das Zweite ist der Punkt. UnitCalc ist ein Einheitenrechner, der lieber stehen bleibt, als dir ein selbstbewusstes falsches Ergebnis zu geben.
 
-Die Einheiten tippst du mit. Vor dem Rechnen wird jeder Wert auf SI gebracht, die Dimensionen werden geprüft, und das Ergebnis kommt in der Einheit zurück, die ein Mensch hingeschrieben hätte. 1kΩ × 1mA sind 1 V. 470µF × 12V sind 5,64 mC. 2kg × 9,8m/s² sind 19,6 N und nicht 19,6 m·kg/s².
+Die Einheiten tippst du mit. Vor dem Rechnen wird jeder Wert auf SI gebracht, die Dimensionen werden geprüft, und das Ergebnis kommt in der Einheit zurück, die ein Mensch hingeschrieben hätte. 1kΩ × 1mA sind 1 V. 470µF × 12V sind 5,64 mC. 2kg × 9.8m/s² sind 19,6 N und nicht 19,6 m·kg/s².
 
 DIE GENAUIGKEIT LIEST ER AUS DEINEN EIGENEN ZAHLEN
-12V / 4,7kΩ ergibt 2,553191489 mA, getippt hast du aber nur zwei geltende Ziffern. Ein Tipp auf den 10ⁿ-Chip macht daraus 2,6 × 10⁰ mA, darunter bleiben der ungerundete Wert und die Zahl der Ziffern stehen. Wo sich die Genauigkeit nicht ehrlich ablesen lässt, rundet er gar nicht: Beim Addieren entscheidet die Nachkommastelle, und bei 5cm + 1mm stehen zwei Schrittweiten nebeneinander. Lieber sagt er nichts, als mehr zu behaupten, als du weißt.
+12V / 4.7kΩ ergibt 2,553191489 mA, getippt hast du aber nur zwei geltende Ziffern. Ein Tipp auf den 10ⁿ-Chip macht daraus 2,6 × 10⁰ mA, darunter bleiben der ungerundete Wert und die Zahl der Ziffern stehen. Wo sich die Genauigkeit nicht ehrlich ablesen lässt, rundet er gar nicht: Beim Addieren entscheidet die Nachkommastelle, und bei 5cm + 1mm stehen zwei Schrittweiten nebeneinander. Lieber sagt er nichts, als mehr zu behaupten, als du weißt.
 
 FEHLER SIEHST DU, BEVOR DU AUF GLEICH DRÜCKST
 Die Vorschau unter der Eingabe färbt sich beim Tippen: Einheiten blau, gespeicherte Konstanten gelb, alles, was keine brauchbare Einheit ist, rot unterstrichen. Tippe auf das Rote, und du bekommst Korrekturvorschläge. Bei halbfertigen Ausdrücken bleibt er still, statt dich bei jedem Anschlag zu ermahnen.
@@ -411,12 +471,12 @@ Kein Konto nötig. Deine Rechnungen, Rechenhefte und eigenen Einheiten bleiben a
 ### Français（3,898字）
 
 ```
-Tapez 12V/4,7kΩ, vous obtenez 2,55 mA. Tapez 3m + 2kg, on vous répond qu'une longueur et une masse ne s'additionnent pas. C'est le second cas qui compte. UnitCalc est un convertisseur d'unités et une calculatrice qui préfère s'arrêter plutôt que de vous donner un résultat faux avec assurance.
+Tapez 12V/4.7kΩ, vous obtenez 2,55 mA. Tapez 3m + 2kg, on vous répond qu'une longueur et une masse ne s'additionnent pas. C'est le second cas qui compte. UnitCalc est un convertisseur d'unités et une calculatrice qui préfère s'arrêter plutôt que de vous donner un résultat faux avec assurance.
 
-Les unités se tapent avec les nombres. Chaque valeur passe en SI avant le calcul, les dimensions sont vérifiées, et le résultat revient dans l'unité qu'une personne aurait écrite. 1kΩ × 1mA font 1 V. 470µF × 12V font 5,64 mC. 2kg × 9,8m/s² font 19,6 N, et non 19,6 m·kg/s².
+Les unités se tapent avec les nombres. Chaque valeur passe en SI avant le calcul, les dimensions sont vérifiées, et le résultat revient dans l'unité qu'une personne aurait écrite. 1kΩ × 1mA font 1 V. 470µF × 12V font 5,64 mC. 2kg × 9.8m/s² font 19,6 N, et non 19,6 m·kg/s².
 
 LA PRÉCISION EST LUE DANS VOS PROPRES CHIFFRES
-12V / 4,7kΩ donne 2,553191489 mA, mais vous n'avez tapé que deux chiffres significatifs. Touchez la pastille 10ⁿ et le résultat devient 2,6 × 10⁰ mA, la valeur non arrondie restant en petit dessous avec le nombre de chiffres retenus. Là où la précision ne se lit pas honnêtement dans ce que vous avez tapé, elle renonce à arrondir : dans une addition c'est la décimale qui décide, et 5cm + 1mm met côte à côte deux pas différents. Elle préfère se taire qu'affirmer plus que vous ne savez.
+12V / 4.7kΩ donne 2,553191489 mA, mais vous n'avez tapé que deux chiffres significatifs. Touchez la pastille 10ⁿ et le résultat devient 2,6 × 10⁰ mA, la valeur non arrondie restant en petit dessous avec le nombre de chiffres retenus. Là où la précision ne se lit pas honnêtement dans ce que vous avez tapé, elle renonce à arrondir : dans une addition c'est la décimale qui décide, et 5cm + 1mm met côte à côte deux pas différents. Elle préfère se taire qu'affirmer plus que vous ne savez.
 
 VOUS VOYEZ L'ERREUR AVANT D'APPUYER SUR ÉGAL
 L'aperçu sous la saisie se colore au fur et à mesure : unités en bleu, constantes en jaune, et souligné en rouge tout ce qui n'est pas une unité utilisable. Touchez le rouge, des corrections vous sont proposées. Sur une expression inachevée, elle se tait au lieu de vous reprendre à chaque touche.

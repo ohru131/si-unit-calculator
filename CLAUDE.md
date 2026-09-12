@@ -552,6 +552,20 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - **削除するなら**: `lib/unit-explanations.ts`・`tests/units.test.ts` の3件・`index.tsx` の state とモーダルと
     import をまとめて消す。12件ぶんの6言語の文章を捨てることになるので、**復活の方が費用対効果は高そう**。
 
+- **スペイン語の電気用語が中南米では別の意味になる（次のバージョンで）**。2026-09-12に es-419 の掲載を作るとき、web調査で判明した。
+  - **`disyuntor` はアルゼンチンでは漏電遮断器（人を守る方）を指す。** 配線用遮断器は `llave térmica` で別物。
+    `lib/notebook-formulas/source/practical.ts` の「ブレーカー容量」は `Capacidad del disyuntor` なので、
+    **アルゼンチンの利用者には意味が違って伝わる**。中南米で通じる正式名は `interruptor termomagnético`
+    （メキシコの NOM-001-SEDE の用語。Schneider も西=`magnetotérmico` / 中南米=`termomagnético` で商品名を分けている）。
+  - **`caída de voltaje` は、NOM-001-SEDE・RETIE・NTC 2050 の本文では `caída de tensión`。** 利用者が見ている
+    規格の用語と、アプリのノート名が違う。ただし `docs/i18n-glossary.md` は**応力（`esfuerzo`/`tensión`）との
+    衝突を避けて `voltaje` を使う**と決めているので、単純に置換すると別の衝突が起きる。`caída de tensión` は
+    固定の複合語で曖昧さが無いため例外にできるはずだが、用語集の方針ごと見直す話になる。
+  - **掲載文では語自体を避けて回避した**（`el interruptor`）。掲載文だけ直すと「ストアで見た名前がアプリに無い」
+    という既存の失敗パターンになるため。**直すならアプリ側から。**
+  - 他に中南米向けで直す価値があるもの: `coche`→`auto`（メキシコでは `coche` はベビーカー寄り）、
+    `gasolina`→`combustible`（アルゼンチン `nafta` / チリ `bencina`）。
+
 - **既存6カテゴリのノート追加と重複整理**（約30件の案あり）。重複が実害になっているのは、`electricity-basics`の直列並列合成とブレーカー容量が`science-electricity`と同じ式、`chemistry`の質量パーセント濃度が`science-density`と重複、`vehicles`の制動距離が停止距離ノートの2手順目そのもの、`astronomy`の光の到達時間2件が同じ`t=d/c`。**ただしシードから消しても既存インストールには届かない**（投入はカテゴリID単位で1回きり）ので、消し方は別途要検討。
 - **投入済みプリセットの後追い更新（残り）**。**地域依存の既定値は #54 で解決した**（`lib/preset-regional-sync.ts` の目印方式。電気代・燃料単価・フィラメント単価・電圧・ブレーカー定格・燃費の6種すべてに効く）。残っているのは**手順の式・タイトル・説明文**で、シードを直しても既存インストールには届かない（#46 で作り直した「はり・柱」は既存ユーザーには旧・材料力学のまま）。こちらは「利用者が編集したか」の目印が無く、`PRESET_NOTEBOOK_SEEDS_AS_SEEDED` との突き合わせで推測するしかない。**式にも目印方式を広げるのが筋**だが、定数と違って利用者が式を編集する頻度が低いぶん優先度は下がる。
 - **自作単位がバックアップに含まれていない**（`lib/constants-backup.ts` / `lib/notebooks-backup.ts`）。`2shaku` を参照するノートを別端末へ復元すると評価に失敗する。バックアップ形式の変更を伴うため #34 のスコープ外にした。**次にやるならここが最優先。**
