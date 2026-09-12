@@ -18,7 +18,7 @@
 //   --commit    同じことをして edits.commit する。**ここで初めて反映され、審査に入る。**
 //
 // 文言と画像の並びは**このスクリプトに書かない**。情報源は:
-//   docs/store-listing-copy.md      … タイトル・短い説明・詳しい説明（6言語）
+//   docs/store-listing-copy.md      … タイトル・短い説明・詳しい説明（7掲載）
 //   submission-assets/README.md     … 言語ごとに Play へ上げる8枚とその順
 //   submission-assets/screenshots/  … スクリーンショット本体
 //   submission-assets/store/        … フィーチャーグラフィックとストアアイコン
@@ -44,22 +44,34 @@ const DEFAULT_PACKAGE = "com.app.siunitcalculator";
 
 // 掲載文のキー（このリポジトリの言語コード）→ Play の掲載言語コード。
 // **Play 側は地域まで含んだコードでしか受け取らない**ので、ここで対応付ける。
-// es は EBAU（スペイン）を主なターゲットにしているので es-ES。中南米も取りに行くなら
-// es-419 を別の掲載として足すことになる（同じ本文を両方へ上げる運用）。
+// es は EBAU（スペイン）を主なターゲットにしているので es-ES。中南米は es-419 へ
+// **別の掲載として、本文を差し替えて**上げる（EBAU と 0,25 点の減点はスペインの
+// 大学入試の話で中南米では通じないため）。画像は es から借りる（IMAGE_SOURCE）。
 const PLAY_LOCALE = {
   en: "en-US",
   ja: "ja-JP",
   es: "es-ES",
+  "es-419": "es-419",
   "pt-BR": "pt-BR",
   de: "de-DE",
   fr: "fr-FR",
 };
+
+// 画像とその並びを**別の言語から借りる**掲載。es-419（スペイン語圏の中南米）は
+// アプリ自体が es のスペイン語なので、スクリーンショットは es のものをそのまま使う。
+// **本文だけ差し替えている**（EBAU はスペインの大学入試なので中南米では通じない）。
+// 借り元を書かない言語は自分の画像を使う。
+const IMAGE_SOURCE = {
+  "es-419": "es",
+};
+const imageLang = (lang) => IMAGE_SOURCE[lang] ?? lang;
 
 // 詳しい説明のブロック見出し（docs/store-listing-copy.md の `### 言語名（N字）`）。
 const FULL_DESC_HEADING = {
   en: "English",
   ja: "日本語",
   es: "Español",
+  "es-419": "Español (Latinoamérica)",
   "pt-BR": "Português (Brasil)",
   de: "Deutsch",
   fr: "Français",
@@ -156,7 +168,9 @@ function readScreenshotOrder() {
   const table = src.slice(start, end < 0 ? undefined : end);
 
   const order = {};
-  for (const lang of Object.keys(PLAY_LOCALE)) {
+  // 借りる側（es-419 など）は README に行が無い。**借り元の言語だけを読む。**
+  const sources = [...new Set(Object.keys(PLAY_LOCALE).map(imageLang))];
+  for (const lang of sources) {
     const esc = lang.replace(/[-]/g, "\\-");
     const row = new RegExp(`^\\| ${esc} \\|(.+)\\|$`, "m").exec(table);
     if (!row) throw new Error(`Playへ上げる順の行が読めない: ${lang}`);
@@ -212,15 +226,16 @@ function buildPlan({ listing, order, langs, skipImages, skipText }) {
     }
 
     if (!skipImages) {
-      for (const cut of order[lang]) {
-        const path = join(SHOTS_DIR, `${lang}-${cut}.png`);
+      const src = imageLang(lang);
+      for (const cut of order[src]) {
+        const path = join(SHOTS_DIR, `${src}-${cut}.png`);
         if (!existsSync(path)) { problems.push(`${lang}: スクショが無い ${basename(path)}`); continue; }
         const img = checkImage(path, "phoneScreenshots");
         img.problems.forEach((p) => problems.push(`${lang} ${cut}: ${p}`));
         entry.screenshots.push({ cut, path, ...img });
       }
 
-      const fg = join(STORE_DIR, `play-feature-graphic-${lang}-1024x500.png`);
+      const fg = join(STORE_DIR, `play-feature-graphic-${src}-1024x500.png`);
       if (!existsSync(fg)) problems.push(`${lang}: フィーチャーグラフィックが無い`);
       else {
         const img = checkImage(fg, "featureGraphic");

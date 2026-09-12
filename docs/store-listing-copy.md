@@ -46,6 +46,7 @@ Google Play Console の文字数上限（短い説明 80字・詳しい説明 4,
 | en | 26 | UnitCalc - Unit Calculator | ASO第一検索語 `unit calculator` |
 | ja | 21 | UnitCalc - 電験・電工の単位計算 | ターゲットの資格名（電験三種・第二種電気工事士） |
 | es | 28 | UnitCalc - Unidades y física | EBAU の física |
+| es-419 | 28 | UnitCalc - Unidades y física | 中南米向けの別掲載（本文だけ差し替え、タイトルは共通） |
 | pt-BR | 28 | UnitCalc - Unidades e física | ENEM の física |
 | de | 27 | UnitCalc - Einheitenrechner | ASO第一検索語 `Einheitenrechner` |
 | fr | 26 | UnitCalc - Calcul d'unités | lycée の physique-chimie（第一検索語 `convertisseur d'unités` は11+22字で30字に入らない） |
@@ -61,6 +62,7 @@ Google Play Console の文字数上限（短い説明 80字・詳しい説明 4,
 | en | 69 | Just type the units. Prefixes and significant figures: 1kΩ × 1mA ⇒ 1V |
 | ja | 40 | 単位をつけて計算するだけ。桁合わせも有効数字も自動。1kΩ × 1mA ⇒ 1V |
 | es | 70 | Escribe las unidades: prefijos y cifras significativas. 1kΩ × 1mA ⇒ 1V |
+| es-419 | 70 | Escribe las unidades: prefijos y cifras significativas. 1kΩ × 1mA ⇒ 1V |
 | pt-BR | 72 | Digite as unidades: prefixos e algarismos significativos. 1kΩ × 1mA ⇒ 1V |
 | de | 72 | Einheiten eintippen. Vorsatzzeichen und geltende Ziffern. 1kΩ × 1mA ⇒ 1V |
 | fr | 73 | Saisissez les unités : préfixes et chiffres significatifs. 1kΩ × 1mA ⇒ 1V |
@@ -85,6 +87,37 @@ Google Play Console の文字数上限（短い説明 80字・詳しい説明 4,
 厳密値表示とノート件数はどの言語の短い説明にも入れていない（80字に収まらないため、詳しい説明に置いた）。
 
 ## 詳しい説明（Full description、上限4,000字）
+
+### es-419（スペイン語圏の中南米）を別掲載として足した（2026-09-12）
+
+**ブラジルは pt-BR で最初から対応済み**（ENEM をターゲットに名指しした本文・専用のスクショ・図版がそろっている）。
+足りていなかったのは**スペイン語圏の中南米**（メキシコ・コロンビア・アルゼンチンなど）で、ここは
+ポルトガル語のブラジルとは別の市場。`docs/target-users-by-locale-2026-09.md` 第60行が
+「es（ES + 中南米）」と1つに束ねているが、**掲載は分けないと中身が合わない。**
+
+**スペイン向け（es-ES）はそのまま残す。** Play は同じアプリに複数のスペイン語掲載を持てるので、
+es-419 を足してもスペインの掲載は消えない。
+
+**本文を差し替えた箇所は2つだけ**（残りは es と同一）:
+
+| 箇所 | es-ES | es-419 |
+|---|---|---|
+| 減点の話 | `en la EBAU … resta 0,25 puntos por apartado` | 試験名を出さず「物理・化学で点を落とすのはここ」に一般化 |
+| 地域別の既定値 | `voltaje de la red`（一般） | `127 V en México, 120 V en Colombia, 230 V en Argentina o Chile` |
+
+- **EBAU はスペインの大学入試なので中南米では通じない。** 逆に強みになるのが2つ目で、
+  **中南米は国ごとに電源電圧が本当に違う**（`lib/preset-regional-defaults.ts` を実行して確認:
+  MX 127V / CO 120V / AR・CL・PE 230V / ES 230V）。スペイン向けには書く意味の薄い機能が、
+  中南米では「自分の国の値で開く」という具体的な訴求になる。
+- **中南米の試験名は入れていない。** 調査資料に裏取りが無く、EXANI や Saber のような名前を
+  推測で書くと「その国で実在するか」を確かめずに掲載することになる。必要なら先に調査する。
+- **画像は es のものを流用する**（`scripts/push-play-listing.mjs` の `IMAGE_SOURCE`）。
+  アプリ自体のスペイン語は1種類なので、撮り直しても同じ絵になる。
+- **ただし `14-exam-samples` のカットには「Preparación (EBAU)」が写る。**
+  これはアプリ側のサンプルカテゴリのラベル（`lib/sample-calculations.ts`）なので、
+  掲載文だけでは直せない。**中南米で違和感が出るのを承知で流用している**（8枚中1枚）。
+  本気で分けるなら、アプリの `es` のラベルを中立な語にするか、言語とは別に地域で
+  ラベルを出し分ける必要があり、別作業になる。
 
 ### 2026-09-12 に全面的に書き直した理由
 
@@ -237,6 +270,49 @@ Nueve bibliotecas de cálculos ya hechos, con matemáticas compuestas de verdad 
 - Física de los vehículos
 - Diseño mecánico y estructural: esfuerzo y deformación, vigas y columnas, ejes, elementos de máquinas
 Búscalos todos a la vez por título, descripción o categoría. Cada cuaderno recuerda los últimos valores que pusiste. Los que dependen de dónde vives se abren ya ajustados a tu región: voltaje de la red, corriente del disyuntor, precios de electricidad y combustible, consumo y las medidas de taza y cuchara de tu país.
+
+SIN SUSCRIPCIÓN
+El historial es ilimitado para todos y nunca se recorta ni se guarda detrás de una compra. Haz copia de cuadernos, constantes y unidades propias en un archivo y restáuralos en otro dispositivo.
+
+UnitCalc Pro es un pago único. Quita la publicidad, exporta el historial en CSV, guarda tus juegos de unidades y comparte un cuaderno como documento maquetado para imprimir o guardar en PDF.
+
+Sin cuenta que crear. Tus cálculos, tus cuadernos y tus unidades se quedan en el dispositivo.
+```
+
+### Español (Latinoamérica)（3,845字）
+
+```
+Escribe 12V/4,7kΩ y obtienes 2,55 mA. Escribe 3m + 2kg y te responde que una longitud y una masa no se pueden sumar. Lo importante es lo segundo. UnitCalc es una calculadora con unidades que prefiere detenerse antes que darte un resultado equivocado con toda seguridad.
+
+Las unidades se escriben junto a los números. Cada valor pasa a SI antes de calcular, se comprueba que las dimensiones encajen y el resultado vuelve en la unidad que habría escrito una persona. 1kΩ × 1mA son 1 V. 470µF × 12V son 5,64 mC. 2kg × 9,8m/s² son 19,6 N, no 19,6 m·kg/s².
+
+LA PRECISIÓN LA LEE DE TUS PROPIOS NÚMEROS
+12V / 4,7kΩ da 2,553191489 mA, pero solo escribiste dos cifras significativas. Pulsa el chip 10ⁿ y el resultado pasa a 2,6 × 10⁰ mA, con el valor sin redondear debajo en pequeño y las cifras que ha usado. Donde la precisión no se puede leer con honestidad de lo que escribiste, renuncia a redondear: en una suma manda el decimal y no la cifra significativa, y 5cm + 1mm pone juntos dos pasos distintos. Prefiere callarse a afirmar más de lo que sabes.
+
+VES EL ERROR ANTES DE PULSAR IGUAL
+La vista previa bajo el campo se colorea mientras escribes: unidades en azul, constantes guardadas en amarillo y subrayado en rojo todo lo que no es una unidad utilizable. Pulsa el rojo y te ofrece correcciones. Con una expresión a medias se queda callada en vez de corregirte en cada tecla.
+
+Es justo donde se pierden puntos en física y química: la conversión que quedó a medias, el prefijo que no se canceló. Las unidades no son decoración, son parte de la respuesta.
+
+VARIAS FORMAS DE LEER UN RESULTADO
+• Exacto en lugar de redondeado: 1/3 sigue siendo 1/3, 2*pi*50 pasa a 100π, sqrt(8) pasa a 2√2 y sin(60deg) pasa a √3/2, compuestos como fracciones y radicales de verdad, y copiados tal cual.
+• Un resultado en todas las unidades compatibles, en una tabla bajo la tarjeta.
+• Los enteros en decimal, binario, octal y hexadecimal en esa misma tarjeta.
+• Teclas de prefijo (p n µ m c k M G) para escribir MΩ o nF sin el teclado del sistema.
+
+TUS UNIDADES Y TUS CONSTANTES
+Define una unidad como múltiplo (2shaku = 0,606m) o mediante una fórmula, lo que cubre escalas con desplazamiento como las de temperatura. Guarda constantes como W = 3cm y reutilízalas en cualquier expresión posterior.
+
+CUADERNOS QUE CALCULAN, NO LA FOTO DE UNA FÓRMULA
+Nueve bibliotecas de cálculos ya hechos, con matemáticas compuestas de verdad y el resultado de cada paso a la vista:
+- Ciencias naturales, y Física (bachillerato)
+- Estequiometría química, y Astronomía y espacio
+- Electricidad y energía: caída de voltaje y la sección de cable que hace falta, relación de transformación, rendimiento y corriente de un motor, electrónica y solar
+- Aficiones y creación: fotografía, audio, bricolaje, impresión 3D
+- Hogar y vida diaria: cocina, café, forma física, meteorología
+- Física de los vehículos
+- Diseño mecánico y estructural: esfuerzo y deformación, vigas y columnas, ejes, elementos de máquinas
+Búscalos todos a la vez por título, descripción o categoría. Cada cuaderno recuerda los últimos valores que pusiste. Los que dependen de dónde vives se abren ya ajustados a tu país: 127 V en México, 120 V en Colombia, 230 V en Argentina o Chile, con la corriente del disyuntor, los precios de electricidad y combustible, el consumo y las medidas de taza y cuchara que se usan ahí.
 
 SIN SUSCRIPCIÓN
 El historial es ilimitado para todos y nunca se recorta ni se guarda detrás de una compra. Haz copia de cuadernos, constantes y unidades propias en un archivo y restáuralos en otro dispositivo.
