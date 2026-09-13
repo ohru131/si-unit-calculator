@@ -42,39 +42,41 @@ const EXAMPLE = "1kΩ × 1mA → 1V";
 
 // 見出し（title）はアプリ名 "UnitCalc"（lib/global-settings.tsx の `calculator`・app.config.ts の
 // appName と同じ）。**固有名詞なので言語ごとに訳さない。**
-// headline は「単位ごと打つ → 合わない式は通さない」の2文。以前の「計算に集中／単位は任せて」型は
-// 掲載文の書き直し（2026-09-12）で落としたのと同じ、主張の無い2拍の言い回しだった。
+// headline は「単位まで含めて計算する → 答えは読みやすい単位のまま」の2文（2026-09-13、
+// docs/store-listing-copy.md の書き直しに合わせて差し替え）。以前の「単位ごと打つ／合わない式は
+// 通さない」は次元エラーを防ぐ話が先に立っていたが、掲載文の軸は「単位まで含めて計算する」という
+// 前向きな主張が先なので、見出しもその順に揃えた。
 // sub は資格・現場から科学・技術計算までの広がり。実例（EXAMPLE）が電気なので audience はこれで足りる。
 const LOCALES = {
   en: {
     title: "UnitCalc",
-    headline: "Type the units with the numbers.<br>What doesn't add up won't get through.",
+    headline: "Calculates with the units.<br>The answer stays readable.",
     sub: "From electrical exams to science & engineering.",
   },
   ja: {
     cjk: true,
     title: "UnitCalc",
-    headline: "単位ごと打てる。<br>合わない計算は、通さない。",
+    headline: "単位まで含めて計算する。<br>答えは、読みやすい単位で。",
     sub: "電工試験から、科学・技術計算まで。",
   },
   es: {
     title: "UnitCalc",
-    headline: "Escribe las unidades con los números.<br>Lo que no cuadra, no pasa.",
+    headline: "Calcula con las unidades.<br>El resultado queda legible.",
     sub: "De exámenes de electricidad al cálculo científico y técnico.",
   },
   "pt-BR": {
     title: "UnitCalc",
-    headline: "Digite as unidades junto com os números.<br>O que não bate, não passa.",
+    headline: "Calcula com as unidades.<br>O resultado fica legível.",
     sub: "De provas de elétrica a cálculos científicos e técnicos.",
   },
   de: {
     title: "UnitCalc",
-    headline: "Einheiten mittippen.<br>Was nicht passt, kommt nicht durch.",
+    headline: "Rechnet mit den Einheiten.<br>Das Ergebnis bleibt lesbar.",
     sub: "Von Elektroprüfungen bis zu Wissenschaft & Technik.",
   },
   fr: {
     title: "UnitCalc",
-    headline: "Tapez les unités avec les nombres.<br>Ce qui ne colle pas ne passe pas.",
+    headline: "Calcule avec les unités.<br>Le résultat reste lisible.",
     sub: "Des examens d'électricité aux sciences & techniques.",
   },
 };
