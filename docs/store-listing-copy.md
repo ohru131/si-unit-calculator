@@ -222,10 +222,10 @@ OFF YOUR OWN NUMBERS` のような凝った文から、節の中身が分かる�
 `YOUR OWN UNITS AND CONSTANTS`）に戻した。**その言語だけに効く一文は残してある**
 （独 `Punktabzug`・西 `0,25 puntos`・仏「単位を各段階に」・葡 ENEM）。
 
-**5. 4,000字に収めるために削ったもの**（es 3,821 / es-419 3,899 / de 3,852 / fr 3,949 / pt-BR 3,699）:
+**5. 4,000字に収めるために削ったもの**（es 3,830 / es-419 3,908 / de 3,861 / fr 3,963 / pt-BR 3,710）:
 進数（2/8/16進）の箇条、「趣味・ものづくり」「暮らし」のサブカテゴリ列挙、書きかけの式で赤くならない話、
 ノートの検索、計量カップの規格、履歴が「切られない・購入で塞がれない」の言い回し。**足すなら同じ量を先に削ること**
-（仏語は残り51字）。日本語は1,725字で余裕があるが、6言語で節の構成をそろえるために同じものを削っている。
+（仏語は残り37字）。日本語は1,735字で余裕があるが、6言語で節の構成をそろえるために同じものを削っている。
 
 **6. 自作単位の例を `2shaku = 0.606m` から `shaku = 0.303m` に直した。** 前者は「単位を定義する式」として
 読めない（`2shaku` は記号ではない）。1尺 = 0.30303 m。
@@ -242,7 +242,9 @@ OFF YOUR OWN NUMBERS` のような凝った文から、節の中身が分かる�
 **2. 有効数字の自動判定を全言語に入れた。** `lib/significant-figures.ts`（PR #60）は
 掲載文が書かれたあとに入った機能で、**どの言語の掲載文にも一度も出ていなかった**。
 打ち込んだ数字から桁数を読んで丸め、丸める前の値と桁数を併記する、という挙動は
-このジャンルで珍しく、実例（`12V / 4.7kΩ` → `2.553191489 mA` → 2桁 → `2.6 × 10⁰ mA`）で説明できる。
+このジャンルで珍しく、実例（`12V / 4.7kΩ` → `2.553191489 mA` → 2桁 → `2.6 × 10⁻³ A`）で説明できる。
+**掲載文では単位チップで A を選んでから科学表記にする手順で書いてある**（2026-09-13）。既定の mA のままだと
+`2.6 × 10⁰ mA` と指数が0になり、科学表記にした意味が伝わらない（スクリーンショット `17-significant-figures` も同じ手順で撮っている）。
 **加減算が混ざる式では丸めない**という「言わない」側の判断も、そのまま信頼の訴求になるので書いた。
 
 **3. 入力中のプレビューの色分けを入れた。** これも未掲載だった（単位=青・定数=黄・使えない綴り=赤い下線、
@@ -265,7 +267,7 @@ OFF YOUR OWN NUMBERS` のような凝った文から、節の中身が分かる�
 説明が出る」は、`app/(tabs)/index.tsx` の `setUnitInfoSymbol` が**全箇所 `null`（閉じる側）でしか
 呼ばれておらず、利用者には開けない**。`lib/unit-explanations.ts` は存在するが到達不能なので掲載しない。
 
-### English（3,612字）
+### English（3,624字）
 
 ```
 UnitCalc is a unit calculator built around one idea: calculate with the units, not just with the numbers.
@@ -284,7 +286,7 @@ YOU SEE PROBLEMS WHILE YOU TYPE
 The preview under the input is colour-coded as you go: units in blue, saved constants in amber, anything that is not a recognised unit underlined in red. Tap the red and corrections are offered. Type 3m + 2kg and the result card tells you a length and a mass cannot be added, before you press equals.
 
 SIGNIFICANT FIGURES, READ FROM YOUR OWN INPUT
-12V / 4.7kΩ works out to 2.553191489 mA, but you typed two significant figures. Tap the 10ⁿ chip and you get 2.6 × 10⁰ mA, with the unrounded value and the digit count shown underneath. Where the precision cannot be read honestly from what you typed, as in a sum like 5cm + 1mm, it does not round at all.
+12V / 4.7kΩ works out to 2.553191489 mA, but you typed two significant figures. Pick A and tap the 10ⁿ chip, and you get 2.6 × 10⁻³ A, with the unrounded value and the digit count shown underneath. Where the precision cannot be read honestly from what you typed, as in a sum like 5cm + 1mm, it does not round at all.
 
 MORE WAYS TO READ A RESULT
 • Exact form: 1/3 stays 1/3, 2*pi*50 becomes 100π, sqrt(8) becomes 2√2, as real fractions and radicals.
@@ -312,7 +314,7 @@ UnitCalc Pro is a single purchase with no recurring charge. It removes ads, expo
 No account to create. Your calculations, notebooks and custom units stay on your device.
 ```
 
-### 日本語（1,725字）
+### 日本語（1,735字）
 
 ```
 UnitCalc が大切にしているのは、数字だけで計算するのではなく、単位まで含めて計算することです。
@@ -331,7 +333,7 @@ UnitCalc が大切にしているのは、数字だけで計算するのでは�
 入力欄の下のプレビューは、打った瞬間に色が付きます。単位は青、保存した定数は黄、単位として認識できない綴りは赤い下線。赤い部分を押せば修正候補が出ます。「3m + 2kg」と打てば、= を押す前に結果カードが「長さ (m) と 質量 (kg) は足し引きできません」と教えてくれます。書きかけの式には口を出さないので、一文字打つごとに赤くなることはありません。
 
 有効数字は、打った数字から読み取ります
-「12V ÷ 4.7kΩ」の答えは 2.553191489 mA ですが、打ち込んだ数字は2桁です。10ⁿ のチップを押すと 2.6 × 10⁰ mA になり、丸める前の値と「何桁で丸めたか」がその下に残ります。「5cm + 1mm」のように足し算で位が読めない式では、無理に丸めません。
+「12V ÷ 4.7kΩ」の答えは 2.553191489 mA ですが、打ち込んだ数字は2桁です。単位を A にして 10ⁿ のチップを押すと 2.6 × 10⁻³ A になり、丸める前の値と「何桁で丸めたか」がその下に残ります。「5cm + 1mm」のように足し算で位が読めない式では、無理に丸めません。
 
 答えの読み方を選べます
 ・厳密値（分数・π）：1/3 は 1/3 のまま、2*pi*50 は 100π、sqrt(8) は 2√2、sin(60deg) は √3/2。本物の分数・根号として表示します。
@@ -359,7 +361,7 @@ UnitCalc Pro は一度だけの買い切りで、月々の支払いはありま�
 アカウント登録は不要です。計算・ノート・自作単位は端末の中に残ります。
 ```
 
-### Español（3,821字）
+### Español（3,830字）
 
 ```
 UnitCalc es una calculadora con unidades construida sobre una idea sencilla: se calcula con las unidades, no solo con los números.
@@ -378,7 +380,7 @@ VES EL ERROR MIENTRAS ESCRIBES
 La vista previa bajo el campo se colorea sobre la marcha: unidades en azul, constantes guardadas en amarillo y subrayado en rojo lo que no es una unidad reconocida. Pulsa el rojo y te propone correcciones. Escribe 3m + 2kg y la tarjeta de resultado te dice, antes de pulsar igual, que una longitud y una masa no se pueden sumar.
 
 CIFRAS SIGNIFICATIVAS LEÍDAS DE LO QUE ESCRIBES
-12V / 4.7kΩ da 2,553191489 mA, pero solo escribiste dos cifras significativas. Pulsa el chip 10ⁿ y el resultado pasa a 2,6 × 10⁰ mA, con el valor sin redondear y el número de cifras justo debajo. Cuando la precisión no se puede leer con honestidad, como en una suma del tipo 5cm + 1mm, no se redondea nada.
+12V / 4.7kΩ da 2,553191489 mA, pero solo escribiste dos cifras significativas. Elige A, pulsa el chip 10ⁿ y el resultado pasa a 2,6 × 10⁻³ A, con el valor sin redondear y el número de cifras justo debajo. Cuando la precisión no se puede leer con honestidad, como en una suma del tipo 5cm + 1mm, no se redondea nada.
 
 VARIAS FORMAS DE LEER UN RESULTADO
 • Valor exacto: 1/3 sigue siendo 1/3, 2*pi*50 pasa a 100π, sqrt(8) a 2√2, como fracciones y radicales de verdad.
@@ -406,7 +408,7 @@ UnitCalc Pro se compra una sola vez, sin cargos periódicos. Quita la publicidad
 Sin cuenta que crear. Tus cálculos, tus cuadernos y tus unidades se quedan en el dispositivo.
 ```
 
-### Español (Latinoamérica)（3,899字）
+### Español (Latinoamérica)（3,908字）
 
 ```
 UnitCalc es una calculadora con unidades construida sobre una idea sencilla: se calcula con las unidades, no solo con los números.
@@ -425,7 +427,7 @@ VES EL ERROR MIENTRAS ESCRIBES
 La vista previa bajo el campo se colorea sobre la marcha: unidades en azul, constantes guardadas en amarillo y subrayado en rojo lo que no es una unidad reconocida. Toca el rojo y te propone correcciones. Escribe 3m + 2kg y la tarjeta de resultado te dice, antes de tocar igual, que una longitud y una masa no se pueden sumar.
 
 CIFRAS SIGNIFICATIVAS LEÍDAS DE LO QUE ESCRIBES
-12V / 4.7kΩ da 2,553191489 mA, pero solo escribiste dos cifras significativas. Toca el chip 10ⁿ y el resultado pasa a 2,6 × 10⁰ mA, con el valor sin redondear y el número de cifras justo debajo. Cuando la precisión no se puede leer con honestidad, como en una suma del tipo 5cm + 1mm, no se redondea nada.
+12V / 4.7kΩ da 2,553191489 mA, pero solo escribiste dos cifras significativas. Elige A, toca el chip 10ⁿ y el resultado pasa a 2,6 × 10⁻³ A, con el valor sin redondear y el número de cifras justo debajo. Cuando la precisión no se puede leer con honestidad, como en una suma del tipo 5cm + 1mm, no se redondea nada.
 
 VARIAS FORMAS DE LEER UN RESULTADO
 • Valor exacto: 1/3 sigue siendo 1/3, 2*pi*50 pasa a 100π, sqrt(8) a 2√2, como fracciones y radicales de verdad.
@@ -453,7 +455,7 @@ UnitCalc Pro se compra una sola vez, sin cargos periódicos. Quita la publicidad
 Sin cuenta que crear. Tus cálculos, tus cuadernos y tus unidades se quedan en el dispositivo.
 ```
 
-### Português (Brasil)（3,699字）
+### Português (Brasil)（3,710字）
 
 ```
 O UnitCalc é uma calculadora de unidades construída sobre uma ideia simples: a conta é feita com as unidades, não só com os números.
@@ -472,7 +474,7 @@ VOCÊ VÊ O ERRO ENQUANTO DIGITA
 A prévia embaixo do campo vai ganhando cor: unidades em azul, constantes salvas em amarelo e sublinhado em vermelho o que não é uma unidade reconhecida. Toque no vermelho e ele sugere correções. Digite 3m + 2kg e o cartão de resultado avisa, antes de apertar igual, que um comprimento e uma massa não podem ser somados.
 
 ALGARISMOS SIGNIFICATIVOS LIDOS DO QUE VOCÊ DIGITOU
-12V / 4.7kΩ dá 2,553191489 mA, mas você digitou só dois algarismos significativos. Toque no chip 10ⁿ e o resultado vira 2,6 × 10⁰ mA, com o valor sem arredondar e a quantidade de algarismos logo abaixo. Quando a precisão não dá para ler com honestidade, como numa soma do tipo 5cm + 1mm, ele não arredonda nada.
+12V / 4.7kΩ dá 2,553191489 mA, mas você digitou só dois algarismos significativos. Escolha A, toque no chip 10ⁿ e o resultado vira 2,6 × 10⁻³ A, com o valor sem arredondar e a quantidade de algarismos logo abaixo. Quando a precisão não dá para ler com honestidade, como numa soma do tipo 5cm + 1mm, ele não arredonda nada.
 
 MAIS DE UM JEITO DE LER UM RESULTADO
 • Valor exato: 1/3 continua 1/3, 2*pi*50 vira 100π, sqrt(8) vira 2√2, como frações e radicais de verdade.
@@ -500,7 +502,7 @@ Se os anúncios incomodarem, o UnitCalc Pro é uma compra única, sem cobrança 
 Sem conta para criar. Seus cálculos, seus cadernos e suas unidades ficam no aparelho.
 ```
 
-### Deutsch（3,852字）
+### Deutsch（3,861字）
 
 ```
 UnitCalc ist ein Einheitenrechner mit einem einfachen Grundsatz: Gerechnet wird mit den Einheiten, nicht nur mit den Zahlen.
@@ -519,7 +521,7 @@ FEHLER SIEHST DU BEIM TIPPEN
 Die Vorschau unter der Eingabe färbt sich beim Tippen: Einheiten blau, gespeicherte Konstanten gelb, alles, was keine bekannte Einheit ist, rot unterstrichen. Tippe auf das Rote und du bekommst Korrekturvorschläge. Bei 3m + 2kg sagt dir die Ergebniskarte schon vor dem Gleichheitszeichen, dass sich Länge und Masse nicht addieren lassen.
 
 GELTENDE ZIFFERN AUS DEINER EINGABE
-12V / 4.7kΩ ergibt 2,553191489 mA, getippt hast du aber nur zwei geltende Ziffern. Ein Tipp auf den 10ⁿ-Chip macht daraus 2,6 × 10⁰ mA, der ungerundete Wert bleibt mit der Ziffernzahl darunter stehen. Wo sich die Genauigkeit nicht ehrlich ablesen lässt, etwa bei einer Summe wie 5cm + 1mm, wird gar nicht gerundet.
+12V / 4.7kΩ ergibt 2,553191489 mA, getippt hast du aber nur zwei geltende Ziffern. Wähle A und tippe auf den 10ⁿ-Chip: daraus wird 2,6 × 10⁻³ A, der ungerundete Wert bleibt mit der Ziffernzahl darunter stehen. Wo sich die Genauigkeit nicht ehrlich ablesen lässt, etwa bei einer Summe wie 5cm + 1mm, wird gar nicht gerundet.
 
 MEHRERE ARTEN, EIN ERGEBNIS ZU LESEN
 • Exakt statt gerundet: 1/3 bleibt 1/3, aus 2*pi*50 wird 100π, aus sqrt(8) wird 2√2, als echte Brüche und Wurzeln.
@@ -547,7 +549,7 @@ UnitCalc Pro kaufst du einmal, ohne laufende Kosten. Es entfernt die Werbung, ex
 Ein Konto brauchst du nicht. Deine Rechnungen, Rechenhefte und eigenen Einheiten bleiben auf dem Gerät.
 ```
 
-### Français（3,949字）
+### Français（3,963字）
 
 ```
 UnitCalc est une calculatrice et un convertisseur d'unités construits sur un principe simple : on calcule avec les unités, pas seulement avec les nombres.
@@ -566,7 +568,7 @@ VOUS VOYEZ L'ERREUR EN TAPANT
 L'aperçu sous la saisie se colore au fur et à mesure : unités en bleu, constantes en jaune, et souligné en rouge tout ce qui n'est pas une unité reconnue. Touchez le rouge, des corrections sont proposées. Tapez 3m + 2kg et la carte de résultat vous dit, avant d'appuyer sur égal, qu'une longueur et une masse ne s'additionnent pas.
 
 LES CHIFFRES SIGNIFICATIFS, LUS DANS VOTRE SAISIE
-12V / 4.7kΩ donne 2,553191489 mA, mais vous n'avez tapé que deux chiffres significatifs. Touchez la pastille 10ⁿ et le résultat devient 2,6 × 10⁰ mA, la valeur non arrondie et le nombre de chiffres restant affichés dessous. Quand la précision ne se lit pas honnêtement dans la saisie, comme dans une somme telle que 5cm + 1mm, il n'y a pas d'arrondi du tout.
+12V / 4.7kΩ donne 2,553191489 mA, mais vous n'avez tapé que deux chiffres significatifs. Choisissez A, touchez la pastille 10ⁿ et le résultat devient 2,6 × 10⁻³ A, la valeur non arrondie et le nombre de chiffres restant affichés dessous. Quand la précision ne se lit pas honnêtement dans la saisie, comme dans une somme telle que 5cm + 1mm, il n'y a pas d'arrondi du tout.
 
 PLUSIEURS FAÇONS DE LIRE UN RÉSULTAT
 • Valeur exacte : 1/3 reste 1/3, 2*pi*50 devient 100π, sqrt(8) devient 2√2, en vraies fractions et vrais radicaux.
