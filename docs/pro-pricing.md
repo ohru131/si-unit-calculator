@@ -9,7 +9,7 @@
 各商品に価格が展開された。つまり:
 
 - **`docs/pro-pricing.csv` を Play Console に読み込ませることはできない。**
-- **一括で入れる手段は Play Developer API だけ**（`androidpublisher.inappproducts.patch`）。
+- **一括で入れる手段は Play Developer API だけ**（新APIの `monetization.onetimeproducts.patch`）。
 - 手でやるなら Play Console の商品ページで国ごとに入力する（31カ国ぶん）。
 
 このCSVは**このリポジトリ側の唯一の情報源**として持ち、APIへ流し込む入力に使う。
