@@ -480,6 +480,13 @@ const SHOTS = [
       await typeExpression(page, lang, "12V / 4.7kΩ");
       await submitExpression(page, lang);
       await blurInputs(page);
+      // **先に単位チップで A を明示的に選ぶ。** 既定のままだと自動選択が mA を選び、
+      // 科学表記にしても `2.6 × 10⁰ mA` と指数が0になって「なぜ科学表記なのか」が絵から伝わらない。
+      // A にすると `2.6 × 10⁻³ A` になり、指数が仕事をしているのが一目で分かる。
+      // **SIチップでは駄目**（あれは targetUnit を空にするだけで、空のときは
+      // 自動選択が働いて mA に戻る。lib/display-unit.ts の優先順）。
+      await page.getByLabel("A", { exact: true }).first().click();
+      await sleep(300);
       await page.getByLabel(LABELS[lang].scientificForm, { exact: true }).first().click();
       await sleep(600);
     },
