@@ -274,331 +274,369 @@ OFF YOUR OWN NUMBERS` のような凝った文から、節の中身が分かる�
 説明が出る」は、`app/(tabs)/index.tsx` の `setUnitInfoSymbol` が**全箇所 `null`（閉じる側）でしか
 呼ばれておらず、利用者には開けない**。`lib/unit-explanations.ts` は存在するが到達不能なので掲載しない。
 
-### English（3,624字）
+### 2026-09-13 にユーザー提供の日本語ベース文面へ全面的に組み直した理由
+
+ユーザーから「これをベースに各言語作成し直して」と、次の構成の日本語文面が渡された:
+宣言文（単位まで含めて計算する）→ 箇条書きの「こんな方に」（4項目）→ 単位付き式を入力するだけで
+自動計算・変換はチップをタップの1文＋実例4つ（`km/h`チップの一段階を含む）→ 短いラベル見出し付きの節
+（有効数字／厳密値／自分の単位と定数／計算ノート／UnitCalc Pro について）。**この構成をそのまま7掲載の型にした**
+（以前の「WHO IT IS FOR」を段落で書く形から、箇条書きの「こんな方に」へ変更）。
+
+- **「こんな方に」の4項目は、言語ごとに実在する対象へ差し替えた。** ユーザーの日本語版は
+  電験三種・電工二種・乙4／実験レポート／機械・建築エンジニア／高校物理の4つだが、これをそのまま
+  他言語へ逐語訳すると意味を持たない（他国に電験三種は無い）。`docs/target-users-by-locale-2026-09.md`
+  第1節の各言語の主・副ターゲットに置き換えている（en: FE試験・City & Guilds 2365、de: Ausbildung
+  Elektroniker・Klausur、fr: lycée・Bac Pro MELEC、es: EBAU・FP Instalaciones Eléctricas、
+  es-419: Saber 11/PAES/EXANI-II・RETIE/NTC 2050 等、pt-BR: ENEM・NR-10）。
+- **有効数字の実例はA単位の桁**（`0.002553191489 A` → `≈ 2.6 × 10⁻³ A`）**に統一した。**
+  既定のmAのままだと`2.6 × 10⁰ mA`と指数が0になり科学表記の意味が伝わらないため（前回のコミットで判明済み）。
+  値は`evaluateExpression("12V/4.7kΩ")`を`A`単位でフォーマットして実測（`0.002553191489 A`）。
+- **`(500m + 1km) ÷ 1min` は25 m/sで、90 km/hはkm/hチップを押した後の値。** ユーザーの原文どおり
+  「⇒25 m/s。[km/h]を押す⇒90 km/h」の2段で書き、表示単位の自動選択とチップの実際の挙動に一致させている。
+- **「プリセット計算ノートの詳細」は説明文ではなく、各ジャンルの具体的な計算例だと後から指摘があり、書き直した。**
+  当初は「各ノートは前回の値を覚えている・検索できる・地域で開く」という**機能説明**を追加していたが、
+  ユーザーの意図は**各ジャンルにどんな計算があるかを「：」の後に具体的に列挙すること**だった。
+  最上位9カテゴリ（`lib/notebook-formulas/source/categories.ts`の`science`/`high-school-physics`/
+  `chemistry`/`astronomy`/`electricity-energy`/`hobbies-making`/`home-life`/`vehicles`/
+  `engineering-design`）それぞれに、実在するプリセットの`title`を3〜5件ずつ挙げた
+  （例: 機械・構造設計＝鋼製はりの曲げ応力とたわみ・オイラー座屈・軸のねじり応力・ボルトの締付けトルクと軸力・
+  玉軸受のL10寿命）。**すべて`lib/notebook-formulas/source/*.ts`の実データから抜き出し、各言語は
+  そのノートの実際の`title`翻訳をそのまま使っている**（掲載文で独自訳を作らない、という既存の方針どおり）。
+  機能説明（前回値を覚える・検索・地域反映）は削らず、ジャンル別の具体例の後に短く残してある。
+- **日本語は1,336字・英語は2,929字と、以前よりだいぶ短くなった。** ユーザー提供の型が簡潔だったため、
+  結果として全言語とも4,000字の半分〜8割程度に収まっている。空いた分は主に「計算ノート」節の
+  ジャンル別具体例に使ったが、無理に埋めていない（読みやすさを優先）。
+- 7掲載すべてで、各言語のASO第一検索語が本文に残っていることを確認済み
+  （`en: unit calculator` / `ja: 単位変換` / `de: Einheitenrechner` / `fr: convertisseur d'unités` /
+  `es・es-419: calculadora con unidades` / `pt-BR: calculadora de unidades`）。開始文で宣言を書くと
+  第一検索語がそのまま入らない言語があったため、宣言文に軽く組み込み直している
+  （例: `UnitCalc ist ein Einheitenrechner: Er rechnet mit den Einheiten...`）。
+
+### English（2,929字）
 
 ```
-UnitCalc is a unit calculator built around one idea: calculate with the units, not just with the numbers.
+UnitCalc is a unit calculator that computes with the units, not just the numbers.
 
-Type the units in with the values. Before any arithmetic happens, everything is brought to a common base and the dimensions are checked, so a length never gets added to a mass by mistake. The answer comes back in a unit a person would actually write, not as a pile of SI base units.
+• For the FE exam and engineering coursework, where units are part of the answer
+• For university lab reports
+• For engineers checking a hand calculation
+• For high school and college physics
 
-(500m + 1km) ÷ 1min gives 25 m/s, and one tap turns it into 90 km/h.
-1kΩ × 1mA gives 1 V.
-470µF × 12V gives 5.64 mC.
-2kg × 9.8m/s² gives 19.6 N, not 19.6 m·kg/s².
+Type an expression with units and it calculates automatically. Converting units is one tap away.
 
-WHO IT IS FOR
-Engineering students and anyone preparing for the FE exam, where units are part of the answer rather than an optional extra. Lab reports, where a factor of 1000 hides inside a unit conversion. Electrical trainees working through City & Guilds 2365, who need voltage drop and cable sizing to come out right. Exam rooms only admit approved calculators, so UnitCalc belongs in the studying, the homework and the write-up, where the habit of carrying units is built.
+(500m + 1km) ÷ 1min ⇒ 25 m/s. Tap the km/h chip ⇒ 90 km/h.
+1kΩ × 1mA ⇒ 1 V.
+470µF × 12V ⇒ 5.64 mC.
+2kg × 9.8m/s² ⇒ 19.6 N.
 
-YOU SEE PROBLEMS WHILE YOU TYPE
-The preview under the input is colour-coded as you go: units in blue, saved constants in amber, anything that is not a recognised unit underlined in red. Tap the red and corrections are offered. Type 3m + 2kg and the result card tells you a length and a mass cannot be added, before you press equals.
+SIGNIFICANT FIGURES, READ AUTOMATICALLY FROM YOUR INPUT
+12V ÷ 4.7kΩ ⇒ 0.002553191489 A. Tap the 10ⁿ chip ⇒ ≈ 2.6 × 10⁻³ A (with the unrounded value shown underneath when you only typed two digits).
 
-SIGNIFICANT FIGURES, READ FROM YOUR OWN INPUT
-12V / 4.7kΩ works out to 2.553191489 mA, but you typed two significant figures. Pick A and tap the 10ⁿ chip, and you get 2.6 × 10⁻³ A, with the unrounded value and the digit count shown underneath. Where the precision cannot be read honestly from what you typed, as in a sum like 5cm + 1mm, it does not round at all.
-
-MORE WAYS TO READ A RESULT
-• Exact form: 1/3 stays 1/3, 2*pi*50 becomes 100π, sqrt(8) becomes 2√2, as real fractions and radicals.
-• The same result in every compatible unit, in a table under the result card.
-• Prefix keys (p n µ m c k M G), so MΩ and nF go in without the system keyboard.
+EXACT VALUES (FRACTIONS, π, √)
+Results can display as fractions, or as multiples of π or √, instead of decimals: 1/3 stays 1/3, 2*pi*50 becomes 100π, sqrt(8) becomes 2√2.
 
 YOUR OWN UNITS AND CONSTANTS
-Define a unit as a multiple (shaku = 0.303m) or as a formula, which also covers offset scales such as temperature. Save constants like W = 3cm and use them in later expressions. Imperial and US customary units are fully supported: 12ft + 3in gives 12.25 ft, and 72°F or 30psi convert to °C or bar with a tap.
+Define your own units (shaku = 0.303m). Save constants like W = 3cm and use them directly in any expression.
 
-FORMULA NOTEBOOKS THAT CALCULATE
-Nine libraries of ready-made, step-by-step calculations with properly typeset formulas, each step showing its own result:
-• School science, and High school physics
-• Chemistry stoichiometry, and Astronomy & space
-• Electricity & energy: voltage drop and the cable cross-section it needs, transformer turns ratio, motor efficiency and line current, hobby electronics, solar
-• Hobbies & making
-• Home & everyday life
-• Physics of cars & bicycles
-• Mechanical & structural design: stress and strain, beams and columns, shafts, machine elements
-Each notebook remembers your last values, and the ones that depend on where you live open with your region's mains voltage, breaker rating and electricity and fuel prices.
+FORMULA NOTEBOOKS
+Save a formula once, then reuse it for any unit-aware calculation just by plugging in new values.
+Hundreds of ready-made notebooks are already built in, across genres including:
+• School science: speed and distance, floating or sinking by density, Ohm's law, reflection of light
+• High school physics: uniformly accelerated motion, the equation of motion, simple harmonic motion, Coulomb's law
+• Chemistry stoichiometry: molar concentration, the ideal gas law, heat of reaction, mass percent concentration
+• Astronomy & space: first cosmic velocity, Kepler's third law, gravitational force, light travel time from a star
+• Electricity & energy: voltage drop and the cable cross-section it needs, transformer turns ratio, motor efficiency and line current, RC time constant, solar panel sizing
+• Hobbies & making: depth of field and exposure value, combining two sound sources in dB, concrete volume for a slab, filament length from model volume
+• Home & everyday life: coffee brew ratio, dew point, calories burned, recipe serving size scaling
+• Physics of cars & bicycles: braking distance, gear ratio and speed, fuel economy and trip cost
+• Mechanical & structural design: bending stress and deflection of a steel beam, Euler buckling, torsional shear stress in a shaft, bolt tightening torque and preload, ball bearing L10 life
+Each notebook remembers your last values, and you can search across every title, description and category at once. Notebooks whose answer depends on where you live open with your region's mains voltage, breaker rating, and electricity and fuel prices.
 
-FREE TO USE, WITH A ONE-TIME PRO UPGRADE
-Every calculation feature is free and your history is unlimited. Notebooks, constants and custom units can be backed up to a file and restored on another device.
-UnitCalc Pro is a single purchase with no recurring charge. It removes ads, exports your history as CSV, saves your own unit sets for faster entry, and shares a notebook as a formatted document you can print or save as PDF.
+ABOUT UNITCALC PRO
+Every calculation feature and every notebook is free.
+UnitCalc Pro is a one-time purchase that removes ads, exports your history as CSV, saves your own unit sets, and lets you save or share a notebook as a PDF.
 
 No account to create. Your calculations, notebooks and custom units stay on your device.
 ```
 
-### 日本語（1,735字）
+### 日本語（1,336字）
 
 ```
-UnitCalc が大切にしているのは、数字だけで計算するのではなく、単位まで含めて計算することです。
+UnitCalc は、数字だけでなく単位を含めて計算できる電卓です。
 
-数値と一緒に単位を打ち込みます。計算の前に単位をそろえ、次元が合っているかを確かめる。だから、長さと質量のように種類の違う量を、うっかり足してしまうことがありません。答えも、SI基本単位の組み合わせをそのまま並べるのではなく、人が読みやすい単位に直して表示します。
+・電験三種・第二種電気工事士・危険物乙4の勉強中の検算に
+・理工系の実験レポートに
+・機械・建築のエンジニアの、手計算の確認に
+・高校物理の計算に
 
-「(500m + 1km) ÷ 1min」なら「25 m/s」。チップを1つ押せば「90 km/h」。
-「1kΩ × 1mA」なら「1 V」。
-「470µF × 12V」なら「5.64 mC」。
-「2kg × 9.8m/s²」なら「19.6 N」。19.6 m·kg/s² とは出しません。
+数値に単位をつけた式を入力するだけで自動計算します。単位変換も、チップをタップするだけです。
 
-こんな方に
-電験三種・第二種電気工事士・危険物乙4の勉強中の検算に。理工系1〜2年の実験レポートで、単位変換の1000倍のずれを出したくないときに。機械・建築のジュニアエンジニアの、手計算の確認に。試験本番に持ち込める電卓は決まっていますから、UnitCalc の出番は勉強・宿題・レポートです。単位を最後まで持ち歩く癖は、そこで身につきます。
+「(500m + 1km) ÷ 1min」⇒「25 m/s」。[km/h]チップを押すと⇒「90 km/h」。
+「1kΩ × 1mA」⇒「1 V」。
+「470µF × 12V」⇒「5.64 mC」。
+「2kg × 9.8m/s²」⇒「19.6 N」。
 
-打ちながら確かめられます
-入力欄の下のプレビューは、打った瞬間に色が付きます。単位は青、保存した定数は黄、単位として認識できない綴りは赤い下線。赤い部分を押せば修正候補が出ます。「3m + 2kg」と打てば、= を押す前に結果カードが「長さ (m) と 質量 (kg) は足し引きできません」と教えてくれます。書きかけの式には口を出さないので、一文字打つごとに赤くなることはありません。
+有効数字も、入力式から自動判定
+「12V ÷ 4.7kΩ」⇒「0.002553191489 A」。[10ⁿ]チップを押すと⇒「≈ 2.6 × 10⁻³ A」（打ち込んだ数字が2桁なら、丸める前の値も小さく残ります）。
 
-有効数字は、打った数字から読み取ります
-「12V ÷ 4.7kΩ」の答えは 2.553191489 mA ですが、打ち込んだ数字は2桁です。単位を A にして 10ⁿ のチップを押すと 2.6 × 10⁻³ A になり、丸める前の値と「何桁で丸めたか」がその下に残ります。「5cm + 1mm」のように足し算で位が読めない式では、無理に丸めません。
-
-答えの読み方を選べます
-・厳密値（分数・π）：1/3 は 1/3 のまま、2*pi*50 は 100π、sqrt(8) は 2√2、sin(60deg) は √3/2。本物の分数・根号として表示します。
-・同じ答えを、互換のある単位すべてで。結果カードの下に表として開けます。
-・接頭語キー（p n µ m c k M G）で、MΩ や nF もOSのキーボードを出さずに打てます。
+厳密値（分数・π・√）
+結果を、小数ではなく分数やπ・√の形でも表示できます。1/3 は 1/3 のまま、2*pi*50 は 100π、sqrt(8) は 2√2 になります。
 
 自分の単位と定数
-倍率（shaku = 0.303m）でも式でも単位を定義できます。式にすれば、温度のようにゼロ点がずれた単位も作れます。W = 3cm のような定数を保存して、あとの式でそのまま使えます。ヤード・ポンド法も同じ扱いです（12ft + 3in、72°F、30psi）。
+独自の単位も登録できます（shaku = 0.303m）。W = 3cm のように任意の定数も保存でき、式の中でそのまま使えます。
 
-計算ノートは、数式の画像ではなく動く計算です
-組版された数式と、手順ごとの計算結果が付いたノートを9分野ぶん収録しています。
-・理科（小・中）、高校物理
-・化学の量的関係、天体・宇宙
-・電気・エネルギー：電圧降下と必要な電線の太さ、変圧器の巻数比、モーターの効率・損失・線電流、電子工作、太陽光
-・趣味・ものづくり
-・暮らし
-・車・自転車の物理
-・機械・構造設計：応力とひずみ、はりと柱、軸、機械要素
-タイトル・説明文・カテゴリ名を横断して検索できます。各ノートは前回入れた値を覚えていて、地域で答えが変わるノート（電源電圧、ブレーカーの定格、電気代と燃料の単価、計量カップの規格）は、お住まいの地域の値で開きます。
+計算ノート
+数式を1つ登録しておけば、値を入れ替えるだけで複雑な単位付き計算をいつでも再利用できます。
+すぐ使えるプリセットの計算ノートを、以下のジャンルにわたって多数収録しています。
+・理科（小・中）：速さ・道のりの計算、密度で浮き沈みを判断、オームの法則、光の反射
+・高校物理：等加速度運動、運動方程式、単振動の周期、クーロンの法則
+・化学の量的関係：モル濃度、気体の状態方程式、反応熱、質量パーセント濃度
+・天体・宇宙：第一宇宙速度、ケプラーの第三法則、万有引力、恒星までの光の到達時間
+・電気・エネルギー：電圧降下と必要な電線の太さ、変圧器の巻数比、モーターの効率・損失・線電流、RC時定数と充電時間、太陽光パネルの容量
+・趣味・ものづくり：被写界深度と露出値、音圧レベルの合成、コンクリート土間の体積、フィラメント長の見積もり
+・暮らし：コーヒーの抽出比率、露点温度、消費カロリー、レシピの人数スケール変換
+・車・自転車の物理：制動距離、ギア比と速度、燃費と走行コスト
+・機械・構造設計：鋼製はりの曲げ応力とたわみ、オイラー座屈、軸のねじり応力、ボルトの締付けトルクと軸力、玉軸受のL10寿命
+各ノートは前回入れた値を覚えていて、タイトル・説明・カテゴリを横断して検索できます。住んでいる地域で答えが変わるノート（電源電圧、ブレーカーの定格、電気代と燃料の単価など）は、お住まいの地域の値で開きます。
 
-料金について
-計算機能はすべて無料で使えます。計算履歴に上限はありません。ノート・定数・自作単位はファイルに書き出して、別の端末で復元できます。
-UnitCalc Pro は一度だけの買い切りで、月々の支払いはありません。広告が消え、履歴をCSVで書き出せ、よく使う単位のセットを保存でき、ノートを印刷・PDF保存できる文書として共有できます。
+UnitCalc Pro について
+計算機能・計算ノートはすべて無料で使えます。
+UnitCalc Pro（買い切り）を購入すると、広告が非表示になり、履歴をCSVで書き出せ、よく使う単位のセットを保存でき、ノートをPDFとして保存・共有できるようになります。
 
 アカウント登録は不要です。計算・ノート・自作単位は端末の中に残ります。
 ```
 
-### Español（3,830字）
+### Español（3,213字）
 
 ```
-UnitCalc es una calculadora con unidades construida sobre una idea sencilla: se calcula con las unidades, no solo con los números.
+UnitCalc es una calculadora con unidades: calcula con las unidades, no solo con los números.
 
-Escribes las unidades junto a los valores. Antes de operar, UnitCalc lleva cada magnitud a una base común y comprueba las dimensiones, así que una longitud nunca se suma por descuido a una masa. El resultado vuelve en la unidad que escribiría una persona, y no como un montón de unidades básicas del SI.
+• Para la física de la EBAU
+• Para la FP de Instalaciones Eléctricas y Automáticas
+• Para el informe de laboratorio
+• Para comprobar un cálculo a mano (ingenieros)
 
-(500m + 1km) ÷ 1min da 25 m/s, y con un toque pasa a 90 km/h.
-1kΩ × 1mA da 1 V.
-470µF × 12V da 5,64 mC.
-2kg × 9.8m/s² da 19,6 N, no 19,6 m·kg/s².
+Escribes una expresión con sus unidades y se calcula automáticamente. Convertir de unidad es un toque.
 
-PARA QUIÉN ES
-Para la física de la EBAU, donde un error u omisión de unidades resta 0,25 puntos por apartado, también en los resultados intermedios. Las unidades no son decoración: son parte de la respuesta, y UnitCalc te acostumbra a llevarlas hasta el final. Para el informe de laboratorio, donde un factor 1000 se esconde en un cambio de unidades. Para la FP de Instalaciones Eléctricas y Automáticas, donde la caída de voltaje y la sección del cable tienen que salir bien. En el examen solo entra la calculadora permitida, así que UnitCalc es para estudiar, para los ejercicios y para los informes: ahí es donde se forma el hábito.
+(500m + 1km) ÷ 1min ⇒ 25 m/s. Pulsa el chip km/h ⇒ 90 km/h.
+1kΩ × 1mA ⇒ 1 V.
+470µF × 12V ⇒ 5,64 mC.
+2kg × 9.8m/s² ⇒ 19,6 N.
 
-VES EL ERROR MIENTRAS ESCRIBES
-La vista previa bajo el campo se colorea sobre la marcha: unidades en azul, constantes guardadas en amarillo y subrayado en rojo lo que no es una unidad reconocida. Pulsa el rojo y te propone correcciones. Escribe 3m + 2kg y la tarjeta de resultado te dice, antes de pulsar igual, que una longitud y una masa no se pueden sumar.
+CIFRAS SIGNIFICATIVAS, LEÍDAS AUTOMÁTICAMENTE DE TU ENTRADA
+12V ÷ 4.7kΩ ⇒ 0,002553191489 A. Pulsa el chip 10ⁿ ⇒ ≈ 2,6 × 10⁻³ A (el valor sin redondear queda debajo si solo escribiste dos cifras).
 
-CIFRAS SIGNIFICATIVAS LEÍDAS DE LO QUE ESCRIBES
-12V / 4.7kΩ da 2,553191489 mA, pero solo escribiste dos cifras significativas. Elige A, pulsa el chip 10ⁿ y el resultado pasa a 2,6 × 10⁻³ A, con el valor sin redondear y el número de cifras justo debajo. Cuando la precisión no se puede leer con honestidad, como en una suma del tipo 5cm + 1mm, no se redondea nada.
-
-VARIAS FORMAS DE LEER UN RESULTADO
-• Valor exacto: 1/3 sigue siendo 1/3, 2*pi*50 pasa a 100π, sqrt(8) a 2√2, como fracciones y radicales de verdad.
-• El mismo resultado en todas las unidades compatibles, en una tabla bajo la tarjeta.
-• Teclas de prefijo (p n µ m c k M G) para escribir MΩ o nF sin el teclado del sistema.
+VALORES EXACTOS (FRACCIONES, π, √)
+Un resultado puede mostrarse como fracción, o como múltiplo de π o de √, en lugar de decimal: 1/3 sigue siendo 1/3, 2*pi*50 pasa a 100π, sqrt(8) pasa a 2√2.
 
 TUS UNIDADES Y TUS CONSTANTES
-Define una unidad como múltiplo (shaku = 0.303m) o mediante una fórmula, lo que cubre también escalas desplazadas como las de temperatura. Guarda constantes como W = 3cm y reutilízalas en cualquier expresión posterior.
+Define tus propias unidades (shaku = 0.303m). Guarda constantes como W = 3cm y reutilízalas directamente en cualquier expresión.
 
-CUADERNOS QUE CALCULAN DE VERDAD
-Nueve bibliotecas de cálculos paso a paso, con fórmulas compuestas de verdad y el resultado de cada paso a la vista:
-• Ciencias naturales, y Física (bachillerato)
-• Estequiometría química, y Astronomía y espacio
-• Electricidad y energía: caída de voltaje y sección de cable necesaria, relación de transformación, rendimiento y corriente de un motor, electrónica, solar
-• Aficiones y creación
-• Hogar y vida diaria
-• Física de los vehículos
-• Diseño mecánico y estructural: esfuerzo y deformación, vigas y columnas, ejes, elementos de máquinas
-Cada cuaderno recuerda los últimos valores que pusiste, y los que dependen de dónde vives se abren con el voltaje de la red, la corriente del disyuntor y los precios de electricidad y combustible de tu región.
+CUADERNOS QUE CALCULAN
+Guarda una fórmula una vez y reutilízala para cualquier cálculo con unidades con solo cambiar los valores.
+Ya incluye cientos de cuadernos listos para usar, en ámbitos como:
+• Ciencias naturales: velocidad y distancia, flota o se hunde según la densidad, ley de Ohm, reflexión de la luz
+• Física (bachillerato): movimiento uniformemente acelerado, la ecuación de movimiento, movimiento armónico simple, la ley de Coulomb
+• Estequiometría química: concentración molar, la ecuación de estado del gas ideal, calor de reacción, porcentaje en masa
+• Astronomía y espacio: primera velocidad cósmica, la tercera ley de Kepler, fuerza gravitacional, tiempo que tarda la luz de una estrella
+• Electricidad y energía: caída de voltaje y sección de cable necesaria, relación de transformación, rendimiento y corriente de un motor, constante de tiempo RC, tamaño del campo fotovoltaico
+• Aficiones y creación: profundidad de campo y valor de exposición, suma de niveles de dos fuentes sonoras, volumen de hormigón para una losa, longitud de filamento según el volumen de la pieza
+• Hogar y vida diaria: ratio de extracción del café, punto de rocío, calorías quemadas, escalado de una receta
+• Física de los vehículos: distancia de frenado, relación de transmisión y velocidad, consumo de combustible y costo del trayecto
+• Diseño mecánico y estructural: esfuerzo de flexión y flecha de una viga de acero, pandeo de Euler, esfuerzo cortante por torsión de un eje, par de apriete y precarga de un perno, vida L10 de un rodamiento de bolas
+Cada cuaderno recuerda tus últimos valores, y puedes buscar a la vez por título, descripción o categoría. Los cuadernos cuyo resultado depende de dónde vives se abren con el voltaje de la red, la corriente del disyuntor y los precios de electricidad y combustible de tu región.
 
-GRATIS, CON UNA COMPRA PRO ÚNICA
-Todas las funciones de cálculo son gratuitas y el historial es ilimitado. Cuadernos, constantes y unidades propias se guardan en un archivo y se restauran en otro dispositivo.
-UnitCalc Pro se compra una sola vez, sin cargos periódicos. Quita la publicidad, exporta el historial en CSV, guarda tus juegos de unidades y comparte un cuaderno como documento maquetado para imprimir o guardar en PDF.
+SOBRE UNITCALC PRO
+Todas las funciones de cálculo y todos los cuadernos son gratuitos.
+UnitCalc Pro se compra una sola vez. Quita la publicidad, exporta el historial en CSV, guarda tus juegos de unidades y te deja guardar o compartir un cuaderno en PDF.
 
 Sin cuenta que crear. Tus cálculos, tus cuadernos y tus unidades se quedan en el dispositivo.
 ```
 
-### Español (Latinoamérica)（3,908字）
+### Español (Latinoamérica)（3,379字）
 
 ```
-UnitCalc es una calculadora con unidades construida sobre una idea sencilla: se calcula con las unidades, no solo con los números.
+UnitCalc es una calculadora con unidades: calcula con las unidades, no solo con los números.
 
-Escribes las unidades junto a los valores. Antes de operar, UnitCalc lleva cada magnitud a una base común y comprueba las dimensiones, así que una longitud nunca se suma por descuido a una masa. El resultado vuelve en la unidad que escribiría una persona, y no como un montón de unidades básicas del SI.
+• Para repasar física del Saber 11, la PAES, el EXANI-II o el examen de admisión
+• Para electricidad con el RETIE y la NTC 2050, la NOM-001-SEDE o la AEA 90364
+• Para el informe de laboratorio
+• Para comprobar un cálculo a mano (ingenieros)
 
-(500m + 1km) ÷ 1min da 25 m/s, y con un toque pasa a 90 km/h.
-1kΩ × 1mA da 1 V.
-470µF × 12V da 5,64 mC.
-2kg × 9.8m/s² da 19,6 N, no 19,6 m·kg/s².
+Escribes una expresión con sus unidades y se calcula automáticamente. Convertir de unidad es un toque.
 
-PARA QUIÉN ES
-Para repasar física de cara al Saber 11, la PAES, el EXANI-II o el examen de admisión, donde los problemas se caen por la conversión que quedó a medias o el prefijo que no se canceló. Para el informe de laboratorio, donde las unidades y las cifras significativas son parte de la nota. Para quien estudia electricidad con el RETIE y la NTC 2050, la NOM-001-SEDE o la AEA 90364, donde la caída de voltaje y la sección del conductor tienen que salir bien. En el examen solo entra la calculadora permitida, así que UnitCalc es para estudiar, para los ejercicios y para los informes: ahí es donde se forma el hábito.
+(500m + 1km) ÷ 1min ⇒ 25 m/s. Toca el chip km/h ⇒ 90 km/h.
+1kΩ × 1mA ⇒ 1 V.
+470µF × 12V ⇒ 5,64 mC.
+2kg × 9.8m/s² ⇒ 19,6 N.
 
-VES EL ERROR MIENTRAS ESCRIBES
-La vista previa bajo el campo se colorea sobre la marcha: unidades en azul, constantes guardadas en amarillo y subrayado en rojo lo que no es una unidad reconocida. Toca el rojo y te propone correcciones. Escribe 3m + 2kg y la tarjeta de resultado te dice, antes de tocar igual, que una longitud y una masa no se pueden sumar.
+CIFRAS SIGNIFICATIVAS, LEÍDAS AUTOMÁTICAMENTE DE TU ENTRADA
+12V ÷ 4.7kΩ ⇒ 0,002553191489 A. Toca el chip 10ⁿ ⇒ ≈ 2,6 × 10⁻³ A (el valor sin redondear queda debajo si solo escribiste dos cifras).
 
-CIFRAS SIGNIFICATIVAS LEÍDAS DE LO QUE ESCRIBES
-12V / 4.7kΩ da 2,553191489 mA, pero solo escribiste dos cifras significativas. Elige A, toca el chip 10ⁿ y el resultado pasa a 2,6 × 10⁻³ A, con el valor sin redondear y el número de cifras justo debajo. Cuando la precisión no se puede leer con honestidad, como en una suma del tipo 5cm + 1mm, no se redondea nada.
-
-VARIAS FORMAS DE LEER UN RESULTADO
-• Valor exacto: 1/3 sigue siendo 1/3, 2*pi*50 pasa a 100π, sqrt(8) a 2√2, como fracciones y radicales de verdad.
-• El mismo resultado en todas las unidades compatibles, en una tabla bajo la tarjeta.
-• Teclas de prefijo (p n µ m c k M G) para escribir MΩ o nF sin el teclado del sistema.
+VALORES EXACTOS (FRACCIONES, π, √)
+Un resultado puede mostrarse como fracción, o como múltiplo de π o de √, en lugar de decimal: 1/3 sigue siendo 1/3, 2*pi*50 pasa a 100π, sqrt(8) pasa a 2√2.
 
 TUS UNIDADES Y TUS CONSTANTES
-Define una unidad como múltiplo (shaku = 0.303m) o mediante una fórmula, lo que cubre también escalas desplazadas como las de temperatura. Guarda constantes como W = 3cm y reutilízalas en cualquier expresión posterior.
+Define tus propias unidades (shaku = 0.303m). Guarda constantes como W = 3cm y reutilízalas directamente en cualquier expresión.
 
-CUADERNOS QUE CALCULAN DE VERDAD
-Nueve bibliotecas de cálculos paso a paso, con fórmulas compuestas de verdad y el resultado de cada paso a la vista:
-• Ciencias naturales, y Física (bachillerato)
-• Estequiometría química, y Astronomía y espacio
-• Electricidad y energía: caída de voltaje y sección de cable necesaria, relación de transformación, rendimiento y corriente de un motor, electrónica, solar
-• Aficiones y creación
-• Hogar y vida diaria
-• Física de los vehículos
-• Diseño mecánico y estructural: esfuerzo y deformación, vigas y columnas, ejes, elementos de máquinas
-Cada cuaderno recuerda los últimos valores que pusiste, y los que dependen de dónde vives se abren con los valores de tu país: 127 V en México, 120 V en Colombia, 230 V en Argentina o Chile, con la corriente nominal del interruptor, los precios de electricidad y combustible y el rendimiento en km/L.
+CUADERNOS QUE CALCULAN
+Guarda una fórmula una vez y reutilízala para cualquier cálculo con unidades con solo cambiar los valores.
+Ya incluye cientos de cuadernos listos para usar, en ámbitos como:
+• Ciencias naturales: velocidad y distancia, flota o se hunde según la densidad, ley de Ohm, reflexión de la luz
+• Física (bachillerato): movimiento uniformemente acelerado, la ecuación de movimiento, movimiento armónico simple, la ley de Coulomb
+• Estequiometría química: concentración molar, la ecuación de estado del gas ideal, calor de reacción, porcentaje en masa
+• Astronomía y espacio: primera velocidad cósmica, la tercera ley de Kepler, fuerza gravitacional, tiempo que tarda la luz de una estrella
+• Electricidad y energía: caída de voltaje y sección de cable necesaria, relación de transformación, rendimiento y corriente de un motor, constante de tiempo RC, tamaño del campo fotovoltaico
+• Aficiones y creación: profundidad de campo y valor de exposición, suma de niveles de dos fuentes sonoras, volumen de hormigón para una losa, longitud de filamento según el volumen de la pieza
+• Hogar y vida diaria: ratio de extracción del café, punto de rocío, calorías quemadas, escalado de una receta
+• Física de los vehículos: distancia de frenado, relación de transmisión y velocidad, consumo de combustible y costo del trayecto
+• Diseño mecánico y estructural: esfuerzo de flexión y flecha de una viga de acero, pandeo de Euler, esfuerzo cortante por torsión de un eje, par de apriete y precarga de un perno, vida L10 de un rodamiento de bolas
+Cada cuaderno recuerda tus últimos valores, y puedes buscar a la vez por título, descripción o categoría. Los cuadernos cuyo resultado depende de dónde vives se abren con los valores de tu país: 127 V en México, 120 V en Colombia, 230 V en Argentina o Chile, con la corriente nominal del interruptor, los precios de electricidad y combustible y el rendimiento en km/L.
 
-GRATIS, CON UNA COMPRA PRO ÚNICA
-Todas las funciones de cálculo son gratuitas y el historial es ilimitado. Cuadernos, constantes y unidades propias se guardan en un archivo y se restauran en otro dispositivo.
-UnitCalc Pro se compra una sola vez, sin cargos periódicos. Quita la publicidad, exporta el historial en CSV, guarda tus juegos de unidades y comparte un cuaderno como documento maquetado para imprimir o guardar en PDF.
+SOBRE UNITCALC PRO
+Todas las funciones de cálculo y todos los cuadernos son gratuitos.
+UnitCalc Pro se compra una sola vez. Quita la publicidad, exporta el historial en CSV, guarda tus juegos de unidades y te deja guardar o compartir un cuaderno en PDF.
 
 Sin cuenta que crear. Tus cálculos, tus cuadernos y tus unidades se quedan en el dispositivo.
 ```
 
-### Português (Brasil)（3,710字）
+### Português (Brasil)（3,199字）
 
 ```
-O UnitCalc é uma calculadora de unidades construída sobre uma ideia simples: a conta é feita com as unidades, não só com os números.
+O UnitCalc é uma calculadora de unidades: calcula com as unidades, não só com os números.
 
-Você digita as unidades junto com os valores. Antes de qualquer operação, o UnitCalc leva cada grandeza a uma base comum e confere as dimensões, então um comprimento nunca é somado a uma massa por descuido. O resultado volta na unidade que uma pessoa escreveria, e não como um amontoado de unidades básicas do SI.
+• Para física do ENEM e dos vestibulares
+• Para NR-10 e o técnico em eletrotécnica
+• Para o relatório de laboratório
+• Para conferir uma conta feita à mão (engenheiros)
 
-(500m + 1km) ÷ 1min dá 25 m/s, e um toque transforma em 90 km/h.
-1kΩ × 1mA dá 1 V.
-470µF × 12V dá 5,64 mC.
-2kg × 9.8m/s² dá 19,6 N, e não 19,6 m·kg/s².
+Você digita uma expressão com as unidades e o cálculo é automático. Converter de unidade é um toque.
 
-PARA QUEM É
-Para quem estuda física para o ENEM e os vestibulares, onde a questão se perde na conversão que ficou pela metade ou no prefixo que não foi cancelado. Para o relatório de laboratório, onde unidades e algarismos significativos fazem parte da nota. Para quem faz NR-10 ou o técnico em eletrotécnica e precisa que queda de tensão e seção de cabo saiam certas. Na prova só entra a calculadora permitida, então o UnitCalc é para o estudo, os exercícios e os relatórios: é ali que o hábito de carregar as unidades se forma.
+(500m + 1km) ÷ 1min ⇒ 25 m/s. Toque no chip km/h ⇒ 90 km/h.
+1kΩ × 1mA ⇒ 1 V.
+470µF × 12V ⇒ 5,64 mC.
+2kg × 9.8m/s² ⇒ 19,6 N.
 
-VOCÊ VÊ O ERRO ENQUANTO DIGITA
-A prévia embaixo do campo vai ganhando cor: unidades em azul, constantes salvas em amarelo e sublinhado em vermelho o que não é uma unidade reconhecida. Toque no vermelho e ele sugere correções. Digite 3m + 2kg e o cartão de resultado avisa, antes de apertar igual, que um comprimento e uma massa não podem ser somados.
+ALGARISMOS SIGNIFICATIVOS, LIDOS AUTOMATICAMENTE DO QUE VOCÊ DIGITA
+12V ÷ 4.7kΩ ⇒ 0,002553191489 A. Toque no chip 10ⁿ ⇒ ≈ 2,6 × 10⁻³ A (o valor sem arredondar fica logo abaixo quando você digita só dois algarismos).
 
-ALGARISMOS SIGNIFICATIVOS LIDOS DO QUE VOCÊ DIGITOU
-12V / 4.7kΩ dá 2,553191489 mA, mas você digitou só dois algarismos significativos. Escolha A, toque no chip 10ⁿ e o resultado vira 2,6 × 10⁻³ A, com o valor sem arredondar e a quantidade de algarismos logo abaixo. Quando a precisão não dá para ler com honestidade, como numa soma do tipo 5cm + 1mm, ele não arredonda nada.
-
-MAIS DE UM JEITO DE LER UM RESULTADO
-• Valor exato: 1/3 continua 1/3, 2*pi*50 vira 100π, sqrt(8) vira 2√2, como frações e radicais de verdade.
-• O mesmo resultado em todas as unidades compatíveis, numa tabela embaixo do cartão.
-• Teclas de prefixo (p n µ m c k M G) para digitar MΩ ou nF sem o teclado do sistema.
+VALORES EXATOS (FRAÇÕES, π, √)
+Um resultado pode aparecer como fração, ou como múltiplo de π ou de √, em vez de decimal: 1/3 continua 1/3, 2*pi*50 vira 100π, sqrt(8) vira 2√2.
 
 SUAS UNIDADES E SUAS CONSTANTES
-Defina uma unidade como múltiplo (shaku = 0.303m) ou por uma fórmula, o que cobre também escalas deslocadas como as de temperatura. Salve constantes como W = 3cm e use de novo em qualquer expressão.
+Defina suas próprias unidades (shaku = 0.303m). Salve constantes como W = 3cm e use de novo em qualquer expressão.
 
-CADERNOS QUE CALCULAM DE VERDADE
-Nove bibliotecas de cálculos prontos, passo a passo, com fórmulas compostas de verdade e o resultado de cada passo à vista:
-• Ciências, e Física (Ensino Médio)
-• Estequiometria química, e Astronomia e espaço
-• Eletricidade e energia: queda de tensão e a seção de cabo necessária, relação de espiras do transformador, rendimento e corrente de um motor, eletrônica, solar
-• Hobbies e criação
-• Casa e dia a dia
-• Física dos veículos
-• Projeto mecânico e estrutural: tensão e deformação, vigas e colunas, eixos, elementos de máquinas
-Cada caderno lembra os últimos valores que você colocou, e os que dependem de onde você mora abrem com a tensão da rede, a corrente do disjuntor e os preços de energia e combustível da sua região.
+CADERNOS QUE CALCULAM
+Salve uma fórmula uma vez e reutilize para qualquer conta com unidades só trocando os valores.
+Já vêm centenas de cadernos prontos, em áreas como:
+• Ciências: velocidade e distância, flutua ou afunda de acordo com a densidade, lei de Ohm, reflexão da luz
+• Física (Ensino Médio): movimento uniformemente acelerado, a equação de movimento, movimento harmônico simples, a lei de Coulomb
+• Estequiometria química: concentração molar, a equação de estado dos gases ideais, calor de reação, concentração em porcentagem de massa
+• Astronomia e espaço: primeira velocidade cósmica, a terceira lei de Kepler, força gravitacional, tempo que a luz de uma estrela leva para chegar
+• Eletricidade e energia: queda de tensão e a seção de cabo necessária, relação de espiras do transformador, rendimento e corrente de um motor, constante de tempo RC, tamanho do arranjo fotovoltaico
+• Hobbies e criação: profundidade de campo e valor de exposição, soma de níveis de duas fontes sonoras, volume de concreto para uma laje, comprimento de filamento a partir do volume da peça
+• Casa e dia a dia: proporção café-água, ponto de orvalho, calorias queimadas, ajuste de receita por porções
+• Física dos veículos: distância de frenagem, relação de transmissão e velocidade, consumo de combustível e custo do trajeto
+• Projeto mecânico e estrutural: tensão de flexão e flecha de uma viga de aço, flambagem de Euler, tensão de cisalhamento por torção de um eixo, torque de aperto e pré-carga de um parafuso, vida L10 de um rolamento de esferas
+Cada caderno lembra os últimos valores que você colocou, e você pode buscar por título, descrição ou categoria ao mesmo tempo. Os cadernos cujo resultado depende de onde você mora abrem com a tensão da rede, a corrente do disjuntor e os preços de energia e combustível da sua região.
 
-GRÁTIS, E O PRO É COMPRA ÚNICA
-Todas as funções de cálculo são gratuitas e o histórico é ilimitado. Cadernos, constantes e unidades próprias podem ser salvos num arquivo e restaurados em outro aparelho.
-Se os anúncios incomodarem, o UnitCalc Pro é uma compra única, sem cobrança mensal. Ele tira os anúncios, exporta o histórico em CSV, salva seus conjuntos de unidades e compartilha um caderno como documento diagramado para imprimir ou guardar em PDF.
+SOBRE O UNITCALC PRO
+Todas as funções de cálculo e todos os cadernos são gratuitos.
+O UnitCalc Pro é uma compra única. Ele tira os anúncios, exporta o histórico em CSV, salva seus conjuntos de unidades e deixa você salvar ou compartilhar um caderno em PDF.
 
 Sem conta para criar. Seus cálculos, seus cadernos e suas unidades ficam no aparelho.
 ```
 
-### Deutsch（3,861字）
+### Deutsch（3,227字）
 
 ```
-UnitCalc ist ein Einheitenrechner mit einem einfachen Grundsatz: Gerechnet wird mit den Einheiten, nicht nur mit den Zahlen.
+UnitCalc ist ein Einheitenrechner: Er rechnet mit den Einheiten, nicht nur mit den Zahlen.
 
-Du tippst die Einheiten mit den Werten ein. Vor dem Rechnen bringt UnitCalc alles auf eine gemeinsame Basis und prüft die Dimensionen. Eine Länge lässt sich also nicht versehentlich zu einer Masse addieren. Das Ergebnis kommt in der Einheit zurück, die ein Mensch hinschreiben würde, und nicht als Haufen von SI-Basiseinheiten.
+• Für die Ausbildung zum Elektroniker und die Techniker- oder Meisterprüfung
+• Für Physik- und Chemieklausuren bis zum Abitur
+• Für Laborberichte im Studium
+• Für Ingenieure, die eine Handrechnung gegenprüfen
 
-(500m + 1km) ÷ 1min ergibt 25 m/s, ein Tipp macht daraus 90 km/h.
-1kΩ × 1mA ergibt 1 V.
-470µF × 12V ergibt 5,64 mC.
-2kg × 9.8m/s² ergibt 19,6 N und nicht 19,6 m·kg/s².
+Du tippst einen Ausdruck mit Einheiten ein, und er wird automatisch berechnet. Einheiten umrechnen geht mit einem Tipp.
 
-FÜR WEN
-Für die Ausbildung zum Elektroniker, für die Vorbereitung auf Techniker und Meister, für Physik- und Chemieklausuren bis zum Abitur. Genau dort gehen die Punkte verloren: bei Zehnerpotenzen und Vorsatzzeichen, und eine falsche Einheit ist kein Schönheitsfehler, sondern Punktabzug. UnitCalc rechnet die Vorsatzzeichen mit und zeigt das Ergebnis mit dem passenden. In die Prüfung darf nur der zugelassene Taschenrechner, deshalb gehört UnitCalc ins Lernen, in die Hausaufgabe und ins Protokoll, wo die Gewohnheit entsteht, Einheiten mitzuführen.
+(500m + 1km) ÷ 1min ⇒ 25 m/s. Ein Tipp auf den km/h-Chip ⇒ 90 km/h.
+1kΩ × 1mA ⇒ 1 V.
+470µF × 12V ⇒ 5,64 mC.
+2kg × 9.8m/s² ⇒ 19,6 N.
 
-FEHLER SIEHST DU BEIM TIPPEN
-Die Vorschau unter der Eingabe färbt sich beim Tippen: Einheiten blau, gespeicherte Konstanten gelb, alles, was keine bekannte Einheit ist, rot unterstrichen. Tippe auf das Rote und du bekommst Korrekturvorschläge. Bei 3m + 2kg sagt dir die Ergebniskarte schon vor dem Gleichheitszeichen, dass sich Länge und Masse nicht addieren lassen.
+GELTENDE ZIFFERN, AUTOMATISCH AUS DEINER EINGABE
+12V ÷ 4.7kΩ ⇒ 0,002553191489 A. Ein Tipp auf den 10ⁿ-Chip ⇒ ≈ 2,6 × 10⁻³ A (der ungerundete Wert bleibt darunter stehen, wenn du nur zwei Ziffern getippt hast).
 
-GELTENDE ZIFFERN AUS DEINER EINGABE
-12V / 4.7kΩ ergibt 2,553191489 mA, getippt hast du aber nur zwei geltende Ziffern. Wähle A und tippe auf den 10ⁿ-Chip: daraus wird 2,6 × 10⁻³ A, der ungerundete Wert bleibt mit der Ziffernzahl darunter stehen. Wo sich die Genauigkeit nicht ehrlich ablesen lässt, etwa bei einer Summe wie 5cm + 1mm, wird gar nicht gerundet.
-
-MEHRERE ARTEN, EIN ERGEBNIS ZU LESEN
-• Exakt statt gerundet: 1/3 bleibt 1/3, aus 2*pi*50 wird 100π, aus sqrt(8) wird 2√2, als echte Brüche und Wurzeln.
-• Dasselbe Ergebnis in allen passenden Einheiten, als Tabelle unter der Karte.
-• Vorsatztasten (p n µ m c k M G), damit MΩ und nF ohne Systemtastatur gehen.
+EXAKTE WERTE (BRÜCHE, π, √)
+Ergebnisse lassen sich als Bruch oder als Vielfaches von π oder √ anzeigen, statt als Dezimalzahl: 1/3 bleibt 1/3, aus 2*pi*50 wird 100π, aus sqrt(8) wird 2√2.
 
 EIGENE EINHEITEN UND KONSTANTEN
-Lege eine Einheit als Vielfaches an (shaku = 0.303m) oder als Formel, womit auch Temperaturskalen mit verschobenem Nullpunkt gehen. Speichere Konstanten wie W = 3cm und nutze sie in späteren Ausdrücken. PS ist die metrische Pferdestärke mit 735,5 W, eine eigene Einheit neben dem englischen hp mit 745,7 W.
+Lege eigene Einheiten an (shaku = 0.303m). Speichere Konstanten wie W = 3cm und nutze sie direkt in jedem Ausdruck.
 
-RECHENHEFTE, DIE WIRKLICH RECHNEN
-Neun Sammlungen fertiger Rechnungen mit echtem Formelsatz, bei denen jeder Schritt sein eigenes Ergebnis zeigt:
-• Naturwissenschaften und Physik (Oberstufe)
-• Stöchiometrie sowie Astronomie & Weltraum
-• Elektrizität & Energie: Spannungsfall und der nötige Leiterquerschnitt, Übersetzungsverhältnis des Transformators, Wirkungsgrad und Strom eines Motors, Elektronik, Solar
-• Hobby & Selbermachen
-• Haushalt & Alltag
-• Physik von Autos & Fahrrädern
-• Maschinen- & Tragwerksentwurf: Spannung und Dehnung, Balken und Stützen, Wellen, Maschinenelemente
-Jedes Rechenheft merkt sich deine letzten Werte, und die, deren Ergebnis vom Wohnort abhängt, starten mit Netzspannung, Nennstrom sowie Strom- und Kraftstoffpreis deiner Region.
+RECHENHEFTE
+Speichere eine Formel einmal und nutze sie danach für jede Rechnung mit Einheiten wieder, indem du nur neue Werte einträgst.
+Hunderte fertige Rechenhefte sind schon enthalten, unter anderem aus diesen Bereichen:
+• Naturwissenschaften: Geschwindigkeit und Strecke, Schwimmen oder Sinken nach Dichte, Ohmsches Gesetz, Lichtreflexion
+• Physik (Oberstufe): gleichmäßig beschleunigte Bewegung, die Bewegungsgleichung, harmonische Schwingung, das Coulombsche Gesetz
+• Stöchiometrie: Stoffmengenkonzentration, die ideale Gasgleichung, Reaktionswärme, Massenanteil
+• Astronomie & Weltraum: erste kosmische Geschwindigkeit, das dritte Kepler-Gesetz, Gravitationskraft, Lichtlaufzeit von einem Stern
+• Elektrizität & Energie: Spannungsfall und der nötige Leiterquerschnitt, Übersetzungsverhältnis des Transformators, Wirkungsgrad und Strom eines Motors, RC-Zeitkonstante, Größe des Solargenerators
+• Hobby & Selbermachen: Schärfentiefe und Lichtwert, Pegeladdition zweier Schallquellen, Betonvolumen für eine Bodenplatte, Filamentlänge aus dem Modellvolumen
+• Haushalt & Alltag: Brühverhältnis für Kaffee, Taupunkt, verbrannte Kalorien, Skalierung der Rezeptmenge
+• Physik von Autos & Fahrrädern: Bremsweg, Übersetzungsverhältnis und Geschwindigkeit, Kraftstoffverbrauch und Fahrtkosten
+• Maschinen- & Tragwerksentwurf: Biegespannung und Durchbiegung eines Stahlträgers, Eulersches Knicken, Torsionsspannung einer Welle, Anziehdrehmoment und Vorspannkraft einer Schraube, L10-Lebensdauer eines Kugellagers
+Jedes Rechenheft merkt sich deine letzten Werte, und du kannst nach Titel, Beschreibung oder Kategorie zugleich suchen. Rechenhefte, deren Ergebnis vom Wohnort abhängt, starten mit Netzspannung, Nennstrom sowie Strom- und Kraftstoffpreis deiner Region.
 
-KOSTENLOS, MIT EINMALIGEM PRO-KAUF
-Alle Rechenfunktionen sind kostenlos, der Verlauf ist unbegrenzt. Rechenhefte, Konstanten und eigene Einheiten lassen sich als Datei sichern und auf einem anderen Gerät wiederherstellen.
-UnitCalc Pro kaufst du einmal, ohne laufende Kosten. Es entfernt die Werbung, exportiert den Verlauf als CSV, speichert eigene Einheitensätze und teilt ein Rechenheft als gesetztes Dokument zum Drucken oder als PDF.
+ÜBER UNITCALC PRO
+Alle Rechenfunktionen und alle Rechenhefte sind kostenlos.
+UnitCalc Pro kaufst du einmal. Es entfernt die Werbung, exportiert den Verlauf als CSV, speichert eigene Einheitensätze und lässt dich ein Rechenheft als PDF sichern oder teilen.
 
 Ein Konto brauchst du nicht. Deine Rechnungen, Rechenhefte und eigenen Einheiten bleiben auf dem Gerät.
 ```
 
-### Français（3,963字）
+### Français（3,412字）
 
 ```
-UnitCalc est une calculatrice et un convertisseur d'unités construits sur un principe simple : on calcule avec les unités, pas seulement avec les nombres.
+UnitCalc est une calculatrice et un convertisseur d'unités : il calcule avec les unités, pas seulement avec les nombres.
 
-Vous tapez les unités avec les valeurs. Avant tout calcul, UnitCalc ramène chaque grandeur à une base commune et vérifie les dimensions : une longueur ne s'additionne jamais par mégarde à une masse. Le résultat revient dans l'unité qu'une personne écrirait, et non comme un empilement d'unités SI de base.
+• Pour la physique-chimie au lycée
+• Pour le Bac Pro MELEC et le BTS électrotechnique
+• Pour les comptes rendus de TP
+• Pour vérifier un calcul à la main (ingénieurs)
 
-(500m + 1km) ÷ 1min donne 25 m/s, et une touche le convertit en 90 km/h.
-1kΩ × 1mA donne 1 V.
-470µF × 12V donne 5,64 mC.
-2kg × 9.8m/s² donne 19,6 N, et non 19,6 m·kg/s².
+Tapez une expression avec ses unités, le calcul se fait automatiquement. Convertir une unité tient en une touche.
 
-POUR QUI
-Pour la physique-chimie au lycée, puis en prépa ou en BTS. La consigne y est toujours la même : garder l'unité à chaque étape, pour que l'erreur se voie quand les unités ne se simplifient pas. C'est exactement ce que fait UnitCalc : plus de concentration mille fois trop grande parce que des mL sont restés des mL. Pour le Bac Pro MELEC et le BTS électrotechnique, où la chute de tension et la section de câble doivent tomber juste. En examen, seule la calculatrice autorisée entre : UnitCalc sert pour les exercices, les devoirs et les comptes rendus, là où l'habitude des unités se construit.
+(500m + 1km) ÷ 1min ⇒ 25 m/s. Touchez la pastille km/h ⇒ 90 km/h.
+1kΩ × 1mA ⇒ 1 V.
+470µF × 12V ⇒ 5,64 mC.
+2kg × 9.8m/s² ⇒ 19,6 N.
 
-VOUS VOYEZ L'ERREUR EN TAPANT
-L'aperçu sous la saisie se colore au fur et à mesure : unités en bleu, constantes en jaune, et souligné en rouge tout ce qui n'est pas une unité reconnue. Touchez le rouge, des corrections sont proposées. Tapez 3m + 2kg et la carte de résultat vous dit, avant d'appuyer sur égal, qu'une longueur et une masse ne s'additionnent pas.
+LES CHIFFRES SIGNIFICATIFS, LUS AUTOMATIQUEMENT DANS VOTRE SAISIE
+12V ÷ 4.7kΩ ⇒ 0,002553191489 A. Touchez la pastille 10ⁿ ⇒ ≈ 2,6 × 10⁻³ A (la valeur non arrondie reste affichée dessous si vous n'avez tapé que deux chiffres).
 
-LES CHIFFRES SIGNIFICATIFS, LUS DANS VOTRE SAISIE
-12V / 4.7kΩ donne 2,553191489 mA, mais vous n'avez tapé que deux chiffres significatifs. Choisissez A, touchez la pastille 10ⁿ et le résultat devient 2,6 × 10⁻³ A, la valeur non arrondie et le nombre de chiffres restant affichés dessous. Quand la précision ne se lit pas honnêtement dans la saisie, comme dans une somme telle que 5cm + 1mm, il n'y a pas d'arrondi du tout.
-
-PLUSIEURS FAÇONS DE LIRE UN RÉSULTAT
-• Valeur exacte : 1/3 reste 1/3, 2*pi*50 devient 100π, sqrt(8) devient 2√2, en vraies fractions et vrais radicaux.
-• Le même résultat dans toutes les unités compatibles, dans un tableau sous la carte.
-• Des touches de préfixes (p n µ m c k M G) pour taper MΩ ou nF sans le clavier du système.
+VALEURS EXACTES (FRACTIONS, π, √)
+Un résultat peut s'afficher en fraction, ou comme un multiple de π ou de √, plutôt qu'en décimal : 1/3 reste 1/3, 2*pi*50 devient 100π, sqrt(8) devient 2√2.
 
 VOS UNITÉS ET VOS CONSTANTES
-Définissez une unité comme un multiple (shaku = 0.303m) ou par une formule, ce qui couvre aussi les échelles décalées comme les températures. Enregistrez des constantes comme W = 3cm et réutilisez-les. Le CV (cheval-vapeur, 735,5 W) est une unité à part du hp anglais (745,7 W).
+Définissez vos propres unités (shaku = 0.303m). Enregistrez des constantes comme W = 3cm et réutilisez-les directement dans n'importe quelle expression.
 
-DES CARNETS QUI CALCULENT VRAIMENT
-Neuf bibliothèques de calculs pas à pas, chaque étape affichant son propre résultat :
-• Sciences, et Physique (lycée)
-• Stœchiométrie, et Astronomie et espace
-• Électricité et énergie : chute de tension et section de câble nécessaire, rapport de transformation, rendement et courant d'un moteur, électronique, solaire
-• Loisirs et fabrication
-• Maison et vie quotidienne
-• Physique des voitures et vélos
-• Conception mécanique et structurale : contraintes et déformations, poutres et poteaux, arbres, éléments de machines
-Chaque carnet retient vos dernières valeurs, et ceux dont le résultat dépend du pays s'ouvrent avec la tension du secteur, le calibre du disjoncteur et les prix de l'électricité et du carburant de votre région.
+DES CARNETS QUI CALCULENT
+Enregistrez une formule une fois, puis réutilisez-la pour tout calcul avec unités en changeant simplement les valeurs.
+Des centaines de carnets prêts à l'emploi sont déjà inclus, dans des domaines comme :
+• Sciences : vitesse et distance, flotter ou couler selon la masse volumique, loi d'Ohm, réflexion de la lumière
+• Physique (lycée) : mouvement uniformément accéléré, l'équation du mouvement, mouvement harmonique simple, la loi de Coulomb
+• Stœchiométrie : concentration molaire, la loi des gaz parfaits, chaleur de réaction, pourcentage massique
+• Astronomie et espace : première vitesse cosmique, la troisième loi de Kepler, force gravitationnelle, temps de parcours de la lumière depuis une étoile
+• Électricité et énergie : chute de tension et section de câble nécessaire, rapport de transformation, rendement et courant d'un moteur, constante de temps RC, taille du champ photovoltaïque
+• Loisirs et fabrication : profondeur de champ et indice de lumination, addition des niveaux de deux sources sonores, volume de béton pour une dalle, longueur de filament d'après le volume du modèle
+• Maison et vie quotidienne : ratio d'extraction du café, point de rosée, calories brûlées, mise à l'échelle d'une recette
+• Physique des voitures et vélos : distance de freinage, rapport de démultiplication et vitesse, consommation de carburant et coût du trajet
+• Conception mécanique et structurale : contrainte de flexion et flèche d'une poutre en acier, flambement d'Euler, contrainte de torsion d'un arbre, couple de serrage et précontrainte d'un boulon, durée de vie L10 d'un roulement à billes
+Chaque carnet retient vos dernières valeurs, et vous pouvez chercher dans tous les titres, descriptions et catégories à la fois. Les carnets dont le résultat dépend du pays s'ouvrent avec la tension du secteur, le calibre du disjoncteur et les prix de l'électricité et du carburant de votre région.
 
-GRATUIT, AVEC UN ACHAT PRO UNIQUE
-Toutes les fonctions de calcul sont gratuites et l'historique est illimité. Carnets, constantes et unités se sauvegardent dans un fichier et se restaurent sur un autre appareil.
-UnitCalc Pro s'achète une seule fois, sans frais récurrents. Il retire la publicité, exporte l'historique en CSV, enregistre vos jeux d'unités et partage un carnet sous forme de document mis en page, à imprimer ou à garder en PDF.
+À PROPOS D'UNITCALC PRO
+Toutes les fonctions de calcul et tous les carnets sont gratuits.
+UnitCalc Pro s'achète une seule fois. Il retire la publicité, exporte l'historique en CSV, enregistre vos jeux d'unités et vous permet de garder ou partager un carnet en PDF.
 
 Aucun compte à créer. Vos calculs, vos carnets et vos unités restent sur l'appareil.
 ```
