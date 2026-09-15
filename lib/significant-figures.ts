@@ -216,11 +216,17 @@ export function toScientificNotation(
   // LaTeXの数式モードでは `,` の後に空白が入る（1,5 が「1, 5」に見える）ので、
   // 小数点がカンマのロケールでは括弧で括って通常の文字として組ませる。
   const latexMantissa = separator === "." ? mantissa : mantissa.replace(separator, `{${separator}}`);
+  // **指数が0のときは `× 10⁰` を書かない。** 表記として誰も書かない形なうえ、表示単位の
+  // 自動選択が値を1〜1000に収めるので単位付きの結果では指数0が最も多く、そのたびに
+  // `× 10⁰` が付くと「丸めた値だけを読みたい」という本来の用途の邪魔になる。
+  // mantissa / exponent のフィールドはそのまま残す（表示以外の判断がこちらを見るため）。
+  const latexFactor = exponent === 0 ? "" : ` \\times 10^{${exponent}}`;
+  const textFactor = exponent === 0 ? "" : ` × 10${toSuperscript(exponent)}`;
   return {
     mantissa,
     exponent,
-    latex: `${approximate ? "\\approx " : ""}${latexMantissa} \\times 10^{${exponent}}`,
-    text: `${approximate ? "≈ " : ""}${mantissa} × 10${toSuperscript(exponent)}`,
+    latex: `${approximate ? "\\approx " : ""}${latexMantissa}${latexFactor}`,
+    text: `${approximate ? "≈ " : ""}${mantissa}${textFactor}`,
     significantDigits: digits,
     roundedFrom,
   };

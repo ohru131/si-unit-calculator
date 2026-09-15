@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -6,6 +6,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  type PressableProps,
   ScrollView,
   StyleSheet,
   Text,
@@ -99,13 +100,16 @@ const DEFAULT_TARGET_UNIT = "";
 const HEX_LETTER_KEYS = ["A", "B", "C", "D", "E", "F"];
 
 // 空状態の結果カードに置く「まず1つ試す」式。サンプルシート（SAMPLE_CALCULATIONS）の縮約版ではなく、
-// このアプリの3つの売り（オームの法則で電圧が求まる・答えが読みやすい接頭語で返る・速さ×時間が距離になる）を
-// 1タップずつで見せるための固定3件。表示単位は指定せず、表示単位の自動選択（lib/display-unit.ts）に
-// 任せる（1 V / 2.55 mA / 90 km になることが、そのまま自動選択のデモになる）。
-const QUICK_START: { id: "ohms_law" | "current" | "distance"; expression: string }[] = [
-  { id: "ohms_law", expression: "1kΩ × 1mA" },
-  { id: "current", expression: "12V / 4.7kΩ" },
-  { id: "distance", expression: "60km/h × 90min" },
+// このアプリの売り（オームの法則で電圧が求まる・答えが読みやすい接頭語で返る・速さ×時間が距離になる・
+// 定数を定義して後の式で使える）を1タップずつで見せるための固定4件。表示単位は指定せず、表示単位の
+// 自動選択（lib/display-unit.ts）に任せる（1 V / 2.55 mA / 90 km になることが、そのまま自動選択のデモになる）。
+// 4件目の定数定義は、かつて「?」のヘルプにしか書かれていなかった唯一の情報。ヘルプは開いても
+// 入力欄へ繋がらない読み物だったので、そのままタップで試せるこの列へ移した。
+const QUICK_START: { id: string; expression: string; hintKey: "quickStartOhmsLaw" | "quickStartCurrent" | "quickStartDistance" | "quickStartDefine" }[] = [
+  { id: "ohms_law", expression: "1kΩ × 1mA", hintKey: "quickStartOhmsLaw" },
+  { id: "current", expression: "12V / 4.7kΩ", hintKey: "quickStartCurrent" },
+  { id: "distance", expression: "60km/h × 90min", hintKey: "quickStartDistance" },
+  { id: "define", expression: "W = 3cm", hintKey: "quickStartDefine" },
 ];
 // 進数入力モード中に押せてはいけないキー（演算子・小数点・括弧）。16進の桁のまま演算に入ると
 // 評価器が解釈できないため、まず = で10進へ確定させてから通常の式に組み込む運用にする。
@@ -138,23 +142,45 @@ const isPrefixKey = (key: string) => (PREFIX_KEYS as readonly string[]).includes
  * 分数の横棒・根号の伸縮といったKaTeXの寸法計算が崩れない。CSSで `.katex` のフォントを
  * 上書きする方法にしないのはこのため（あちらは全グリフの字幅が変わって組みが崩れる）。
  *
+ * さらに `LatexView` の `mathsfFontFamily` / `mathsfFontWeight` で、その `\mathsf` の範囲だけを
+ * 小数表示と同じ等幅・700に差し替えている（`.mathsf` だけを狙ったCSS。`.katex` は触らない）。
+ * KaTeXが組むのは各グリフを収めたspanの入れ子で、横方向の並びはブラウザの通常のインライン
+ * レイアウトなので、mathordのグリフだけ別のフォントにしても記号側の寸法は元のまま保たれる。
+ *
  * `\displaystyle` は `\mathsf` の外側に置く。付けないと分数が本文サイズで小さく組まれ、
  * 隣の小数表示より明らかに小さく見える。
  */
 const resultLatex = (latex: string) => `\\displaystyle \\mathsf{${latex}}`;
 
+// KaTeXのルート要素は `.katex{font:normal 1.21em ...}` と書かれていて、渡したfontSizeの1.21倍で
+// グリフが組まれる。小数表示（styles.resultValue の36px）と数字の大きさをそろえるには、
+// LatexViewへ渡す値をこの倍率で割っておく必要がある。
+const KATEX_EM_SCALE = 1.21;
+
+// 結果の数字の大きさ。小数表示（styles.resultValue）と同じ36px。
+const RESULT_VALUE_FONT_SIZE = 36;
+
+// 分数だけは分子・分母を縦に2段積むので、36pxのままだとブロックの高さが小数1行の倍近く（実測80px）になる。
+// 22pxまで落とすと数式ブロックの高さが44pxになり、小数1行（44px）とほぼ同じ高さに収まる。
+// これ以上小さくすると分母・分子が読みにくくなるので、ここが下限。
+const STACKED_RESULT_VALUE_FONT_SIZE = 22;
+
+// 分数の右に置く単位ラベルだけは小数と同じ36pxにしない。2段の分数（数字22px）の横に36pxの
+// 単位を並べると、値より単位の方が大きく見えて主従が逆になる（実画面で比較して決めた）。
+const STACKED_RESULT_UNIT_FONT_SIZE = 26;
+
 /**
- * プレビュー行に描くキャレット（カーソル）。
+ * 式の入力欄に描くキャレット（カーソル）。
  *
- * 入力欄の TextInput はフォーカスが当たっていない間キャレットを描かないが、この電卓は
- * 「入力欄を触らずキーパッドで式を組み立てる」設計（入力欄をタップするとOSのキーボードが
- * 上がってキーパッドがほぼ隠れる）なので、`< >` を押しても位置がどこにも出ていなかった。
+ * OSのキーボードを受けるTextInputは1×1の透明な要素として隠してあり、そもそもキャレットが
+ * 見えない。加えてこの電卓は「入力欄を触らずキーパッドで式を組み立てる」設計なので、
+ * フォーカスの有無に関わらずカーソル位置が常に見えている必要がある。だからアプリ側で描く。
  *
  * 点滅させるのは、静止した縦棒だと式の一部（`|` のような記号）と見分けられないため。
  * 点滅は reanimated の共有値だけで回し、setState を使わない（1秒ごとに再レンダーが走ると
  * 入力のたびに式の解析までやり直すことになる）。
  */
-function PreviewCaret({ colors }: { colors: ThemeColorPalette }) {
+function ExpressionCaret({ colors }: { colors: ThemeColorPalette }) {
   const opacity = useSharedValue(1);
   useEffect(() => {
     // 消えている時間を短くして「文字の隙間」に見えないようにする。
@@ -164,9 +190,53 @@ function PreviewCaret({ colors }: { colors: ThemeColorPalette }) {
   return (
     <Animated.View
       // 幅を持つ要素なので、キャレットの手前と後ろの文字が離れて見えないよう左右のマージンは負にしない。
-      // 等幅フォントの字送りより細くしてあるため、文字の並びは崩れない。
-      style={[{ backgroundColor: colors.primary, borderRadius: 1, height: 17, width: 2 }, animatedStyle]}
+      // 等幅フォントの字送りより細くしてあるため、文字の並びは崩れない。高さは19pxの行に合わせる。
+      style={[{ backgroundColor: colors.primary, borderRadius: 1, height: 22, width: 2 }, animatedStyle]}
     />
+  );
+}
+
+/**
+ * 式の入力欄（色分けしたトークン列）の一片。タップされた位置から何文字目かを割り出す。
+ *
+ * 幅は `onLayout` で実測する。等幅フォントなので「一片の幅に対するタップ位置の割合 × 文字数」が
+ * そのまま何文字目かになり、プラットフォームごとに違う等幅の字送り比率を係数として持たずに済む
+ * （キャレットの位置を文字幅から計算せず、要素の間に挟み込むのと同じ理由）。
+ */
+function ExpressionPiece({ accessibilityLabel, children, length, onPlaceCaret, onPress, proportional, start, style }: {
+  accessibilityLabel?: string;
+  children: ReactNode;
+  length: number;
+  onPlaceCaret: (position: number) => void;
+  onPress?: () => void;
+  proportional: boolean;
+  start: number;
+  style: PressableProps["style"];
+}) {
+  const widthRef = useRef(0);
+  return (
+    <Pressable
+      accessibilityLabel={accessibilityLabel}
+      onLayout={(event) => { widthRef.current = event.nativeEvent.layout.width; }}
+      onPress={(event) => {
+        const width = widthRef.current;
+        // react-native-web はマウスのクリックを DOM の click からそのまま onPress へ渡すので、
+        // nativeEvent は MouseEvent そのもので locationX を持たない（ネイティブの
+        // GestureResponderEvent だけが持つ）。Webでは同じ意味を持つ offsetX で補う。
+        const native = event.nativeEvent as { locationX?: number; offsetX?: number };
+        const x = typeof native.locationX === "number" ? native.locationX : native.offsetX;
+        // 枠とアイコンを持つ一片（未対応単位）は要素の幅と文字の幅が一致しないので、割合から
+        // 文字数を割り出さず末尾へ置く。文字だけの一片は等幅なので割合がそのまま文字数になる。
+        const offset = proportional && width > 0 && typeof x === "number" && Number.isFinite(x)
+          ? Math.round((Math.max(0, Math.min(width, x)) / width) * length)
+          : length;
+        onPlaceCaret(start + offset);
+        onPress?.();
+      }}
+      style={style}
+    >
+      {children}
+    </Pressable>
   );
 }
 
@@ -183,7 +253,7 @@ const RECENT_UNIT_LIMIT = 8;
 // 引数を取るメッセージ（unresolvedUnit系・unitDoesNotFit等）が混ざるため、EN_COPYのas constは外し、
 // COPYの型はRecord<AppLanguage, typeof EN_COPY>で両言語の値の形（string/関数）を揃える。
 const EN_COPY = {
-  definitionHint: "Define a constant: W = 3cm", calculate: "=", siBase: "SI base", emptyResult: "Enter an expression to see the result. Tap = to save it to your history.", pickUnit: "Choose a registered unit", speedTitle: "Distance, time & speed", speedFormula: "Speed = distance ÷ time     Distance = speed × time", findSpeed: "Find speed", findDistance: "Find distance", findTime: "Find time", savedHistory: "Saved calculations", historyHint: "Latest answers are available as a1, a2, and so on.", clear: "Clear", helpTitle: "Examples", helpDone: "Done", unitSearch: "Search units, names, or categories", copied: "Calculation copied", copy: "Copy", unitDetails: "Unit details", siConversion: "SI conversion", commonUse: "Common use", close: "Close", advancedMath: "Advanced math", advancedMathHint: "Angles use rad, deg, or °. Includes inverse trig, logs, and atan2(y, x).", saveTemplate: "Save", samples: "Examples", math: "Math", outputUnit: "Display unit", insertUnit: "Insert unit", registered: "Registered", supported: "Supported, not listed", unknown: "Not a usable unit", unknownHint: "Check the symbol or pick a candidate below.", history: "History", use: "Use", noUnit: "SI base", compatible: "Fits this result", allCandidates: "Closest candidates", hintFix: "Fix", hintComplete: "Finish", hintAttach: "Add unit", hintReplace: "Replace unit", hintInsert: "Insert", more: "More", showAs: "Show as", fixTap: "Tap the red unit to fix it.", noCandidates: "No candidate found. Check the symbol.", aliasNote: "same as", noSearchResults: "No unit matches this search.", noSearchResultsHint: "Try a different symbol, name, or category.", noHistory: "No saved calculations yet.", noHistoryHint: "Every result you calculate is saved here automatically.", browseUnits: "Browse categories",
+  calculate: "=", siBase: "SI base", emptyResult: "Enter an expression to see the result. Tap = to save it to your history.", pickUnit: "Choose a registered unit", speedTitle: "Distance, time & speed", speedFormula: "Speed = distance ÷ time     Distance = speed × time", findSpeed: "Find speed", findDistance: "Find distance", findTime: "Find time", savedHistory: "Saved calculations", historyHint: "Latest answers are available as a1, a2, and so on.", clear: "Clear", unitSearch: "Search units, names, or categories", copied: "Calculation copied", copy: "Copy", unitDetails: "Unit details", siConversion: "SI conversion", commonUse: "Common use", close: "Close", advancedMath: "Advanced math", advancedMathHint: "Angles use rad, deg, or °. Includes inverse trig, logs, and atan2(y, x).", saveTemplate: "Save", samples: "Examples", math: "Math", outputUnit: "Display unit", insertUnit: "Insert unit", registered: "Registered", supported: "Supported, not listed", unknown: "Not a usable unit", unknownHint: "Check the symbol or pick a candidate below.", history: "History", use: "Use", noUnit: "SI base", compatible: "Fits this result", allCandidates: "Closest candidates", hintFix: "Fix", hintComplete: "Finish", hintAttach: "Add unit", hintReplace: "Replace unit", hintInsert: "Insert", more: "More", showAs: "Show as", fixTap: "Tap the red unit to fix it.", noCandidates: "No candidate found. Check the symbol.", aliasNote: "same as", noSearchResults: "No unit matches this search.", noSearchResultsHint: "Try a different symbol, name, or category.", noHistory: "No saved calculations yet.", noHistoryHint: "Every result you calculate is saved here automatically.", browseUnits: "Browse categories",
   cannotConvertUnit: "Could not convert to this unit.",
   unresolvedUnitSuggestion: (text: string, canonical: string) => `“${text}” is not a usable unit. Did you mean ${canonical}?`,
   unresolvedUnitUnknown: (text: string) => `“${text}” is not a registered or supported unit.`,
@@ -219,11 +289,12 @@ const EN_COPY = {
   quickStartOhmsLaw: "Ohm's law — the answer comes back in V",
   quickStartCurrent: "Ohm's law — the answer comes back in mA",
   quickStartDistance: "Speed × time, shown in km",
+  quickStartDefine: "Define a constant — then use W × H later",
 };
 const COPY: Record<AppLanguage, typeof EN_COPY> = {
   en: EN_COPY,
   ja: {
-    definitionHint: "定数定義：W = 3cm", calculate: "=", siBase: "SI標準", emptyResult: "式を入力すると結果が出ます。「=」を押すと履歴に保存されます。", pickUnit: "登録済み単位から選択", speedTitle: "距離・時間・速度", speedFormula: "速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間", findSpeed: "速度を求める", findDistance: "距離を求める", findTime: "時間を求める", savedHistory: "保存済みの計算履歴", historyHint: "最新の結果は a1、a2… として次の式で使えます。", clear: "消去", helpTitle: "入力例", helpDone: "閉じる", unitSearch: "単位・読み・カテゴリを検索", copied: "計算結果をコピーしました", copy: "コピー", unitDetails: "単位の説明", siConversion: "SI換算", commonUse: "主な利用分野", close: "閉じる", advancedMath: "上級の数学機能", advancedMathHint: "角度は rad・deg・° で入力します。逆三角・対数・atan2(y, x)にも対応します。", saveTemplate: "保存", samples: "サンプル", math: "数学", outputUnit: "表示単位", insertUnit: "単位を挿入", registered: "登録済み", supported: "計算対応（候補外）", unknown: "使えない単位", unknownHint: "記号を確認するか、下の候補から選んでください。", history: "履歴", use: "使う", noUnit: "SI標準", compatible: "この結果に合う単位", allCandidates: "近い候補", hintFix: "要修正", hintComplete: "確定", hintAttach: "単位付け", hintReplace: "単位を置換", hintInsert: "単位挿入", more: "他", showAs: "表示単位", fixTap: "赤い単位をタップすると修正できます。", noCandidates: "候補が見つかりません。記号を確認してください。", aliasNote: "＝", noSearchResults: "一致する単位が見つかりません。", noSearchResultsHint: "別の記号・名前・カテゴリでも試してください。", noHistory: "保存された計算はまだありません。", noHistoryHint: "計算するたびに自動で保存されます。", browseUnits: "カテゴリで探す",
+    calculate: "=", siBase: "SI標準", emptyResult: "式を入力すると結果が出ます。「=」を押すと履歴に保存されます。", pickUnit: "登録済み単位から選択", speedTitle: "距離・時間・速度", speedFormula: "速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間", findSpeed: "速度を求める", findDistance: "距離を求める", findTime: "時間を求める", savedHistory: "保存済みの計算履歴", historyHint: "最新の結果は a1、a2… として次の式で使えます。", clear: "消去", unitSearch: "単位・読み・カテゴリを検索", copied: "計算結果をコピーしました", copy: "コピー", unitDetails: "単位の説明", siConversion: "SI換算", commonUse: "主な利用分野", close: "閉じる", advancedMath: "上級の数学機能", advancedMathHint: "角度は rad・deg・° で入力します。逆三角・対数・atan2(y, x)にも対応します。", saveTemplate: "保存", samples: "サンプル", math: "数学", outputUnit: "表示単位", insertUnit: "単位を挿入", registered: "登録済み", supported: "計算対応（候補外）", unknown: "使えない単位", unknownHint: "記号を確認するか、下の候補から選んでください。", history: "履歴", use: "使う", noUnit: "SI標準", compatible: "この結果に合う単位", allCandidates: "近い候補", hintFix: "要修正", hintComplete: "確定", hintAttach: "単位付け", hintReplace: "単位を置換", hintInsert: "単位挿入", more: "他", showAs: "表示単位", fixTap: "赤い単位をタップすると修正できます。", noCandidates: "候補が見つかりません。記号を確認してください。", aliasNote: "＝", noSearchResults: "一致する単位が見つかりません。", noSearchResultsHint: "別の記号・名前・カテゴリでも試してください。", noHistory: "保存された計算はまだありません。", noHistoryHint: "計算するたびに自動で保存されます。", browseUnits: "カテゴリで探す",
     cannotConvertUnit: "この単位へは変換できません。",
     unresolvedUnitSuggestion: (text: string, canonical: string) => `「${text}」は使えません。${canonical} に修正できます。`,
     unresolvedUnitUnknown: (text: string) => `「${text}」は未登録・未対応の単位です。`,
@@ -259,9 +330,10 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     quickStartOhmsLaw: "オームの法則 — 答えは 1 V で返る",
     quickStartCurrent: "オームの法則 — 答えは mA で返る",
     quickStartDistance: "速さ × 時間を km で表示",
+    quickStartDefine: "定数を定義 — あとで W × H のように使える",
   },
   es: {
-    definitionHint: "Definir una constante: W = 3cm", calculate: "=", siBase: "Base SI", emptyResult: "Escribe una expresión para ver el resultado. Toca = para guardarlo en el historial.", pickUnit: "Elige una unidad registrada", speedTitle: "Distancia, tiempo y velocidad", speedFormula: "Velocidad = distancia ÷ tiempo     Distancia = velocidad × tiempo", findSpeed: "Calcular velocidad", findDistance: "Calcular distancia", findTime: "Calcular tiempo", savedHistory: "Cálculos guardados", historyHint: "Los últimos resultados están disponibles como a1, a2, etc.", clear: "Borrar", helpTitle: "Ejemplos", helpDone: "Listo", unitSearch: "Buscar unidades, nombres o categorías", copied: "Cálculo copiado", copy: "Copiar", unitDetails: "Detalles de la unidad", siConversion: "Conversión SI", commonUse: "Uso común", close: "Cerrar", advancedMath: "Matemáticas avanzadas", advancedMathHint: "Los ángulos usan rad, deg o °. Incluye trigonometría inversa, logaritmos y atan2(y, x).", saveTemplate: "Guardar", samples: "Ejemplos", math: "Mat.", outputUnit: "Unidad mostrada", insertUnit: "Insertar unidad", registered: "Registrada", supported: "Compatible, sin listar", unknown: "Unidad no válida", unknownHint: "Revisa el símbolo o elige un candidato abajo.", history: "Historial", use: "Usar", noUnit: "Base SI", compatible: "Compatible con este resultado", allCandidates: "Candidatos más cercanos", hintFix: "Corregir", hintComplete: "Completar", hintAttach: "Añadir", hintReplace: "Sustituir", hintInsert: "Insertar", more: "Más", showAs: "Mostrar como", fixTap: "Toca la unidad en rojo para corregirla.", noCandidates: "No se encontró ningún candidato. Revisa el símbolo.", aliasNote: "igual a", noSearchResults: "Ninguna unidad coincide con esta búsqueda.", noSearchResultsHint: "Prueba otro símbolo, nombre o categoría.", noHistory: "Aún no hay cálculos guardados.", noHistoryHint: "Cada resultado que calculas se guarda aquí automáticamente.", browseUnits: "Explorar categorías",
+    calculate: "=", siBase: "Base SI", emptyResult: "Escribe una expresión para ver el resultado. Toca = para guardarlo en el historial.", pickUnit: "Elige una unidad registrada", speedTitle: "Distancia, tiempo y velocidad", speedFormula: "Velocidad = distancia ÷ tiempo     Distancia = velocidad × tiempo", findSpeed: "Calcular velocidad", findDistance: "Calcular distancia", findTime: "Calcular tiempo", savedHistory: "Cálculos guardados", historyHint: "Los últimos resultados están disponibles como a1, a2, etc.", clear: "Borrar", unitSearch: "Buscar unidades, nombres o categorías", copied: "Cálculo copiado", copy: "Copiar", unitDetails: "Detalles de la unidad", siConversion: "Conversión SI", commonUse: "Uso común", close: "Cerrar", advancedMath: "Matemáticas avanzadas", advancedMathHint: "Los ángulos usan rad, deg o °. Incluye trigonometría inversa, logaritmos y atan2(y, x).", saveTemplate: "Guardar", samples: "Ejemplos", math: "Mat.", outputUnit: "Unidad mostrada", insertUnit: "Insertar unidad", registered: "Registrada", supported: "Compatible, sin listar", unknown: "Unidad no válida", unknownHint: "Revisa el símbolo o elige un candidato abajo.", history: "Historial", use: "Usar", noUnit: "Base SI", compatible: "Compatible con este resultado", allCandidates: "Candidatos más cercanos", hintFix: "Corregir", hintComplete: "Completar", hintAttach: "Añadir", hintReplace: "Sustituir", hintInsert: "Insertar", more: "Más", showAs: "Mostrar como", fixTap: "Toca la unidad en rojo para corregirla.", noCandidates: "No se encontró ningún candidato. Revisa el símbolo.", aliasNote: "igual a", noSearchResults: "Ninguna unidad coincide con esta búsqueda.", noSearchResultsHint: "Prueba otro símbolo, nombre o categoría.", noHistory: "Aún no hay cálculos guardados.", noHistoryHint: "Cada resultado que calculas se guarda aquí automáticamente.", browseUnits: "Explorar categorías",
     cannotConvertUnit: "No se pudo convertir a esta unidad.",
     unresolvedUnitSuggestion: (text: string, canonical: string) => `“${text}” no es una unidad válida. ¿Quisiste decir ${canonical}?`,
     unresolvedUnitUnknown: (text: string) => `“${text}” no es una unidad registrada ni compatible.`,
@@ -297,9 +369,10 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     quickStartOhmsLaw: "Ley de Ohm: la respuesta sale en V",
     quickStartCurrent: "Ley de Ohm: la respuesta sale en mA",
     quickStartDistance: "Velocidad × tiempo, mostrado en km",
+    quickStartDefine: "Define una constante: después la usas como W × H",
   },
   "pt-BR": {
-    definitionHint: "Definir uma constante: W = 3cm", calculate: "=", siBase: "Base SI", emptyResult: "Digite uma expressão para ver o resultado. Toque em = para salvá-lo no histórico.", pickUnit: "Escolha uma unidade registrada", speedTitle: "Distância, tempo e velocidade", speedFormula: "Velocidade = distância ÷ tempo     Distância = velocidade × tempo", findSpeed: "Calcular velocidade", findDistance: "Calcular distância", findTime: "Calcular tempo", savedHistory: "Cálculos salvos", historyHint: "Os últimos resultados ficam disponíveis como a1, a2 etc.", clear: "Limpar", helpTitle: "Exemplos", helpDone: "Concluído", unitSearch: "Buscar unidades, nomes ou categorias", copied: "Cálculo copiado", copy: "Copiar", unitDetails: "Detalhes da unidade", siConversion: "Conversão SI", commonUse: "Uso comum", close: "Fechar", advancedMath: "Matemática avançada", advancedMathHint: "Os ângulos usam rad, deg ou °. Inclui trigonometria inversa, logaritmos e atan2(y, x).", saveTemplate: "Salvar", samples: "Exemplos", math: "Mat.", outputUnit: "Unidade de exibição", insertUnit: "Inserir unidade", registered: "Registrada", supported: "Compatível, não listada", unknown: "Unidade inválida", unknownHint: "Verifique o símbolo ou escolha um candidato abaixo.", history: "Histórico", use: "Usar", noUnit: "Base SI", compatible: "Compatível com este resultado", allCandidates: "Candidatos mais próximos", hintFix: "Corrigir", hintComplete: "Concluir", hintAttach: "Adicionar", hintReplace: "Substituir", hintInsert: "Inserir", more: "Mais", showAs: "Exibir como", fixTap: "Toque na unidade em vermelho para corrigi-la.", noCandidates: "Nenhum candidato encontrado. Verifique o símbolo.", aliasNote: "igual a", noSearchResults: "Nenhuma unidade corresponde a esta busca.", noSearchResultsHint: "Tente outro símbolo, nome ou categoria.", noHistory: "Ainda não há cálculos salvos.", noHistoryHint: "Cada resultado calculado é salvo aqui automaticamente.", browseUnits: "Explorar categorias",
+    calculate: "=", siBase: "Base SI", emptyResult: "Digite uma expressão para ver o resultado. Toque em = para salvá-lo no histórico.", pickUnit: "Escolha uma unidade registrada", speedTitle: "Distância, tempo e velocidade", speedFormula: "Velocidade = distância ÷ tempo     Distância = velocidade × tempo", findSpeed: "Calcular velocidade", findDistance: "Calcular distância", findTime: "Calcular tempo", savedHistory: "Cálculos salvos", historyHint: "Os últimos resultados ficam disponíveis como a1, a2 etc.", clear: "Limpar", unitSearch: "Buscar unidades, nomes ou categorias", copied: "Cálculo copiado", copy: "Copiar", unitDetails: "Detalhes da unidade", siConversion: "Conversão SI", commonUse: "Uso comum", close: "Fechar", advancedMath: "Matemática avançada", advancedMathHint: "Os ângulos usam rad, deg ou °. Inclui trigonometria inversa, logaritmos e atan2(y, x).", saveTemplate: "Salvar", samples: "Exemplos", math: "Mat.", outputUnit: "Unidade de exibição", insertUnit: "Inserir unidade", registered: "Registrada", supported: "Compatível, não listada", unknown: "Unidade inválida", unknownHint: "Verifique o símbolo ou escolha um candidato abaixo.", history: "Histórico", use: "Usar", noUnit: "Base SI", compatible: "Compatível com este resultado", allCandidates: "Candidatos mais próximos", hintFix: "Corrigir", hintComplete: "Concluir", hintAttach: "Adicionar", hintReplace: "Substituir", hintInsert: "Inserir", more: "Mais", showAs: "Exibir como", fixTap: "Toque na unidade em vermelho para corrigi-la.", noCandidates: "Nenhum candidato encontrado. Verifique o símbolo.", aliasNote: "igual a", noSearchResults: "Nenhuma unidade corresponde a esta busca.", noSearchResultsHint: "Tente outro símbolo, nome ou categoria.", noHistory: "Ainda não há cálculos salvos.", noHistoryHint: "Cada resultado calculado é salvo aqui automaticamente.", browseUnits: "Explorar categorias",
     cannotConvertUnit: "Não foi possível converter para esta unidade.",
     unresolvedUnitSuggestion: (text: string, canonical: string) => `“${text}” não é uma unidade válida. Você quis dizer ${canonical}?`,
     unresolvedUnitUnknown: (text: string) => `“${text}” não é uma unidade registrada nem compatível.`,
@@ -335,9 +408,10 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     quickStartOhmsLaw: "Lei de Ohm: a resposta sai em V",
     quickStartCurrent: "Lei de Ohm: a resposta sai em mA",
     quickStartDistance: "Velocidade × tempo, exibido em km",
+    quickStartDefine: "Defina uma constante: depois é só usar como W × H",
   },
   de: {
-    definitionHint: "Konstante definieren: W = 3cm", calculate: "=", siBase: "SI-Basis", emptyResult: "Gib einen Ausdruck ein, um das Ergebnis zu sehen. Tippe auf =, um es im Verlauf zu speichern.", pickUnit: "Registrierte Einheit wählen", speedTitle: "Strecke, Zeit & Geschwindigkeit", speedFormula: "Geschwindigkeit = Strecke ÷ Zeit     Strecke = Geschwindigkeit × Zeit", findSpeed: "Geschwindigkeit berechnen", findDistance: "Strecke berechnen", findTime: "Zeit berechnen", savedHistory: "Gespeicherte Berechnungen", historyHint: "Die letzten Ergebnisse stehen als a1, a2 usw. zur Verfügung.", clear: "Löschen", helpTitle: "Beispiele", helpDone: "Fertig", unitSearch: "Einheiten, Namen oder Kategorien suchen", copied: "Berechnung kopiert", copy: "Kopieren", unitDetails: "Details zur Einheit", siConversion: "SI-Umrechnung", commonUse: "Typische Verwendung", close: "Schließen", advancedMath: "Erweiterte Mathematik", advancedMathHint: "Winkel in rad, deg oder °. Enthält inverse Trigonometrie, Logarithmen und atan2(y, x).", saveTemplate: "Speichern", samples: "Beispiele", math: "Math.", outputUnit: "Anzeigeeinheit", insertUnit: "Einheit einfügen", registered: "Registriert", supported: "Unterstützt, nicht gelistet", unknown: "Keine gültige Einheit", unknownHint: "Prüfe das Symbol oder wähle unten einen Vorschlag.", history: "Verlauf", use: "Verwenden", noUnit: "SI-Basis", compatible: "Passt zu diesem Ergebnis", allCandidates: "Nächste Vorschläge", hintFix: "Beheben", hintComplete: "Fertig", hintAttach: "Anfügen", hintReplace: "Ersetzen", hintInsert: "Einfügen", more: "Mehr", showAs: "Anzeigen als", fixTap: "Tippe auf die rote Einheit, um sie zu korrigieren.", noCandidates: "Kein Vorschlag gefunden. Prüfe das Symbol.", aliasNote: "entspricht", noSearchResults: "Keine Einheit passt zu dieser Suche.", noSearchResultsHint: "Versuche ein anderes Symbol, einen anderen Namen oder eine andere Kategorie.", noHistory: "Noch keine gespeicherten Berechnungen.", noHistoryHint: "Jedes berechnete Ergebnis wird hier automatisch gespeichert.", browseUnits: "Kategorien durchsuchen",
+    calculate: "=", siBase: "SI-Basis", emptyResult: "Gib einen Ausdruck ein, um das Ergebnis zu sehen. Tippe auf =, um es im Verlauf zu speichern.", pickUnit: "Registrierte Einheit wählen", speedTitle: "Strecke, Zeit & Geschwindigkeit", speedFormula: "Geschwindigkeit = Strecke ÷ Zeit     Strecke = Geschwindigkeit × Zeit", findSpeed: "Geschwindigkeit berechnen", findDistance: "Strecke berechnen", findTime: "Zeit berechnen", savedHistory: "Gespeicherte Berechnungen", historyHint: "Die letzten Ergebnisse stehen als a1, a2 usw. zur Verfügung.", clear: "Löschen", unitSearch: "Einheiten, Namen oder Kategorien suchen", copied: "Berechnung kopiert", copy: "Kopieren", unitDetails: "Details zur Einheit", siConversion: "SI-Umrechnung", commonUse: "Typische Verwendung", close: "Schließen", advancedMath: "Erweiterte Mathematik", advancedMathHint: "Winkel in rad, deg oder °. Enthält inverse Trigonometrie, Logarithmen und atan2(y, x).", saveTemplate: "Speichern", samples: "Beispiele", math: "Math.", outputUnit: "Anzeigeeinheit", insertUnit: "Einheit einfügen", registered: "Registriert", supported: "Unterstützt, nicht gelistet", unknown: "Keine gültige Einheit", unknownHint: "Prüfe das Symbol oder wähle unten einen Vorschlag.", history: "Verlauf", use: "Verwenden", noUnit: "SI-Basis", compatible: "Passt zu diesem Ergebnis", allCandidates: "Nächste Vorschläge", hintFix: "Beheben", hintComplete: "Fertig", hintAttach: "Anfügen", hintReplace: "Ersetzen", hintInsert: "Einfügen", more: "Mehr", showAs: "Anzeigen als", fixTap: "Tippe auf die rote Einheit, um sie zu korrigieren.", noCandidates: "Kein Vorschlag gefunden. Prüfe das Symbol.", aliasNote: "entspricht", noSearchResults: "Keine Einheit passt zu dieser Suche.", noSearchResultsHint: "Versuche ein anderes Symbol, einen anderen Namen oder eine andere Kategorie.", noHistory: "Noch keine gespeicherten Berechnungen.", noHistoryHint: "Jedes berechnete Ergebnis wird hier automatisch gespeichert.", browseUnits: "Kategorien durchsuchen",
     cannotConvertUnit: "Umrechnung in diese Einheit nicht möglich.",
     unresolvedUnitSuggestion: (text: string, canonical: string) => `„${text}“ ist keine gültige Einheit. Meintest du ${canonical}?`,
     unresolvedUnitUnknown: (text: string) => `„${text}“ ist keine registrierte oder unterstützte Einheit.`,
@@ -373,9 +447,10 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     quickStartOhmsLaw: "Ohmsches Gesetz – die Antwort kommt in V",
     quickStartCurrent: "Ohmsches Gesetz – die Antwort kommt in mA",
     quickStartDistance: "Geschwindigkeit × Zeit, angezeigt in km",
+    quickStartDefine: "Konstante definieren – danach kannst du sie als W × H nutzen",
   },
   fr: {
-    definitionHint: "Définir une constante : W = 3cm", calculate: "=", siBase: "Base SI", emptyResult: "Saisissez une expression pour voir le résultat. Appuyez sur = pour l'enregistrer dans l'historique.", pickUnit: "Choisir une unité enregistrée", speedTitle: "Distance, temps et vitesse", speedFormula: "Vitesse = distance ÷ temps     Distance = vitesse × temps", findSpeed: "Calculer la vitesse", findDistance: "Calculer la distance", findTime: "Calculer le temps", savedHistory: "Calculs enregistrés", historyHint: "Les derniers résultats sont disponibles sous la forme a1, a2, etc.", clear: "Effacer", helpTitle: "Exemples", helpDone: "Terminé", unitSearch: "Rechercher des unités, des noms ou des catégories", copied: "Calcul copié", copy: "Copier", unitDetails: "Détails de l'unité", siConversion: "Conversion SI", commonUse: "Usage courant", close: "Fermer", advancedMath: "Mathématiques avancées", advancedMathHint: "Les angles utilisent rad, deg ou °. Comprend la trigonométrie inverse, les logarithmes et atan2(y, x).", saveTemplate: "Enregistrer", samples: "Exemples", math: "Maths", outputUnit: "Unité affichée", insertUnit: "Insérer une unité", registered: "Enregistrée", supported: "Prise en charge, non listée", unknown: "Unité non valide", unknownHint: "Vérifiez le symbole ou choisissez un candidat ci-dessous.", history: "Historique", use: "Utiliser", noUnit: "Base SI", compatible: "Compatible avec ce résultat", allCandidates: "Candidats les plus proches", hintFix: "Corriger", hintComplete: "Terminer", hintAttach: "Ajouter", hintReplace: "Remplacer", hintInsert: "Insérer", more: "Plus", showAs: "Afficher en", fixTap: "Touchez l'unité en rouge pour la corriger.", noCandidates: "Aucun candidat trouvé. Vérifiez le symbole.", aliasNote: "identique à", noSearchResults: "Aucune unité ne correspond à cette recherche.", noSearchResultsHint: "Essayez un autre symbole, nom ou catégorie.", noHistory: "Aucun calcul enregistré pour le moment.", noHistoryHint: "Chaque résultat calculé est enregistré ici automatiquement.", browseUnits: "Parcourir les catégories",
+    calculate: "=", siBase: "Base SI", emptyResult: "Saisissez une expression pour voir le résultat. Appuyez sur = pour l'enregistrer dans l'historique.", pickUnit: "Choisir une unité enregistrée", speedTitle: "Distance, temps et vitesse", speedFormula: "Vitesse = distance ÷ temps     Distance = vitesse × temps", findSpeed: "Calculer la vitesse", findDistance: "Calculer la distance", findTime: "Calculer le temps", savedHistory: "Calculs enregistrés", historyHint: "Les derniers résultats sont disponibles sous la forme a1, a2, etc.", clear: "Effacer", unitSearch: "Rechercher des unités, des noms ou des catégories", copied: "Calcul copié", copy: "Copier", unitDetails: "Détails de l'unité", siConversion: "Conversion SI", commonUse: "Usage courant", close: "Fermer", advancedMath: "Mathématiques avancées", advancedMathHint: "Les angles utilisent rad, deg ou °. Comprend la trigonométrie inverse, les logarithmes et atan2(y, x).", saveTemplate: "Enregistrer", samples: "Exemples", math: "Maths", outputUnit: "Unité affichée", insertUnit: "Insérer une unité", registered: "Enregistrée", supported: "Prise en charge, non listée", unknown: "Unité non valide", unknownHint: "Vérifiez le symbole ou choisissez un candidat ci-dessous.", history: "Historique", use: "Utiliser", noUnit: "Base SI", compatible: "Compatible avec ce résultat", allCandidates: "Candidats les plus proches", hintFix: "Corriger", hintComplete: "Terminer", hintAttach: "Ajouter", hintReplace: "Remplacer", hintInsert: "Insérer", more: "Plus", showAs: "Afficher en", fixTap: "Touchez l'unité en rouge pour la corriger.", noCandidates: "Aucun candidat trouvé. Vérifiez le symbole.", aliasNote: "identique à", noSearchResults: "Aucune unité ne correspond à cette recherche.", noSearchResultsHint: "Essayez un autre symbole, nom ou catégorie.", noHistory: "Aucun calcul enregistré pour le moment.", noHistoryHint: "Chaque résultat calculé est enregistré ici automatiquement.", browseUnits: "Parcourir les catégories",
     cannotConvertUnit: "Impossible de convertir vers cette unité.",
     unresolvedUnitSuggestion: (text: string, canonical: string) => `« ${text} » n'est pas une unité valide. Vouliez-vous dire ${canonical} ?`,
     unresolvedUnitUnknown: (text: string) => `« ${text} » n'est pas une unité enregistrée ou prise en charge.`,
@@ -411,6 +486,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     quickStartOhmsLaw: "Loi d'Ohm : la réponse s'affiche en V",
     quickStartCurrent: "Loi d'Ohm : la réponse s'affiche en mA",
     quickStartDistance: "Vitesse × temps, affiché en km",
+    quickStartDefine: "Définissez une constante : ensuite utilisez-la comme W × H",
   },
 };
 
@@ -478,7 +554,6 @@ export default function CalculatorScreen() {
   // null は「まだ自分で選んでいない」。既定のタブは言語ごとの関連度順（lib/locale-relevance.ts）の
   // 先頭にするので、"basic" のような固定値を初期値に持たせない。
   const [sampleCategory, setSampleCategory] = useState<string | null>(null);
-  const [showHelp, setShowHelp] = useState(false);
   const [showSamples, setShowSamples] = useState(false);
   // サンプルは式を丸ごと置き換える破壊的な操作なので、入力中の式があるときだけ確認する。
   // シートを閉じてから出すことで、ConfirmDialogがモーダルの中に重ならないようにする。
@@ -510,6 +585,9 @@ export default function CalculatorScreen() {
   const [showInlineUnitSearch, setShowInlineUnitSearch] = useState(false);
   const [inlineUnitQuery, setInlineUnitQuery] = useState("");
   const unitSearchRef = useRef<TextInput>(null);
+  // 式のOSキーボード受け口（画面には出ない1×1のTextInput）。表示欄をタップしたときに
+  // フォーカスを移すためだけに持つ。
+  const expressionInputRef = useRef<TextInput>(null);
   const inlineUnitSearchRef = useRef<TextInput>(null);
   // quick / presetExpression / presetUnit はルートパラメータなので画面に残り続ける。
   // これらを見ているエフェクトは language も参照しているため、言語を切り替えると再実行され、
@@ -824,10 +902,10 @@ export default function CalculatorScreen() {
 
   // 分数（\frac）は縦に2段積むので、小数と同じ文字サイズで組むと高さが倍以上になり、
   // 小数から切り替えた瞬間に結果カードだけ別物のように見える。段数に応じて文字サイズを
-  // 落とし、ブロック全体の高さが小数1行（resultValueの28px）に近くなるよう揃える。
+  // 落とし、ブロック全体の高さが小数1行（resultValueの36px・行の高さ44px）に近くなるよう揃える。
   // 分数を含まない形（√3・2π など）は1段なので小数と同じ大きさのままでよい。
   const isStackedExactValue = Boolean(exactValue?.latex.includes("\\frac"));
-  const exactFontSize = isStackedExactValue ? 26 : 36;
+  const exactFontSize = isStackedExactValue ? STACKED_RESULT_VALUE_FONT_SIZE : RESULT_VALUE_FONT_SIZE;
 
   // 入力式から読める有効数字の桁数（lib/significant-figures.ts）。加減算が混ざる式や
   // リテラルが無い式ではnullになり、そのときは丸めずに科学表記だけを出す。
@@ -835,8 +913,9 @@ export default function CalculatorScreen() {
 
   // 結果を「a × 10ⁿ」で読む表示モード。**役に立つときだけチップを出す**ため、ここでnullを
   // 返した場合はチップも並べない。役に立つのは (1) 有効数字で丸めて桁が落ちたとき、
-  // (2) 桁が大きい・小さいとき（10³以上か10⁻³未満）。5.1 のような値に「5.1 × 10⁰」の
-  // 選択肢を並べても読み替えになっていない。
+  // (2) 桁が大きい・小さいとき（10³以上か10⁻³未満）。5.1 のような値に小数と同じ表記の
+  // 選択肢を並べても読み替えになっていない（指数0では倍率の因子を書かないので、
+  // 丸めが起きていなければ小数と一字一句同じものが出る）。
   const scientificValue = useMemo(() => {
     if (!display || baseInputMode !== null) return null;
     // display.numeric は表示単位へ換算済みの値。オフセットを持つ単位（°C・°F）への換算を
@@ -966,6 +1045,15 @@ export default function CalculatorScreen() {
     const next = { start: position, end: position };
     setSelection(next);
     setPendingSelection(next);
+  };
+
+  /** 式の表示欄をタップしたときの共通処理。見えているキャレットを動かす前に、OSのキーボードの
+   * 受け口（隠しTextInput）へフォーカスを移す。表示欄はただのViewなので、これを忘れると
+   * 定数名・単位名をキーボードから打ち込めない。 */
+  const placeCaretFromTap = (position: number) => {
+    markUserInteraction();
+    expressionInputRef.current?.focus();
+    placeCaret(Math.max(0, Math.min(expression.length, position)));
   };
 
   // 履歴の非同期復元が、ユーザー自身の操作を後から上書きしないようにするための記録。
@@ -1408,19 +1496,144 @@ export default function CalculatorScreen() {
   return (
     <ScreenContainer className="px-4" containerClassName="bg-background">
       <View style={styles.screen}>
-        {/* 画面名の見出し(h1)はタブバー(app/(tabs)/_layout.tsx)のラベルと重複するため出さない。
-            タイトルが無くなった分、ヘルプボタンは右寄せのまま浮かせる。 */}
-        <View style={styles.header}>
-          <View style={styles.headerActions}>
-            <Pressable accessibilityLabel={copy.helpTitle} onPress={() => setShowHelp(true)} style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}>
-              <IconSymbol name="questionmark.circle.fill" size={20} color={colors.primary} />
-            </Pressable>
-          </View>
-        </View>
-
         <View style={styles.inputCard}>
+          {/* 色分けしたトークン列そのものが入力欄。かつては TextInput の下に同じ式のプレビュー行を
+              別に並べていたが、同じ式が2段に出るうえ、TextInput はフォーカスが外れるとキャレットを
+              描かないので「次に何がどこへ入るか」はプレビュー行にしか出ていなかった。1枚にまとめ、
+              キャレットはフォーカスの有無に関わらずこちらで描く。 */}
           <View style={styles.inputRow}>
+            <Pressable
+              // 文字の無い余白をタップしたときは末尾へ。一片の上をタップしたときは
+              // ExpressionPiece 側が先に応答するので、ここには来ない。
+              onPress={() => placeCaretFromTap(expression.length)}
+              style={styles.expressionDisplay}
+            >
+              <View style={styles.expressionTokens}>
+                {baseInputMode !== null ? (
+                  // 進数入力モード中は、16進の桁が単位・識別子として解析されて赤くなってしまうため、
+                  // 既存のanalyzeExpressionによるハイライトは使わず「接頭辞＋生の桁」を単純に描く。
+                  // キャレット移動はこのモードでも使えるので、ここでもカーソル位置を示す。桁は
+                  // 解析せず単純な文字列なので、セグメントを切らずに前後で分けるだけでよい。
+                  // 範囲選択中は通常の表示と同じく帯で示す（何が置き換わるかが要点）。
+                  // 進数モードの桁も一片（ExpressionPiece）として描かないと、タップが親のPressableに
+                  // 落ちて placeCaretFromTap(expression.length) が走り、キャレットが必ず末尾へ飛ぶ
+                  // （次の桁が打った場所と違う位置に入る。CodeRabbitが#66で検出）。
+                  <>
+                    {/* 接頭辞は表示専用で expression の中に位置を持たないので、タップは先頭（0）に置く。 */}
+                    <ExpressionPiece length={0} onPlaceCaret={placeCaretFromTap} proportional={false} start={0} style={null}>
+                      <Text style={styles.tokenIdentifier}>{BASE_META[baseInputMode].prefix}</Text>
+                    </ExpressionPiece>
+                    {normalizedSelection.start > 0 ? (
+                      <ExpressionPiece
+                        length={normalizedSelection.start}
+                        onPlaceCaret={placeCaretFromTap}
+                        proportional
+                        start={0}
+                        style={null}
+                      >
+                        <Text style={styles.tokenNumber}>{expression.slice(0, normalizedSelection.start)}</Text>
+                      </ExpressionPiece>
+                    ) : null}
+                    {normalizedSelection.hasRange ? (
+                      <ExpressionPiece
+                        length={normalizedSelection.end - normalizedSelection.start}
+                        onPlaceCaret={placeCaretFromTap}
+                        proportional
+                        start={normalizedSelection.start}
+                        style={styles.tokenSelected}
+                      >
+                        <Text style={styles.tokenNumber}>
+                          {expression.slice(normalizedSelection.start, normalizedSelection.end)}
+                        </Text>
+                      </ExpressionPiece>
+                    ) : (
+                      <ExpressionCaret colors={colors} />
+                    )}
+                    {normalizedSelection.end < expression.length ? (
+                      <ExpressionPiece
+                        length={expression.length - normalizedSelection.end}
+                        onPlaceCaret={placeCaretFromTap}
+                        proportional
+                        start={normalizedSelection.end}
+                        style={null}
+                      >
+                        <Text style={styles.tokenNumber}>{expression.slice(normalizedSelection.end)}</Text>
+                      </ExpressionPiece>
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    {caretPreview.pieces.map((piece, index) => {
+                      const { segment } = piece;
+                      const isUnresolved = segment.kind === "unknown-unit" || segment.kind === "unknown-identifier";
+                      const style = segment.kind === "unit" ? styles.tokenUnit
+                        : isUnresolved ? styles.tokenUnknown
+                        : segment.kind === "identifier" ? styles.tokenIdentifier
+                        : segment.kind === "number" ? styles.tokenNumber
+                        : styles.tokenOperator;
+                      // キャレットは「その一片の手前」に入る。文字の間に挟み込む形にすることで、
+                      // 等幅フォントの文字幅を自前で計算しなくても位置が必ず合う。
+                      const caret = caretPreview.caretIndex === index ? <ExpressionCaret key="caret" colors={colors} /> : null;
+                      const selectedStyle = piece.selected ? styles.tokenSelected : null;
+                      if (!isUnresolved) {
+                        return (
+                          <Fragment key={`${piece.start}-${index}`}>
+                            {caret}
+                            <ExpressionPiece
+                              length={piece.text.length}
+                              onPlaceCaret={placeCaretFromTap}
+                              proportional
+                              start={piece.start}
+                              style={selectedStyle}
+                            >
+                              <Text style={style}>{piece.text}</Text>
+                            </ExpressionPiece>
+                          </Fragment>
+                        );
+                      }
+                      // 単位の書き間違いだけをタップで修正できるようにする。定数・関数の未定義参照は
+                      // 単位の候補を出しても意味がないため、見た目だけ知らせて修正候補は出さない。
+                      // 警告アイコンは分割後の最後の一片だけに出す（キャレットが単位の途中に来たときに
+                      // アイコンが2つ並ばないようにする）。
+                      const icon = piece.isSegmentEnd
+                        ? <IconSymbol name="exclamationmark.triangle.fill" size={13} color={colors.error} />
+                        : null;
+                      return (
+                        <Fragment key={`${piece.start}-${index}`}>
+                          {caret}
+                          <ExpressionPiece
+                            accessibilityLabel={segment.kind === "unknown-unit" ? `${segment.text} ${copy.unknown}` : undefined}
+                            length={piece.text.length}
+                            onPlaceCaret={placeCaretFromTap}
+                            // タップで開く修正範囲は分割前のセグメント全体。一片の範囲にすると
+                            // 単位の半分だけを差し替えることになる。
+                            onPress={segment.kind === "unknown-unit"
+                              ? () => setFixSelection({ start: segment.start, end: segment.end, text: segment.text })
+                              : undefined}
+                            proportional={false}
+                            start={piece.start}
+                            style={({ pressed }) => [styles.tokenUnknownWrap, selectedStyle, pressed && styles.pressed]}
+                          >
+                            <Text style={style}>{piece.text}</Text>
+                            {icon}
+                          </ExpressionPiece>
+                        </Fragment>
+                      );
+                    })}
+                    {/* 末尾（どの一片も始まらない位置）のキャレット。式が空のときもここに出る。 */}
+                    {caretPreview.caretIndex === caretPreview.pieces.length ? <ExpressionCaret colors={colors} /> : null}
+                    {expression.length ? null : <Text style={styles.expressionPlaceholder}>{copy.expressionPlaceholder}</Text>}
+                  </>
+                )}
+              </View>
+            </Pressable>
+            {/* OSのキーボードの受け口。キーパッドには英字が無く、定数名（W = 3cm）や単位名は
+                OSのキーボードでしか打てないので、入力欄そのものは消さずに1×1の透明な要素として
+                残す（showSoftInputOnFocus={false} で塞ぐと、その打ち込みができなくなる）。
+                値・選択範囲・改行での確定は従来どおりこの TextInput が持ち、見た目だけを
+                左のトークン列が担当する。position:absolute なので行の高さには影響しない。 */}
             <TextInput
+              ref={expressionInputRef}
               value={expression}
               onChangeText={(text) => {
                 markUserInteraction();
@@ -1436,97 +1649,17 @@ export default function CalculatorScreen() {
               // ユーザー自身のカーソル操作（タップ・ドラッグ選択）と競合しないようにする。
               selection={pendingSelection ?? undefined}
               onSubmitEditing={() => submitCalculation()}
-              placeholder={copy.expressionPlaceholder}
-              placeholderTextColor={colors.placeholder}
               autoCapitalize="none"
               autoCorrect={false}
+              caretHidden
               returnKeyType="done"
               accessibilityLabel={t("expression")}
-              style={styles.expressionInput}
+              style={styles.hiddenExpressionInput}
             />
             <Pressable accessibilityLabel={t("result")} onPress={() => submitCalculation()} style={({ pressed }) => [styles.calculateButton, pressed && styles.pressed]}>
               <Text style={styles.calculateText}>{copy.calculate}</Text>
             </Pressable>
           </View>
-
-          {baseInputMode !== null ? (
-            // 進数入力モード中は、16進の桁が単位・識別子として解析されて赤くなってしまうため、
-            // 既存のanalyzeExpressionによるハイライトは使わず「接頭辞＋生の桁」を単純に描く。
-            <View style={styles.previewRow}>
-              <Text style={styles.previewIdentifier}>{BASE_META[baseInputMode].prefix}</Text>
-              {/* 進数入力中もキャレット移動は使えるので、ここでもカーソル位置を示す。
-                  桁は解析せず単純な文字列なので、セグメントを切らずに前後で分けるだけでよい。
-                  範囲選択中は通常のプレビューと同じく帯で示す（何が置き換わるかが要点）。 */}
-              <Text style={styles.previewNumber}>{expression.slice(0, normalizedSelection.start)}</Text>
-              {normalizedSelection.hasRange ? (
-                <Text style={[styles.previewNumber, styles.previewSelected]}>
-                  {expression.slice(normalizedSelection.start, normalizedSelection.end)}
-                </Text>
-              ) : (
-                <PreviewCaret colors={colors} />
-              )}
-              <Text style={styles.previewNumber}>{expression.slice(normalizedSelection.end)}</Text>
-            </View>
-          ) : expression.trim() ? (
-            <View style={styles.previewRow}>
-              {caretPreview.pieces.map((piece, index) => {
-                const { segment } = piece;
-                const isUnresolved = segment.kind === "unknown-unit" || segment.kind === "unknown-identifier";
-                const style = segment.kind === "unit" ? styles.previewUnit
-                  : isUnresolved ? styles.previewUnknown
-                  : segment.kind === "identifier" ? styles.previewIdentifier
-                  : segment.kind === "number" ? styles.previewNumber
-                  : styles.previewOperator;
-                // キャレットは「その一片の手前」に入る。文字の間に挟み込む形にすることで、
-                // 等幅フォントの文字幅を自前で計算しなくても位置が必ず合う。
-                const caret = caretPreview.caretIndex === index ? <PreviewCaret key="caret" colors={colors} /> : null;
-                const selectedStyle = piece.selected ? styles.previewSelected : null;
-                if (!isUnresolved) {
-                  return (
-                    <Fragment key={`${piece.start}-${index}`}>
-                      {caret}
-                      <Text style={[style, selectedStyle]}>{piece.text}</Text>
-                    </Fragment>
-                  );
-                }
-                // 単位の書き間違いだけをタップで修正できるようにする。定数・関数の未定義参照は
-                // 単位の候補を出しても意味がないため、見た目だけ知らせてタップ操作は付けない。
-                // 警告アイコンは分割後の最後の一片だけに出す（キャレットが単位の途中に来たときに
-                // アイコンが2つ並ばないようにする）。
-                const icon = piece.isSegmentEnd
-                  ? <IconSymbol name="exclamationmark.triangle.fill" size={11} color={colors.error} />
-                  : null;
-                if (segment.kind !== "unknown-unit") {
-                  return (
-                    <Fragment key={`${piece.start}-${index}`}>
-                      {caret}
-                      <View style={styles.previewUnknownWrap}>
-                        <Text style={[style, selectedStyle]}>{piece.text}</Text>
-                        {icon}
-                      </View>
-                    </Fragment>
-                  );
-                }
-                return (
-                  <Fragment key={`${piece.start}-${index}`}>
-                    {caret}
-                    <Pressable
-                      accessibilityLabel={`${segment.text} ${copy.unknown}`}
-                      // タップで開く修正範囲は分割前のセグメント全体。一片の範囲にすると
-                      // 単位の半分だけを差し替えることになる。
-                      onPress={() => setFixSelection({ start: segment.start, end: segment.end, text: segment.text })}
-                      style={({ pressed }) => [styles.previewUnknownWrap, pressed && styles.pressed]}
-                    >
-                      <Text style={[style, selectedStyle]}>{piece.text}</Text>
-                      {icon}
-                    </Pressable>
-                  </Fragment>
-                );
-              })}
-              {/* 末尾（どの一片も始まらない位置）のキャレット。 */}
-              {caretPreview.caretIndex === caretPreview.pieces.length ? <PreviewCaret colors={colors} /> : null}
-            </View>
-          ) : null}
 
           {baseInputMode !== null ? (
             // 入力中の基数を切り替えるバー。入力欄の真下に置き、結果カードの表示用チップとは
@@ -1679,19 +1812,37 @@ export default function CalculatorScreen() {
                     // 「√3/2」のような一列表記だと √(3/2) と読み違えられるため。
                     // 単位は数式の外にTextで並べる（単位記号には ² や ° が混ざり、LaTeXの
                     // text命令に入れると環境によって描けない文字が出るため）。
-                    <View style={styles.exactValueRow}>
+                    <View style={[styles.exactValueRow, isStackedExactValue && styles.exactValueRowStacked]}>
                       {/* \displaystyle を付けないと分数が本文サイズ（text style）で小さく組まれ、
                           隣の小数表示より明らかに小さく見える。displayMode自体は中央寄せ・上下の
                           余白が付いて結果カードの詰まった配置に合わないので false のままにする。 */}
-                      <LatexView latex={resultLatex(exactValue.latex)} color={colors.primaryStrong} fontSize={exactFontSize} displayMode={false} fitContent />
-                      {display.unitLabel ? <Text style={[styles.exactValueUnit, { fontSize: isStackedExactValue ? 26 : 32 }]}>{display.unitLabel}</Text> : null}
+                      <LatexView
+                        latex={resultLatex(exactValue.latex)}
+                        color={colors.primaryStrong}
+                        fontSize={exactFontSize / KATEX_EM_SCALE}
+                        displayMode={false}
+                        fitContent
+                        mathsfFontFamily={mono}
+                        mathsfFontWeight={700}
+                      />
+                      {display.unitLabel ? (
+                        <Text style={[styles.exactValueUnit, isStackedExactValue ? { fontSize: STACKED_RESULT_UNIT_FONT_SIZE } : null]}>{display.unitLabel}</Text>
+                      ) : null}
                     </View>
                   ) : valueForm === "scientific" && scientificValue ? (
                     // 科学表記も厳密値と同じくKaTeXで描く（10ⁿ の指数を上付きで組み、丸めた
                     // ときは先頭に ≈ が付く。どちらも文字の並びでは表現しきれない）。
                     <>
                       <View style={styles.exactValueRow}>
-                        <LatexView latex={resultLatex(scientificValue.latex)} color={colors.primaryStrong} fontSize={32} displayMode={false} fitContent />
+                        <LatexView
+                          latex={resultLatex(scientificValue.latex)}
+                          color={colors.primaryStrong}
+                          fontSize={RESULT_VALUE_FONT_SIZE / KATEX_EM_SCALE}
+                          displayMode={false}
+                          fitContent
+                          mathsfFontFamily={mono}
+                          mathsfFontWeight={700}
+                        />
                         {display.unitLabel ? <Text style={styles.exactValueUnit}>{display.unitLabel}</Text> : null}
                       </View>
                       {scientificValue.roundedFrom ? (
@@ -1810,7 +1961,7 @@ export default function CalculatorScreen() {
                         >
                           <Text style={styles.quickStartExpression}>{item.expression}</Text>
                           <Text numberOfLines={2} style={styles.quickStartHint}>
-                            {item.id === "ohms_law" ? copy.quickStartOhmsLaw : item.id === "current" ? copy.quickStartCurrent : copy.quickStartDistance}
+                            {copy[item.hintKey]}
                           </Text>
                           <IconSymbol name="chevron.right" size={11} color={colors.primary} />
                         </Pressable>
@@ -2041,29 +2192,6 @@ export default function CalculatorScreen() {
         <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><View style={styles.sheetHeaderMain}><Text style={styles.sheetTitle}>{copy.savedHistory}</Text><Text style={styles.sheetSubtitle}>{copy.historyHint}</Text></View><Pressable accessibilityLabel={copy.close} onPress={() => setShowHistory(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.historyActions}><Pressable onPress={() => void exportHistory()} style={({ pressed }) => [styles.exportHistoryButton, pressed && styles.pressed]}><IconSymbol name="square.and.arrow.up" size={15} color={colors.primary} /><Text style={styles.exportHistoryText}>CSV</Text></Pressable><Pressable onPress={() => void clearHistory()} style={({ pressed }) => [styles.clearHistoryButton, pressed && styles.pressed]}><Text style={styles.clearHistoryText}>{copy.clear}</Text></Pressable></View>{visibleHistory.length ? <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleHistory.map((entry, index) => <Pressable key={entry.id} onPress={() => { restoreHistory(entry); setShowHistory(false); }} style={({ pressed }) => [styles.historyRow, pressed && styles.cardPressed]}><View style={styles.historyExpressionWrap}><Text style={styles.historyAutoSymbol}>a{index + 1}</Text><Text numberOfLines={1} style={styles.historyExpression}>{entry.expression}</Text></View><Text numberOfLines={1} style={styles.historyResult}>{entry.resultText}</Text></Pressable>)}</ScrollView> : <View style={styles.emptyState}><IconSymbol name="clock" size={22} color={colors.muted} /><Text style={styles.emptyStateTitle}>{copy.noHistory}</Text><Text style={styles.emptyStateText}>{copy.noHistoryHint}</Text></View>}</View></View>
       </Modal>
 
-      <Modal visible={showHelp} transparent animationType="fade" onRequestClose={() => setShowHelp(false)}>
-        <View style={styles.helpBackdrop}>
-          <View style={styles.helpSheet}>
-            <View style={styles.helpTitleRow}>
-              <Text style={styles.helpTitle}>{copy.helpTitle}</Text>
-              <Pressable accessibilityLabel={copy.close} onPress={() => setShowHelp(false)} style={({ pressed }) => [styles.closeHelp, pressed && styles.pressed]}>
-                <IconSymbol name="xmark" size={20} color={colors.muted} />
-              </Pressable>
-            </View>
-            <Text style={styles.helpText}>• 5cm + 1mm</Text>
-            <Text style={styles.helpText}>• 3cm × 20mm</Text>
-            <Text style={styles.helpText}>• 90sec / 1hour / 2days</Text>
-            <Text style={styles.helpText}>• {copy.definitionHint}</Text>
-            <Text style={styles.helpText}>• W × H</Text>
-            <Text style={styles.helpText}>• 0.125 → % / ppm</Text>
-            <Text style={styles.helpHint}>{copy.fixTap}</Text>
-            <Pressable onPress={() => setShowHelp(false)} style={({ pressed }) => [styles.helpDone, pressed && styles.pressed]}>
-              <Text style={styles.helpDoneText}>{copy.helpDone}</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-
       <Modal visible={Boolean(unitInfo)} transparent animationType="fade" onRequestClose={() => setUnitInfoSymbol(null)}>
         <View style={styles.unitInfoBackdrop}>
           {unitInfo ? <View style={styles.unitInfoSheet}>
@@ -2141,28 +2269,27 @@ const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "mon
 const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   // 画面全体を一枚に収め、縦スクロールを起こさない構成にする。
   screen: { flex: 1, gap: 6, paddingBottom: 4, paddingTop: 2 },
-  // h1(title)を削除したので、右端のヘルプボタンだけが浮くようにflex-endへ変更
-  // （space-betweenのままだと子要素が1つだけになり左端に寄ってしまう）。
-  header: { alignItems: "center", flexDirection: "row", justifyContent: "flex-end" },
-  headerActions: { alignItems: "center", flexDirection: "row", gap: 6 },
-  headerButton: { alignItems: "center", backgroundColor: colors.primarySurface, borderRadius: 16, height: 32, justifyContent: "center", width: 32 },
 
   inputCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, gap: 5, paddingHorizontal: 12, paddingVertical: 8 },
   inputRow: { alignItems: "center", flexDirection: "row", gap: 10 },
-  expressionInput: { color: colors.foreground, flex: 1, fontFamily: mono, fontSize: 19, fontWeight: "600", minHeight: 44, paddingHorizontal: 0 },
+  // 入力欄そのもの。中身は色分けしたトークン列で、TextInput ではない。
+  expressionDisplay: { flex: 1, justifyContent: "center", minHeight: 44 },
+  // OSのキーボードの受け口。opacity:0 の1×1で置き、行の高さには影響させない。
+  // display:none や width:0 にはしない（フォーカスできなくなり、文字入力の経路が消える）。
+  hiddenExpressionInput: { height: 1, left: 0, opacity: 0, position: "absolute", top: 0, width: 1 },
+  // 式のどこが数値・単位・未登録なのかを一目で見分けられるようにする。
+  expressionTokens: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", rowGap: 2 },
+  expressionPlaceholder: { color: colors.placeholder, fontFamily: mono, fontSize: 19, fontWeight: "600", lineHeight: 24 },
+  tokenNumber: { color: colors.foreground, fontFamily: mono, fontSize: 19, fontWeight: "600", lineHeight: 24 },
+  tokenUnit: { color: colors.primary, fontFamily: mono, fontSize: 19, fontWeight: "700", lineHeight: 24 },
+  tokenIdentifier: { color: colors.warning, fontFamily: mono, fontSize: 19, fontWeight: "600", lineHeight: 24 },
+  tokenOperator: { color: colors.muted, fontFamily: mono, fontSize: 19, fontWeight: "600", lineHeight: 24 },
+  // 範囲選択はキャレットではなく帯で示す（選択中はどこに挿入されるかではなく「何が置き換わるか」が要点）。
+  tokenSelected: { backgroundColor: colors.primarySurface },
+  tokenUnknownWrap: { alignItems: "center", backgroundColor: colors.errorSurface, borderColor: colors.errorBorder, borderRadius: 5, borderWidth: 1, flexDirection: "row", gap: 2, paddingHorizontal: 3 },
+  tokenUnknown: { color: colors.error, fontFamily: mono, fontSize: 19, fontWeight: "700", lineHeight: 24, textDecorationLine: "underline" },
   calculateButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 11, height: 44, justifyContent: "center", width: 52 },
   calculateText: { color: colors.onPrimary, fontFamily: mono, fontSize: 20, fontWeight: "800" },
-
-  // 式のどこが数値・単位・未登録なのかを一目で見分けられるようにする。
-  previewRow: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", rowGap: 2 },
-  previewNumber: { color: colors.foreground, fontFamily: mono, fontSize: 13 },
-  previewUnit: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },
-  previewIdentifier: { color: colors.warning, fontFamily: mono, fontSize: 13, fontWeight: "700" },
-  previewOperator: { color: colors.muted, fontFamily: mono, fontSize: 13 },
-  // 範囲選択はキャレットではなく帯で示す（選択中はどこに挿入されるかではなく「何が置き換わるか」が要点）。
-  previewSelected: { backgroundColor: colors.primarySurface },
-  previewUnknownWrap: { alignItems: "center", backgroundColor: colors.errorSurface, borderColor: colors.errorBorder, borderRadius: 6, borderWidth: 1, flexDirection: "row", gap: 3, paddingHorizontal: 4 },
-  previewUnknown: { color: colors.error, fontFamily: mono, fontSize: 13, fontWeight: "800", textDecorationLine: "underline" },
 
   hintRow: { alignItems: "center", flexDirection: "row", gap: 7 },
   hintLabel: { color: colors.muted, flexShrink: 0, fontSize: 10, fontWeight: "800", width: 58 },
@@ -2192,7 +2319,11 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   unitChipName: { color: colors.muted, fontSize: 9, maxWidth: 92 },
   unitChipNameActive: { color: colors.onPrimary },
 
-  middle: { flexGrow: 1, flexShrink: 1, minHeight: 84 },
+  // 画面の中で唯一縮む場所（結果カードはこの中でスクロールする）。キーパッドは縮まないので、
+  // 入力欄が2行に折り返したり単位検索パネルを開いたりして上が伸びたぶんはここが吸収する。
+  // 下限を84から56へ下げてあるのは、360×780で単位検索パネルを開くとキーパッド下段が
+  // タブバーに潜っていたため（84のままだと13.5px足りない）。
+  middle: { flexGrow: 1, flexShrink: 1, minHeight: 56 },
   middleContent: { gap: 7 },
   resultCard: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 16, borderWidth: 1, paddingHorizontal: 13, paddingVertical: 10 },
   resultHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
@@ -2200,7 +2331,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   resultActions: { alignItems: "center", flexDirection: "row", gap: 6 },
   iconButton: { alignItems: "center", backgroundColor: colors.surface, borderRadius: 8, height: 28, justifyContent: "center", width: 32 },
   // 結果は画面で最も大きい文字にする（式19px・キー18pxに対して28pxでは、下に並ぶチップに埋没していた）。
-  resultValue: { color: colors.primaryStrong, fontFamily: mono, fontSize: 36, fontWeight: "700", marginTop: 2, minHeight: 44 },
+  resultValue: { color: colors.primaryStrong, fontFamily: mono, fontSize: RESULT_VALUE_FONT_SIZE, fontWeight: "700", marginTop: 2, minHeight: 44 },
   emptyResult: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 6 },
   presetOutputUnit: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
   presetOutputUnitLabel: { color: colors.muted, fontSize: 11, fontWeight: "700" },
@@ -2240,14 +2371,21 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   comparisonRowValueActive: { color: colors.onPrimary },
 
   // 基数チップは単位チップ（convertChip、primary系）とは別の色にして、単位換算ではなく
-  // 「表記の分類」であることを読ませる（previewIdentifierと同じくwarning系を分類の色として使う）。
+  // 「表記の分類」であることを読ませる（tokenIdentifierと同じくwarning系を分類の色として使う）。
   baseChipRow: { flexDirection: "row", gap: 6, marginTop: 4 },
   // 入力欄の直下に出す基数バー。チップ自体は結果カードと同じ見た目を使い、置き場所で役割を分ける。
   baseInputBar: { flexDirection: "row", gap: 6, marginTop: 6 },
   // 上下のpaddingは飾りではない。KaTeXのインライン描画は行ボックスより上下にはみ出すことがあり
   // （分数の分子・根号の上線）、RNのViewは既定でoverflow:hiddenなので余白が無いと上が欠ける。
-  exactValueRow: { alignItems: "center", flexDirection: "row", gap: 6, marginTop: 2, minHeight: 44, paddingVertical: 4 },
-  exactValueUnit: { color: colors.primaryStrong, fontFamily: mono, fontSize: 32, fontWeight: "700" },
+  // 上下の余白を入れないこと。小数表示（resultValue）は marginTop 2 の直下から文字が始まるので、
+  // ここに余白を足すとその分だけ数字のベースラインが下がり、チップを押すたびに値が上下に跳ねる。
+  exactValueRow: { alignItems: "center", flexDirection: "row", gap: 6, marginTop: 2, minHeight: 44 },
+  // 分数のときだけ余白を戻す。KaTeXのインライン描画は分子・分母が行ボックスの外へはみ出すので、
+  // 余白が無いと下のチップ列と接触する（1段の形＝√・π・10ⁿ でははみ出さないので余白は要らない）。
+  exactValueRowStacked: { paddingVertical: 4 },
+  // 単位ラベルは小数表示（"2.55 mA" の "mA"）と同じ見た目にする。値と同じ36px・700。
+  // 分数のときだけ STACKED_RESULT_UNIT_FONT_SIZE を呼び出し側で上書きする。
+  exactValueUnit: { color: colors.primaryStrong, fontFamily: mono, fontSize: RESULT_VALUE_FONT_SIZE, fontWeight: "700" },
   // 丸める前の値の併記。結果の値より明らかに小さく・淡くして、主役が丸めた値であることを保つ。
   roundedFromText: { color: colors.muted, fontFamily: mono, fontSize: 12, fontWeight: "600", marginTop: -2 },
   valueFormChip: { backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 9, borderWidth: 1, justifyContent: "center", minHeight: 30, paddingHorizontal: 10 },
@@ -2378,14 +2516,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   pickerGroup: { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 9 },
 
   helpBackdrop: { alignItems: "center", backgroundColor: colors.overlay, flex: 1, justifyContent: "center", padding: 24 },
-  helpSheet: { backgroundColor: colors.surface, borderRadius: 20, padding: 20, width: "100%" },
-  helpTitleRow: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 12 },
-  helpTitle: { color: colors.foreground, fontSize: 20, fontWeight: "700" },
   closeHelp: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderRadius: 16, height: 32, justifyContent: "center", width: 32 },
-  helpText: { color: colors.foreground, fontSize: 13, lineHeight: 21 },
-  helpHint: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 10 },
-  helpDone: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 11, marginTop: 10, paddingVertical: 12 },
-  helpDoneText: { color: colors.onPrimary, fontWeight: "700" },
 
   onboardingSheet: { backgroundColor: colors.surface, borderRadius: 22, padding: 22, width: "100%" },
   onboardingExample: { alignSelf: "flex-start", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 10, borderWidth: 1, color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800", paddingHorizontal: 10, paddingVertical: 5 },

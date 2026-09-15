@@ -234,11 +234,19 @@ async function setLanguage(page, lang) {
   await sleep(1500);
 }
 
+// 入力欄は 1×1・opacity:0 の隠し TextInput（見た目は色分けしたトークン列が担当する）。
+// **fill() ではなく pressSequentially() で打つこと。** fill() は値だけ入れて選択範囲の
+// イベントを飛ばさないので `selection` state が初期値 0 のまま残り、アプリが自前で描く
+// キャレットが**式の先頭**に出た状態で写る（実機で打ち終わった直後の絵は末尾）。
 async function typeExpression(page, lang, text) {
   const input = page.getByLabel(LABELS[lang].expression).first();
   await input.click();
   await input.fill("");
-  await input.fill(text);
+  await input.pressSequentially(text);
+  // 末尾が非ASCII（`Ω` など）だと Playwright は insertText で入れるため選択範囲のイベントが
+  // 飛ばず、`selection` state が1文字ぶん遅れる（`12V / 4.7kΩ` のキャレットが `4.7k|Ω` に出る）。
+  // End キーは本物のキーイベントなので、これで末尾へ寄せてから撮る。
+  await input.press("End");
   await sleep(500);
 }
 
@@ -471,7 +479,7 @@ const SHOTS = [
   },
   {
     // 有効数字の自動判定。`12V / 4.7kΩ` は打ち込んだ数字が2桁なので、科学表記に切り替えると
-    // 2.553191489 mA → 2.6 × 10⁰ mA に丸まり、**丸める前の値と桁数が下に残る**。
+    // 2.553191489 mA → 2.6 mA に丸まり、**丸める前の値と桁数が下に残る**。
     // 「勝手に丸めた」ではなく「あなたが打った精度はここまで」と示す画。掲載文の
     // 有効数字の節（2026-09-12に全言語へ追加）と同じ式にしてある。
     name: "17-significant-figures",
@@ -481,8 +489,9 @@ const SHOTS = [
       await submitExpression(page, lang);
       await blurInputs(page);
       // **先に単位チップで A を明示的に選ぶ。** 既定のままだと自動選択が mA を選び、
-      // 科学表記にしても `2.6 × 10⁰ mA` と指数が0になって「なぜ科学表記なのか」が絵から伝わらない。
-      // A にすると `2.6 × 10⁻³ A` になり、指数が仕事をしているのが一目で分かる。
+      // 指数が0になるので科学表記は `≈ 2.6 mA` と出る（2026-09-15から `× 10⁰` は付けない）。
+      // 丸めたことは分かるが「なぜ科学表記なのか」は絵から伝わらない。
+      // A にすると `≈ 2.6 × 10⁻³ A` になり、指数が仕事をしているのが一目で分かる。
       // **SIチップでは駄目**（あれは targetUnit を空にするだけで、空のときは
       // 自動選択が働いて mA に戻る。lib/display-unit.ts の優先順）。
       await page.getByLabel("A", { exact: true }).first().click();
