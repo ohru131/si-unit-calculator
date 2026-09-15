@@ -96,13 +96,13 @@ describe("科学表記の組み立て", () => {
     const result = toScientificNotation(2.5531914893617023, { significantDigits: 2, locale: "en-US" });
     expect(result?.mantissa).toBe("2.6");
     expect(result?.exponent).toBe(0);
-    expect(result?.text).toBe("≈ 2.6 × 10⁰");
+    expect(result?.text).toBe("≈ 2.6");
     expect(result?.roundedFrom).toBe("2.553191489");
   });
 
   it("丸めても値が変わらないときは近似記号も併記も出さない", () => {
     const result = toScientificNotation(2.5, { significantDigits: 2, locale: "en-US" });
-    expect(result?.text).toBe("2.5 × 10⁰");
+    expect(result?.text).toBe("2.5");
     expect(result?.roundedFrom).toBeNull();
   });
 
@@ -118,6 +118,22 @@ describe("科学表記の組み立て", () => {
     expect(result?.text.startsWith("≈")).toBe(false);
   });
 
+  // `× 10⁰` は表記として誰も書かない。表示単位の自動選択が値を1〜1000に収めるので
+  // 単位付きの結果では指数0が最も多く、そのたびに付くと丸めた値を読む邪魔になる。
+  it("指数が0のときは倍率の因子を書かない", () => {
+    const result = toScientificNotation(2.5531914893617023, { significantDigits: 2, locale: "en-US" });
+    expect(result?.exponent).toBe(0);
+    expect(result?.text).toBe("≈ 2.6");
+    expect(result?.latex).toBe("\\approx 2.6");
+  });
+
+  it("指数が0以外のときは従来どおり倍率を書く", () => {
+    const result = toScientificNotation(2500, { significantDigits: 2, locale: "en-US" });
+    expect(result?.exponent).toBe(3);
+    expect(result?.text).toBe("2.5 × 10³");
+    expect(result?.latex).toBe("2.5 \\times 10^{3}");
+  });
+
   it("負の指数と負の値", () => {
     expect(toScientificNotation(0.0023, { significantDigits: 2, locale: "en-US" })?.text).toBe("2.3 × 10⁻³");
     expect(toScientificNotation(-19.6, { significantDigits: 1, locale: "en-US" })?.mantissa).toBe("-2");
@@ -128,7 +144,7 @@ describe("科学表記の組み立て", () => {
   it("小数点がカンマのロケールではLaTeX側で括る", () => {
     const result = toScientificNotation(2.6, { significantDigits: 2, locale: "de-DE" });
     expect(result?.mantissa).toBe("2,6");
-    expect(result?.latex).toBe("2{,}6 \\times 10^{0}");
+    expect(result?.latex).toBe("2{,}6");
   });
 
   it("0と非有限値は表記しない", () => {
