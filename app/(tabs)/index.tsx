@@ -142,10 +142,32 @@ const isPrefixKey = (key: string) => (PREFIX_KEYS as readonly string[]).includes
  * 分数の横棒・根号の伸縮といったKaTeXの寸法計算が崩れない。CSSで `.katex` のフォントを
  * 上書きする方法にしないのはこのため（あちらは全グリフの字幅が変わって組みが崩れる）。
  *
+ * さらに `LatexView` の `mathsfFontFamily` / `mathsfFontWeight` で、その `\mathsf` の範囲だけを
+ * 小数表示と同じ等幅・700に差し替えている（`.mathsf` だけを狙ったCSS。`.katex` は触らない）。
+ * KaTeXが組むのは各グリフを収めたspanの入れ子で、横方向の並びはブラウザの通常のインライン
+ * レイアウトなので、mathordのグリフだけ別のフォントにしても記号側の寸法は元のまま保たれる。
+ *
  * `\displaystyle` は `\mathsf` の外側に置く。付けないと分数が本文サイズで小さく組まれ、
  * 隣の小数表示より明らかに小さく見える。
  */
 const resultLatex = (latex: string) => `\\displaystyle \\mathsf{${latex}}`;
+
+// KaTeXのルート要素は `.katex{font:normal 1.21em ...}` と書かれていて、渡したfontSizeの1.21倍で
+// グリフが組まれる。小数表示（styles.resultValue の36px）と数字の大きさをそろえるには、
+// LatexViewへ渡す値をこの倍率で割っておく必要がある。
+const KATEX_EM_SCALE = 1.21;
+
+// 結果の数字の大きさ。小数表示（styles.resultValue）と同じ36px。
+const RESULT_VALUE_FONT_SIZE = 36;
+
+// 分数だけは分子・分母を縦に2段積むので、36pxのままだとブロックの高さが小数1行の倍近く（実測80px）になる。
+// 22pxまで落とすと数式ブロックの高さが44pxになり、小数1行（44px）とほぼ同じ高さに収まる。
+// これ以上小さくすると分母・分子が読みにくくなるので、ここが下限。
+const STACKED_RESULT_VALUE_FONT_SIZE = 22;
+
+// 分数の右に置く単位ラベルだけは小数と同じ36pxにしない。2段の分数（数字22px）の横に36pxの
+// 単位を並べると、値より単位の方が大きく見えて主従が逆になる（実画面で比較して決めた）。
+const STACKED_RESULT_UNIT_FONT_SIZE = 26;
 
 /**
  * 式の入力欄に描くキャレット（カーソル）。
@@ -880,10 +902,10 @@ export default function CalculatorScreen() {
 
   // 分数（\frac）は縦に2段積むので、小数と同じ文字サイズで組むと高さが倍以上になり、
   // 小数から切り替えた瞬間に結果カードだけ別物のように見える。段数に応じて文字サイズを
-  // 落とし、ブロック全体の高さが小数1行（resultValueの28px）に近くなるよう揃える。
+  // 落とし、ブロック全体の高さが小数1行（resultValueの36px・行の高さ44px）に近くなるよう揃える。
   // 分数を含まない形（√3・2π など）は1段なので小数と同じ大きさのままでよい。
   const isStackedExactValue = Boolean(exactValue?.latex.includes("\\frac"));
-  const exactFontSize = isStackedExactValue ? 26 : 36;
+  const exactFontSize = isStackedExactValue ? STACKED_RESULT_VALUE_FONT_SIZE : RESULT_VALUE_FONT_SIZE;
 
   // 入力式から読める有効数字の桁数（lib/significant-figures.ts）。加減算が混ざる式や
   // リテラルが無い式ではnullになり、そのときは丸めずに科学表記だけを出す。
@@ -1755,19 +1777,37 @@ export default function CalculatorScreen() {
                     // 「√3/2」のような一列表記だと √(3/2) と読み違えられるため。
                     // 単位は数式の外にTextで並べる（単位記号には ² や ° が混ざり、LaTeXの
                     // text命令に入れると環境によって描けない文字が出るため）。
-                    <View style={styles.exactValueRow}>
+                    <View style={[styles.exactValueRow, isStackedExactValue && styles.exactValueRowStacked]}>
                       {/* \displaystyle を付けないと分数が本文サイズ（text style）で小さく組まれ、
                           隣の小数表示より明らかに小さく見える。displayMode自体は中央寄せ・上下の
                           余白が付いて結果カードの詰まった配置に合わないので false のままにする。 */}
-                      <LatexView latex={resultLatex(exactValue.latex)} color={colors.primaryStrong} fontSize={exactFontSize} displayMode={false} fitContent />
-                      {display.unitLabel ? <Text style={[styles.exactValueUnit, { fontSize: isStackedExactValue ? 26 : 32 }]}>{display.unitLabel}</Text> : null}
+                      <LatexView
+                        latex={resultLatex(exactValue.latex)}
+                        color={colors.primaryStrong}
+                        fontSize={exactFontSize / KATEX_EM_SCALE}
+                        displayMode={false}
+                        fitContent
+                        mathsfFontFamily={mono}
+                        mathsfFontWeight={700}
+                      />
+                      {display.unitLabel ? (
+                        <Text style={[styles.exactValueUnit, isStackedExactValue ? { fontSize: STACKED_RESULT_UNIT_FONT_SIZE } : null]}>{display.unitLabel}</Text>
+                      ) : null}
                     </View>
                   ) : valueForm === "scientific" && scientificValue ? (
                     // 科学表記も厳密値と同じくKaTeXで描く（10ⁿ の指数を上付きで組み、丸めた
                     // ときは先頭に ≈ が付く。どちらも文字の並びでは表現しきれない）。
                     <>
                       <View style={styles.exactValueRow}>
-                        <LatexView latex={resultLatex(scientificValue.latex)} color={colors.primaryStrong} fontSize={32} displayMode={false} fitContent />
+                        <LatexView
+                          latex={resultLatex(scientificValue.latex)}
+                          color={colors.primaryStrong}
+                          fontSize={RESULT_VALUE_FONT_SIZE / KATEX_EM_SCALE}
+                          displayMode={false}
+                          fitContent
+                          mathsfFontFamily={mono}
+                          mathsfFontWeight={700}
+                        />
                         {display.unitLabel ? <Text style={styles.exactValueUnit}>{display.unitLabel}</Text> : null}
                       </View>
                       {scientificValue.roundedFrom ? (
@@ -2256,7 +2296,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   resultActions: { alignItems: "center", flexDirection: "row", gap: 6 },
   iconButton: { alignItems: "center", backgroundColor: colors.surface, borderRadius: 8, height: 28, justifyContent: "center", width: 32 },
   // 結果は画面で最も大きい文字にする（式19px・キー18pxに対して28pxでは、下に並ぶチップに埋没していた）。
-  resultValue: { color: colors.primaryStrong, fontFamily: mono, fontSize: 36, fontWeight: "700", marginTop: 2, minHeight: 44 },
+  resultValue: { color: colors.primaryStrong, fontFamily: mono, fontSize: RESULT_VALUE_FONT_SIZE, fontWeight: "700", marginTop: 2, minHeight: 44 },
   emptyResult: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 6 },
   presetOutputUnit: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
   presetOutputUnitLabel: { color: colors.muted, fontSize: 11, fontWeight: "700" },
@@ -2302,8 +2342,15 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   baseInputBar: { flexDirection: "row", gap: 6, marginTop: 6 },
   // 上下のpaddingは飾りではない。KaTeXのインライン描画は行ボックスより上下にはみ出すことがあり
   // （分数の分子・根号の上線）、RNのViewは既定でoverflow:hiddenなので余白が無いと上が欠ける。
-  exactValueRow: { alignItems: "center", flexDirection: "row", gap: 6, marginTop: 2, minHeight: 44, paddingVertical: 4 },
-  exactValueUnit: { color: colors.primaryStrong, fontFamily: mono, fontSize: 32, fontWeight: "700" },
+  // 上下の余白を入れないこと。小数表示（resultValue）は marginTop 2 の直下から文字が始まるので、
+  // ここに余白を足すとその分だけ数字のベースラインが下がり、チップを押すたびに値が上下に跳ねる。
+  exactValueRow: { alignItems: "center", flexDirection: "row", gap: 6, marginTop: 2, minHeight: 44 },
+  // 分数のときだけ余白を戻す。KaTeXのインライン描画は分子・分母が行ボックスの外へはみ出すので、
+  // 余白が無いと下のチップ列と接触する（1段の形＝√・π・10ⁿ でははみ出さないので余白は要らない）。
+  exactValueRowStacked: { paddingVertical: 4 },
+  // 単位ラベルは小数表示（"2.55 mA" の "mA"）と同じ見た目にする。値と同じ36px・700。
+  // 分数のときだけ STACKED_RESULT_UNIT_FONT_SIZE を呼び出し側で上書きする。
+  exactValueUnit: { color: colors.primaryStrong, fontFamily: mono, fontSize: RESULT_VALUE_FONT_SIZE, fontWeight: "700" },
   // 丸める前の値の併記。結果の値より明らかに小さく・淡くして、主役が丸めた値であることを保つ。
   roundedFromText: { color: colors.muted, fontFamily: mono, fontSize: 12, fontWeight: "600", marginTop: -2 },
   valueFormChip: { backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 9, borderWidth: 1, justifyContent: "center", minHeight: 30, paddingHorizontal: 10 },

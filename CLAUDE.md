@@ -180,12 +180,20 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - **`\mathsf` が変えるのは数字（mathord）だけで、記号は KaTeX が数式用の字体を保つ**（π は `mathnormal` のまま、√・×・≈ も変わらない）。**これは都合が良い**: 記号の字幅が元のままなので、分数の横棒・根号の伸縮といったKaTeXの寸法計算が崩れない。
   - **CSSで `.katex` の `font-family` を上書きする方式にしないこと。** 全グリフの字幅が変わってKaTeXの組みが崩れる。
   - `\displaystyle` は `\mathsf` の**外側**に置く（内側だと分数が本文サイズで小さく組まれる）。
-  - 埋め込み済みのKaTeXフォントには `KaTeX_SansSerif` の**700（太字）の実フェイスもある**ので、`.mathsf{font-weight:700}` で合成太字にならない太字にもできる。小数表示は `fontWeight: "700"` なので**太字にすると重さまで揃う**が、数字だけが太くなって分数の横棒・根号・π が細いまま残る。今は通常の太さにしてある。
+  - **`\mathsf` だけを狙って、小数表示と同じ等幅フォント・700で描く**（`LatexView` の `mathsfFontFamily` / `mathsfFontWeight`）。`\mathsf` を掛けても KaTeX_SansSerif（400・プロポーショナル）のままなので、`小数`（`fontFamily: mono` の36px・700）と並べると**字体・太さ・字送りが全部違って見えていた**（「チップを押すとフォントが変わる」というユーザー報告）。安全なのは、**KaTeXが組むのはグリフごとのspanの入れ子で、横方向の並びはブラウザの通常のインラインレイアウトだから**——mathordのグリフだけ別のフォントにしても、記号側（π・√・×・≈・分数の横棒）の寸法と位置はKaTeXの計算どおりに保たれる。**`.katex` 自体のフォントは絶対に触らないこと**（上のとおり組みが崩れる）。
+    - **CSS変数で渡す。** ネイティブはHTMLを初回の1回しか組み立てない（`source` を差し替えるとKaTeXアセットを読み直す）ので、テンプレート側は `#target .mathsf{font-family:var(--mathsf-family,KaTeX_SansSerif);font-weight:var(--mathsf-weight,400)}` を静的に持ち、`renderLatex()` が `#target` の変数を差し替える。Webは同じ規則をラッパーのクラス（`.latex-view-root`）に閉じてKaTeXのCSSの後ろへ足し、変数はインラインstyleで渡す。**変数を渡さないLatexView（計算ノートの数式カード）は既定値のまま**なので影響しない（実画面のスクショがピクセル単位で一致することを確認済み）。
+    - 値は `lib/latex-mathsf-font.ts` の `sanitizeCssFontFamily` / `sanitizeCssFontWeight` を通す（自前のコードから渡す値だが、CSSの宣言へそのまま埋めるので `}` `;` を弾く）。テストは `tests/latex-mathsf-font.test.ts`。
+  - **KaTeXの 1.21em を打ち消してからサイズを渡す**（`KATEX_EM_SCALE`）。`.katex{font:normal 1.21em ...}` なので、`fontSize={36}` を渡すと数字は **43.56px** で組まれ、小数の36pxより明らかに大きかった。`36 / 1.21` を渡して実測36pxにそろえる。
+  - **分数だけは22px**（`STACKED_RESULT_VALUE_FONT_SIZE`）。`\displaystyle` の分数は分子・分母が本文と同じ大きさなので、36pxのままだと数式ブロックが**実測80px**になり、小数1行（44px）から切り替えた瞬間にカードが伸びる。22pxにすると**ブロックが44.4px**とほぼ同じ高さに収まり、数字も読める下限を保てる（20pxまで落とすと44pxちょうどだが分母が読みにくい）。単位ラベルだけは26px（`STACKED_RESULT_UNIT_FONT_SIZE`）——2段の分数の横に36pxの単位を置くと値より単位が大きく見えて主従が逆になる。
+  - **`exactValueRow` に上下の余白を入れないこと。** 小数（`resultValue`）は `marginTop: 2` の直下から文字が始まるので、`paddingVertical: 4` があるとその分だけ数字のベースラインが下がる（実測: 余白ありで5px下、余白なしで1px下）。ただし**分数のときだけは余白を戻す**（`exactValueRowStacked`）。分子・分母が行ボックスの外へはみ出すので、余白が無いと下のチップ列に接触する。1段の形（√・π・10ⁿ）ははみ出さない。
+  - 埋め込み済みのKaTeXフォントには `KaTeX_SansSerif` の**700（太字）の実フェイスもある**ので、`.mathsf{font-weight:700}` で合成太字にもできる——が、**現在は等幅（Menlo / monospace）の700にしてあり、KaTeX_SansSerif は使っていない**。数字だけが太くなって分数の横棒・根号・π が細いまま残るのは同じで、これは**記号がKaTeXの字体を保っている証拠**なので直さない。
+  - **却下案: 小数表示もKaTeXで描いて全部そろえる。** ネイティブはWebViewの初回ロードが要り、`fitContent` の幅は実測を待つ非同期なので、**1文字打つたびに主表示がちらつく**。小数はRNの `Text` のままにして、KaTeX側をそこへ寄せる。
 - `lib/calculator-store.tsx` — アプリの状態管理本体。`CalculationNotebook`（`categoryId`, `localConstants`, `steps`, `pinned`, `isPreset`）。プリセットは`isPreset: true`で削除不可（UI・store両方でガード）。プリセットの投入はカテゴリID単位で冪等（新カテゴリを追加しても既存データは壊れない）。
 - `components/notebooks/notebook-category-grid.tsx` + `app/(tabs)/constants.tsx` — カテゴリグリッドは2階層ナビゲーション対応（大分類→サブカテゴリ→ノート一覧）。`parentCategoryId` propで表示階層を切替。ユーザー作成カテゴリ（`NotebookCategory`）は今のところ親子階層に非対応（あくまでプリセットの高校物理のみ階層化。スコープを広げすぎないための判断）。
 - `components/ui/latex-view.tsx` / `.web.tsx` — KaTeXによる本物のLaTeX描画。ネイティブはWebView（`react-native-webview`）+ `postMessage`で高さ・幅の自動調整、Webは`katex.renderToString`を直接DOMに挿入。フォント込みのKaTeXアセットは `scripts/generate-katex-assets.mjs` で `lib/katex-assets.generated.ts` に事前生成・コミット済み（`pnpm katex:generate`で再生成可能。中身は自動生成なので手編集しない）。
   - **`latex` が変わってもWebViewを読み直さない。** `source` に渡すHTMLは初回の1回だけ組み立てて固定し（初期値関数付きの`useState`）、以降は `injectJavaScript` で `renderLatex()` を呼び直す。`source` を差し替えると646KBのKaTeXアセットを毎回読み直すことになり、電卓の結果のように**数式が1文字ごとに変わる画面では描画が追いつかない**。読み込み完了前の変更を取りこぼさないよう `onLoadEnd` でも同じ関数を呼ぶ。
   - `fitContent` を付けると数式の幅ぶんだけ場所を取る（右に単位ラベル等を並べたいとき）。幅は**折り返しを止めた（`white-space:nowrap`）うえで `#target` の `scrollWidth` を見る**。こうすると数式がビューポートより広くても狭くても内容幅そのものが取れる。**`document.body.scrollWidth` を混ぜないこと**（bodyはビューポート全幅なので、数式が短いと常にビューポート幅が返り、幅が永久に縮まらない。CodeRabbitが🟠Majorとして検出した）。実測できるまでは全幅で描く（最初から1pxにするとWebView内の描画自体が潰れて測り直しても正しい幅にならない）。
+  - `mathsfFontFamily` / `mathsfFontWeight` を渡すと、`\mathsf` で組んだ範囲だけを別のフォントで描ける（電卓の結果カードが小数表示と字体をそろえるために使う。詳細は上の `\mathsf` の項）。渡さなければKaTeX既定のまま。
   - **WebViewに`ref`を渡すと型が壊れる。** 宣言が `class WebView<P = undefined> extends Component<WebViewProps & P>` で、`WebViewProps & undefined` が `never` に潰れるため。`useRef<ComponentRef<typeof WebView>>(null)` にすると通る。
 - `lib/exact-value.ts` — 小数で出た結果を**分数・πの有理数倍・√の有理数倍**として言い当てる純関数（`findExactValue`）。電卓の結果カードで「小数 ⇔ 厳密値」を切り替えるために使う。
   - **値そのものを有理数で持ち回る（記号計算にする）方向へは進めないこと。** `lib/units.ts` は7次元ベクトルと`number`の組で換算・べき乗・三角関数まで全部組み立てられていて、そこへ有理数型を混ぜると全面書き直しになる。**表示のときだけ推定する**なら影響範囲がこのファイルに閉じる。
@@ -543,9 +551,10 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 ### 現在の基準値（2026-09-15時点、入力欄とプレビュー行を1枚にまとめた後）
 
 - `npx tsc --noEmit` → **`app/_layout.tsx` の `@/global.css` で1件のみ**（従来どおりの環境依存）。
-- `npx vitest run` → **931 passed / 2 failed**。失敗2件は従来どおり `tests/revenuecat.credentials.test.ts`（環境依存）。テストは追加していない（`lib/expression-caret.ts` は変更していないので既存のテストがそのまま効く）。
+- `npx vitest run` → **936 passed / 2 failed**（結果カードのフォント統一で `tests/latex-mathsf-font.test.ts` の5件を追加した後。それ以前は931 passed）。失敗2件は従来どおり `tests/revenuecat.credentials.test.ts`（環境依存）。
 - `npx expo lint` → **2エラー・0警告**（`app/(tabs)/index.tsx` の既存分のまま）。
 - `npx expo export --platform web --clear` が通る。Playwright（`/opt/pw-browsers/chromium`）で en/ja・light/dark の 360×640 を撮り、キーパッド下段の `=` の下端を実測（空・`12V / 4.7kΩ`・`3m + 2kg`・2行に折り返す長い式のすべてで 546.5、タブバー上端 573）。トークンのタップでキャレットがその文字位置に入ること・`< >` で動くこと・赤い未対応単位のタップで修正候補（`5mpa` → MPa / mph）が出ること・`0x` の進数入力・クイックスタートの `W = 3cm` が結果を出すことを確認済み。**隠し `TextInput` の実機（iOS/Android）での挙動は未検証。**
+- 結果カードの値の実測（540×900・カード上端からの相対）: 小数＝行の高さ44px・数字のベースライン73px、`10ⁿ` と1段の厳密値＝46.6px・74px、√を含む形＝48.3px・75.6px、分数＝52.4px（数式ブロック44.4px・単位のベースライン75.2px）。数字はどの形でも**等幅700の36px**（分数だけ22px）。**ネイティブのWebView内でのフォント解決（iOS=Menlo / Android=monospace）はこの環境では確認できない。**
 
 ## 次にやりそうなこと（ユーザーから明示的な指示待ち）
 
