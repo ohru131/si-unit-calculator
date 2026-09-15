@@ -16,6 +16,7 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 ### CodeRabbitを実際に動かすための前提（2026-09-04に判明）
 
 - **自動レビューはもう走らない（2026-09-08・#54で判明）。星10未満のリポジトリは作者が誰であれ自動レビューの対象外になった。** CodeRabbitは `This repository does not receive automatic reviews because it has fewer than 10 stars` と返す。したがって**PRを出したら毎回 `@coderabbitai review` を人間のアカウントから投げる**必要がある（`add_issue_comment` をGitHub MCP経由で使えばPR作者と同じ人間アカウント名義になるので有効。`claude[bot]` 名義のコマンドは無視される）。下の「MCPで作れば自動レビューが走る」は**この変更前の話**なので鵜呑みにしないこと。
+  - **ただし #66（2026-09-15）では PR 作成直後に自動レビューが走った**（数分後に人間名義で投げた `@coderabbitai review` は `Already reviewed the last commit` と返り、手動依頼ぶんの枠だけ消費した）。星10未満の制限が常に効くとは限らないので、**PRを作ったらまず数分待って自動で走るか見てから**手動依頼する。
   - **依頼文に方針を書くと恒久的なLearningとして登録される。** #54 では「JSDocは書かない」「単位記号の解決順は入れ替えない（`PS` は完全一致でメートル馬力、小文字 `ps` はピコ秒のまま）」を添えたところ、両方がLearningに入った。加えて「特に見てほしい箇所」を3つ挙げると、実際にその周辺を優先して見てくる。
   - **手動依頼はプラン枠を消費する。** #54 のレビュー本文には `Your plan provides up to 1 included review per hour; 0 remain after this review.` と出た。**指摘を直してpushしても差分レビューは1時間待ち**になるので、修正は1回のpushにまとめる。ただし元の指摘コメントには `✅ Addressed in commit <sha>` が付くので、差分レビューを待たずに解消を確認できる。
   - **CodeRabbit側のESLintは失敗する**（`ESLint install timed out. The project may have too many dependencies for the sandbox.`）。こちらの `npx expo lint` は通るので無視してよい。
@@ -42,6 +43,7 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - **このサンドボックスからはタグをpushできない**（git proxyが `refs/tags/*` のpushを403で弾く。ブランチは通る）。タグは人間がローカルで `git tag -a vX.Y.Z <sha> -m ... && git push origin vX.Y.Z` するか、GitHubのReleases画面でタグごと作る。GitHub MCPにもタグ・Release・Milestoneを作るツールは無い。
 - **mainは常に「次のバージョンの開発」。** リリースブランチは常設しない。公開済みの版に緊急修正が要るときだけタグから `hotfix/X.Y.Z` を切り、ビルド後にタグを打ってmainへマージする。
 - **`version`（`app.config.ts`・`package.json`）は利用者に見える番号で手で上げる。** Androidの `versionCode` は `eas.json` の `build.production.autoIncrement: true`（`cli.appVersionSource: "remote"`）でEASに任せ、リポジトリでは持たない。Playが要求するのは `versionCode` の単調増加だけで、`version` は自由（1.0.0を公開せず1.1.0から本番公開しても問題ない）。
+  - **remote 管理は EAS 側のカウンタが未初期化だと `1` から始まる**（`app.config.ts` に `android.versionCode` / `ios.buildNumber` を置いていないため、EASが読み取って引き継ぐ元の値が無い）。Play に提出済みの versionCode より小さい値で次のビルドが作られて**アップロードが弾かれる**ので、**次の production ビルドの前に1回だけ** `eas build:version:set -p android`（iOSを出すなら `-p ios` も）を実行し、Play Console の「アプリのバンドル」に出ている現在の versionCode を入力して同期すること。EASアカウントでのログインが要るので**人間がローカルで実行する**（CodeRabbitが#66で指摘）。
 - **`CHANGELOG.md` は各PRが `## [Unreleased]` に1行足す。** リリース時にその塊を `## [X.Y.Z] - 日付` に改名し、同じコミットにタグを打つ。Playの「このバージョンの新機能」はここから写す。
 
 ## アーキテクチャの要点
@@ -563,6 +565,15 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - `npx expo lint` → **2エラー・0警告**（`app/(tabs)/index.tsx` の既存分のまま）。
 - `npx expo export --platform web --clear` が通る。Playwright（`/opt/pw-browsers/chromium`）で en/ja・light/dark の 360×640 を撮り、キーパッド下段の `=` の下端を実測（空・`12V / 4.7kΩ`・`3m + 2kg`・2行に折り返す長い式のすべてで 546.5、タブバー上端 573）。トークンのタップでキャレットがその文字位置に入ること・`< >` で動くこと・赤い未対応単位のタップで修正候補（`5mpa` → MPa / mph）が出ること・`0x` の進数入力・クイックスタートの `W = 3cm` が結果を出すことを確認済み。**隠し `TextInput` の実機（iOS/Android）での挙動は未検証。**
 - 結果カードの値の実測（540×900・カード上端からの相対）: 小数＝行の高さ44px・数字のベースライン73px、`10ⁿ` と1段の厳密値＝46.6px・74px、√を含む形＝48.3px・75.6px、分数＝52.4px（数式ブロック44.4px・単位のベースライン75.2px）。数字はどの形でも**等幅700の36px**（分数だけ22px）。**ネイティブのWebView内でのフォント解決（iOS=Menlo / Android=monospace）はこの環境では確認できない。**
+
+35. **[完了]** **提出素材（スクリーンショット108枚・デモ動画）を現行UIで撮り直した。** #64以降の電卓画面の変更——右上の「?」ヘルプとその行の廃止、入力欄の下にあった色分けプレビュー行の廃止（**トークン列そのものが入力欄**になり、アプリが描くキャレットが常時出る）、空状態のクイックスタート4件目（`W = 3cm`）、結果カードの厳密値・科学表記を小数表示と同じ等幅700で描く変更、**指数0のときに `× 10⁰` を付けない**変更——が、コミット済みの素材に一枚も反映されていなかった。電卓系12カット×6言語＝72枚が差し替わり、ライブラリ／ノート／設定／Pro の36枚はバイト単位で同一（`submission-assets/README.md` に書いてある切り分けのとおり）。デモ動画も同じ理由で録り直した（1:53・1080×1800・25fps・約9.6MB。台本と字幕SRTは変更なし）。フィーチャーグラフィックはアイコンと見出しだけを焼き込む作りで、どちらも変わっていないので再生成していない。
+
+### この撮り直しで直したスクリプトの穴（次に撮るとき用）
+
+- **`scripts/capture-submission-assets.mjs` の式入力を `fill()` から `pressSequentially()` + `End` に変えた。** CLAUDE.md の `lib/expression-caret.ts` の項に「Playwrightで検証するときは `fill()` を使わないこと」と書いてあるのと同じ話が、**撮影スクリプトにも当てはまるようになった**——キャレットがアプリ側の描画になったので、`fill()` で入れた式は `selection` が初期値0のまま残り、**キャレットが式の先頭に出た状態で写る**（打ち終わった直後の実機の絵は末尾）。以前はキャレットがOSの `TextInput` のもので、blurすれば消えていたため表に出ない問題だった。
+- **末尾が非ASCIIの式は `pressSequentially()` でも1文字ぶん遅れる。** Playwright は `Ω` のような文字を insertText で入れるので選択範囲のイベントが飛ばず、`12V / 4.7kΩ` のキャレットが `4.7k|Ω` に出た（`1kΩ × 1mA` のように末尾がASCIIの式では起きない＝**式によって出たり出なかったりする**）。打ち終わりに `End` を押して末尾へ寄せてある。
+- 撮影スクリプトの「`17-significant-figures` は `2.6 × 10⁰ mA` になるので `A` チップを押す」という注記は、**指数0で `× 10⁰` を付けなくなったので前提が変わった**（今は `≈ 2.6 mA`）。`A` を押す理由（指数が仕事をしている絵にする）は変わらないので、文言だけ直した。`submission-assets/README.md` と `docs/screenshot-capture-plan.md` の同じ記述も直してある。
+- **デモ動画の録画スクリプトは無修正で通った。** あちらは最初から `page.keyboard.type()` で打っていて、しかも打つ式の末尾がすべてASCIIだったため。
 
 ## 次にやりそうなこと（ユーザーから明示的な指示待ち）
 

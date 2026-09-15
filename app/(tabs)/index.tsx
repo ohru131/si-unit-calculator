@@ -1515,17 +1515,51 @@ export default function CalculatorScreen() {
                   // キャレット移動はこのモードでも使えるので、ここでもカーソル位置を示す。桁は
                   // 解析せず単純な文字列なので、セグメントを切らずに前後で分けるだけでよい。
                   // 範囲選択中は通常の表示と同じく帯で示す（何が置き換わるかが要点）。
+                  // 進数モードの桁も一片（ExpressionPiece）として描かないと、タップが親のPressableに
+                  // 落ちて placeCaretFromTap(expression.length) が走り、キャレットが必ず末尾へ飛ぶ
+                  // （次の桁が打った場所と違う位置に入る。CodeRabbitが#66で検出）。
                   <>
-                    <Text style={styles.tokenIdentifier}>{BASE_META[baseInputMode].prefix}</Text>
-                    <Text style={styles.tokenNumber}>{expression.slice(0, normalizedSelection.start)}</Text>
+                    {/* 接頭辞は表示専用で expression の中に位置を持たないので、タップは先頭（0）に置く。 */}
+                    <ExpressionPiece length={0} onPlaceCaret={placeCaretFromTap} proportional={false} start={0} style={null}>
+                      <Text style={styles.tokenIdentifier}>{BASE_META[baseInputMode].prefix}</Text>
+                    </ExpressionPiece>
+                    {normalizedSelection.start > 0 ? (
+                      <ExpressionPiece
+                        length={normalizedSelection.start}
+                        onPlaceCaret={placeCaretFromTap}
+                        proportional
+                        start={0}
+                        style={null}
+                      >
+                        <Text style={styles.tokenNumber}>{expression.slice(0, normalizedSelection.start)}</Text>
+                      </ExpressionPiece>
+                    ) : null}
                     {normalizedSelection.hasRange ? (
-                      <Text style={[styles.tokenNumber, styles.tokenSelected]}>
-                        {expression.slice(normalizedSelection.start, normalizedSelection.end)}
-                      </Text>
+                      <ExpressionPiece
+                        length={normalizedSelection.end - normalizedSelection.start}
+                        onPlaceCaret={placeCaretFromTap}
+                        proportional
+                        start={normalizedSelection.start}
+                        style={styles.tokenSelected}
+                      >
+                        <Text style={styles.tokenNumber}>
+                          {expression.slice(normalizedSelection.start, normalizedSelection.end)}
+                        </Text>
+                      </ExpressionPiece>
                     ) : (
                       <ExpressionCaret colors={colors} />
                     )}
-                    <Text style={styles.tokenNumber}>{expression.slice(normalizedSelection.end)}</Text>
+                    {normalizedSelection.end < expression.length ? (
+                      <ExpressionPiece
+                        length={expression.length - normalizedSelection.end}
+                        onPlaceCaret={placeCaretFromTap}
+                        proportional
+                        start={normalizedSelection.end}
+                        style={null}
+                      >
+                        <Text style={styles.tokenNumber}>{expression.slice(normalizedSelection.end)}</Text>
+                      </ExpressionPiece>
+                    ) : null}
                   </>
                 ) : (
                   <>
