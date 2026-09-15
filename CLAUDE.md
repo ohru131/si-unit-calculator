@@ -36,6 +36,14 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - **CodeRabbitが「I couldn't resolve this review thread … Please resolve it manually」と言っても、こちらが既にresolve済みなら何もしなくてよい**（#42・#46の両方で発生）。`get_review_comments` の `is_resolved` を見て判断する。
 - **指摘への対応は、提案どおりでなくてよい。** #46 の🟠Majorは「該当6箇所すべてに規格設計の断り書きを入れろ」という提案だったが、6言語ぶん保持する説明文でそれをやると各ノートが読めなくなる。**要点だけを説明文に集約し、その判断理由を返信に書いたところ明示的に受理された**（「その構成で問題ありません。このレビュー指摘は解消しています」）。
 
+## リリース管理（2026-09-15に決めた運用）
+
+- **ストアに出したビルドのコミットには `vX.Y.Z` の注釈付きタグを打つ。** `v1.0.0` は `1d9a051`（Playクローズドテストに提出したmain）。タグが無いとmainが進んだ時点で「ストアの版はどのコードか」を復元できない。
+  - **このサンドボックスからはタグをpushできない**（git proxyが `refs/tags/*` のpushを403で弾く。ブランチは通る）。タグは人間がローカルで `git tag -a vX.Y.Z <sha> -m ... && git push origin vX.Y.Z` するか、GitHubのReleases画面でタグごと作る。GitHub MCPにもタグ・Release・Milestoneを作るツールは無い。
+- **mainは常に「次のバージョンの開発」。** リリースブランチは常設しない。公開済みの版に緊急修正が要るときだけタグから `hotfix/X.Y.Z` を切り、ビルド後にタグを打ってmainへマージする。
+- **`version`（`app.config.ts`・`package.json`）は利用者に見える番号で手で上げる。** Androidの `versionCode` は `eas.json` の `build.production.autoIncrement: true`（`cli.appVersionSource: "remote"`）でEASに任せ、リポジトリでは持たない。Playが要求するのは `versionCode` の単調増加だけで、`version` は自由（1.0.0を公開せず1.1.0から本番公開しても問題ない）。
+- **`CHANGELOG.md` は各PRが `## [Unreleased]` に1行足す。** リリース時にその塊を `## [X.Y.Z] - 日付` に改名し、同じコミットにタグを打つ。Playの「このバージョンの新機能」はここから写す。
+
 ## アーキテクチャの要点
 
 - `lib/i18n.ts` — **多言語化の土台。`APP_LANGUAGES` 配列が唯一の情報源**で、型（`AppLanguage`）・入力検証（`isAppLanguage`）・端末ロケール判定（`resolveDeviceLanguage`）・Intlロケールと設定画面の言語名（`LANGUAGE_META`、言語名はその言語自身の表記=endonym）を全てここから導出する。**言語を足すときはこの配列に追加するだけ**で、あとは型エラーが出た箇所を埋めていけばよい。
