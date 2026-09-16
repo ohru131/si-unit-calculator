@@ -581,7 +581,7 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 
 - **レールの中身は `paletteGroupId` で切り替える。** `null`（「候補」チップ）なら従来どおり `getUnitInputHint` の文脈依存の候補、グループを選ぶと `getPaletteUnitSuggestions(group, prefix, ...)` がそのグループの単位を単位ピッカーと同じ並びで返す。**チップのタップは必ず `applyUnitCandidate` を通す**ので、修正・置換・単位付け・挿入の範囲の決め方は1箇所のまま。選択は端末に保存せず、挿入後も AC でも保持する（「同じカテゴリで続けて入れる」流れを切らないため）。
 - **パレット選択中は `fix` の範囲をそのまま使ってはいけない。** `getUnitInputHint` は**式のどこにあっても最後の未対応単位**を `fix` として返す（`3 + 5mpa` でキャレットが `3` の直後でも `[5,8]`）。従来はレールがその単位の修正候補しか出さなかったので整合していたが、パレットは「このカテゴリの単位を**ここに**入れる」と読まれるので、そのまま使うと**キャレットと無関係な場所が書き換わる**（`3 + 5kPa`。レビューで検出）。`resolvePaletteTarget` がキャレットが `fix` の範囲外にあるときだけ `getUnitInsertionRange` と同じ内部関数でキャレット位置の範囲に差し替え、**ラベル（単位付け／単位挿入）と `applyUnitCandidate` の両方がその結果を読む**（片方だけ差し替えると表示と挿入位置がずれる）。
-- **接頭語キーはトグル**（`resolvePrefixKeyPress` / `resolveActivePrefix`）。同じキーで取り消し、別のキーで差し替え、有効中は点灯。判定は「式とキャレットが押した直後のままか」で、範囲選択中と進数入力中は無効。**`isBaseDigitAllowed("c", 16)` は true** なので、進数の桁フィルタに任せると HEX 中に `c` が接頭語として通る。純関数に切り出してあるのでテスト（`tests/unit-palette.test.ts`）で固定している。
+- **接頭語キーはトグル**（`resolvePrefixKeyPress` / `resolveActivePrefix`）。同じキーで取り消し、別のキーで差し替え、有効中は点灯。判定は「式とキャレットが押した直後のままか」で、範囲選択中と進数入力中は無効。**無効になった記録は `placeCaret`・`⌫`・`onChangeText`・`onSelectionChange`（`prefixEntryStillValid`）で即座に捨てる**——判定だけに任せると、キャレットを離してから同じ位置へ戻したときに古い記録が復活し、次の接頭語キーが無関係な1文字を消す（CodeRabbitが#67で検出）。捨てた記録は戻らない。**`isBaseDigitAllowed("c", 16)` は true** なので、進数の桁フィルタに任せると HEX 中に `c` が接頭語として通る。純関数に切り出してあるのでテスト（`tests/unit-palette.test.ts`）で固定している。
 - **接頭語で絞った結果が空でもグループを跨がない。** 時間で `k` を押したときに `kg`・`km` を出すと、点灯している「時間」チップと中身が食い違う。そのグループの全単位に戻す（レールは空にならず、タップすれば `complete` の範囲で接頭語1文字が置き換わるので `k` が残ることもない）。
 - **式の中の単位トークンは `primarySurface` の下地付き。** ライトでは青 `#146C94` と黒 `#17212B` の差が19pxの等幅では見分けにくかった（Webで実測。ネイティブと同じ色値なのでプラットフォーム差ではない）。**下地は `Text` に `backgroundColor` と `borderRadius` だけ**——`ExpressionPiece` はタップ位置÷要素幅×文字数でキャレット位置を出すので、padding/margin を足すと位置が狂う。選択帯は `primaryBorder`、選択中のトークンは下地を消して文字色を `primaryStrong` に（ダークで `#58B3D8` on `#25627B` が 2.9:1 まで落ちるため）。
 - **縦幅は `middle` が吸収した。** カテゴリ行約33pxを足しても 360×640 の `=` の下端は 546.5 のまま（タブバー上端 573）。ただし結果カードの表示域が縮んで `mA` が半分切れたので、編集キー・接頭語キーの行から 8px 回収（`minHeight` 32→30・`marginBottom` 6→4）。**これ以上詰めるとタップ高さの下限を割る。** 旧・単位検索パネルを開いた 698.5 という最悪値は消えた。
@@ -594,7 +594,7 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 ### 現在の基準値（2026-09-16時点、単位パレットを入れた後）
 
 - `npx tsc --noEmit` → **`app/_layout.tsx` の `@/global.css` で1件のみ**（従来どおりの環境依存）。
-- `npx vitest run` → **975 passed / 2 failed**。失敗2件は従来どおり `tests/revenuecat.credentials.test.ts`（環境依存）。新規: `tests/unit-palette.test.ts`（31件）、`tests/unit-input.test.ts` に接頭語の文脈順6件。
+- `npx vitest run` → **979 passed / 2 failed**。失敗2件は従来どおり `tests/revenuecat.credentials.test.ts`（環境依存）。新規: `tests/unit-palette.test.ts`（35件）、`tests/unit-input.test.ts` に接頭語の文脈順6件。
 - `npx expo lint` → **2エラー・0警告**（`app/(tabs)/index.tsx` の既存分のまま）。
 - `npx expo export --platform web --clear` が通る。Playwright で 360×640（ja・light）の `=` の下端 546.5・タブバー上端 573 を空・`12V / 4.7kΩ`・`3m + 2kg`・2行の長い式で確認。カテゴリ「長さ」→ `cm` チップで `3` → `3cm`、`k` 2回で取り消し、`k`→`M` で差し替え、`3 + 5mpa` でキャレットを `3` の直後へ戻して圧力→`kPa` を押すと `3kPa + 5mpa` になることを確認済み。**Android実機のキーボードの件はこの環境では再現も検証もできない。**
 

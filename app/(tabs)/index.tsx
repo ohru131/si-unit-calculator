@@ -51,6 +51,7 @@ import {
   getUnitInputHint,
   requiredUnitGroupFromError,
   resolveActivePrefix,
+  prefixEntryStillValid,
   resolvePaletteTarget,
   resolvePrefixCompletionRange,
   resolvePrefixKeyPress,
@@ -1084,11 +1085,17 @@ export default function CalculatorScreen() {
   };
 
   /** プログラムから式を書き換えた直後にキャレットを挿入位置の直後へ移すための共通処理。
-   * pendingSelection は次のレンダー後に自動で解除され、以降はユーザー自身のカーソル操作を邪魔しない。 */
+   * pendingSelection は次のレンダー後に自動で解除され、以降はユーザー自身のカーソル操作を邪魔しない。
+   *
+   * **ここで接頭語の記録（prefixEntry）を必ず捨てる。** キャレットが動く＝押した直後ではなくなる
+   * ので、記録を残すと「離して戻る」だけでトグルが復活し、利用者がもう接頭語のつもりでいない
+   * 1文字を消したり差し替えたりする（`⌫` で式を編集してから戻った場合も同じ）。接頭語キー自身と
+   * 補完の確定は**この呼び出しの後で**改めて `setPrefixEntry` するので、意図した記録だけが残る。 */
   const placeCaret = (position: number) => {
     const next = { start: position, end: position };
     setSelection(next);
     setPendingSelection(next);
+    setPrefixEntry(null);
   };
 
   /** 式の表示欄をタップしたときの共通処理。キャレットを動かすだけで、**OSのキーボードは出さない**。
@@ -1208,6 +1215,9 @@ export default function CalculatorScreen() {
         placeCaret(start - 1);
       }
       setFixSelection(null);
+      // 式を削った時点で接頭語の記録は無効（placeCaret が捨てるが、削る文字が無くて
+      // placeCaret を通らない経路＝先頭での ⌫ でも残さない）。
+      setPrefixEntry(null);
       return;
     }
     // **接頭語キーはトグル。**（同じキーで取り消し・別のキーで差し替え。判断は
@@ -1699,10 +1709,19 @@ export default function CalculatorScreen() {
                 // 数学シートを塞いでも、ここが素通りだと確定できない桁が混ざる。
                 setExpression(baseInputMode === null ? text : sanitizeBaseInput(text, baseInputMode));
                 setFixSelection(null);
+                // OSのキーボードから打った時点で「接頭語キーを押した直後」ではなくなる。
+                setPrefixEntry(null);
                 setError("");
                 setNotice("");
               }}
-              onSelectionChange={(event) => setSelection(event.nativeEvent.selection)}
+              onSelectionChange={(event) => {
+                const next = event.nativeEvent.selection;
+                setSelection(next);
+                // キャレットが記録した位置から離れたら接頭語の記録を捨てる（戻ってきても復活しない）。
+                // ここだけは無条件に捨てられない——挿入直後の pendingSelection の反映でもこの
+                // ハンドラが呼ばれるので、そのときはまだ有効な記録を消してしまう。
+                setPrefixEntry((current) => (prefixEntryStillValid(current, expression, next) ? current : null));
+              }}
               // 挿入直後だけキャレットを強制する。それ以外は selection を渡さず、
               // ユーザー自身のカーソル操作（タップ・ドラッグ選択）と競合しないようにする。
               selection={pendingSelection ?? undefined}
@@ -1779,7 +1798,7 @@ export default function CalculatorScreen() {
           <View style={styles.hintRow}>
             {/* ラベルはカテゴリを選んでいるときもそのまま（押したときに何が起きるか＝修正・単位付け・
                 差し替えの区別は、カテゴリを選んでも変わらない）。 */}
-            <Text numberOfLines={1} style={[styles.hintLabel, hint.kind === "fix" && styles.hintLabelAlert]}>{hintLabel}</Text>
+            <Text numberOfLines={1} style={[styles.hintLabel, paletteTarget.kind === "fix" && styles.hintLabelAlert]}>{hintLabel}</Text>
             {railCandidates.length ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hintRail} keyboardShouldPersistTaps="handled">
                 {railCandidates.map((suggestion) => renderUnitChip(suggestion, () => applyUnitCandidate(suggestion.unit.symbol)))}

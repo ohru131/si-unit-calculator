@@ -460,6 +460,19 @@ export function resolveActivePrefix(expression: string, selection: { start: numb
 }
 
 /**
+ * 記録してある接頭語が、その式とキャレットのもとでまだ有効か。
+ *
+ * **無効になった瞬間に画面側が記録を捨てるための判定。** `resolveActivePrefix` は「今この瞬間に
+ * 有効か」しか見ないので、記録を残したままにするとキャレットを離して戻すだけで復活してしまう
+ * （`⌫` で式を編集したあとに戻ってきた場合は、利用者がもう接頭語を入れたつもりでいない位置の
+ * 1文字をトグルが消す・差し替えることになる）。画面側は式・キャレットが変わるたびにこれで
+ * 検査し、falseになったら `null` にする。**一度捨てたらキャレットが戻っても復活しない。**
+ */
+export function prefixEntryStillValid(prefixEntry: PrefixEntry | null, expression: string, selection: { start: number; end: number }): boolean {
+  return prefixEntry !== null && resolveActivePrefix(expression, selection, prefixEntry) !== null;
+}
+
+/**
  * 接頭語キーをトグルとして押したときの結果。**同じキーなら取り消し（入れた1文字を消す）、
  * 別の接頭語キーならその場で差し替え**る。null は「トグルにならない＝通常の挿入として扱う」。
  *

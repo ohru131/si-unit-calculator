@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   getPaletteUnitSuggestions,
   getUnitInputHint,
+  prefixEntryStillValid,
   resolveActivePrefix,
   resolvePaletteTarget,
   resolvePrefixCompletionRange,
@@ -98,6 +99,32 @@ describe("接頭語キーのトグル", () => {
     expect(resolvePrefixKeyPress({ expression: "3 k", selection: { start: 0, end: 3 }, prefixEntry: entry, key: "M" })).toBe(null);
     expect(resolvePrefixKeyPress({ expression: "", selection: { start: 0, end: 0 }, prefixEntry: entry, key: "M" })).toBe(null);
     expect(resolvePrefixKeyPress({ expression: "3 k", selection: { start: 3, end: 3 }, prefixEntry: null, key: "M" })).toBe(null);
+  });
+});
+
+describe("接頭語の記録が無効になったかの判定", () => {
+  const entry = { start: 1, end: 2, prefix: "k" };
+
+  it("押した直後は有効", () => {
+    expect(prefixEntryStillValid(entry, "3k", { start: 2, end: 2 })).toBe(true);
+  });
+
+  it("キャレットが離れたら無効（画面側はここで記録を捨て、戻ってきても復活させない）", () => {
+    expect(prefixEntryStillValid(entry, "3k", { start: 1, end: 1 })).toBe(false);
+    // 戻ってきた位置そのものは「有効」に見えるが、画面側は一度捨てた記録を作り直さないので
+    // トグルが勝手に復活することはない（app/(tabs)/index.tsx の placeCaret のコメントを参照）。
+    expect(prefixEntryStillValid(entry, "3k", { start: 2, end: 2 })).toBe(true);
+  });
+
+  it("式を編集して記録した位置の文字が変わったら無効（⌫ で削ったあと等）", () => {
+    expect(prefixEntryStillValid(entry, "3", { start: 1, end: 1 })).toBe(false);
+    expect(prefixEntryStillValid(entry, "3M", { start: 2, end: 2 })).toBe(false);
+    expect(prefixEntryStillValid(entry, "", { start: 0, end: 0 })).toBe(false);
+  });
+
+  it("範囲選択中と記録が無いときは無効", () => {
+    expect(prefixEntryStillValid(entry, "3k", { start: 0, end: 2 })).toBe(false);
+    expect(prefixEntryStillValid(null, "3k", { start: 2, end: 2 })).toBe(false);
   });
 });
 
