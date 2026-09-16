@@ -6,6 +6,8 @@ Play の「このバージョンの新機能」はここから写す。
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-16
+
 ### 変更
 - 電卓の入力欄を色付きトークン列に統合し、キャレットをアプリ側で常時表示（OSキーボードが閉じていても見える）。入力欄の下にあった色付きガイド行は廃止。
 - 結果カードの厳密値（分数・π・√）と科学表記の数字を、小数表示と同じ等幅・太字・大きさに揃えた。
@@ -19,5 +21,6 @@ Play の「このバージョンの新機能」はここから写す。
 
 Google Play クローズドテストに提出した最初のビルド（Shipaton 2026）。
 
-[Unreleased]: https://github.com/ohru131/si-unit-calculator/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/ohru131/si-unit-calculator/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/ohru131/si-unit-calculator/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/ohru131/si-unit-calculator/releases/tag/v1.0.0
