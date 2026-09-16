@@ -18,6 +18,21 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
+# ビルド成果物（Playへ上げるAAB・配布用APK・署名鍵）。
+# **絶対にコミットしないこと**: AABは55MB規模のバイナリでgitの差分圧縮が効かず、
+# 一度履歴に入ると git filter-repo 無しには消せない。出荷したAABはPlay Consoleが
+# 全バージョン保持していて、EASでビルドすればビルドページにも残るので、
+# リポジトリに置く理由が無い。加えてAABにはRevenueCatの公開SDKキー・本番AdMobの
+# ユニットID・ネイティブのデバッグシンボルが平文で入っていて、公開リポジトリに
+# 置くと広告ユニットIDを他人のアプリに埋められる（無効なトラフィック扱いで
+# こちらのAdMobアカウントが止まりうる）。
+*.aab
+*.apk
+*.keystore
+
+# 実機デバッグ中に撮ったスクリーンショット（提出素材は submission-assets/ 配下に置く）。
+device-screen*.png
+
 # Metro
 .metro-health-check*
 
