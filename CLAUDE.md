@@ -587,12 +587,14 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - **縦幅は `middle` が吸収した。** カテゴリ行約33pxを足しても 360×640 の `=` の下端は 546.5 のまま（タブバー上端 573）。ただし結果カードの表示域が縮んで `mA` が半分切れたので、編集キー・接頭語キーの行から 8px 回収（`minHeight` 32→30・`marginBottom` 6→4）。**これ以上詰めるとタップ高さの下限を割る。** 旧・単位検索パネルを開いた 698.5 という最悪値は消えた。
 - **`quick=search`（ホーム画面のクイックアクション）は削除した。** 行き先の検索欄が無い。既に端末にピン留めされたショートカットは `getCalculatorQuickShortcut("search")` が `null` を返して無害に終わる。
 - **接頭語の直後に単位が続くときは、チップの置換範囲をその1因子まで伸ばす**（`resolvePrefixCompletionRange`）。`3|m` で `k` → `km` チップが `3kmm` になっていた。伸ばすのは**直後の1因子だけ**（`3k|m/s` の `/s` を消さない）、**その連なりが単独で登録済み単位のときだけ**（`3k|x` の定数 `x` を飲み込まない。判定は `findRegisteredUnit`）、**後ろへは伸ばさない**（`3cm|` で `k` は従来どおり）。トグルの取り消し・差し替えは接頭語1文字の範囲のまま。
+- **OSのキーボードは要求したときだけ出す。** ネイティブでは式の入力欄をタップしてもフォーカスせずキャレットだけ動かす（以前はタップのたびにキーボードが上がってキーパッドを隠し、都度閉じないと数字キーが押せなかった）。編集キー行の右端の**キーボードキー**（`IconSymbol` の `keyboard`）を押したときだけ隠しTextInputへ `setTimeout(focus, 50)` で遅延フォーカスし、もう一度押すと `blur()`。点灯は `onFocus`/`onBlur` で追い、`Keyboard.addListener("keyboardDidHide")` でAndroidの戻るボタンによる閉じにも追従する。**Webはタップでフォーカスする従来どおり**（物理キーボードで打つにはフォーカスが要り、ソフトキーボードは邪魔にならない）。Webではクリックの `mousedown` で先にblurされるため2回目の押下は「閉じる」ではなく再フォーカスになるが、実害は無い。**Android実機でこのキーが実際にキーボードを出すかは未検証。**
+- **接頭語の候補は式の文脈で並べ替える**（`getPrefixedUnitSuggestions` の `recentUnits` / `contextUnits`）。順は 完全一致 → 最近使った単位 → 式中の単位と同じグループ → 同じ**クラスタ**（`UNIT_GROUP_CLUSTERS`。電気＝voltage/current/resistance/power/…、機械、熱、化学）→ 従来順。`12V / 4.7k` で欲しいのは `kΩ` で、これは `V` とグループが違うので**グループ一致だけでは効かない**。クラスタ内はクラスタ配列の順で並べる（レジストリ順だと `kJ`・`kW` が `kΩ` より先に出る）。結果は `kV kΩ kW kJ kcal kHz km kg`。パレットでグループを明示しているときは触らない。
 - 未対応のまま残っているもの: キャレットが単位の途中にあると分割された一片ごとに下地の角丸が付く（見た目だけ）。
 
 ### 現在の基準値（2026-09-16時点、単位パレットを入れた後）
 
 - `npx tsc --noEmit` → **`app/_layout.tsx` の `@/global.css` で1件のみ**（従来どおりの環境依存）。
-- `npx vitest run` → **969 passed / 2 failed**。失敗2件は従来どおり `tests/revenuecat.credentials.test.ts`（環境依存）。新規: `tests/unit-palette.test.ts`（31件）。
+- `npx vitest run` → **975 passed / 2 failed**。失敗2件は従来どおり `tests/revenuecat.credentials.test.ts`（環境依存）。新規: `tests/unit-palette.test.ts`（31件）、`tests/unit-input.test.ts` に接頭語の文脈順6件。
 - `npx expo lint` → **2エラー・0警告**（`app/(tabs)/index.tsx` の既存分のまま）。
 - `npx expo export --platform web --clear` が通る。Playwright で 360×640（ja・light）の `=` の下端 546.5・タブバー上端 573 を空・`12V / 4.7kΩ`・`3m + 2kg`・2行の長い式で確認。カテゴリ「長さ」→ `cm` チップで `3` → `3cm`、`k` 2回で取り消し、`k`→`M` で差し替え、`3 + 5mpa` でキャレットを `3` の直後へ戻して圧力→`kPa` を押すと `3kPa + 5mpa` になることを確認済み。**Android実機のキーボードの件はこの環境では再現も検証もできない。**
 

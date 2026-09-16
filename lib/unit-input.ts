@@ -345,6 +345,44 @@ export function getUnitGroupSuggestions(groupId: string, options: { system: Unit
 }
 
 /**
+ * 単位グループの「分野」。接頭語キーを押した直後の候補を、式に既に出ている単位の分野へ寄せる
+ * ために使う。
+ *
+ * **グループが同じかどうかだけでは役に立たない。** `12V / 4.7k` で欲しいのは kΩ だが、抵抗は
+ * 電圧とは別のグループなので、グループ一致だけ見ると何も引き上げられない。「同じ分野で一緒に
+ * 出てくるもの」をここで束ねる。
+ * 1つのグループが複数の分野に属してよい（`energy`・`power` は電気でも熱でも使う）。
+ * idは lib/units.ts の UNIT_GROUPS に実在するものだけを書くこと（綴り間違いは黙って無視される）。
+ *
+ * **並び順にも意味がある。** 同じ分野の中では、この配列の順がそのまま候補の順になる
+ * （`12V / 4.7k` で欲しいのは kΩ なので、抵抗は電力・エネルギーより前に置く）。
+ * UNIT_GROUPS の定義順に任せると kJ・kW が kΩ より先に出る。
+ */
+const UNIT_GROUP_CLUSTERS: readonly (readonly string[])[] = [
+  // 電気・電子
+  ["voltage", "current", "resistance", "power", "energy", "capacitance", "charge", "magneticFlux", "frequency"],
+  // 力学・寸法
+  ["length", "area", "volume", "mass", "force", "pressure", "velocity", "acceleration", "density", "springConstant", "areaMomentOfInertia"],
+  // 熱
+  ["temperature", "energy", "power", "specificHeatCapacity"],
+  // 化学
+  ["amount", "molarMass", "molarEnergy", "molarConcentration", "mass", "volume"],
+];
+
+/** 渡したグループと同じ分野に属するグループidと、その分野の中での順位（小さいほど先）。 */
+function relatedGroupRanks(groupIds: ReadonlySet<string>): Map<string, number> {
+  const ranks = new Map<string, number>();
+  UNIT_GROUP_CLUSTERS.forEach((cluster) => {
+    if (!cluster.some((id) => groupIds.has(id))) return;
+    cluster.forEach((id, index) => {
+      const current = ranks.get(id);
+      if (current === undefined || index < current) ranks.set(id, index);
+    });
+  });
+  return ranks;
+}
+
+/**
  * 接頭語キーを押した直後の候補。**その接頭語で始まる単位を、記号の短い順**に並べる。
  *
  * 短い順にするのは、接頭語＋1文字の基本単位（mA・mV・mF・mW・mΩ・ms・mg・mL）が
@@ -354,13 +392,26 @@ export function getUnitGroupSuggestions(groupId: string, options: { system: Unit
  *
  * 記号そのものが単位でもある接頭語（`m`＝メートル・`G`＝標準重力）は完全一致を先頭に置く。
  * 接頭語キーをメートルの近道として押す人もいるので、候補から外すと打ち直しになる。
+ *
+ * **そのうえで、今の式から読める文脈を上に持ち上げる。** レールに並ぶのは8件なので、
+ * `12V / 4.7k` と打っている人に km・kg を先に見せると、目当ての kΩ が枠から落ちる。
+ * 優先順は 完全一致 → 直近に使った単位（新しい順）→ 式に出ている単位と同じグループ →
+ * 同じ分野（UNIT_GROUP_CLUSTERS）→ 従来の並び。各段の中では従来の並びを保つ。
  */
-export function getPrefixedUnitSuggestions(prefix: string, options: { system: UnitSystem; limit?: number; includeUnit?: UnitFilter }): UnitSuggestion[] {
-  const { system, limit = 8, includeUnit } = options;
+export function getPrefixedUnitSuggestions(prefix: string, options: { system: UnitSystem; limit?: number; includeUnit?: UnitFilter; recentUnits?: string[]; contextUnits?: string[] }): UnitSuggestion[] {
+  const { system, limit = 8, includeUnit, recentUnits = [], contextUnits = [] } = options;
   if (!prefix) return [];
 
+  // 式に出ている単位のグループ。解決できない記号（定数名・書きかけの綴り）は黙って無視する。
+  const contextGroupIds = new Set<string>();
+  contextUnits.forEach((symbol) => {
+    const found = findRegisteredUnit(symbol);
+    if (found) contextGroupIds.add(found.group.id);
+  });
+  const clusterGroupRanks = relatedGroupRanks(contextGroupIds);
+
   const exact: UnitSuggestion[] = [];
-  const prefixed: { suggestion: UnitSuggestion; decomposes: number; length: number; order: number }[] = [];
+  const prefixed: { suggestion: UnitSuggestion; tier: number; withinTier: number; decomposes: number; length: number; order: number }[] = [];
   let order = 0;
 
   UNIT_GROUPS.forEach((group) => {
@@ -377,12 +428,18 @@ export function getPrefixedUnitSuggestions(prefix: string, options: { system: Un
       // 判定に `isBuiltInUnitSymbol` は使えない——あれは接頭辞分解も通すので `Gal` の残り `al` が
       // `a`(アト)+`l`(リットル) として真になり、ほぼ何でも「分解できる」ことになってしまう。
       const decomposes = findRegisteredUnit(unitOption.symbol.slice(prefix.length)) ? 0 : 1;
-      prefixed.push({ suggestion: { group, unit: unitOption }, decomposes, length: unitOption.symbol.length, order });
+      // 直近に使った単位は「新しい順」がそのまま並び順になる（recentUnits の先頭が最新）。
+      const recentRank = recentUnits.indexOf(unitOption.symbol);
+      const clusterRank = clusterGroupRanks.get(group.id);
+      const tier = recentRank >= 0 ? 0 : contextGroupIds.has(group.id) ? 1 : clusterRank !== undefined ? 2 : 3;
+      // 直近に使った単位は新しい順、同じ分野の単位は分野の中の順位、それ以外は従来の並びに任せる。
+      const withinTier = recentRank >= 0 ? recentRank : tier === 2 ? (clusterRank ?? 0) : 0;
+      prefixed.push({ suggestion: { group, unit: unitOption }, tier, withinTier, decomposes, length: unitOption.symbol.length, order });
     });
   });
 
   void system;
-  prefixed.sort((left, right) => left.decomposes - right.decomposes || left.length - right.length || left.order - right.order);
+  prefixed.sort((left, right) => left.tier - right.tier || left.withinTier - right.withinTier || left.decomposes - right.decomposes || left.length - right.length || left.order - right.order);
   return [...exact, ...prefixed.map((entry) => entry.suggestion)].slice(0, limit);
 }
 
