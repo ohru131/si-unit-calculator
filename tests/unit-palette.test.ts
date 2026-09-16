@@ -5,6 +5,7 @@ import {
   getUnitInputHint,
   resolveActivePrefix,
   resolvePaletteTarget,
+  resolvePrefixCompletionRange,
   resolvePrefixKeyPress,
 } from "../lib/unit-input";
 import { UNIT_GROUPS, type UnitGroup } from "../lib/units";
@@ -143,5 +144,45 @@ describe("パレット選択中にチップが書き換える範囲", () => {
     expect(hint.kind).toBe("replace");
     expect(resolvePaletteTarget({ hint, expression: "5cm", caret: 3, hasPaletteGroup: true }))
       .toEqual({ kind: "replace", start: 1, end: 3 });
+  });
+});
+
+describe("接頭語を確定するときの置き換え範囲", () => {
+  const entry = { start: 1, end: 2, prefix: "k" };
+
+  it("直後の単位まで含める（3|m で k を押した 3km に km を当てても m が余らない）", () => {
+    expect(resolvePrefixCompletionRange("3km", entry)).toEqual({ start: 1, end: 3 });
+  });
+
+  it("伸ばすのは1因子ぶんだけ（分母は残す）", () => {
+    expect(resolvePrefixCompletionRange("3km/s", entry)).toEqual({ start: 1, end: 3 });
+  });
+
+  it("複数文字の単位も、その一続きが登録済みなら含める", () => {
+    expect(resolvePrefixCompletionRange("3kmA", entry)).toEqual({ start: 1, end: 4 });
+  });
+
+  it("単位専用の記号（Ω）も含める", () => {
+    expect(resolvePrefixCompletionRange("3kΩ", entry)).toEqual({ start: 1, end: 3 });
+  });
+
+  it("登録済みの単位でなければ伸ばさない（ローカル定数 x を巻き込まない）", () => {
+    expect(resolvePrefixCompletionRange("3kx", entry)).toEqual({ start: 1, end: 2 });
+  });
+
+  it("直後に何も無ければ接頭語の1文字のまま", () => {
+    expect(resolvePrefixCompletionRange("3k", entry)).toEqual({ start: 1, end: 2 });
+  });
+
+  it("空白を跨いで伸ばさない", () => {
+    expect(resolvePrefixCompletionRange("3k m", entry)).toEqual({ start: 1, end: 2 });
+  });
+
+  it("上付き数字まで含めた記号も1因子として扱う", () => {
+    expect(resolvePrefixCompletionRange("3km²", entry)).toEqual({ start: 1, end: 4 });
+  });
+
+  it("前方向へは伸ばさない", () => {
+    expect(resolvePrefixCompletionRange("12kg", { start: 2, end: 3, prefix: "k" })).toEqual({ start: 2, end: 4 });
   });
 });

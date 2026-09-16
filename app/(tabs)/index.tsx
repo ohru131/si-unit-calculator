@@ -51,6 +51,7 @@ import {
   requiredUnitGroupFromError,
   resolveActivePrefix,
   resolvePaletteTarget,
+  resolvePrefixCompletionRange,
   resolvePrefixKeyPress,
   getUnitSuggestions,
   replaceExpressionRange,
@@ -761,12 +762,17 @@ export default function CalculatorScreen() {
     // キャレット位置（selection.start）を渡すことで、末尾ではなく今カーソルがある単位・数値を対象にする。
     const caret = Math.min(selection.start, expression.length);
     // 接頭語キーを押した直後は、その1文字を単位として確定させずに「その接頭語で始まる単位」を出す。
+    // 確定の範囲は直後に続く単位まで含める（`3|m` で k を押した `3km` に km を当てても `3kmm` に
+    // ならない。詳細は resolvePrefixCompletionRange）。ラベル・resolvePaletteTarget・
+    // applyUnitCandidate がすべてこの範囲を見る。**トグル（resolvePrefixKeyPress）は1文字のまま**
+    // ——あちらは入れた接頭語の取り消し・差し替えで、直後の単位を消す操作ではない。
     if (prefixEntry && activePrefix) {
+      const { start, end } = resolvePrefixCompletionRange(expression, prefixEntry);
       return {
         kind: "complete",
-        fragment: prefixEntry.prefix,
-        start: prefixEntry.start,
-        end: prefixEntry.end,
+        fragment: expression.slice(start, end),
+        start,
+        end,
         candidates: getPrefixedUnitSuggestions(prefixEntry.prefix, { system: unitSystem, limit: RAIL_LIMIT, includeUnit }),
       };
     }

@@ -423,6 +423,40 @@ export function resolvePrefixKeyPress(options: { expression: string; selection: 
   };
 }
 
+// 単位1因子ぶんの記号に使える文字。英字と単位専用の記号は評価器と同じ判定（`isUnitStart`）を
+// 借り、そこに上付き数字（`m²`・`cm³`）だけを足す。**区切り（`*` `/`）・`^`・ASCIIの数字は
+// 入れない**——それらは「次の因子」や指数であって、記号の一部ではない。
+const UNIT_FACTOR_SUPERSCRIPT_PATTERN = /[⁰¹²³⁴⁵⁶⁷⁸⁹]/;
+const isUnitFactorChar = (character: string | undefined) => Boolean(character) && (isUnitStart(character) || UNIT_FACTOR_SUPERSCRIPT_PATTERN.test(character as string));
+
+/**
+ * 接頭語キーで入れた1文字を、チップで確定するときに置き換える範囲。
+ * **直後に単位が続いているなら、その単位まで含めて1つの範囲にする。**
+ *
+ * `3|m` のようにキャレットを単位の手前に置いて `k` を押すと式は `3km` になり、記録している
+ * 範囲は `k` の1文字だけ。そのまま `km` チップを当てると `3kmm` になる（利用者から見れば
+ * 「km を選んだのに m が余る」）。押した接頭語は**その直後の単位に掛けるつもり**で入れたもの
+ * なので、確定の範囲も同じまとまりにする。
+ *
+ * 伸ばすのは**1因子ぶんだけ**。`3k|m/s` で `/s` まで飲み込むと、km/h を選んだ瞬間に分母が
+ * 消えて意味が変わる（単位サフィックスは `*` `/` を跨いで貪欲に読むが、それは「評価器が
+ * どこまでを1つの単位として読むか」の話で、差し替えたい範囲とは別）。
+ *
+ * **その一続きが登録済みの単位のときだけ伸ばす**（`findRegisteredUnit`。`isBuiltInUnitSymbol`
+ * は接頭辞分解も通してしまうので使えない）。`3k|x` の `x` がローカル定数なら、伸ばすと
+ * チップ1つで利用者の定数まで消える。
+ *
+ * **前方向へは決して伸ばさない。** 手前は接頭語より前に確定している式で、接頭語を選び直した
+ * だけの操作が既に打った数値・単位を巻き込む理由が無い。
+ */
+export function resolvePrefixCompletionRange(expression: string, prefixEntry: PrefixEntry): { start: number; end: number } {
+  const base = { start: prefixEntry.start, end: prefixEntry.end };
+  let index = prefixEntry.end;
+  while (isUnitFactorChar(expression[index])) index += 1;
+  if (index === prefixEntry.end) return base;
+  return findRegisteredUnit(expression.slice(prefixEntry.end, index)) ? { start: base.start, end: index } : base;
+}
+
 /**
  * パレットのチップをタップしたときに、式のどこを書き換えるかを決める。
  *
