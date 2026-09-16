@@ -56,6 +56,9 @@ const MAPPING = {
   "wrench.and.screwdriver.fill": "build",
   "externaldrive.fill": "save",
   "arrow.counterclockwise": "refresh",
+  // 電卓の編集キー行の「OSのキーボードを出す」キー。SF Symbolのkeyboardは iOS 13 からあるので、
+  // 古いOSでアイコンだけ空白になる心配はない。
+  "keyboard": "keyboard",
 } satisfies IconMapping;
 
 /**

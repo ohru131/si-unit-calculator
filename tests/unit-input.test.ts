@@ -485,3 +485,44 @@ describe("接頭語キーの候補（記号そのものが単位でもある接�
     expect(getPrefixedUnitSuggestions("zz", { system: "metric" })).toEqual([]);
   });
 });
+
+describe("接頭語キーの候補を今の式の文脈へ寄せる", () => {
+  const after = (prefix: string, options: { recentUnits?: string[]; contextUnits?: string[] } = {}) =>
+    getPrefixedUnitSuggestions(prefix, { system: "metric", limit: 8, ...options }).map((candidate) => candidate.unit.symbol);
+
+  it("文脈が無ければ従来どおりの並び", () => {
+    // 回帰の目印として先頭3件を固定する（文脈を渡さない限り並びは変わらない）。
+    expect(after("k").slice(0, 3)).toEqual(["km", "kg", "kt"]);
+  });
+
+  it("式に V があれば、レールの8件が電気の単位で埋まる（kΩ が km・kg より前）", () => {
+    // `12V / 4.7k` で欲しいのは kΩ。**抵抗は電圧と別のグループ**なので、グループ一致だけでは
+    // 何も持ち上がらない（UNIT_GROUP_CLUSTERS が「同じ分野」を表す）。
+    const withVolt = after("k", { contextUnits: ["V"] });
+    // 同じグループ（電圧）が先頭、その次は分野の中の順位（UNIT_GROUP_CLUSTERS の並び）。
+    expect(withVolt.slice(0, 4)).toEqual(["kV", "kΩ", "kW", "kJ"]);
+    expect(withVolt.indexOf("kΩ")).toBeLessThan(withVolt.indexOf("km"));
+    expect(withVolt.indexOf("kW")).toBeLessThan(withVolt.indexOf("kg"));
+  });
+
+  it("直近に使った単位は完全一致の次に来る", () => {
+    expect(after("k", { recentUnits: ["kN"] })[0]).toBe("kN");
+    // 記号そのものが単位でもある接頭語では、完全一致の方が先。
+    expect(after("m", { recentUnits: ["mA"] }).slice(0, 2)).toEqual(["m", "mA"]);
+  });
+
+  it("完全一致は文脈より強い（メートルの近道を奪わない）", () => {
+    const withVolt = after("m", { contextUnits: ["V"] });
+    expect(withVolt[0]).toBe("m");
+    expect(withVolt.slice(1, 4)).toEqual(["mV", "mA", "mΩ"]);
+  });
+
+  it("式に長さがあれば力学側が上がる（分野が違えば結果も違う）", () => {
+    expect(after("k", { contextUnits: ["m"] })[0]).toBe("km");
+    expect(after("k", { contextUnits: ["m"] })).not.toContain("kV");
+  });
+
+  it("解決できない記号は文脈として無視する", () => {
+    expect(after("k", { contextUnits: ["zzz"] })).toEqual(after("k"));
+  });
+});
