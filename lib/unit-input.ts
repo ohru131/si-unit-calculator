@@ -374,6 +374,40 @@ export function getPrefixedUnitSuggestions(prefix: string, options: { system: Un
   return [...exact, ...prefixed.map((entry) => entry.suggestion)].slice(0, limit);
 }
 
+/**
+ * 単位パレット（カテゴリを選んで並べる行）の候補。**このグループの単位だけ**を、単位ピッカーと
+ * 同じ並び（地域優先 → 表示モードの絞り込み）で返す。
+ *
+ * ボタンだけで単位を入れられるようにするための行なので、`getUnitInputHint` の文脈依存の候補とは
+ * 役割が違う（あちらは「今のキャレット位置で何をしたいか」を推測する。こちらは利用者が明示的に
+ * 選んだカテゴリを、推測を挟まずそのまま出す）。
+ *
+ * 接頭語キーを押した直後は、その接頭語で始まる単位だけに絞る（長さで `k` を押せば km）。
+ * **絞った結果が空になったらグループを跨いだ候補へ落とす**（`getPrefixedUnitSuggestions`）。
+ * 空のまま出すと「接頭語を押した瞬間にパレットが消える」ことになり、押し直す以外に戻る道が
+ * 無くなるため。記号そのものが単位でもある接頭語（`m`＝メートル）は完全一致を先頭に置く
+ * （`getPrefixedUnitSuggestions` と同じ扱い。接頭語キーをメートルの近道に使う人が打ち直さずに済む）。
+ */
+export function getPaletteUnitSuggestions(
+  group: UnitGroup | undefined,
+  prefix: string,
+  options: { system: UnitSystem; limit?: number; includeUnit?: UnitFilter },
+): UnitSuggestion[] {
+  const { system, limit, includeUnit } = options;
+  if (!group) return [];
+
+  const units = getGroupUnitsForSystem(group, system).filter((unitOption) => !includeUnit || includeUnit(group, unitOption));
+  const withLimit = (list: UnitOption[]) => (limit === undefined ? list : list.slice(0, limit)).map((unit) => ({ group, unit }));
+  if (!prefix) return withLimit(units);
+
+  const matched = [
+    ...units.filter((unitOption) => unitOption.symbol === prefix),
+    ...units.filter((unitOption) => unitOption.symbol !== prefix && unitOption.symbol.startsWith(prefix)),
+  ];
+  if (!matched.length) return getPrefixedUnitSuggestions(prefix, { system, limit, includeUnit });
+  return withLimit(matched);
+}
+
 function suggestionsForGroups(groups: readonly UnitGroup[], options: { system: UnitSystem; recentUnits?: string[]; limit?: number; includeUnit?: UnitFilter }): UnitSuggestion[] {
   const { system, recentUnits = [], limit = 8, includeUnit } = options;
   if (!groups.length) return [];
