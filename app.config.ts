@@ -130,7 +130,6 @@ const config: ExpoConfig = {
           { id: "speed", title: "Speed calculator", subtitle: "Distance ÷ time", icon: "time", params: { href: "/?quick=speed" } },
           { id: "pressure", title: "Pressure calculator", subtitle: "Force ÷ area", icon: "symbol:gauge.with.dots.needle.67percent", params: { href: "/?quick=pressure" } },
           { id: "samples", title: "Try examples", subtitle: "Start from a formula", icon: "bookmark", params: { href: "/?quick=samples" } },
-          { id: "search", title: "Search units", subtitle: "Find units quickly", icon: "search", params: { href: "/?quick=search" } },
         ],
       },
     ],

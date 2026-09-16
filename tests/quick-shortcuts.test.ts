@@ -7,9 +7,10 @@ describe("ホーム画面ショートカット", () => {
     expect(getCalculatorQuickShortcut("pressure")).toEqual({ expression: "100N ÷ 0.01m²", targetUnit: "kPa" });
   });
 
-  it("サンプルと検索のショートカットを正しく識別する", () => {
+  it("サンプルのショートカットを識別し、廃止した検索と未知の値はnullを返す", () => {
     expect(getCalculatorQuickShortcut("samples")).toEqual({ sampleCategory: "basic" });
-    expect(getCalculatorQuickShortcut("search")).toEqual({ focusSearch: true });
+    // 検索パネルごと廃止したので、古いショートカット（/?quick=search）は何も起こさない。
+    expect(getCalculatorQuickShortcut("search")).toBeNull();
     expect(getCalculatorQuickShortcut("unknown")).toBeNull();
   });
 });

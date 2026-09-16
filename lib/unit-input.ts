@@ -16,6 +16,10 @@ import {
   type UnitSystem,
 } from "@/lib/units";
 import { UnitError } from "@/lib/unit-errors";
+// 選択範囲の正規化は入力欄の描画と同じ規則を使う（Androidは後ろから前へのドラッグで start > end
+// のまま届くため）。expression-caret.ts がこのファイルを参照しているのは型だけなので、実行時の
+// 循環にはならない。
+import { normalizeSelection } from "@/lib/expression-caret";
 
 /** 式の中の役割ごとに色分け・タップ操作を割り当てるための区分。 */
 export type ExpressionSegmentKind = "number" | "unit" | "unknown-unit" | "identifier" | "unknown-identifier" | "operator" | "space";
@@ -57,6 +61,14 @@ export type UnitSuggestionOptions = {
  * insert は任意位置への挿入を表す。
  */
 export type UnitInputHintKind = "fix" | "complete" | "attach" | "replace" | "insert";
+
+/** 接頭語キーで入れた1文字の居場所。「まだ単位を選んでいる途中」という意図は式の見た目からは
+ * 復元できないので、画面側が状態として持ち、この記録が今も式と合っているかを毎回検証する。 */
+export type PrefixEntry = {
+  start: number;
+  end: number;
+  prefix: string;
+};
 
 export type UnitInputHint = {
   kind: UnitInputHintKind;
@@ -333,6 +345,44 @@ export function getUnitGroupSuggestions(groupId: string, options: { system: Unit
 }
 
 /**
+ * 単位グループの「分野」。接頭語キーを押した直後の候補を、式に既に出ている単位の分野へ寄せる
+ * ために使う。
+ *
+ * **グループが同じかどうかだけでは役に立たない。** `12V / 4.7k` で欲しいのは kΩ だが、抵抗は
+ * 電圧とは別のグループなので、グループ一致だけ見ると何も引き上げられない。「同じ分野で一緒に
+ * 出てくるもの」をここで束ねる。
+ * 1つのグループが複数の分野に属してよい（`energy`・`power` は電気でも熱でも使う）。
+ * idは lib/units.ts の UNIT_GROUPS に実在するものだけを書くこと（綴り間違いは黙って無視される）。
+ *
+ * **並び順にも意味がある。** 同じ分野の中では、この配列の順がそのまま候補の順になる
+ * （`12V / 4.7k` で欲しいのは kΩ なので、抵抗は電力・エネルギーより前に置く）。
+ * UNIT_GROUPS の定義順に任せると kJ・kW が kΩ より先に出る。
+ */
+const UNIT_GROUP_CLUSTERS: readonly (readonly string[])[] = [
+  // 電気・電子
+  ["voltage", "current", "resistance", "power", "energy", "capacitance", "charge", "magneticFlux", "frequency"],
+  // 力学・寸法
+  ["length", "area", "volume", "mass", "force", "pressure", "velocity", "acceleration", "density", "springConstant", "areaMomentOfInertia"],
+  // 熱
+  ["temperature", "energy", "power", "specificHeatCapacity"],
+  // 化学
+  ["amount", "molarMass", "molarEnergy", "molarConcentration", "mass", "volume"],
+];
+
+/** 渡したグループと同じ分野に属するグループidと、その分野の中での順位（小さいほど先）。 */
+function relatedGroupRanks(groupIds: ReadonlySet<string>): Map<string, number> {
+  const ranks = new Map<string, number>();
+  UNIT_GROUP_CLUSTERS.forEach((cluster) => {
+    if (!cluster.some((id) => groupIds.has(id))) return;
+    cluster.forEach((id, index) => {
+      const current = ranks.get(id);
+      if (current === undefined || index < current) ranks.set(id, index);
+    });
+  });
+  return ranks;
+}
+
+/**
  * 接頭語キーを押した直後の候補。**その接頭語で始まる単位を、記号の短い順**に並べる。
  *
  * 短い順にするのは、接頭語＋1文字の基本単位（mA・mV・mF・mW・mΩ・ms・mg・mL）が
@@ -342,13 +392,26 @@ export function getUnitGroupSuggestions(groupId: string, options: { system: Unit
  *
  * 記号そのものが単位でもある接頭語（`m`＝メートル・`G`＝標準重力）は完全一致を先頭に置く。
  * 接頭語キーをメートルの近道として押す人もいるので、候補から外すと打ち直しになる。
+ *
+ * **そのうえで、今の式から読める文脈を上に持ち上げる。** レールに並ぶのは8件なので、
+ * `12V / 4.7k` と打っている人に km・kg を先に見せると、目当ての kΩ が枠から落ちる。
+ * 優先順は 完全一致 → 直近に使った単位（新しい順）→ 式に出ている単位と同じグループ →
+ * 同じ分野（UNIT_GROUP_CLUSTERS）→ 従来の並び。各段の中では従来の並びを保つ。
  */
-export function getPrefixedUnitSuggestions(prefix: string, options: { system: UnitSystem; limit?: number; includeUnit?: UnitFilter }): UnitSuggestion[] {
-  const { system, limit = 8, includeUnit } = options;
+export function getPrefixedUnitSuggestions(prefix: string, options: { system: UnitSystem; limit?: number; includeUnit?: UnitFilter; recentUnits?: string[]; contextUnits?: string[] }): UnitSuggestion[] {
+  const { system, limit = 8, includeUnit, recentUnits = [], contextUnits = [] } = options;
   if (!prefix) return [];
 
+  // 式に出ている単位のグループ。解決できない記号（定数名・書きかけの綴り）は黙って無視する。
+  const contextGroupIds = new Set<string>();
+  contextUnits.forEach((symbol) => {
+    const found = findRegisteredUnit(symbol);
+    if (found) contextGroupIds.add(found.group.id);
+  });
+  const clusterGroupRanks = relatedGroupRanks(contextGroupIds);
+
   const exact: UnitSuggestion[] = [];
-  const prefixed: { suggestion: UnitSuggestion; decomposes: number; length: number; order: number }[] = [];
+  const prefixed: { suggestion: UnitSuggestion; tier: number; withinTier: number; decomposes: number; length: number; order: number }[] = [];
   let order = 0;
 
   UNIT_GROUPS.forEach((group) => {
@@ -365,13 +428,169 @@ export function getPrefixedUnitSuggestions(prefix: string, options: { system: Un
       // 判定に `isBuiltInUnitSymbol` は使えない——あれは接頭辞分解も通すので `Gal` の残り `al` が
       // `a`(アト)+`l`(リットル) として真になり、ほぼ何でも「分解できる」ことになってしまう。
       const decomposes = findRegisteredUnit(unitOption.symbol.slice(prefix.length)) ? 0 : 1;
-      prefixed.push({ suggestion: { group, unit: unitOption }, decomposes, length: unitOption.symbol.length, order });
+      // 直近に使った単位は「新しい順」がそのまま並び順になる（recentUnits の先頭が最新）。
+      const recentRank = recentUnits.indexOf(unitOption.symbol);
+      const clusterRank = clusterGroupRanks.get(group.id);
+      const tier = recentRank >= 0 ? 0 : contextGroupIds.has(group.id) ? 1 : clusterRank !== undefined ? 2 : 3;
+      // 直近に使った単位は新しい順、同じ分野の単位は分野の中の順位、それ以外は従来の並びに任せる。
+      const withinTier = recentRank >= 0 ? recentRank : tier === 2 ? (clusterRank ?? 0) : 0;
+      prefixed.push({ suggestion: { group, unit: unitOption }, tier, withinTier, decomposes, length: unitOption.symbol.length, order });
     });
   });
 
   void system;
-  prefixed.sort((left, right) => left.decomposes - right.decomposes || left.length - right.length || left.order - right.order);
+  prefixed.sort((left, right) => left.tier - right.tier || left.withinTier - right.withinTier || left.decomposes - right.decomposes || left.length - right.length || left.order - right.order);
   return [...exact, ...prefixed.map((entry) => entry.suggestion)].slice(0, limit);
+}
+
+/**
+ * 接頭語キーで入れた1文字が、今も「単位を選んでいる途中」として有効かを判定する。
+ *
+ * **式とキャレットが押した直後のままかを毎回確かめる**ので、あとから打ち換え・削除・全消しが
+ * あっても勝手に復活しない（この検証があるので、状態を消す場所を各所に足す必要がない）。
+ * 範囲選択中は無効にする——そのときのキーは「選択範囲の置き換え」であって接頭語の打ち直しでは
+ * ないので、トグルとして扱うと選んだ範囲ではなく前に入れた1文字の方が消える。
+ */
+export function resolveActivePrefix(expression: string, selection: { start: number; end: number }, prefixEntry: PrefixEntry | null): string | null {
+  if (!prefixEntry) return null;
+  const { start, hasRange } = normalizeSelection(expression.length, selection.start, selection.end);
+  if (hasRange) return null;
+  if (start !== prefixEntry.end) return null;
+  return expression.slice(prefixEntry.start, prefixEntry.end) === prefixEntry.prefix ? prefixEntry.prefix : null;
+}
+
+/**
+ * 記録してある接頭語が、その式とキャレットのもとでまだ有効か。
+ *
+ * **無効になった瞬間に画面側が記録を捨てるための判定。** `resolveActivePrefix` は「今この瞬間に
+ * 有効か」しか見ないので、記録を残したままにするとキャレットを離して戻すだけで復活してしまう
+ * （`⌫` で式を編集したあとに戻ってきた場合は、利用者がもう接頭語を入れたつもりでいない位置の
+ * 1文字をトグルが消す・差し替えることになる）。画面側は式・キャレットが変わるたびにこれで
+ * 検査し、falseになったら `null` にする。**一度捨てたらキャレットが戻っても復活しない。**
+ */
+export function prefixEntryStillValid(prefixEntry: PrefixEntry | null, expression: string, selection: { start: number; end: number }): boolean {
+  return prefixEntry !== null && resolveActivePrefix(expression, selection, prefixEntry) !== null;
+}
+
+/**
+ * 接頭語キーをトグルとして押したときの結果。**同じキーなら取り消し（入れた1文字を消す）、
+ * 別の接頭語キーならその場で差し替え**る。null は「トグルにならない＝通常の挿入として扱う」。
+ *
+ * そうしないと k を押し間違えた人が ⌫ を探すことになり、M へ変えたい人は kM というありえない
+ * 綴りを作ってしまう（接頭語は単位の一部なので2つ並ぶことが無い）。
+ * 渡す key は接頭語キー（PREFIX_KEYS）であることを呼び出し側が保証する。
+ */
+export function resolvePrefixKeyPress(options: { expression: string; selection: { start: number; end: number }; prefixEntry: PrefixEntry | null; key: string }): { expression: string; caret: number; prefixEntry: PrefixEntry | null } | null {
+  const { expression, selection, prefixEntry, key } = options;
+  if (!key) return null;
+  const active = resolveActivePrefix(expression, selection, prefixEntry);
+  if (!active || !prefixEntry) return null;
+  const replacement = key === active ? "" : key;
+  return {
+    expression: replaceExpressionRange(expression, prefixEntry.start, prefixEntry.end, replacement),
+    caret: prefixEntry.start + replacement.length,
+    prefixEntry: replacement ? { start: prefixEntry.start, end: prefixEntry.start + replacement.length, prefix: replacement } : null,
+  };
+}
+
+// 単位1因子ぶんの記号に使える文字。英字と単位専用の記号は評価器と同じ判定（`isUnitStart`）を
+// 借り、そこに上付き数字（`m²`・`cm³`）だけを足す。**区切り（`*` `/`）・`^`・ASCIIの数字は
+// 入れない**——それらは「次の因子」や指数であって、記号の一部ではない。
+const UNIT_FACTOR_SUPERSCRIPT_PATTERN = /[⁰¹²³⁴⁵⁶⁷⁸⁹]/;
+const isUnitFactorChar = (character: string | undefined) => Boolean(character) && (isUnitStart(character) || UNIT_FACTOR_SUPERSCRIPT_PATTERN.test(character as string));
+
+/**
+ * 接頭語キーで入れた1文字を、チップで確定するときに置き換える範囲。
+ * **直後に単位が続いているなら、その単位まで含めて1つの範囲にする。**
+ *
+ * `3|m` のようにキャレットを単位の手前に置いて `k` を押すと式は `3km` になり、記録している
+ * 範囲は `k` の1文字だけ。そのまま `km` チップを当てると `3kmm` になる（利用者から見れば
+ * 「km を選んだのに m が余る」）。押した接頭語は**その直後の単位に掛けるつもり**で入れたもの
+ * なので、確定の範囲も同じまとまりにする。
+ *
+ * 伸ばすのは**1因子ぶんだけ**。`3k|m/s` で `/s` まで飲み込むと、km/h を選んだ瞬間に分母が
+ * 消えて意味が変わる（単位サフィックスは `*` `/` を跨いで貪欲に読むが、それは「評価器が
+ * どこまでを1つの単位として読むか」の話で、差し替えたい範囲とは別）。
+ *
+ * **その一続きが登録済みの単位のときだけ伸ばす**（`findRegisteredUnit`。`isBuiltInUnitSymbol`
+ * は接頭辞分解も通してしまうので使えない）。`3k|x` の `x` がローカル定数なら、伸ばすと
+ * チップ1つで利用者の定数まで消える。
+ *
+ * **前方向へは決して伸ばさない。** 手前は接頭語より前に確定している式で、接頭語を選び直した
+ * だけの操作が既に打った数値・単位を巻き込む理由が無い。
+ */
+export function resolvePrefixCompletionRange(expression: string, prefixEntry: PrefixEntry): { start: number; end: number } {
+  const base = { start: prefixEntry.start, end: prefixEntry.end };
+  let index = prefixEntry.end;
+  while (isUnitFactorChar(expression[index])) index += 1;
+  if (index === prefixEntry.end) return base;
+  return findRegisteredUnit(expression.slice(prefixEntry.end, index)) ? { start: base.start, end: index } : base;
+}
+
+/**
+ * パレットのチップをタップしたときに、式のどこを書き換えるかを決める。
+ *
+ * **`getUnitInputHint` の `fix` は、キャレットがどこにあっても式の中の最後の未解決の単位を指す**
+ * （計算できない状態を隠さないため。キャレットの近くに無くても案内する）。文脈依存の候補を
+ * 出しているうちはそれで良い——並んでいるのはその綴りの修正候補なので、押せば必ずそこを直す。
+ * ところがパレットでカテゴリを選ぶと、レールに並ぶのは修正候補ではなく**そのカテゴリの単位**に
+ * 変わるので、同じ範囲へ当てると `3 + 5mpa` のキャレットが `3` の直後にあるときに kPa を押しただけで
+ * 離れた `5mpa` が `5kPa` に書き換わる（利用者は「今いる場所へ入る」と思って押している）。
+ * そこでカテゴリ選択中だけは、キャレットが指摘の範囲の外にあるなら普通の挿入位置へ戻す。
+ *
+ * 明示的に赤い単位をタップした場合（fixSelection）はキャレットがその単位の上にあるので、
+ * 従来どおり丸ごと差し替えになる。complete・replace・attach・insert も従来どおり。
+ */
+export function resolvePaletteTarget(options: { hint: UnitInputHint; expression: string; caret: number; identifiers?: string[]; hasPaletteGroup: boolean; analysis?: ExpressionAnalysis }): { kind: UnitInputHintKind; start: number; end: number } {
+  const { hint, expression, caret, identifiers = [], hasPaletteGroup } = options;
+  const fromHint = { kind: hint.kind, start: hint.start, end: hint.end };
+  if (!hasPaletteGroup || hint.kind !== "fix") return fromHint;
+  if (caret >= hint.start && caret <= hint.end) return fromHint;
+
+  const analysis = options.analysis ?? analyzeExpression(expression, identifiers);
+  const target = segmentAtCaret(analysis.segments, caret);
+  const { start, end } = unitInsertionRange(target, caret);
+  // ラベルは getUnitInputHint がこのキャレット位置に付けるものと同じにする
+  // （単位の上なら差し替え・数値の直後なら単位付け・それ以外は挿入）。
+  const kind: UnitInputHintKind = target?.kind === "unit" ? "replace" : target?.kind === "number" ? "attach" : "insert";
+  return { kind, start, end };
+}
+
+/**
+ * 単位パレット（カテゴリを選んで並べる行）の候補。**このグループの単位だけ**を、単位ピッカーと
+ * 同じ並び（地域優先 → 表示モードの絞り込み）で返す。
+ *
+ * ボタンだけで単位を入れられるようにするための行なので、`getUnitInputHint` の文脈依存の候補とは
+ * 役割が違う（あちらは「今のキャレット位置で何をしたいか」を推測する。こちらは利用者が明示的に
+ * 選んだカテゴリを、推測を挟まずそのまま出す）。
+ *
+ * 接頭語キーを押した直後は、その接頭語で始まる単位だけに絞る（長さで `k` を押せば km）。
+ * **絞った結果が空になったら、そのカテゴリの単位を丸ごと出す**（空のまま出すと、接頭語を押した
+ * 瞬間にパレットが消えて押し直す以外に戻る道が無くなる）。ここでカテゴリを跨いだ接頭語候補へ
+ * 落とすと、時間のチップを点けたまま kg・km・kPa が並ぶことになり、選んだカテゴリの表示と中身が
+ * 食い違う。並んだ単位を押せば `complete` の範囲（＝入れた接頭語の1文字）ごと置き換わるので、
+ * 接頭語を打ち直す手間も増えない。記号そのものが単位でもある接頭語（`m`＝メートル）は完全一致を
+ * 先頭に置く（`getPrefixedUnitSuggestions` と同じ扱い。接頭語キーをメートルの近道に使う人が
+ * 打ち直さずに済む）。
+ */
+export function getPaletteUnitSuggestions(
+  group: UnitGroup | undefined,
+  prefix: string,
+  options: { system: UnitSystem; limit?: number; includeUnit?: UnitFilter },
+): UnitSuggestion[] {
+  const { system, limit, includeUnit } = options;
+  if (!group) return [];
+
+  const units = getGroupUnitsForSystem(group, system).filter((unitOption) => !includeUnit || includeUnit(group, unitOption));
+  const withLimit = (list: UnitOption[]) => (limit === undefined ? list : list.slice(0, limit)).map((unit) => ({ group, unit }));
+  if (!prefix) return withLimit(units);
+
+  const matched = [
+    ...units.filter((unitOption) => unitOption.symbol === prefix),
+    ...units.filter((unitOption) => unitOption.symbol !== prefix && unitOption.symbol.startsWith(prefix)),
+  ];
+  if (!matched.length) return withLimit(units);
+  return withLimit(matched);
 }
 
 function suggestionsForGroups(groups: readonly UnitGroup[], options: { system: UnitSystem; recentUnits?: string[]; limit?: number; includeUnit?: UnitFilter }): UnitSuggestion[] {
