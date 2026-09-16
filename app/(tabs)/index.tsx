@@ -49,6 +49,9 @@ import {
   getPrefixedUnitSuggestions,
   getUnitInputHint,
   requiredUnitGroupFromError,
+  resolveActivePrefix,
+  resolvePaletteTarget,
+  resolvePrefixKeyPress,
   getUnitSuggestions,
   replaceExpressionRange,
   type ExpressionSegment,
@@ -741,16 +744,14 @@ export default function CalculatorScreen() {
   // プレビューで赤く示されるので、結果カードで重ねて言う必要が無い。
   // **`=` の赤帯の重複判定も同じ値を見ること**（liveDiagnosis のままにすると、カードには
   // 出ていないのに「既に出ている」と判断されてエラーがどこにも出なくなる）。
-  // 接頭語キーで入れた1文字が「まだ単位を選んでいる途中」のままかどうか。**式とキャレットが
-  // 押した直後のままかを毎回確かめる**ので、あとから打ち換え・削除・全消しがあっても勝手に
-  // 復活しない（この検証があるので、状態を消す場所を各所に足す必要がない）。
-  // レールの候補・接頭語キーの点灯・接頭語キーのトグルが同じ判定を見るように1箇所へ出してある。
-  const activePrefix = useMemo(() => {
-    if (!prefixEntry) return "";
-    const caret = Math.min(selection.start, expression.length);
-    if (caret !== prefixEntry.end) return "";
-    return expression.slice(prefixEntry.start, prefixEntry.end) === prefixEntry.prefix ? prefixEntry.prefix : "";
-  }, [expression, prefixEntry, selection]);
+  // 接頭語キーで入れた1文字が「まだ単位を選んでいる途中」のままかどうか（判定は
+  // lib/unit-input.ts の純関数）。レールの候補・接頭語キーの点灯・接頭語キーのトグルが
+  // 同じ値を見るように1箇所へ出してある。進数入力モード中は接頭語そのものが入らないので
+  // 常に無効（モードに入る前の記録が残っていても点灯させない）。
+  const activePrefix = useMemo(
+    () => (baseInputMode === null ? resolveActivePrefix(expression, selection, prefixEntry) : null),
+    [baseInputMode, expression, prefixEntry, selection],
+  );
 
   const hint = useMemo<UnitInputHint>(() => {
     if (fixSelection) {
@@ -782,8 +783,22 @@ export default function CalculatorScreen() {
   // レールは横スクロールするので、カテゴリの単位を8件で打ち切ると「カテゴリを選んだのに目当ての
   // 単位が出てこない」ことになる。
   const railCandidates = useMemo(
-    () => (paletteGroup ? getPaletteUnitSuggestions(paletteGroup, activePrefix, { system: unitSystem, includeUnit }) : hint.candidates),
+    () => (paletteGroup ? getPaletteUnitSuggestions(paletteGroup, activePrefix ?? "", { system: unitSystem, includeUnit }) : hint.candidates),
     [activePrefix, hint.candidates, includeUnit, paletteGroup, unitSystem],
+  );
+
+  // レールのチップを押したときに書き換える範囲と、その操作を表すラベル。カテゴリを選んでいる間は
+  // 「式の中の最後の未解決の単位」ではなくキャレット位置を優先する（詳細は resolvePaletteTarget）。
+  const paletteTarget = useMemo(
+    () => resolvePaletteTarget({
+      hint,
+      expression,
+      caret: Math.min(selection.start, expression.length),
+      identifiers,
+      hasPaletteGroup: Boolean(paletteGroup),
+      analysis,
+    }),
+    [analysis, expression, hint, identifiers, paletteGroup, selection],
   );
 
   const visibleDiagnosis = hint.kind === "complete" ? "" : liveDiagnosis;
@@ -820,7 +835,7 @@ export default function CalculatorScreen() {
 
   const copy = COPY[language];
 
-  const hintLabel = hint.kind === "fix" ? copy.hintFix : hint.kind === "complete" ? copy.hintComplete : hint.kind === "attach" ? copy.hintAttach : hint.kind === "replace" ? copy.hintReplace : copy.hintInsert;
+  const hintLabel = paletteTarget.kind === "fix" ? copy.hintFix : paletteTarget.kind === "complete" ? copy.hintComplete : paletteTarget.kind === "attach" ? copy.hintAttach : paletteTarget.kind === "replace" ? copy.hintReplace : copy.hintInsert;
 
   const onboardingSlides = ONBOARDING_SLIDES[language];
   const isLastOnboardingSlide = onboardingStep === onboardingSlides.length - 1;
@@ -1164,19 +1179,20 @@ export default function CalculatorScreen() {
       setFixSelection(null);
       return;
     }
-    // **接頭語キーはトグル。** 押した1文字がまだ「単位を選んでいる途中」として残っている間は、
-    // 同じキーで取り消し（入れた文字を消して接頭語なしへ戻る）、別の接頭語キーでその場の差し替えに
-    // なる。そうしないと k を押し間違えた人が ⌫ を探すことになり、M へ変えたい人は kM という
-    // ありえない綴りを作ってしまう（接頭語は単位の一部で、2つ並ぶことが無い）。
-    // 判定は activePrefix（式とキャレットが押した直後のままか）に任せるので、打ち換え・削除の
-    // あとに押しても普通の挿入に戻る。
-    if (isPrefixKey(key) && prefixEntry && activePrefix && start === end && start === prefixEntry.end) {
-      const replacement = key === prefixEntry.prefix ? "" : key;
-      setExpression(replaceExpressionRange(expression, prefixEntry.start, prefixEntry.end, replacement));
-      placeCaret(prefixEntry.start + replacement.length);
-      setFixSelection(null);
-      setPrefixEntry(replacement ? { start: prefixEntry.start, end: prefixEntry.start + replacement.length, prefix: replacement } : null);
-      return;
+    // **接頭語キーはトグル。**（同じキーで取り消し・別のキーで差し替え。判断は
+    // lib/unit-input.ts の resolvePrefixKeyPress。null なら通常の挿入として続ける。）
+    // **進数入力モード中はトグルに入れない。** isBaseDigitAllowed("c", 16) は真なので、
+    // キーパッドの disabled をすり抜ける経路が将来できると、16進の桁の c が接頭語の
+    // セント扱いで消えることになる。
+    if (baseInputMode === null && isPrefixKey(key)) {
+      const toggled = resolvePrefixKeyPress({ expression, selection, prefixEntry, key });
+      if (toggled) {
+        setExpression(toggled.expression);
+        placeCaret(toggled.caret);
+        setFixSelection(null);
+        setPrefixEntry(toggled.prefixEntry);
+        return;
+      }
     }
     const inserted = key === "×" ? "×" : key === "÷" ? "÷" : key;
     // 選択範囲があれば置き換え、無ければキャレット位置へそのまま挿入する（末尾への追記ではない）。
@@ -1259,10 +1275,11 @@ export default function CalculatorScreen() {
     return { start, end };
   };
 
-  /** 入力補助バーの候補をタップしたとき、案内した範囲（修正・補完・単位付けの対象）をそのまま置き換える。 */
+  /** 入力補助バーの候補をタップしたとき、案内した範囲（修正・補完・単位付けの対象）をそのまま置き換える。
+   * 範囲もラベルも paletteTarget を見る（画面に出ている案内と実際に書き換わる場所を必ず一致させる）。 */
   const applyUnitCandidate = (symbol: string) => {
-    const wasFixingError = hint.kind === "fix";
-    const { start, end } = unitTargetRange({ start: hint.start, end: hint.end });
+    const wasFixingError = paletteTarget.kind === "fix";
+    const { start, end } = unitTargetRange({ start: paletteTarget.start, end: paletteTarget.end });
     setExpression(replaceExpressionRange(expression, start, end, symbol));
     placeCaret(start + symbol.length);
     setFixSelection(null);
@@ -1613,7 +1630,7 @@ export default function CalculatorScreen() {
                             start={piece.start}
                             style={({ pressed }) => [styles.tokenUnknownWrap, selectedStyle, pressed && styles.pressed]}
                           >
-                            <Text style={[style, piece.selected && styles.tokenSelectedText]}>{piece.text}</Text>
+                            <Text style={style}>{piece.text}</Text>
                             {icon}
                           </ExpressionPiece>
                         </Fragment>
@@ -1692,20 +1709,23 @@ export default function CalculatorScreen() {
           {baseInputMode === null ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.paletteRail} keyboardShouldPersistTaps="handled">
             <Pressable
-              accessibilityState={{ selected: paletteGroupId === null }}
+              // 点灯は paletteGroupId ではなく解決後の paletteGroup を見る。上級モードを切って
+              // 選択中のカテゴリが一覧から消えると候補の並びに戻るので、idだけ見ているとどのチップも
+              // 点いていない状態になる。
+              accessibilityState={{ selected: !paletteGroup }}
               onPress={() => setPaletteGroupId(null)}
-              style={({ pressed }) => [styles.categoryChipSmall, paletteGroupId === null && styles.categoryChipActive, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.categoryChipSmall, !paletteGroup && styles.categoryChipActive, pressed && styles.pressed]}
             >
-              <Text style={[styles.categoryChipText, paletteGroupId === null && styles.categoryChipTextActive]}>{copy.paletteAuto}</Text>
+              <Text style={[styles.categoryChipText, !paletteGroup && styles.categoryChipTextActive]}>{copy.paletteAuto}</Text>
             </Pressable>
             {visibleInputGroups.map((group) => (
               <Pressable
-                accessibilityState={{ selected: paletteGroupId === group.id }}
+                accessibilityState={{ selected: paletteGroup?.id === group.id }}
                 key={group.id}
                 onPress={() => setPaletteGroupId(group.id)}
-                style={({ pressed }) => [styles.categoryChipSmall, paletteGroupId === group.id && styles.categoryChipActive, pressed && styles.pressed]}
+                style={({ pressed }) => [styles.categoryChipSmall, paletteGroup?.id === group.id && styles.categoryChipActive, pressed && styles.pressed]}
               >
-                <Text style={[styles.categoryChipText, paletteGroupId === group.id && styles.categoryChipTextActive]}>{unitGroupLabel(group.id)}</Text>
+                <Text style={[styles.categoryChipText, paletteGroup?.id === group.id && styles.categoryChipTextActive]}>{unitGroupLabel(group.id)}</Text>
               </Pressable>
             ))}
           </ScrollView>
@@ -2265,8 +2285,9 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   // 単位の下地より濃くして、単位の上に帯が掛かっていることが分かるようにする。
   tokenSelected: { backgroundColor: colors.primaryBorder },
   // 選択の帯の中では単位の下地を消す。残すと帯の上に単位の色が重なって、どこを選んでいるのかが
-  // 単位だけ読み取れなくなる。
-  tokenSelectedText: { backgroundColor: "transparent" },
+  // 単位だけ読み取れなくなる。文字色も帯の上で読める濃さ（primaryStrong）にする——ダークテーマの
+  // 単位の色（primary）を帯（primaryBorder）に載せるとコントラストが3:1を割る。
+  tokenSelectedText: { backgroundColor: "transparent", color: colors.primaryStrong },
   tokenUnknownWrap: { alignItems: "center", backgroundColor: colors.errorSurface, borderColor: colors.errorBorder, borderRadius: 5, borderWidth: 1, flexDirection: "row", gap: 2, paddingHorizontal: 3 },
   tokenUnknown: { color: colors.error, fontFamily: mono, fontSize: 19, fontWeight: "700", lineHeight: 24, textDecorationLine: "underline" },
   calculateButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 11, height: 44, justifyContent: "center", width: 52 },

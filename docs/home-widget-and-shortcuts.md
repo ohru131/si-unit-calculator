@@ -2,14 +2,13 @@
 
 ## 今回実装した内容
 
-本アプリには、iOS／Androidのホーム画面でアプリアイコンを長押しした際に表示される4つの**Quick Actions**を追加した。速度、圧力、サンプル、単位検索を選ぶと、対応する電卓フローへディープリンクする。各ショートカットは、アプリ起動後に使用言語に合わせて英語または日本語で更新される。
+本アプリには、iOS／Androidのホーム画面でアプリアイコンを長押しした際に表示される3つの**Quick Actions**を追加した。速度、圧力、サンプルを選ぶと、対応する電卓フローへディープリンクする。各ショートカットは、アプリ起動後に使用言語に合わせて英語または日本語で更新される。
 
 | ショートカット | 起動内容 | ディープリンク |
 |---|---|---|
 | Speed calculator / 速度を計算 | `1km ÷ 1min` を設定し、`km/h` 表示を準備する | `/?quick=speed` |
 | Pressure calculator / 圧力を計算 | `100N ÷ 0.01m²` を設定し、`kPa` 表示を準備する | `/?quick=pressure` |
 | Try examples / サンプルを試す | 代表式のサンプル一覧へ誘導する | `/?quick=samples` |
-| Search units / 単位を検索 | 単位検索入力欄へフォーカスする | `/?quick=search` |
 
 Quick Actionsは、Expo Quick Actionsの対応プラットフォームで使用でき、同ライブラリはiOS・Androidとも最大4件を推奨している。[1] カスタムURLスキームでのディープリンクはExpo Goでは検証できないため、development buildまたはproduction buildで検証する。[2]
 

@@ -16,6 +16,10 @@ import {
   type UnitSystem,
 } from "@/lib/units";
 import { UnitError } from "@/lib/unit-errors";
+// 選択範囲の正規化は入力欄の描画と同じ規則を使う（Androidは後ろから前へのドラッグで start > end
+// のまま届くため）。expression-caret.ts がこのファイルを参照しているのは型だけなので、実行時の
+// 循環にはならない。
+import { normalizeSelection } from "@/lib/expression-caret";
 
 /** 式の中の役割ごとに色分け・タップ操作を割り当てるための区分。 */
 export type ExpressionSegmentKind = "number" | "unit" | "unknown-unit" | "identifier" | "unknown-identifier" | "operator" | "space";
@@ -57,6 +61,14 @@ export type UnitSuggestionOptions = {
  * insert は任意位置への挿入を表す。
  */
 export type UnitInputHintKind = "fix" | "complete" | "attach" | "replace" | "insert";
+
+/** 接頭語キーで入れた1文字の居場所。「まだ単位を選んでいる途中」という意図は式の見た目からは
+ * 復元できないので、画面側が状態として持ち、この記録が今も式と合っているかを毎回検証する。 */
+export type PrefixEntry = {
+  start: number;
+  end: number;
+  prefix: string;
+};
 
 export type UnitInputHint = {
   kind: UnitInputHintKind;
@@ -375,6 +387,72 @@ export function getPrefixedUnitSuggestions(prefix: string, options: { system: Un
 }
 
 /**
+ * 接頭語キーで入れた1文字が、今も「単位を選んでいる途中」として有効かを判定する。
+ *
+ * **式とキャレットが押した直後のままかを毎回確かめる**ので、あとから打ち換え・削除・全消しが
+ * あっても勝手に復活しない（この検証があるので、状態を消す場所を各所に足す必要がない）。
+ * 範囲選択中は無効にする——そのときのキーは「選択範囲の置き換え」であって接頭語の打ち直しでは
+ * ないので、トグルとして扱うと選んだ範囲ではなく前に入れた1文字の方が消える。
+ */
+export function resolveActivePrefix(expression: string, selection: { start: number; end: number }, prefixEntry: PrefixEntry | null): string | null {
+  if (!prefixEntry) return null;
+  const { start, hasRange } = normalizeSelection(expression.length, selection.start, selection.end);
+  if (hasRange) return null;
+  if (start !== prefixEntry.end) return null;
+  return expression.slice(prefixEntry.start, prefixEntry.end) === prefixEntry.prefix ? prefixEntry.prefix : null;
+}
+
+/**
+ * 接頭語キーをトグルとして押したときの結果。**同じキーなら取り消し（入れた1文字を消す）、
+ * 別の接頭語キーならその場で差し替え**る。null は「トグルにならない＝通常の挿入として扱う」。
+ *
+ * そうしないと k を押し間違えた人が ⌫ を探すことになり、M へ変えたい人は kM というありえない
+ * 綴りを作ってしまう（接頭語は単位の一部なので2つ並ぶことが無い）。
+ * 渡す key は接頭語キー（PREFIX_KEYS）であることを呼び出し側が保証する。
+ */
+export function resolvePrefixKeyPress(options: { expression: string; selection: { start: number; end: number }; prefixEntry: PrefixEntry | null; key: string }): { expression: string; caret: number; prefixEntry: PrefixEntry | null } | null {
+  const { expression, selection, prefixEntry, key } = options;
+  if (!key) return null;
+  const active = resolveActivePrefix(expression, selection, prefixEntry);
+  if (!active || !prefixEntry) return null;
+  const replacement = key === active ? "" : key;
+  return {
+    expression: replaceExpressionRange(expression, prefixEntry.start, prefixEntry.end, replacement),
+    caret: prefixEntry.start + replacement.length,
+    prefixEntry: replacement ? { start: prefixEntry.start, end: prefixEntry.start + replacement.length, prefix: replacement } : null,
+  };
+}
+
+/**
+ * パレットのチップをタップしたときに、式のどこを書き換えるかを決める。
+ *
+ * **`getUnitInputHint` の `fix` は、キャレットがどこにあっても式の中の最後の未解決の単位を指す**
+ * （計算できない状態を隠さないため。キャレットの近くに無くても案内する）。文脈依存の候補を
+ * 出しているうちはそれで良い——並んでいるのはその綴りの修正候補なので、押せば必ずそこを直す。
+ * ところがパレットでカテゴリを選ぶと、レールに並ぶのは修正候補ではなく**そのカテゴリの単位**に
+ * 変わるので、同じ範囲へ当てると `3 + 5mpa` のキャレットが `3` の直後にあるときに kPa を押しただけで
+ * 離れた `5mpa` が `5kPa` に書き換わる（利用者は「今いる場所へ入る」と思って押している）。
+ * そこでカテゴリ選択中だけは、キャレットが指摘の範囲の外にあるなら普通の挿入位置へ戻す。
+ *
+ * 明示的に赤い単位をタップした場合（fixSelection）はキャレットがその単位の上にあるので、
+ * 従来どおり丸ごと差し替えになる。complete・replace・attach・insert も従来どおり。
+ */
+export function resolvePaletteTarget(options: { hint: UnitInputHint; expression: string; caret: number; identifiers?: string[]; hasPaletteGroup: boolean; analysis?: ExpressionAnalysis }): { kind: UnitInputHintKind; start: number; end: number } {
+  const { hint, expression, caret, identifiers = [], hasPaletteGroup } = options;
+  const fromHint = { kind: hint.kind, start: hint.start, end: hint.end };
+  if (!hasPaletteGroup || hint.kind !== "fix") return fromHint;
+  if (caret >= hint.start && caret <= hint.end) return fromHint;
+
+  const analysis = options.analysis ?? analyzeExpression(expression, identifiers);
+  const target = segmentAtCaret(analysis.segments, caret);
+  const { start, end } = unitInsertionRange(target, caret);
+  // ラベルは getUnitInputHint がこのキャレット位置に付けるものと同じにする
+  // （単位の上なら差し替え・数値の直後なら単位付け・それ以外は挿入）。
+  const kind: UnitInputHintKind = target?.kind === "unit" ? "replace" : target?.kind === "number" ? "attach" : "insert";
+  return { kind, start, end };
+}
+
+/**
  * 単位パレット（カテゴリを選んで並べる行）の候補。**このグループの単位だけ**を、単位ピッカーと
  * 同じ並び（地域優先 → 表示モードの絞り込み）で返す。
  *
@@ -383,10 +461,13 @@ export function getPrefixedUnitSuggestions(prefix: string, options: { system: Un
  * 選んだカテゴリを、推測を挟まずそのまま出す）。
  *
  * 接頭語キーを押した直後は、その接頭語で始まる単位だけに絞る（長さで `k` を押せば km）。
- * **絞った結果が空になったらグループを跨いだ候補へ落とす**（`getPrefixedUnitSuggestions`）。
- * 空のまま出すと「接頭語を押した瞬間にパレットが消える」ことになり、押し直す以外に戻る道が
- * 無くなるため。記号そのものが単位でもある接頭語（`m`＝メートル）は完全一致を先頭に置く
- * （`getPrefixedUnitSuggestions` と同じ扱い。接頭語キーをメートルの近道に使う人が打ち直さずに済む）。
+ * **絞った結果が空になったら、そのカテゴリの単位を丸ごと出す**（空のまま出すと、接頭語を押した
+ * 瞬間にパレットが消えて押し直す以外に戻る道が無くなる）。ここでカテゴリを跨いだ接頭語候補へ
+ * 落とすと、時間のチップを点けたまま kg・km・kPa が並ぶことになり、選んだカテゴリの表示と中身が
+ * 食い違う。並んだ単位を押せば `complete` の範囲（＝入れた接頭語の1文字）ごと置き換わるので、
+ * 接頭語を打ち直す手間も増えない。記号そのものが単位でもある接頭語（`m`＝メートル）は完全一致を
+ * 先頭に置く（`getPrefixedUnitSuggestions` と同じ扱い。接頭語キーをメートルの近道に使う人が
+ * 打ち直さずに済む）。
  */
 export function getPaletteUnitSuggestions(
   group: UnitGroup | undefined,
@@ -404,7 +485,7 @@ export function getPaletteUnitSuggestions(
     ...units.filter((unitOption) => unitOption.symbol === prefix),
     ...units.filter((unitOption) => unitOption.symbol !== prefix && unitOption.symbol.startsWith(prefix)),
   ];
-  if (!matched.length) return getPrefixedUnitSuggestions(prefix, { system, limit, includeUnit });
+  if (!matched.length) return withLimit(units);
   return withLimit(matched);
 }
 
