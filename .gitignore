@@ -30,6 +30,14 @@ expo-env.d.ts
 *.apk
 *.keystore
 
+# ローカルで Play 提出用の release AAB を署名するための資格情報。
+# `eas credentials -p android` で落とした keystore と、その3つのパスワードを持つ。
+# **公開リポジトリなので絶対にコミットしないこと**（鍵とパスワードが揃うと、
+# 誰でもこのアプリと同じ署名のAPKを作れる＝なりすましができる）。
+credentials.json
+keystore.properties
+android/keystores/
+
 # 実機デバッグ中に撮ったスクリーンショット（提出素材は submission-assets/ 配下に置く）。
 device-screen*.png
 
