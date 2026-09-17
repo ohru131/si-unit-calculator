@@ -55,7 +55,7 @@ export function CalculatorBannerAd() {
   if (!isAdsPlatformAvailable || !isReady || adFree || !canRequestAds) return null;
 
   return (
-    <View style={{ alignItems: "center", marginTop: 4 }}>
+    <View style={{ alignItems: "center" }}>
       <BannerAd
         unitId={BANNER_UNIT_ID}
         size={BannerAdSize.BANNER}

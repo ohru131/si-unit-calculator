@@ -12,6 +12,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming } from "react-native-reanimated";
@@ -24,6 +25,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { isSampleCategoryVisible, isUnitGroupVisible, isUnitVisible, visibleUnits } from "@/lib/advanced-display";
+import { resolveCalculatorLayout, scaleFontSizes, type CalculatorLayout } from "@/lib/calculator-layout";
 import { buildCaretPreview, normalizeSelection } from "@/lib/expression-caret";
 import { findExactValue, isTerminatingDecimalFraction } from "@/lib/exact-value";
 import { inferSignificantDigits, significantDigitsAfterConversion, toScientificNotation } from "@/lib/significant-figures";
@@ -534,7 +536,11 @@ const ONBOARDING_SLIDES: Record<AppLanguage, OnboardingSlide[]> = {
 export default function CalculatorScreen() {
   const router = useRouter();
   const colors = useColors();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  // 端末の文字サイズ・表示サイズの設定に合わせて、文字の拡大率に上限を掛け、行の高さを詰める。
+  // この画面だけ縦スクロールで逃がせない（キーパッドを常に画面内に置く）ため。
+  const { fontScale, height: windowHeight } = useWindowDimensions();
+  const layout = useMemo(() => resolveCalculatorLayout({ fontScale, height: windowHeight }), [fontScale, windowHeight]);
+  const styles = useMemo(() => createStyles(colors, layout), [colors, layout]);
   const { quick, presetExpression, presetUnit } = useLocalSearchParams<{ quick?: string | string[]; presetExpression?: string | string[]; presetUnit?: string | string[] }>();
   const { constants, history, favoriteUnits, upsertConstant, addHistoryEntry, clearHistory, isLoading: isHistoryLoading } = useCalculatorStore();
   const { isPro } = usePro();
@@ -1561,6 +1567,11 @@ export default function CalculatorScreen() {
   return (
     <ScreenContainer className="px-4" containerClassName="bg-background">
       <View style={styles.screen}>
+        {/* 広告はキーパッドの直上ではなく画面の最上部に置く。下に置くと、数字キーへ伸ばした指の
+            すぐ先に「インストール」ボタンが並んで誤タップしやすく、入力欄と結果カードの間に
+            割り込んで読む流れも切る（実機で指摘された）。 */}
+        <CalculatorBannerAd />
+
         <View style={styles.inputCard}>
           {/* 色分けしたトークン列そのものが入力欄。かつては TextInput の下に同じ式のプレビュー行を
               別に並べていたが、同じ式が2段に出るうえ、TextInput はフォーカスが外れるとキャレットを
@@ -1879,7 +1890,7 @@ export default function CalculatorScreen() {
                         mathsfFontWeight={700}
                       />
                       {display.unitLabel ? (
-                        <Text style={[styles.exactValueUnit, isStackedExactValue ? { fontSize: STACKED_RESULT_UNIT_FONT_SIZE } : null]}>{display.unitLabel}</Text>
+                        <Text style={[styles.exactValueUnit, isStackedExactValue ? styles.exactValueUnitStacked : null]}>{display.unitLabel}</Text>
                       ) : null}
                     </View>
                   ) : valueForm === "scientific" && scientificValue ? (
@@ -2053,14 +2064,12 @@ export default function CalculatorScreen() {
 
         {/* サンプルは式を丸ごと置き換える破壊的な操作なので、キーパッドの延長ではなく
             「ここから始める」導線として控えめに独立させる（数学とはデザインを分ける）。 */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.startRail} keyboardShouldPersistTaps="handled">
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.startRail} keyboardShouldPersistTaps="handled" style={styles.startRailWrap}>
           <Pressable onPress={() => setShowSamples(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}>
             <IconSymbol name="book.fill" size={13} color={colors.primary} />
             <Text style={styles.toolButtonText}>{copy.samples}</Text>
           </Pressable>
         </ScrollView>
-
-        <CalculatorBannerAd />
 
         {/* 入力欄をタップせずに式を組み立てられるようにする行。キャレット移動は進数入力モード中も
             使えるが、べき乗まわりは桁以外を受け付けないモードなので無効にする（pressKey 側でも弾く）。
@@ -2334,14 +2343,14 @@ export default function CalculatorScreen() {
 
 const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" });
 
-const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
+const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => StyleSheet.create(scaleFontSizes({
   // 画面全体を一枚に収め、縦スクロールを起こさない構成にする。
-  screen: { flex: 1, gap: 6, paddingBottom: 4, paddingTop: 2 },
+  screen: { flex: 1, gap: layout.screenGap, paddingBottom: 4, paddingTop: 2 },
 
   inputCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, gap: 5, paddingHorizontal: 12, paddingVertical: 8 },
   inputRow: { alignItems: "center", flexDirection: "row", gap: 10 },
   // 入力欄そのもの。中身は色分けしたトークン列で、TextInput ではない。
-  expressionDisplay: { flex: 1, justifyContent: "center", minHeight: 44 },
+  expressionDisplay: { flex: 1, justifyContent: "center", minHeight: layout.inputRowHeight },
   // OSのキーボードの受け口。opacity:0 の1×1で置き、行の高さには影響させない。
   // display:none や width:0 にはしない（フォーカスできなくなり、文字入力の経路が消える）。
   hiddenExpressionInput: { height: 1, left: 0, opacity: 0, position: "absolute", top: 0, width: 1 },
@@ -2365,7 +2374,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   tokenSelectedText: { backgroundColor: "transparent", color: colors.primaryStrong },
   tokenUnknownWrap: { alignItems: "center", backgroundColor: colors.errorSurface, borderColor: colors.errorBorder, borderRadius: 5, borderWidth: 1, flexDirection: "row", gap: 2, paddingHorizontal: 3 },
   tokenUnknown: { color: colors.error, fontFamily: mono, fontSize: 19, fontWeight: "700", lineHeight: 24, textDecorationLine: "underline" },
-  calculateButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 11, height: 44, justifyContent: "center", width: 52 },
+  calculateButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 11, height: layout.inputRowHeight, justifyContent: "center", width: 52 },
   calculateText: { color: colors.onPrimary, fontFamily: mono, fontSize: 20, fontWeight: "800" },
 
   hintRow: { alignItems: "center", flexDirection: "row", gap: 7 },
@@ -2386,10 +2395,12 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   unitChipNameActive: { color: colors.onPrimary },
 
   // 画面の中で唯一縮む場所（結果カードはこの中でスクロールする）。キーパッドは縮まないので、
-  // 入力欄が2行に折り返したり単位検索パネルを開いたりして上が伸びたぶんはここが吸収する。
-  // 下限を84から56へ下げてあるのは、360×780で単位検索パネルを開くとキーパッド下段が
-  // タブバーに潜っていたため（84のままだと13.5px足りない）。
-  middle: { flexGrow: 1, flexShrink: 1, minHeight: 56 },
+  // 入力欄が2行に折り返したり文字サイズの設定で上が伸びたりしたぶんはここが吸収する。
+  // 下限は端末の高さと文字の拡大率で決まる（lib/calculator-layout.ts。基準は従来どおり56で、
+  // 低い端末・大きい文字ほど下げてキーパッドを画面内に残す）。
+  // overflow: hidden が無いと、下限まで縮んだときに結果カードが枠からはみ出して編集キーの行に
+  // 重なる（Webで実測。ネイティブでは切り取られるがWebは既定でvisible）。
+  middle: { flexGrow: 1, flexShrink: 1, minHeight: layout.middleMinHeight, overflow: "hidden" },
   middleContent: { gap: 7 },
   resultCard: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 16, borderWidth: 1, paddingHorizontal: 13, paddingVertical: 10 },
   resultHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
@@ -2397,7 +2408,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   resultActions: { alignItems: "center", flexDirection: "row", gap: 6 },
   iconButton: { alignItems: "center", backgroundColor: colors.surface, borderRadius: 8, height: 28, justifyContent: "center", width: 32 },
   // 結果は画面で最も大きい文字にする（式19px・キー18pxに対して28pxでは、下に並ぶチップに埋没していた）。
-  resultValue: { color: colors.primaryStrong, fontFamily: mono, fontSize: RESULT_VALUE_FONT_SIZE, fontWeight: "700", marginTop: 2, minHeight: 44 },
+  resultValue: { color: colors.primaryStrong, fontFamily: mono, fontSize: RESULT_VALUE_FONT_SIZE, fontWeight: "700", marginTop: 2, minHeight: layout.inputRowHeight },
   emptyResult: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 6 },
   presetOutputUnit: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
   presetOutputUnitLabel: { color: colors.muted, fontSize: 11, fontWeight: "700" },
@@ -2452,6 +2463,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   // 単位ラベルは小数表示（"2.55 mA" の "mA"）と同じ見た目にする。値と同じ36px・700。
   // 分数のときだけ STACKED_RESULT_UNIT_FONT_SIZE を呼び出し側で上書きする。
   exactValueUnit: { color: colors.primaryStrong, fontFamily: mono, fontSize: RESULT_VALUE_FONT_SIZE, fontWeight: "700" },
+  exactValueUnitStacked: { fontSize: STACKED_RESULT_UNIT_FONT_SIZE },
   // 丸める前の値の併記。結果の値より明らかに小さく・淡くして、主役が丸めた値であることを保つ。
   roundedFromText: { color: colors.muted, fontFamily: mono, fontSize: 12, fontWeight: "600", marginTop: -2 },
   valueFormChip: { backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 9, borderWidth: 1, justifyContent: "center", minHeight: 30, paddingHorizontal: 10 },
@@ -2481,6 +2493,8 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   messageSuccessText: { color: colors.success, fontSize: 12, lineHeight: 17 },
 
   startRail: { alignItems: "center", gap: 6, paddingRight: 4 },
+  // 縦が足りないときに潰れてボタンが半分に切れるのを防ぐ（縮むのは middle に任せる）。
+  startRailWrap: { flexGrow: 0, flexShrink: 0 },
   // サンプルは二次的な導線として控えめに（surfaceSecondary系のまま、アイコンを添えるためrowにする）。
   toolButton: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderColor: colors.border, borderRadius: 9, borderWidth: 1, flexDirection: "row", gap: 5, justifyContent: "center", minHeight: 32, paddingHorizontal: 11 },
   toolButtonText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
@@ -2496,7 +2510,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   keypad: { flexDirection: "row", flexWrap: "wrap", marginHorizontal: -3 },
   // 5列（KEYS のコメント参照）。4列に戻すなら KEYS の並びも組み直すこと。
   keyCell: { padding: 3, width: "20%" },
-  key: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 12, borderWidth: 1, height: 42, justifyContent: "center" },
+  key: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 12, borderWidth: 1, height: layout.keyHeight, justifyContent: "center" },
   keyOperator: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder },
   keyAction: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
   keyText: { color: colors.foreground, fontFamily: mono, fontSize: 18, fontWeight: "600" },
@@ -2540,11 +2554,11 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   // 高さは2行ぶんで8px詰めてある（32→30・余白6→4）。単位パレットのカテゴリ行を足したぶん、
   // 縮むのは画面で唯一伸縮する middle ＝ 結果カードの見える高さなので、その分をここから返す。
   // これ以上詰めると押しやすさ（最小タップ高）を割るので、行を足すときは別の場所から取ること。
-  editKeyRow: { flexDirection: "row", gap: 6, marginBottom: 4 },
-  editKey: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, flex: 1, justifyContent: "center", minHeight: 30 },
+  editKeyRow: { flexDirection: "row", gap: layout.keyRowGap, marginBottom: layout.keyRowGap - 2 },
+  editKey: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, flex: 1, justifyContent: "center", minHeight: layout.keyRowMinHeight },
   editKeyText: { color: colors.primary, fontFamily: mono, fontSize: 15, fontWeight: "800" },
   // 接頭語は「単位の文字」なので、単位チップと同じ面の色にして編集キー（枠だけ）と区別する。
-  prefixKey: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, flex: 1, justifyContent: "center", minHeight: 30 },
+  prefixKey: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, flex: 1, justifyContent: "center", minHeight: layout.keyRowMinHeight },
   prefixKeyText: { color: colors.primary, fontFamily: mono, fontSize: 15, fontWeight: "800" },
   editKeyActive: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
   prefixKeyActive: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
@@ -2552,8 +2566,8 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   // 数学は文字数が多いので、他の編集キーより少し広く取る（アイコンは外した。1行に収めるため）。
   // minWidth: 0 が無いと、内容幅が flex の割り当てより大きい言語で行からはみ出す。
   mathKey: { backgroundColor: colors.primarySurface, flex: 1.6, minWidth: 0, paddingHorizontal: 2 },
-  hexKeyRow: { flexDirection: "row", gap: 6, marginTop: 6 },
-  hexKey: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, flex: 1, justifyContent: "center", minHeight: 32 },
+  hexKeyRow: { flexDirection: "row", gap: layout.keyRowGap, marginTop: layout.keyRowGap },
+  hexKey: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, flex: 1, justifyContent: "center", minHeight: layout.keyRowMinHeight },
   hexKeyText: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },
 
   historyActions: { alignItems: "center", flexDirection: "row", gap: 10 },
@@ -2615,4 +2629,4 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   unitInfoUsage: { color: colors.foreground, fontSize: 13, lineHeight: 19, marginTop: 4 },
   unitInfoDone: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 11, marginTop: 18, paddingVertical: 12 },
   unitInfoDoneText: { color: colors.onPrimary, fontWeight: "700" },
-});
+}, layout.fontFactor));

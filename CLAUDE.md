@@ -118,6 +118,13 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - 進数入力モード中（`baseInputMode !== null`）は `FF` のような生の桁が式として解析されて診断が出るので、**診断の表示は `baseInputMode === null` を条件にしている**。
 - `lib/unit-group-names.ts` — 単位グループの表示名（旧 `lib/global-settings.tsx` の `GROUP_NAMES`）。**計算エンジンのエラー文言からも引く**ため、Reactに依存しない純データとして切り出した。`lib/units.ts` の `add`/`subtract` は次元不一致のとき `describeDimension` で両辺の**グループid とSI表記**（言語に依存しない）をエラーの `params` に載せ、`lib/unit-errors.ts` の `describeMismatchSides` が現在の言語で名前に変える。`unit-errors.ts` は `units.ts` から import される側なので `units.ts` を import できない（循環）。グループ名が無い合成次元（`N·m²/C²`）はSI表記だけ、無次元は「無次元の値」。
   - 6言語の `dimensionMismatchAddSubtract` は `params` が無い旧形式なら従来の一般文言に戻る。テストは `tests/calculator-diagnosis.test.ts`。
+- `lib/calculator-layout.ts` — **端末の文字サイズ・表示サイズの設定に電卓画面を追従させるための純関数**（`resolveCalculatorLayout` / `scaleFontSizes`）。電卓だけは「1画面に収める・縦スクロールさせない」構成なので、文字が大きい端末では**キーパッドがタブバーの下へ押し出されて数字キーが押せなくなる**（実機報告。知人のAndroidで最下段しか見えていなかった）。
+  - **拡大率に上限（`CALCULATOR_MAX_FONT_SCALE` = 1.2）を掛ける。** 実装は「Textに `maxFontSizeMultiplier` を配る」ではなく、**`StyleSheet.create` に渡す定義の `fontSize`・`lineHeight` を `min(1, cap/fontScale)` 倍する**（`scaleFontSizes`）。端末側が自動で拡大するので掛け合わせて上限になる。**React 19 では `Text.defaultProps` が効かない**うえ、propを配る方式は新しいTextを足すたびに渡し忘れる。
+  - **拡大を完全に無効（`allowFontScaling={false}`）にはしない。** 1.2倍までは端末の設定に従う——「大きめ」にしている人が読めなくなる方が損失が大きい。
+  - **足りないぶんは高さで詰める。** 段階は REGULAR / COMPACT / DENSE / ULTRA の4つで、キーの高さ（42→38→34→30）・編集キー行・行間・`middle` の下限を同時に下げる。選ぶ物差しは**実効の高さ**＝`画面の高さ ÷ min(fontScale, 1.2)`（文字が1.2倍なら必要な縦も概ね1.2倍なので、フォント拡大と画面の低さを1つの数で扱える）。閾値は 640 / 560 / 480。**640は現状の基準端末（360×640）なので、そこは1pxも詰めない。**
+  - **`middle` に `overflow: "hidden"` が要る。** 下限まで縮んだとき、Webでは結果カードが枠からはみ出して編集キーの行に重なる（ネイティブは切り取られる）。
+  - **サンプル行（`startRailWrap`）は `flexShrink: 0`。** 横スクロールのScrollViewは縦が足りないと潰れてボタンが半分に切れる。縮むのは `middle` だけに任せる。
+  - 検証は `npx expo export --platform web` + Playwright でビューポートの高さを変えて行う（**Webでは `fontScale` が常に1**なので、拡大そのものは再現できない。段階の分岐は高さで、係数の計算は `tests/calculator-layout.test.ts` で固定している）。360×780/640/600/520/460 でキーパッド下段の `=` がタブバーより上にあることを確認済み。
 - `lib/unit-comparison.ts` — 1つの値を複数単位で並べる比較表の行を組み立てる純関数（`buildUnitComparisonRows`）。換算は既存の `convertQuantity` / `formatNumberForLocale`、候補は既存の `compatibleUnitOptionsFromHints` に任せ、**新しい換算ロジックは持たない**。
   - 電卓の結果カードの単位チップ列のすぐ下に、折りたたみで出している（`app/(tabs)/index.tsx`）。**候補の集合・並び順・タップ時の挙動をチップ列と揃える**ことで「チップ列を縦に開いたもの」として読ませる設計なので、ここで並べ替えないこと（テストで固定してある）。
   - チップ列（`conversionUnits`）は `getCompatibleUnitGroups` だけで作るため合成次元（`N·m²/C²` など）では空になるが、比較表は手掛かり方式を通すので候補を出せる。
@@ -597,6 +604,15 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - `npx vitest run` → **979 passed / 2 failed**。失敗2件は従来どおり `tests/revenuecat.credentials.test.ts`（環境依存）。新規: `tests/unit-palette.test.ts`（35件）、`tests/unit-input.test.ts` に接頭語の文脈順6件。
 - `npx expo lint` → **2エラー・0警告**（`app/(tabs)/index.tsx` の既存分のまま）。
 - `npx expo export --platform web --clear` が通る。Playwright で 360×640（ja・light）の `=` の下端 546.5・タブバー上端 573 を空・`12V / 4.7kΩ`・`3m + 2kg`・2行の長い式で確認。カテゴリ「長さ」→ `cm` チップで `3` → `3cm`、`k` 2回で取り消し、`k`→`M` で差し替え、`3 + 5mpa` でキャレットを `3` の直後へ戻して圧力→`kPa` を押すと `3kPa + 5mpa` になることを確認済み。**Android実機のキーボードの件はこの環境では再現も検証もできない。**
+
+37. **[完了]** **端末の文字サイズ・表示サイズを大きくしていると数字キーが押せない問題を直し、バナー広告を画面の最上部へ移した。** どちらも実機（知人のAndroid）で指摘されたもの。前者は `lib/calculator-layout.ts` を参照。後者は、広告がキーパッドの直上にあると**数字キーへ伸ばした指のすぐ先に「インストール」ボタンが並ぶ**うえ、入力欄と結果カードの間に割り込んで読む流れも切っていたため。**広告の縦幅（50dp）自体は変わらないので、上へ移しても「入りきらない」問題そのものには効かない**（効くのは上の拡大率の上限と段階的な圧縮）。
+
+### 現在の基準値（2026-09-17時点、文字サイズ設定への追従を入れた後）
+
+- `npx tsc --noEmit` → **`app/_layout.tsx` の `@/global.css` で1件のみ**（従来どおりの環境依存）。
+- `npx vitest run` → **989 passed / 2 failed**。失敗2件は従来どおり `tests/revenuecat.credentials.test.ts`（環境依存）。新規: `tests/calculator-layout.test.ts`（10件）。
+- `npx expo lint` → **2エラー・0警告**（`app/(tabs)/index.tsx` の既存分のまま）。
+- `npx expo export --platform web` が通る（**初回は `react-native-css-interop/.cache/web.css` のSHA-1で落ちることがあり、`--clear` を付けても落ちる。同じコマンドをもう一度走らせると通る**）。Playwrightでの実測（ja/de、式を打った状態でも同じ）: 360×780 → `=` の下端697・タブバー748、360×640 → 557・608、360×600 → 517・568（キー38）、360×520 → 437・488（キー34）、360×460 → 393・428（キー30）。**360×400 だけは収まらない**が、実端末の画面高さ（dp）がそこまで低くなることは無い（段階の選択は実効の高さで行い、実際のレイアウトは本物の高さの中で組まれる）。
 
 ## 次にやりそうなこと（ユーザーから明示的な指示待ち）
 
