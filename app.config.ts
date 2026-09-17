@@ -62,11 +62,16 @@ const config: ExpoConfig = {
     },
     predictiveBackGestureEnabled: false,
     package: env.androidPackage,
-    // versionCode はここに書かない。eas.json が appVersionSource: "remote" なので
-    // EAS側の採番（production の autoIncrement）が正で、ここに書いた値は無視される
-    // （書くとマニフェストには載るため、expo-constants から見える値だけが実際の
-    // versionCode と食い違う）。ローカルの gradle ビルドには効くが、release の
-    // signingConfig がデバッグ鍵のままでPlayには出せないので、そこで採番する意味も無い。
+    // **ローカルの gradle ビルド専用の versionCode。**
+    // plugins/withLocalReleaseSigning.js が release を本番鍵で署名するので、ローカルでも
+    // Playへ出せるAABが作れる。そのとき採番するのはここ（EASのリモート採番は効かない）。
+    // Playは同じ versionCode のAABを二度受け付けず、1.0.0 が 1 で上がっているので 2 から。
+    // **バージョン名を上げるたびにここも上げること**（上げ忘れるとPlayのアップロードで
+    // 弾かれるまで気付けない）。
+    // EAS の production ビルドは eas.json の appVersionSource: "remote" 側の採番を使い、
+    // この値は無視する（EAS CLI が「消すことを推奨」と警告するのはそのため）。両方の
+    // 採番が混ざっても順序が壊れないよう、EAS側のカウンタはこの値以上に保つ。
+    versionCode: 2,
     // このアプリは通知を一切出さない（スキャフォールド由来の POST_NOTIFICATIONS を削除済み）。
     // 空配列は「追加の権限を宣言しない」の明示で、@expo/config-plugins の withPermissions は
     // 値が空なら何も足さない。実際にマニフェストに載るのは AdMob 由来の INTERNET・
@@ -98,6 +103,9 @@ const config: ExpoConfig = {
     // デバッグビルドだけ applicationId に ".debug" を付けて、Play版と同じ端末に共存させる。
     // 詳しい理由はプラグイン本体のコメント。
     "./plugins/withDebugPackageSuffix",
+    // credentials.json があるときだけ、release ビルドをそのkeystoreで署名する。
+    // 無ければ何もしない（EASビルドを壊さない）。詳しい理由はプラグイン本体のコメント。
+    "./plugins/withLocalReleaseSigning",
     "expo-router",
     "expo-localization",
     "expo-asset",
