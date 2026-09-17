@@ -12,6 +12,7 @@ import {
   insertUnitAtEnd,
   replaceExpressionRange,
   requiredUnitGroupFromError,
+  shouldResetPaletteForKey,
 } from "../lib/unit-input";
 import { diagnoseCalculatorInput } from "../lib/calculator-input";
 
@@ -524,5 +525,53 @@ describe("接頭語キーの候補を今の式の文脈へ寄せる", () => {
 
   it("解決できない記号は文脈として無視する", () => {
     expect(after("k", { contextUnits: ["zzz"] })).toEqual(after("k"));
+  });
+});
+
+describe("掛け算・割り算の相手の候補をレールへ渡す", () => {
+  // lib/unit-context-suggestions.ts が組み立てた候補（ここではその形だけを模す）。
+  const companion = getUnitGroupSuggestions("resistance", { system: "metric", limit: 3 });
+
+  it("要求されている次元が無いときは、渡された候補をそのまま出す", () => {
+    // `12V ÷ ` は次元不一致のエラーが出ない（掛け算・割り算はどんな次元でも通る）ので、
+    // 従来はよく使う単位（mm・cm・m・km・g…）が並んでいた場面。
+    const insert = getUnitInputHint("12V ÷ ", { system: "metric", caret: 6, companionCandidates: companion });
+    expect(insert.kind).toBe("insert");
+    expect(insert.candidates.map((candidate) => candidate.unit.symbol)).toEqual(companion.map((candidate) => candidate.unit.symbol));
+    // 数値を打ち始めた「単位付け」の場面でも同じ候補を出す（`12V/4.7` → kΩ）。
+    const attach = getUnitInputHint("12V/4.7", { system: "metric", caret: 7, companionCandidates: companion });
+    expect(attach.kind).toBe("attach");
+    expect(attach.candidates.map((candidate) => candidate.unit.symbol)).toEqual(companion.map((candidate) => candidate.unit.symbol));
+  });
+
+  it("要求されている次元がある式では、そちらを優先する", () => {
+    // 式が数学的に要求している次元（力）の方が、実例からの推測より確か。
+    const expression = "2kg×0.25×9.8m/s²-5";
+    const hint = getUnitInputHint(expression, { system: "metric", caret: expression.length, requiredGroup: "force", companionCandidates: companion });
+    expect(hint.candidates.every((candidate) => candidate.group.id === "force")).toBe(true);
+  });
+
+  it("渡された候補が空なら、従来どおりよく使う単位へ落とす", () => {
+    const hint = getUnitInputHint("5", { system: "metric", caret: 1, companionCandidates: [] });
+    expect(hint.candidates.map((candidate) => candidate.unit.symbol)).toEqual(
+      getCommonUnitSuggestions("metric", [], { limit: 8 }).map((candidate) => candidate.unit.symbol),
+    );
+  });
+});
+
+describe("単位パレットのカテゴリ選択を解除するキー", () => {
+  it("演算子・括弧・べき乗・数学関数で解除する", () => {
+    // 長さを選んで cm を入れたあと ÷ を押した人が次に入れたいのは時間で、長さではない。
+    ["+", "-", "×", "÷", "*", "/", "(", ")", "^"].forEach((key) => expect(shouldResetPaletteForKey(key), key).toBe(true));
+    // 複数文字のキー（編集キーの ×10^ と数学シートの関数）は末尾の1文字で判断する。
+    expect(shouldResetPaletteForKey("×10^")).toBe(true);
+    expect(shouldResetPaletteForKey("sin(")).toBe(true);
+    expect(shouldResetPaletteForKey("atan2(")).toBe(true);
+  });
+
+  it("同じ項を書いている途中の操作では解除しない", () => {
+    // 数字・小数点・削除・全消し・上付き・接頭語キー・定数記号。ここで解除すると、選んだ
+    // カテゴリが1文字打つたびに消えて選び直しになる。
+    ["0", "7", ".", "⌫", "AC", "²", "³", "k", "M", "µ", "m", "π", "e", ""].forEach((key) => expect(shouldResetPaletteForKey(key), key).toBe(false));
   });
 });

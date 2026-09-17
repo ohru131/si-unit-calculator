@@ -370,7 +370,7 @@ const UNIT_GROUP_CLUSTERS: readonly (readonly string[])[] = [
 ];
 
 /** 渡したグループと同じ分野に属するグループidと、その分野の中での順位（小さいほど先）。 */
-function relatedGroupRanks(groupIds: ReadonlySet<string>): Map<string, number> {
+export function relatedGroupRanks(groupIds: ReadonlySet<string>): Map<string, number> {
   const ranks = new Map<string, number>();
   UNIT_GROUP_CLUSTERS.forEach((cluster) => {
     if (!cluster.some((id) => groupIds.has(id))) return;
@@ -556,6 +556,26 @@ export function resolvePaletteTarget(options: { hint: UnitInputHint; expression:
   return { kind, start, end };
 }
 
+// 押すと「次の項」へ移るキー。演算子・括弧・べき乗と、数学シートの関数（`sin(` のように
+// `(` で終わる）が該当する。キーは1文字とは限らない（`×10^`・`atan2(`）ので末尾の1文字で見る。
+const PALETTE_RESET_CHARACTERS = ["+", "-", "−", "*", "/", "×", "÷", "·", "(", ")", "^"];
+
+/**
+ * そのキーを押したら単位パレットのカテゴリ選択を解除する（＝文脈依存の「候補」へ戻す）か。
+ *
+ * **カテゴリは一度選ぶと解除する場所が無かった。** 長さを選んで cm を入れたあと `÷` を押しても
+ * レールは長さの単位のままで、時間の単位を出すにはもう一度カテゴリを選び直すしか無い
+ * （＝自動の絞り込みが二度と戻ってこない）。演算子を押した時点で書いているのは次の項なので、
+ * そこで推測へ戻すと「必要なときだけ自分で選ぶ」形になる。
+ *
+ * **数字・小数点・`⌫`・キャレット移動・接頭語キーでは解除しない。** どれも同じ項を書いている
+ * 途中の操作で、ここで解除すると選んだカテゴリが1文字打つたびに消える。
+ */
+export function shouldResetPaletteForKey(key: string): boolean {
+  if (!key) return false;
+  return PALETTE_RESET_CHARACTERS.includes(key[key.length - 1]);
+}
+
 /**
  * 単位パレット（カテゴリを選んで並べる行）の候補。**このグループの単位だけ**を、単位ピッカーと
  * 同じ並び（地域優先 → 表示モードの絞り込み）で返す。
@@ -645,23 +665,27 @@ export function requiredUnitGroupFromError(error: unknown): string | undefined {
  */
 export function getUnitInputHint(
   expression: string,
-  options: { system: UnitSystem; recentUnits?: string[]; identifiers?: string[]; includeUnit?: UnitFilter; limit?: number; analysis?: ExpressionAnalysis; caret?: number; requiredGroup?: string },
+  options: { system: UnitSystem; recentUnits?: string[]; identifiers?: string[]; includeUnit?: UnitFilter; limit?: number; analysis?: ExpressionAnalysis; caret?: number; requiredGroup?: string; companionCandidates?: UnitSuggestion[] },
 ): UnitInputHint {
-  const { system, recentUnits = [], identifiers = [], includeUnit, limit = 8, requiredGroup } = options;
+  const { system, recentUnits = [], identifiers = [], includeUnit, limit = 8, requiredGroup, companionCandidates } = options;
   const analysis = options.analysis ?? analyzeExpression(expression, identifiers);
   const caret = options.caret ?? expression.length;
   // 式が特定の次元を要求しているなら、その次元の単位を出す（requiredUnitGroupFromError）。
   // よく使う単位の一覧（m・km・g・s…）は「何を付けたいか分からないとき」の並びなので、
   // 2kg×9.8m/s²-5 のように付けるべき単位が力だと分かっている場面では見当違いになる。
-  // 要求が読めない・その次元の単位を並べられないときは従来どおりよく使う単位へ落とす。
+  // 要求が読めない・その次元の単位を並べられないときは、掛け算・割り算の相手として実例から
+  // 引いた候補（companionCandidates。lib/unit-context-suggestions.ts）を使い、それも無ければ
+  // 従来どおりよく使う単位へ落とす。**次元の要求の方が強い**——あちらは式が数学的に要求して
+  // いる次元そのもので、実例からの推測より確かなため。
   const insertHint = (start: number, kind: UnitInputHintKind): UnitInputHint => {
     const required = requiredGroup ? getUnitGroupSuggestions(requiredGroup, { system, recentUnits, limit, includeUnit }) : [];
+    const companions = companionCandidates?.length ? companionCandidates.slice(0, limit) : [];
     return {
       kind,
       fragment: "",
       start,
       end: start,
-      candidates: required.length ? required : getCommonUnitSuggestions(system, recentUnits, { limit, includeUnit }),
+      candidates: required.length ? required : companions.length ? companions : getCommonUnitSuggestions(system, recentUnits, { limit, includeUnit }),
     };
   };
 

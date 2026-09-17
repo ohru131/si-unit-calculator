@@ -46,6 +46,7 @@ import { getUnitExplanation } from "@/lib/unit-explanations";
 import UnitCalculatorWidget from "@/widgets/UnitCalculatorWidget";
 import { SAMPLE_CALCULATIONS, SAMPLE_CATEGORIES, type SampleCalculation } from "@/lib/sample-calculations";
 import { orderSampleCategoriesForLanguage, orderSamplesForLanguage } from "@/lib/locale-relevance";
+import { getPresetUnitExamples, resolveUnitContext, suggestCompanionUnits, unitExamplesFromHistory } from "@/lib/unit-context-suggestions";
 import {
   analyzeExpression,
   getPaletteUnitSuggestions,
@@ -57,6 +58,7 @@ import {
   resolvePaletteTarget,
   resolvePrefixCompletionRange,
   resolvePrefixKeyPress,
+  shouldResetPaletteForKey,
   getUnitSuggestions,
   replaceExpressionRange,
   type ExpressionSegment,
@@ -248,6 +250,14 @@ function ExpressionPiece({ accessibilityLabel, children, length, onPlaceCaret, o
   );
 }
 
+/** 入力欄への打ち込み（貼り付け含む）で増えた文字。古い式と新しい式の共通の先頭から数える。 */
+const insertedTail = (previous: string, next: string) => {
+  if (next.length <= previous.length) return "";
+  let index = 0;
+  while (index < previous.length && previous[index] === next[index]) index += 1;
+  return next.slice(index, index + (next.length - previous.length));
+};
+
 const EDIT_KEYS: readonly { label: string; insert: string }[] = [
   { label: "x²", insert: "²" },
   { label: "x³", insert: "³" },
@@ -256,6 +266,8 @@ const EDIT_KEYS: readonly { label: string; insert: string }[] = [
 ];
 const RAIL_LIMIT = 8;
 const RECENT_UNIT_LIMIT = 8;
+// 掛け算・割り算の相手の候補を引くときに走査する履歴の件数（新しい方から）。
+const HISTORY_UNIT_EXAMPLE_LIMIT = 80;
 
 // 英語のキー集合を正にして、言語を足したときにキー漏れがその言語のブロックで型エラーになるようにする。
 // 引数を取るメッセージ（unresolvedUnit系・unitDoesNotFit等）が混ざるため、EN_COPYのas constは外し、
@@ -750,6 +762,36 @@ export default function CalculatorScreen() {
   // 「この数値には何の単位を付けるべきか」が式から分かる場合の手掛かり。裸の数値を足し引きして
   // 次元不一致になっている式では、反対側の次元がそのまま答えになる（lib/unit-input.ts）。
   const requiredUnitGroup = useMemo(() => requiredUnitGroupFromError(diagnosis.error), [diagnosis.error]);
+  // キャレットの直前の演算子から読む文脈（lib/unit-context-suggestions.ts）。次元不一致のエラー
+  // （requiredUnitGroupFromError）は「裸の数値を既に打った」式でしか出ないので、`1m+` のように
+  // 演算子で終わっている途中の式・掛け算と割り算はそちらでは一切拾えない。
+  // 進数入力モード中は式が生の桁なので見ない。
+  const unitContext = useMemo(
+    () => (baseInputMode === null ? resolveUnitContext({ analysis, caret: Math.min(selection.start, expression.length) }) : null),
+    [analysis, baseInputMode, expression, selection],
+  );
+  // 掛け算・割り算の相手として実際に一緒に使われている単位。**計算履歴（新しい順）を先に見て、
+  // 無ければプリセット計算ノートとサンプルの組み合わせ**を使う（初めて使う人にも `12V ÷ ` で
+  // Ω・A が出る）。足し引きは次元が決まっているのでこちらは使わない（下の requiredGroup）。
+  // **履歴の全件（最大500件）は見ない。** 1件ごとに式を解析するので、実測で500件＝33ms
+  // （この環境のnode。Hermesの実機ではその数倍）かかり、= を押すたびにその時間が描画に乗る。
+  // レールに並ぶのは8件で、そこへ入るのは新しい方から数件だけなので、古い履歴まで走査しても
+  // 並び順は変わらない（当たらなければプリセットの例が受ける）。
+  const historyUnitExamples = useMemo(() => unitExamplesFromHistory(history.slice(0, HISTORY_UNIT_EXAMPLE_LIMIT)), [history]);
+  const companionCandidates = useMemo(
+    () => (unitContext?.operator === "multiplicative"
+      ? suggestCompanionUnits({
+        leftGroupId: unitContext.leftGroupId,
+        recentExamples: historyUnitExamples,
+        corpusExamples: getPresetUnitExamples(),
+        system: unitSystem,
+        recentUnits,
+        limit: RAIL_LIMIT,
+        includeUnit,
+      })
+      : undefined),
+    [historyUnitExamples, includeUnit, recentUnits, unitContext, unitSystem],
+  );
   // 単位を打っている途中（レールが「確定」の候補を出している最中）は赤い診断を出さない。
   // 接頭語キーを押すと必ず一度は「未対応の単位「M」です」を通るので、そのままだと
   // 押すたびに赤くなる。補完候補はレールに並んでいて、当たっている綴りも入力欄の下の
@@ -789,8 +831,11 @@ export default function CalculatorScreen() {
         candidates: getPrefixedUnitSuggestions(prefixEntry.prefix, { system: unitSystem, limit: RAIL_LIMIT, includeUnit, recentUnits, contextUnits: expressionUnits }),
       };
     }
-    return getUnitInputHint(expression, { system: unitSystem, recentUnits, identifiers, includeUnit, limit: RAIL_LIMIT, analysis, caret, requiredGroup: requiredUnitGroup });
-  }, [activePrefix, analysis, expression, expressionUnits, fixSelection, identifiers, includeUnit, prefixEntry, recentUnits, requiredUnitGroup, selection, unitSystem]);
+    // 足し引きの直後（`1m+`）は左側と同じ次元しか入らないので、エラーから読めた要求が無くても
+    // 文脈から同じ答えを出せる（requiredUnitGroupFromError の上位互換）。
+    const contextRequiredGroup = unitContext?.operator === "additive" ? unitContext.leftGroupId : undefined;
+    return getUnitInputHint(expression, { system: unitSystem, recentUnits, identifiers, includeUnit, limit: RAIL_LIMIT, analysis, caret, requiredGroup: requiredUnitGroup ?? contextRequiredGroup, companionCandidates });
+  }, [activePrefix, analysis, companionCandidates, expression, expressionUnits, fixSelection, identifiers, includeUnit, prefixEntry, recentUnits, requiredUnitGroup, selection, unitContext, unitSystem]);
 
   // パレットで選んでいるカテゴリ。選んでいなければ undefined ＝ 従来どおり文脈依存の候補を出す。
   const paletteGroup = useMemo(
@@ -1039,6 +1084,8 @@ export default function CalculatorScreen() {
         setNotice(copy.constantSaved(definition.symbol));
       }
       playResultReveal();
+      // 確定した時点で1つの計算が終わっているので、次の式は文脈依存の候補から始める。
+      setPaletteGroupId(null);
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       // 表示単位が結果に合わないときは、行き止まりにせずSI標準へ戻す。
       let usedTargetUnit = selectedTargetUnit.trim();
@@ -1158,6 +1205,7 @@ export default function CalculatorScreen() {
         setExpression(decimalText);
         placeCaret(decimalText.length);
         setBaseInputMode(null);
+        setPaletteGroupId(null);
       }
       return;
     }
@@ -1190,6 +1238,10 @@ export default function CalculatorScreen() {
     // だけでは数学シート（ADVANCED_KEYS）が pressKey("sin(") を直接呼べてしまい、確定できない
     // 桁が混ざる。入力の経路が複数あるので、ここでも弾く。
     if (baseInputMode !== null && key !== "AC" && key !== "⌫" && !isBaseDigitAllowed(key, baseInputMode)) return;
+    // 演算子・括弧・べき乗・数学関数を押した時点で、書いているのは「次の項」なので単位パレットの
+    // カテゴリ選択を解除して文脈依存の「候補」へ戻す（判定は lib/unit-input.ts の純関数。
+    // 数字・小数点・⌫・キャレット移動・接頭語キーでは解除しない＝同じ項を書いている途中の操作）。
+    if (shouldResetPaletteForKey(key)) setPaletteGroupId(null);
     // 式が変わればリアルタイムの結果も変わるので、= を押して出したエラーは持ち越さない
     // （そのままだと、新しい結果が出ているのに古い赤いメッセージが上に残る）。
     setError("");
@@ -1203,6 +1255,7 @@ export default function CalculatorScreen() {
       setTargetUnit(DEFAULT_TARGET_UNIT);
       setFixSelection(null);
       setBaseInputMode(null);
+      setPaletteGroupId(null);
       void Haptics.selectionAsync();
       return;
     }
@@ -1285,6 +1338,7 @@ export default function CalculatorScreen() {
       setExpression("");
       placeCaret(0);
       setBaseInputMode(null);
+      setPaletteGroupId(null);
       return;
     }
     if (!canStartBaseInput) return;
@@ -1356,6 +1410,7 @@ export default function CalculatorScreen() {
     // 進数入力モードのまま通常の式を読み込むと、桁の制限が効いたまま計算もできない
     // 宙ぶらりんの状態になる。式を丸ごと差し替える経路では必ずモードを解除する。
     setBaseInputMode(null);
+    setPaletteGroupId(null);
     setExpression(entry.expression);
     placeCaret(entry.expression.length);
     setTargetUnit(entry.targetUnit);
@@ -1397,6 +1452,7 @@ export default function CalculatorScreen() {
     });
     if (!restored) return;
     setBaseInputMode(null);
+    setPaletteGroupId(null);
     setExpression(restored.expression);
     placeCaret(restored.expression.length);
     setTargetUnit(restored.targetUnit);
@@ -1412,6 +1468,7 @@ export default function CalculatorScreen() {
     appliedQuickRef.current = action ?? null;
     if (shortcut.expression && shortcut.targetUnit) {
       setBaseInputMode(null);
+      setPaletteGroupId(null);
       setExpression(shortcut.expression);
       placeCaret(shortcut.expression.length);
       setTargetUnit(shortcut.targetUnit);
@@ -1434,6 +1491,7 @@ export default function CalculatorScreen() {
     if (appliedPresetRef.current === presetToken) return;
     appliedPresetRef.current = presetToken;
     setBaseInputMode(null);
+    setPaletteGroupId(null);
     setExpression(nextExpression);
     placeCaret(nextExpression.length);
     setTargetUnit(nextUnit ?? "");
@@ -1446,6 +1504,7 @@ export default function CalculatorScreen() {
     markUserInteraction();
     // restoreHistoryと同じ理由で、通常の式を読み込む前に進数入力モードを解除する。
     setBaseInputMode(null);
+    setPaletteGroupId(null);
     const sampleTargetUnit = targetUnitForSample(sample);
     setExpression(sample.expression);
     placeCaret(sample.expression.length);
@@ -1461,6 +1520,7 @@ export default function CalculatorScreen() {
   const applyQuickStart = (nextExpression: string) => {
     markUserInteraction();
     setBaseInputMode(null);
+    setPaletteGroupId(null);
     setExpression(nextExpression);
     placeCaret(nextExpression.length);
     setFixSelection(null);
@@ -1719,6 +1779,10 @@ export default function CalculatorScreen() {
                 // 進数入力モード中は入力欄への直接入力・貼り付けも桁だけに絞る。キーパッドと
                 // 数学シートを塞いでも、ここが素通りだと確定できない桁が混ざる。
                 setExpression(baseInputMode === null ? text : sanitizeBaseInput(text, baseInputMode));
+                // OSのキーボード・貼り付けで演算子を入れたときも、キーパッドと同じようにパレットを
+                // 「候補」へ戻す。キャレットは onSelectionChange が別に届くので、ここでは
+                // 打ち込まれた文字（古い式との差分）の末尾だけを見る。
+                if (shouldResetPaletteForKey(insertedTail(expression, text).slice(-1))) setPaletteGroupId(null);
                 setFixSelection(null);
                 // OSのキーボードから打った時点で「接頭語キーを押した直後」ではなくなる。
                 setPrefixEntry(null);
