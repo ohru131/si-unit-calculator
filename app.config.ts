@@ -62,13 +62,11 @@ const config: ExpoConfig = {
     },
     predictiveBackGestureEnabled: false,
     package: env.androidPackage,
-    // Play は同じ versionCode のAABを二度受け付けない。1.0.0 のAABが versionCode 1 で
-    // 上がっているので、1.1.0 は 2 から始める（**バージョン名を上げるたびにここも上げること**。
-    // 上げ忘れると Play へのアップロードで弾かれるまで気付けない）。
-    // eas.json は appVersionSource を "remote" にしてあるので、EAS の production ビルドは
-    // この値ではなくEAS側の採番（autoIncrement）を使う。ここが効くのはローカルの
-    // `expo prebuild` / gradle ビルドで、Play へ上げるAABをローカルで作る場合の保険。
-    versionCode: 2,
+    // versionCode はここに書かない。eas.json が appVersionSource: "remote" なので
+    // EAS側の採番（production の autoIncrement）が正で、ここに書いた値は無視される
+    // （書くとマニフェストには載るため、expo-constants から見える値だけが実際の
+    // versionCode と食い違う）。ローカルの gradle ビルドには効くが、release の
+    // signingConfig がデバッグ鍵のままでPlayには出せないので、そこで採番する意味も無い。
     // このアプリは通知を一切出さない（スキャフォールド由来の POST_NOTIFICATIONS を削除済み）。
     // 空配列は「追加の権限を宣言しない」の明示で、@expo/config-plugins の withPermissions は
     // 値が空なら何も足さない。実際にマニフェストに載るのは AdMob 由来の INTERNET・
