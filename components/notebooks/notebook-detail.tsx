@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
+import { NotebookKeypad } from "@/components/notebooks/notebook-keypad";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { LatexView } from "@/components/ui/latex-view";
@@ -12,6 +13,7 @@ import { type AppLanguage } from "@/lib/i18n";
 import { getLocalConstantFieldSuggestions, getStepFieldSuggestions, insertConstantSymbol, mapCombinedSelectionToExpressionRange } from "@/lib/notebook-constant-suggestions";
 import { evaluateNotebookSteps, formatNameValue, normalizeStepForSave, parseNameValue, resolveNotebookLocalConstants, trimResultSymbol } from "@/lib/notebook-engine";
 import { resolveNotebookStepDisplay } from "@/lib/notebook-export-model";
+import { backspaceInField, insertKeypadText } from "@/lib/notebook-keypad";
 import { nextStepNamePatch, stepDisplayTitle } from "@/lib/notebook-step-title";
 import { getUnitInsertionRange, replaceExpressionRange } from "@/lib/unit-input";
 import { compatibleUnitOptions, compatibleUnitOptionsFromHints } from "@/lib/unit-options";
@@ -36,6 +38,7 @@ const EN_COPY = {
   switchMessage: "This notebook has values you haven't saved. Switching notebooks discards them.",
   switchDiscard: "Discard and switch",
   cancel: "Cancel",
+  osKeyboard: "System keyboard", keypadDismiss: "Done", backspace: "Delete",
 } as const;
 const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   en: EN_COPY,
@@ -55,6 +58,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     switchMessage: "このノートには保存していない値があります。ノートを切り替えると破棄されます。",
     switchDiscard: "破棄して切り替え",
     cancel: "キャンセル",
+    osKeyboard: "端末のキーボード", keypadDismiss: "閉じる", backspace: "削除",
   },
   es: {
     edit: "Editar", share: "Compartir cuaderno", save: "Guardar valores", copy: "Copiar", copied: "Copiado",
@@ -72,6 +76,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     switchMessage: "Este cuaderno tiene valores que no has guardado. Al cambiar de cuaderno se descartan.",
     switchDiscard: "Descartar y cambiar",
     cancel: "Cancelar",
+    osKeyboard: "Teclado del sistema", keypadDismiss: "Listo", backspace: "Borrar",
   },
   "pt-BR": {
     edit: "Editar", share: "Compartilhar caderno", save: "Salvar valores", copy: "Copiar", copied: "Copiado",
@@ -89,6 +94,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     switchMessage: "Este caderno tem valores que você não salvou. Trocar de caderno descarta essas alterações.",
     switchDiscard: "Descartar e trocar",
     cancel: "Cancelar",
+    osKeyboard: "Teclado do sistema", keypadDismiss: "Concluído", backspace: "Apagar",
   },
   de: {
     edit: "Bearbeiten", share: "Rechenheft teilen", save: "Werte speichern", copy: "Kopieren", copied: "Kopiert",
@@ -106,6 +112,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     switchMessage: "Dieses Rechenheft hat Werte, die du nicht gespeichert hast. Beim Wechseln gehen sie verloren.",
     switchDiscard: "Verwerfen und wechseln",
     cancel: "Abbrechen",
+    osKeyboard: "Systemtastatur", keypadDismiss: "Fertig", backspace: "Löschen",
   },
   fr: {
     edit: "Modifier", share: "Partager le carnet", save: "Enregistrer les valeurs", copy: "Copier", copied: "Copié",
@@ -123,6 +130,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     switchMessage: "Ce carnet contient des valeurs non enregistrées. Changer de carnet les abandonne.",
     switchDiscard: "Abandonner et changer",
     cancel: "Annuler",
+    osKeyboard: "Clavier du système", keypadDismiss: "Terminé", backspace: "Effacer",
   },
 };
 
@@ -185,6 +193,15 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   // 記号を挿し込んだ直後だけ、TextInputのselection propでキャレットを挿入位置の直後へ強制する。
   // ユーザー自身の入力と衝突しないよう、反映されたら（onSelectionChange/onChangeTextで）すぐ手放す。
   const [forcedSelection, setForcedSelection] = useState<{ key: string; selection: { start: number; end: number } } | null>(null);
+  // 【なぜ値欄は OS のキーボードを出さないか】値欄の入力手段が OS のキーボードだけだと、それが
+  // 上がらない端末（Android 実機で報告。電卓の隠し TextInput と同じ現象で原因は未特定）では
+  // ノートの値を**一切**変えられない。数字・演算子は下端のアプリ内キーパッド（NotebookKeypad）、
+  // 単位・定数記号は欄の直下のチップで打てるので、OS のキーボードは英字が要るときだけ
+  // キーパッド上段のキーボードキーで出す（電卓の #67 と同じ「要求したときだけ」の設計）。
+  // この state は「どの欄に OS のキーボードを出しているか」。null なら全欄 showSoftInputOnFocus=false。
+  const [osKeyboardKey, setOsKeyboardKey] = useState<string | null>(null);
+  // キーボードキーで出すときに focus() を呼ぶ相手。欄は id 基準のキーで引く。
+  const inputRefs = useRef<Record<string, TextInput | null>>({});
   // ノート名からノートを切り替えようとしたとき、未保存の値があれば確認を挟む。
   // 切り替えでnotebook propが変わると下のレンダー中の同期がeditableConstants/editableStepsを
   // 作り直すので、確認なしだと編集途中の値が黙って消える（保存バーは出ているが、ノート名は
@@ -220,9 +237,30 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     setActiveRailKey(null);
     setFieldSelections({});
     setForcedSelection(null);
+    setOsKeyboardKey(null);
   }
 
   const copy = COPY[language];
+
+  // Android の戻るボタンで OS のキーボードを閉じると onBlur が来ないことがあり、キーボードキーが
+  // 点いたまま残る（電卓の同名の対処と同じ）。OS が隠した時点でこちらの記録も消し、次に押したときに
+  // 「出す」側の動作になるようにする。iOS で自分から閉じたときにも来るが、その時点で既に null。
+  useEffect(() => {
+    const subscription = Keyboard.addListener("keyboardDidHide", () => setOsKeyboardKey(null));
+    return () => subscription.remove();
+  }, []);
+
+  // キーボードキーで OS のキーボードを出す。**一度 blur してから focus する**——その欄は利用者が
+  // 直前にタップしていて既にフォーカス中なので、そのまま focus() を呼ぶと RN の TextInputState が
+  // 「既にフォーカス済み」と見て何もせず、showSoftInputOnFocus を true にしても表示要求が出ない。
+  // 別の Pressable の onPress からその場で focus() を呼ぶと実機で上がらないことがあるので、電卓の
+  // 旧・単位検索パネルと同じく 50ms 遅らせる。
+  useEffect(() => {
+    if (!osKeyboardKey) return;
+    inputRefs.current[osKeyboardKey]?.blur();
+    const timer = setTimeout(() => inputRefs.current[osKeyboardKey]?.focus(), 50);
+    return () => clearTimeout(timer);
+  }, [osKeyboardKey]);
 
   const isDirty = useMemo(() => {
     const constantsDirty = editableConstants.some((item) => {
@@ -283,6 +321,8 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     setIsSaving(true);
     try {
       await onSaveValues(normalizedConstants, normalizedSteps);
+      // 保存は編集の終わり。キーパッドと OS のキーボードを畳んで結果を見せる。
+      dismissKeypad();
     } catch (cause) {
       setSaveError(cause instanceof Error ? cause.message : copy.saveFailed);
     } finally {
@@ -333,6 +373,65 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   const handleSelectionChange = (key: string, selection: { start: number; end: number }) => {
     setFieldSelections((current) => ({ ...current, [key]: selection }));
     setForcedSelection((current) => (current?.key === key ? null : current));
+  };
+
+  // キーパッドが今操作する欄。「最後にフォーカスした欄」（activeRailKey）を id から引き直す。
+  // 欄の並びが編集シートで変わって id が消えていれば null になり、キーパッドも出ない。
+  const activeField = (() => {
+    if (!activeRailKey) return null;
+    if (activeRailKey.startsWith("constant:")) {
+      const item = editableConstants.find((entry) => constantFieldKey(entry.id) === activeRailKey);
+      if (!item) return null;
+      return { key: activeRailKey, name: item.symbol, expression: item.expression, label: item.symbol.trim() || copy.inputs, apply: (next: string) => updateConstant(item.id, { expression: next }) };
+    }
+    const step = editableSteps.find((entry) => stepFieldKey(entry.id) === activeRailKey);
+    if (!step) return null;
+    return { key: activeRailKey, name: step.resultSymbol ?? "", expression: step.expression, label: stepDisplayTitle(step.title, step.expression) || copy.results, apply: (next: string) => updateStepField(step.id, { expression: next }) };
+  })();
+
+  // キーパッドの文字キー。定数チップと同じ挿入規則（キャレット位置・範囲選択の置き換え・
+  // 名前側にあるキャレットは式の先頭へ）を通す。
+  const handleKeypadInsert = (text: string) => {
+    if (!activeField) return;
+    const fallback = combinedCaretEnd(activeField.name, activeField.expression);
+    const selection = fieldSelections[activeField.key] ?? { start: fallback, end: fallback };
+    const { expression: nextExpression, combinedCaret } = insertKeypadText(activeField.name, activeField.expression, selection.start, selection.end, text);
+    activeField.apply(nextExpression);
+    const caretSelection = { start: combinedCaret, end: combinedCaret };
+    setFieldSelections((current) => ({ ...current, [activeField.key]: caretSelection }));
+    setForcedSelection({ key: activeField.key, selection: caretSelection });
+  };
+
+  const handleKeypadBackspace = () => {
+    if (!activeField) return;
+    const fallback = combinedCaretEnd(activeField.name, activeField.expression);
+    const selection = fieldSelections[activeField.key] ?? { start: fallback, end: fallback };
+    const result = backspaceInField(activeField.name, activeField.expression, selection.start, selection.end);
+    if (!result) return;
+    activeField.apply(result.expression);
+    const caretSelection = { start: result.combinedCaret, end: result.combinedCaret };
+    setFieldSelections((current) => ({ ...current, [activeField.key]: caretSelection }));
+    setForcedSelection({ key: activeField.key, selection: caretSelection });
+  };
+
+  // キーボードキー。出している欄でもう一度押せば閉じる（iOS には戻るボタンが無いので、閉じる
+  // 導線をここに持たせる）。出す側の focus() は osKeyboardKey の effect が行う。
+  const toggleOsKeyboard = () => {
+    if (!activeField) return;
+    if (osKeyboardKey === activeField.key) {
+      setOsKeyboardKey(null);
+      Keyboard.dismiss();
+      return;
+    }
+    setOsKeyboardKey(activeField.key);
+  };
+
+  // 上段の「閉じる」。キーパッド・レール・OS のキーボードをまとめて畳み、欄のフォーカスも外す
+  // （欄がフォーカス中のままだとキャレットだけ点滅し続けて、まだ編集中に見える）。
+  const dismissKeypad = () => {
+    setActiveRailKey(null);
+    setOsKeyboardKey(null);
+    Keyboard.dismiss();
   };
 
   const renderConstantsRail = (key: string, symbols: string[], onInsert: (symbol: string) => void) => {
@@ -439,6 +538,8 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
               return (
                 <View key={item.id} style={styles.inputRow}>
                   <TextInput
+                    ref={(node) => { inputRefs.current[railKey] = node; }}
+                    showSoftInputOnFocus={osKeyboardKey === railKey}
                     value={formatNameValue(item.symbol, item.expression)}
                     onChangeText={(text) => {
                       const { name, value } = parseNameValue(text);
@@ -499,6 +600,8 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
               return (
                 <View key={result.step.id} style={[styles.resultCard, isFinalStep && result.quantity ? styles.resultCardFinal : null]}>
                   <TextInput
+                    ref={(node) => { inputRefs.current[stepRailKey] = node; }}
+                    showSoftInputOnFocus={osKeyboardKey === stepRailKey}
                     value={formatNameValue(result.step.resultSymbol ?? "", result.step.expression)}
                     onChangeText={(text) => {
                       const { name, value } = parseNameValue(text);
@@ -575,6 +678,20 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
           </Pressable>
           {saveError ? <Text style={styles.saveErrorText}>{saveError}</Text> : null}
         </View>
+      ) : null}
+
+      {/* 値欄のキーパッド。保存バーより下（画面の一番下）に置き、電卓と同じく親指の届く位置で打てる
+          ようにする。OS のキーボードを出している間は上段だけ残り、キーボードの直上に付く。 */}
+      {activeField ? (
+        <NotebookKeypad
+          fieldLabel={activeField.label}
+          isOsKeyboardActive={osKeyboardKey === activeField.key}
+          labels={{ osKeyboard: copy.osKeyboard, dismiss: copy.keypadDismiss, backspace: copy.backspace }}
+          onInsert={handleKeypadInsert}
+          onBackspace={handleKeypadBackspace}
+          onToggleOsKeyboard={toggleOsKeyboard}
+          onDismiss={dismissKeypad}
+        />
       ) : null}
 
       <ConfirmDialog
