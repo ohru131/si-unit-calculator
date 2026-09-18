@@ -854,6 +854,18 @@ export default function CalculatorScreen() {
     [activePrefix, hint.candidates, includeUnit, paletteGroup, unitSystem],
   );
 
+  // **並びが変わったらレールの横スクロールを先頭へ戻すための key。**
+  // Androidの ScrollView は内容が縮んでも contentOffset をクランプしないので、候補の多い
+  // カテゴリ（長さは12件）で右までスクロールしたあと候補の少ないカテゴリ（電圧は V/mV/kV の
+  // 3件）へ切り替えると、範囲外に残ったオフセットのせいで**レールが空に見える**。しかも
+  // スクロールできる範囲が0なので指で戻せず、カテゴリを変えるかアプリを再起動するまで
+  // 単位を1つも選べない状態で詰まる（実機で踏んだ）。
+  // ref + scrollTo ではなく key で ScrollView を作り直すのは、このファイルでは render 中に
+  // refを辿ると react-hooks/refs が誤検知するため（renderUnitChip・renderUnitRail の注記と
+  // 同じ事情）。記号を連結しただけなので、同じ候補が同じ順で並ぶ再描画では作り直さない
+  // ——スクロールして選んでいる最中に勝手に先頭へ戻らない。
+  const railScrollKey = useMemo(() => railCandidates.map((suggestion) => suggestion.unit.symbol).join(","), [railCandidates]);
+
   // レールのチップを押したときに書き換える範囲と、その操作を表すラベル。カテゴリを選んでいる間は
   // 「式の中の最後の未解決の単位」ではなくキャレット位置を優先する（詳細は resolvePaletteTarget）。
   const paletteTarget = useMemo(
@@ -1662,7 +1674,17 @@ export default function CalculatorScreen() {
             <IconSymbol name={isPaletteExpanded ? "chevron.up" : "chevron.down"} size={12} color={colors.muted} />
           </Pressable>
           {railCandidates.length ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hintRail} keyboardShouldPersistTaps="handled">
+            // key は候補の記号列（railScrollKey の注記を参照）。候補が入れ替わったときだけ
+            // ScrollView を作り直して、範囲外に残った横スクロール位置を捨てる。
+            // atBottom を混ぜているのは、キーボードの開閉でレールの置き場所が入れ替わるときに
+            // 上下のScrollViewが同じkeyで再利用されてオフセットを引き継がないようにするため。
+            <ScrollView
+              contentContainerStyle={styles.hintRail}
+              horizontal
+              key={`${atBottom ? "bottom" : "top"}:${railScrollKey}`}
+              keyboardShouldPersistTaps="handled"
+              showsHorizontalScrollIndicator={false}
+            >
               {railCandidates.map((suggestion) => renderUnitChip(suggestion, () => applyUnitCandidate(suggestion.unit.symbol)))}
             </ScrollView>
           ) : (
