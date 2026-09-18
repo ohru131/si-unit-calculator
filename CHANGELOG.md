@@ -6,8 +6,13 @@ Play の「このバージョンの新機能」はここから写す。
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-18
+
 ### 変更
 - 単位候補の自動絞り込みを広げ、単位レールをキーパッド直上へ移した。演算子（`+ − × ÷ ( ) ^`・数学関数）を押すとパレットのカテゴリ選択が「候補」へ戻り、`+ −` の直後は左側と同じ次元、`× ÷` の直後は計算履歴（新しい順）とプリセット計算ノート・サンプルの組み合わせから相手の単位（`12V ÷` なら kΩ・mA）を出す。カテゴリ行はレール先頭のチップから開き、OSキーボード表示中は入力欄の直下に表示する。
+
+### 修正
+- カテゴリを切り替えたときに単位レールと結果カードの単位チップ列が空に見え、指でも戻せなくなる問題を修正した（候補の多いカテゴリで右までスクロールしたあと候補の少ないカテゴリへ移ると、範囲外に残った横スクロール位置のせいで単位を1つも選べない状態で詰まっていた）。
 
 ## [1.1.0] - 2026-09-17
 
@@ -29,6 +34,7 @@ Play の「このバージョンの新機能」はここから写す。
 
 Google Play クローズドテストに提出した最初のビルド（Shipaton 2026）。
 
-[Unreleased]: https://github.com/ohru131/si-unit-calculator/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/ohru131/si-unit-calculator/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/ohru131/si-unit-calculator/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/ohru131/si-unit-calculator/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/ohru131/si-unit-calculator/releases/tag/v1.0.0

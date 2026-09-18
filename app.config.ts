@@ -41,7 +41,7 @@ const env = {
 const config: ExpoConfig = {
   name: env.appName,
   slug: env.appSlug,
-  version: "1.1.0",
+  version: "1.2.0",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: env.scheme,
@@ -65,19 +65,22 @@ const config: ExpoConfig = {
     // **ローカルの gradle ビルド専用の versionCode。**
     // plugins/withLocalReleaseSigning.js が release を本番鍵で署名するので、ローカルでも
     // Playへ出せるAABが作れる。そのとき採番するのはここ（EASのリモート採番は効かない）。
-    // Playは同じ versionCode のAABを二度受け付けず、1.0.0 が 1 で上がっているので 2 から。
+    // Playは同じ versionCode のAABを二度受け付けない。1.0.0 が 1、1.1.0 が 2（どちらも
+    // アップロード済みで、2 はクローズドテストに配信中）なので次は 3。**使用済みかどうかは
+    // Play Console の App Bundle Explorer、または play-service-account の鍵で
+    // androidpublisher の edits.bundles.list を読めば確定できる**（推測しないこと）。
     // **バージョン名を上げるたびにここも上げること**（上げ忘れるとPlayのアップロードで
     // 弾かれるまで気付けない）。
     // EAS の production ビルドは eas.json の appVersionSource: "remote" 側の採番を使い、
     // この値は無視する（EAS CLI が「消すことを推奨」と警告するのはそのため）。両方の
     // 採番が混ざっても順序が壊れないよう、EAS側のカウンタはこの値以上に保つ。
-    versionCode: 2,
+    versionCode: 3,
     // このアプリは通知を一切出さない（スキャフォールド由来の POST_NOTIFICATIONS を削除済み）。
     // 空配列は「追加の権限を宣言しない」の明示で、@expo/config-plugins の withPermissions は
-    // 値が空なら何も足さない。実際にマニフェストに載るのは AdMob 由来の INTERNET・
-    // ACCESS_NETWORK_STATE・AD_ID だけで、これらは広告の表示に実際に使っている。
-    // **未使用の権限をここに戻さないこと**（Play Consoleのデータセーフティで
-    // 「宣言しているが使っていない」を説明する羽目になる）。
+    // 値が空なら何も足さない。**ただし空配列でも権限は14個載る**——ネイティブ依存の
+    // マニフェストがマージャで合流するので、ここを空にしても消えない（1.2.0 の release AAB で
+    // 実測。内訳は CLAUDE.md の「権限の実測値」を参照）。**未使用の権限をここに戻さないこと**
+    // （Play Consoleのデータセーフティで「宣言しているが使っていない」を説明する羽目になる）。
     permissions: [],
     intentFilters: [
       {

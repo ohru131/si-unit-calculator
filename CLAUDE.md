@@ -44,6 +44,7 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - **mainは常に「次のバージョンの開発」。** リリースブランチは常設しない。公開済みの版に緊急修正が要るときだけタグから `hotfix/X.Y.Z` を切り、ビルド後にタグを打ってmainへマージする。
 - **`version`（`app.config.ts`・`package.json`）は利用者に見える番号で手で上げる。** Androidの `versionCode` は `eas.json` の `build.production.autoIncrement: true`（`cli.appVersionSource: "remote"`）でEASに任せ、リポジトリでは持たない。Playが要求するのは `versionCode` の単調増加だけで、`version` は自由（1.0.0を公開せず1.1.0から本番公開しても問題ない）。
   - **remote 管理は EAS 側のカウンタが未初期化だと `1` から始まる**（`app.config.ts` に `android.versionCode` / `ios.buildNumber` を置いていないため、EASが読み取って引き継ぐ元の値が無い）。Play に提出済みの versionCode より小さい値で次のビルドが作られて**アップロードが弾かれる**ので、**次の production ビルドの前に1回だけ** `eas build:version:set -p android`（iOSを出すなら `-p ios` も）を実行し、Play Console の「アプリのバンドル」に出ている現在の versionCode を入力して同期すること。EASアカウントでのログインが要るので**人間がローカルで実行する**（CodeRabbitが#66で指摘）。
+- **次の versionCode / バージョン名は推測せず Play に問い合わせる。** `play-service-account-unitcalc.json`（gitignore済み）があるので、`androidpublisher` の `edits.create` → `edits.bundles.list` / `edits.tracks.list` を読めば「どの versionCode が使用済みか」「どのトラックに何が配信中か」が確定する（**edit を commit せず削除すれば読み取りだけで何も変わらない**）。JWT の組み方は `scripts/push-play-listing.mjs` の `getAccessToken` を流用できる。2026-09-18時点の実測: versionCode 1＝1.0.0、versionCode 2＝**alpha（クローズドテスト）に `UnitCalc 1.1.0` として配信中**。つまり **1.1.0 は既に出ている**ので、mainに積んだ変更を出すには 1.2.0 / versionCode 3 が要った。**「タグを打っただけ・AABを作っただけ」と「Playに出した」を混同しないこと**——後者は Play 側にしか記録が無い。
 - **`CHANGELOG.md` は各PRが `## [Unreleased]` に1行足す。** リリース時にその塊を `## [X.Y.Z] - 日付` に改名し、同じコミットにタグを打つ。Playの「このバージョンの新機能」はここから写す。
 
 ## アーキテクチャの要点
@@ -540,7 +541,14 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - **`dotenv` は消さないこと。** `vitest.config.ts` が使っている（サーバ用に見えるが違う）。同様に `expo-linking` は `expo-router` が要求するので残す。
 - **残した未使用の依存**: `react-native-purchases-ui`（`RevenueCatUI.presentPaywallIfNeeded` を撤去したときから未使用。権限は足さないので今回のスコープ外にした）。
 - **「OAuthを消したから個人情報は一切集めていない」と書かないこと。** 最初そう書いてCodeRabbitに🟠Majorで2回指摘された（README と `docs/android-submission-checklist.md`）。**`lib/ad-revenue-tracker.ts` が `Purchases.adTracker` でバナー広告のロード・表示・開封・収益のイベントをRevenueCatへ送っている**（RevenueCat Ads β。ダッシュボードで広告収益と購入収益をまとめて見るための連携）。加えてRevenueCatは購入検証で端末生成の匿名IDとレシートを、AdMobは配信・計測で端末IDと広告IDを受け取る。**端末内で完結しているのは「アプリのデータ」（計算履歴・ノート・自作単位・設定）だけ**なので、そう限定して書く。`app/privacy-policy.tsx` の本文は最初から正しく書けていて、要約した側（README・チェックリスト）だけがズレていた。
-- **`android.permissions: []` は「全権限がこれで確定」の意味ではない。** ネイティブ依存のマニフェストはマージャで合流するので、**実際の権限一覧はリリースAAB（または `npx expo prebuild -p android` 後の `android/app/build/intermediates/merged_manifests/`）でしか確定できない**。この環境ではprebuildできないため、チェックリストには「要確認」として確認手順ごと残してある。
+- **`android.permissions: []` は「全権限がこれで確定」の意味ではない。** ネイティブ依存のマニフェストはマージャで合流するので、**実際の権限一覧はリリースAAB（または `npx expo prebuild -p android` 後の `android/app/build/intermediates/merged_manifests/`）でしか確定できない**。**2026-09-18に 1.2.0 の release AAB で実測した（要確認だった項目はこれで確定）**:
+
+### 権限の実測値（1.2.0 の release AAB。`android.permissions: []` でもこれだけ載る）
+
+`INTERNET` / `ACCESS_NETWORK_STATE` / `com.google.android.gms.permission.AD_ID` / `ACCESS_ADSERVICES_AD_ID` / `ACCESS_ADSERVICES_ATTRIBUTION` / `ACCESS_ADSERVICES_TOPICS`（AdMob）・`com.android.vending.BILLING`（billingclient 8.3.0＝RevenueCat）・`VIBRATE`（expo-haptics）・`WAKE_LOCK`（react-native-google-mobile-ads）・`FOREGROUND_SERVICE`（androidx.work 2.7.1）・`READ_EXTERNAL_STORAGE`/`WRITE_EXTERNAL_STORAGE`（どちらも maxSdkVersion 32）・`SYSTEM_ALERT_WINDOW`・`<パッケージ名>.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` の**14個**。
+
+- **`SYSTEM_ALERT_WINDOW`（他のアプリの上に重ねて表示）は release にも載っていて、しかも出どころは依存ではなく `android/app/src/main/AndroidManifest.xml`**（prebuild が Expo のテンプレートから生成する。RNの開発メニューのためのもので、このアプリは使っていない）。**Playの掲載ページの権限一覧に出る**ので、消すなら `withAndroidManifest` で `tools:node="remove"` を当てる config plugin が要る（`android.permissions: []` では消えない）。versionCode 2 はこれを含んだままPlayに受理されているので、審査が止まる類のものではない。
+- 出どころを調べるには `android/app/build/outputs/logs/manifest-merger-release-report.txt` を引く（各権限に `ADDED from [ライブラリ座標] …` が付く）。一覧そのものは `android/app/build/intermediates/merged_manifest/release/expoReleaseOverrideMaxSdkConflicts/AndroidManifest.xml` から取る（**`merged_manifests` ではなく `merged_manifest` が正しいパス**）。
 - **npmスクリプトに `${VAR:-default}` を書かないこと。** Windowsのpnpmは既定で `cmd.exe` を使うので POSIX のパラメータ展開が効かず、`pnpm dev` がそのまま失敗する（`shellEmulator` を有効にしていない限り）。旧 `dev:metro` が `--port ${EXPO_PORT:-8081}` を持っていたのをそのまま引き継いでいた。Expoの既定ポートが8081なので指定ごと外し、変えたい人は `pnpm dev --port 8082`（npmスクリプトは追加引数を末尾へ渡す）で済むようにした。
 
 ### 現在の基準値（2026-09-10時点、未使用の権限・バックエンドを消した後）
