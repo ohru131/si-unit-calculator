@@ -23,15 +23,22 @@ export type CalculatorLayout = {
   middleMinHeight: number;
   // 入力欄と「＝」ボタンの高さ。
   inputRowHeight: number;
+  // **キーパッド下段とタブバーの間の余白。**
+  // ここが狭いと、右下の `=`（いちばん押すキー）を狙った指が行き過ぎて真下の「設定」タブに
+  // 当たり、画面ごと切り替わる（実機で報告された。以前は全段階で 4dp ＝実測 6.4dp・約1mm しか
+  // 離れておらず、指の接地面 8〜10mm に対して緩衝が無いに等しかった）。
+  // **余白を取れるのは縦に余裕がある段階だけ**なので、画面が低い段階では従来どおり詰めたまま
+  // にする（キーが押せなくなる方が困る、というこのファイルの既定の優先順に従う）。
+  screenPaddingBottom: number;
 };
 
-const REGULAR: Omit<CalculatorLayout, "fontFactor"> = { inputRowHeight: 44, keyHeight: 42, keyRowGap: 6, keyRowMinHeight: 30, middleMinHeight: 56, screenGap: 6 };
-const COMPACT: Omit<CalculatorLayout, "fontFactor"> = { inputRowHeight: 42, keyHeight: 38, keyRowGap: 5, keyRowMinHeight: 28, middleMinHeight: 44, screenGap: 5 };
-const DENSE: Omit<CalculatorLayout, "fontFactor"> = { inputRowHeight: 40, keyHeight: 34, keyRowGap: 4, keyRowMinHeight: 26, middleMinHeight: 36, screenGap: 4 };
+const REGULAR: Omit<CalculatorLayout, "fontFactor"> = { inputRowHeight: 44, keyHeight: 42, keyRowGap: 6, keyRowMinHeight: 30, middleMinHeight: 56, screenPaddingBottom: 12, screenGap: 6 };
+const COMPACT: Omit<CalculatorLayout, "fontFactor"> = { inputRowHeight: 42, keyHeight: 38, keyRowGap: 5, keyRowMinHeight: 28, middleMinHeight: 44, screenPaddingBottom: 4, screenGap: 5 };
+const DENSE: Omit<CalculatorLayout, "fontFactor"> = { inputRowHeight: 40, keyHeight: 34, keyRowGap: 4, keyRowMinHeight: 26, middleMinHeight: 36, screenPaddingBottom: 4, screenGap: 4 };
 // 文字を最大まで大きくした低い端末（表示サイズも大きくしていると dp の画面高さ自体が縮む）向け。
 // ここまで来たら結果カードはほぼ畳まれてよい（中身はこの中でスクロールする）——キーが押せない方が困る。
 // 押しやすさの下限（44dp）は割るが、押せる状態にする方を優先する。
-const ULTRA: Omit<CalculatorLayout, "fontFactor"> = { inputRowHeight: 38, keyHeight: 30, keyRowGap: 3, keyRowMinHeight: 24, middleMinHeight: 24, screenGap: 3 };
+const ULTRA: Omit<CalculatorLayout, "fontFactor"> = { inputRowHeight: 38, keyHeight: 30, keyRowGap: 3, keyRowMinHeight: 24, middleMinHeight: 24, screenPaddingBottom: 4, screenGap: 3 };
 
 export const resolveFontFactor = (fontScale: number, cap = CALCULATOR_MAX_FONT_SCALE) => {
   // fontScale が読めない環境（テスト・Web の一部）では等倍のまま扱う。縮める方向にしか働かせない。

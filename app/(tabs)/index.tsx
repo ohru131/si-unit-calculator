@@ -16,6 +16,7 @@ import {
   View,
 } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CalculatorBannerAd } from "@/components/ads/calculator-banner-ad";
 import { ScreenContainer } from "@/components/screen-container";
@@ -52,6 +53,7 @@ import {
   getPaletteUnitSuggestions,
   getPrefixedUnitSuggestions,
   getUnitInputHint,
+  hasDivisionOperator,
   requiredUnitGroupFromError,
   resolveActivePrefix,
   prefixEntryStillValid,
@@ -169,6 +171,25 @@ const resultLatex = (latex: string) => `\\displaystyle \\mathsf{${latex}}`;
 const KATEX_EM_SCALE = 1.21;
 
 // 結果の数字の大きさ。小数表示（styles.resultValue）と同じ36px。
+// 下から出るシートの下端の余白。ナビゲーションバー（safe area の下端）はこれに加算する。
+const SHEET_PADDING_BOTTOM = 28;
+// 式の入力欄（トークン列）の文字。**6つのトークン種別で必ず同じ値にすること**——1つでもずれると
+// 同じ行の中で数値と単位のベースラインが食い違い、キャレットの高さも合わなくなる。
+// 19px では小さいという実機の指摘で21pxへ上げた。行の高さは字送りに合わせて26px。
+// **これ以上上げるときは 360×640 でキーパッド下段の `=` がタブバーより上に残るか実測すること**
+// （式が2行に折り返したときがいちばん高くなる）。
+// キーパッドのセルの内側の余白。**キーの当たり判定（hitSlop）と必ず同じ値にすること。**
+// この余白は `keyCell`（外側のView）に付いていて、キー本体（Pressable）は
+// `layout.keyHeight` ちょうどの矩形しか持たない。RNの当たり判定は Pressable 自身の矩形なので、
+// **この余白はどこにも効かない死に領域になる**——隣り合うキーの間には両側ぶん（6dp）の穴が空き、
+// 継ぎ目に指が落ちると何も起きない。さらに最下段では `=` の当たり判定が 42dp（Material の
+// 最小 48dp を下回る）になり、狙いが少し下へ逸れるとタブバーの「設定」に当たって画面ごと
+// 切り替わっていた（実機で報告された）。hitSlop でセル全体を当たり判定にして塞ぐ。
+// Androidでは hitSlop は親の矩形までしか届かないが、セル（keyHeight + 上下の余白）の内側に
+// 収まっているので全量が効く。
+const KEY_CELL_PADDING = 3;
+const EXPRESSION_FONT_SIZE = 21;
+const EXPRESSION_LINE_HEIGHT = 26;
 const RESULT_VALUE_FONT_SIZE = 36;
 
 // 分数だけは分子・分母を縦に2段積むので、36pxのままだとブロックの高さが小数1行の倍近く（実測80px）になる。
@@ -201,8 +222,10 @@ function ExpressionCaret({ colors }: { colors: ThemeColorPalette }) {
   return (
     <Animated.View
       // 幅を持つ要素なので、キャレットの手前と後ろの文字が離れて見えないよう左右のマージンは負にしない。
-      // 等幅フォントの字送りより細くしてあるため、文字の並びは崩れない。高さは19pxの行に合わせる。
-      style={[{ backgroundColor: colors.primary, borderRadius: 1, height: 22, width: 2 }, animatedStyle]}
+      // 等幅フォントの字送りより細くしてあるため、文字の並びは崩れない。
+      // **高さは EXPRESSION_FONT_SIZE から導く。** 固定値で置くと文字サイズを変えたときに
+      // キャレットだけ取り残されて、行の中で高さが合わなくなる（19px時代の 22 がそれだった）。
+      style={[{ backgroundColor: colors.primary, borderRadius: 1, height: EXPRESSION_FONT_SIZE + 3, width: 2 }, animatedStyle]}
     />
   );
 }
@@ -546,6 +569,12 @@ export default function CalculatorScreen() {
   const { fontScale, height: windowHeight } = useWindowDimensions();
   const layout = useMemo(() => resolveCalculatorLayout({ fontScale, height: windowHeight }), [fontScale, windowHeight]);
   const styles = useMemo(() => createStyles(colors, layout), [colors, layout]);
+  // **下から出るシートは画面の下端まで届くので、ナビゲーションバーのぶんを自分で避ける。**
+  // 画面本体は ScreenContainer と タブバー（app/(tabs)/_layout.tsx）が下端を見ているが、
+  // Modal はそのどちらの外に出るので固定の paddingBottom だけだと Android の3ボタン
+  // ナビゲーションバーに最下段が潜る（数学シートの π・e が半分隠れると実機で報告された）。
+  const insets = useSafeAreaInsets();
+  const sheetStyle = useMemo(() => [styles.compactSheet, { paddingBottom: SHEET_PADDING_BOTTOM + insets.bottom }], [insets.bottom, styles.compactSheet]);
   const { quick, presetExpression, presetUnit } = useLocalSearchParams<{ quick?: string | string[]; presetExpression?: string | string[]; presetUnit?: string | string[] }>();
   const { constants, history, favoriteUnits, upsertConstant, addHistoryEntry, clearHistory, isLoading: isHistoryLoading } = useCalculatorStore();
   const { isPro } = usePro();
@@ -1005,11 +1034,17 @@ export default function CalculatorScreen() {
   // 進数表示（resultBaseParts）とは排他になる。厳密な形が出るのは整数でない値だけで、進数表示は
   // 安全整数のときだけ出すため、両方が同時に有効になることはない。
   // 有限小数（0.051 → 51/1000）は言い換えになっていないので、チップごと出さない。
+  // **ただし自分で割り算を打ったときは出す。** `1/5` と打った人にとって `0.2` しか出ないのは
+  // 「分数が消えた」としか見えない（実機で報告された）。割り算を打つ＝分数の形を求めている、と
+  // 読めるので、そこだけ有限小数の抑制から外す。`5cm + 1mm` → 0.051 のように自分で割っていない
+  // 式は従来どおり抑制したまま（51/1000 は言い換えになっていない）。
+  // 単位の中の `/`（`0.25m/s`）は割り算ではないので数えない（hasDivisionOperator）。
   const exactValue = useMemo(() => {
     if (!display || baseInputMode !== null) return null;
     const found = findExactValue(display.numeric);
-    return found && !isTerminatingDecimalFraction(found) ? found : null;
-  }, [baseInputMode, display]);
+    if (!found) return null;
+    return !isTerminatingDecimalFraction(found) || hasDivisionOperator(analysis.segments) ? found : null;
+  }, [analysis.segments, baseInputMode, display]);
 
   // 分数（\frac）は縦に2段積むので、小数と同じ文字サイズで組むと高さが倍以上になり、
   // 小数から切り替えた瞬間に結果カードだけ別物のように見える。段数に応じて文字サイズを
@@ -2315,6 +2350,7 @@ export default function CalculatorScreen() {
                 <Pressable
                   accessibilityLabel={key === "⌫" ? copy.deleteKey : key === "AC" ? copy.clearAllKey : key}
                   disabled={isDisabledForBaseInput}
+                  hitSlop={KEY_CELL_PADDING}
                   onPress={() => pressKey(key)}
                   style={({ pressed }) => [styles.key, isAction && styles.keyAction, isOperator && styles.keyOperator, isDisabledForBaseInput && styles.keyDisabled, pressed && styles.keyPressed]}
                 >
@@ -2327,12 +2363,12 @@ export default function CalculatorScreen() {
       </View>
 
       <Modal visible={showSamples} transparent animationType="slide" onRequestClose={() => setShowSamples(false)}>
-        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><Text style={styles.sheetTitle}>{copy.samples}</Text><Pressable accessibilityLabel={copy.close} onPress={() => setShowSamples(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRail}>{visibleSampleCategories.map((category) => <Pressable key={category.id} onPress={() => setSampleCategory(category.id)} style={({ pressed }) => [styles.categoryChip, activeSampleCategory === category.id && styles.categoryChipActive, pressed && styles.pressed]}><Text style={[styles.categoryChipText, activeSampleCategory === category.id && styles.categoryChipTextActive]}>{localizedText(category.label, language)}</Text></Pressable>)}</ScrollView><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleSamples.map((sample) => <Pressable key={sample.id} onPress={() => selectSample(sample)} style={({ pressed }) => [styles.sampleRow, pressed && styles.cardPressed]}><View style={styles.sampleCopy}><Text style={styles.sampleTitle}>{localizedText(sample.title, language)}</Text><Text style={styles.sampleDescription}>{localizedText(sample.description, language)}</Text></View><View style={styles.sampleExpressionWrap}><Text numberOfLines={1} style={styles.sampleExpression}>{sample.expression}</Text><Text style={styles.sampleTarget}>→ {targetUnitForSample(sample)}</Text></View></Pressable>)}</ScrollView></View></View>
+        <View style={styles.modalBackdrop}><View style={sheetStyle}><View style={styles.sheetHeader}><Text style={styles.sheetTitle}>{copy.samples}</Text><Pressable accessibilityLabel={copy.close} onPress={() => setShowSamples(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRail}>{visibleSampleCategories.map((category) => <Pressable key={category.id} onPress={() => setSampleCategory(category.id)} style={({ pressed }) => [styles.categoryChip, activeSampleCategory === category.id && styles.categoryChipActive, pressed && styles.pressed]}><Text style={[styles.categoryChipText, activeSampleCategory === category.id && styles.categoryChipTextActive]}>{localizedText(category.label, language)}</Text></Pressable>)}</ScrollView><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleSamples.map((sample) => <Pressable key={sample.id} onPress={() => selectSample(sample)} style={({ pressed }) => [styles.sampleRow, pressed && styles.cardPressed]}><View style={styles.sampleCopy}><Text style={styles.sampleTitle}>{localizedText(sample.title, language)}</Text><Text style={styles.sampleDescription}>{localizedText(sample.description, language)}</Text></View><View style={styles.sampleExpressionWrap}><Text numberOfLines={1} style={styles.sampleExpression}>{sample.expression}</Text><Text style={styles.sampleTarget}>→ {targetUnitForSample(sample)}</Text></View></Pressable>)}</ScrollView></View></View>
       </Modal>
 
       <Modal visible={showUnitPicker} transparent animationType="slide" onRequestClose={() => setShowUnitPicker(false)}>
         <View style={styles.modalBackdrop}>
-          <View style={styles.compactSheet}>
+          <View style={sheetStyle}>
             <View style={styles.sheetHeader}>
               <View style={styles.sheetHeaderMain}>
                 <Text style={styles.sheetTitle}>{copy.outputUnit}</Text>
@@ -2412,11 +2448,11 @@ export default function CalculatorScreen() {
       </Modal>
 
       <Modal visible={showAdvancedKeys} transparent animationType="fade" onRequestClose={() => setShowAdvancedKeys(false)}>
-        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><View style={styles.sheetHeaderMain}><Text style={styles.sheetTitle}>{copy.advancedMath}</Text><Text style={styles.sheetSubtitle}>{copy.advancedMathHint}</Text></View><Pressable accessibilityLabel={copy.close} onPress={() => setShowAdvancedKeys(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.advancedKeyRow}>{ADVANCED_KEYS.map((key) => <Pressable accessibilityLabel={key} key={key} onPress={() => { pressKey(key); setShowAdvancedKeys(false); }} style={({ pressed }) => [styles.advancedKey, pressed && styles.pressed]}><Text style={styles.advancedKeyText}>{key}</Text></Pressable>)}</View></View></View>
+        <View style={styles.modalBackdrop}><View style={sheetStyle}><View style={styles.sheetHeader}><View style={styles.sheetHeaderMain}><Text style={styles.sheetTitle}>{copy.advancedMath}</Text><Text style={styles.sheetSubtitle}>{copy.advancedMathHint}</Text></View><Pressable accessibilityLabel={copy.close} onPress={() => setShowAdvancedKeys(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.advancedKeyRow}>{ADVANCED_KEYS.map((key) => <Pressable accessibilityLabel={key} key={key} onPress={() => { pressKey(key); setShowAdvancedKeys(false); }} style={({ pressed }) => [styles.advancedKey, pressed && styles.pressed]}><Text style={styles.advancedKeyText}>{key}</Text></Pressable>)}</View></View></View>
       </Modal>
 
       <Modal visible={showHistory} transparent animationType="slide" onRequestClose={() => setShowHistory(false)}>
-        <View style={styles.modalBackdrop}><View style={styles.compactSheet}><View style={styles.sheetHeader}><View style={styles.sheetHeaderMain}><Text style={styles.sheetTitle}>{copy.savedHistory}</Text><Text style={styles.sheetSubtitle}>{copy.historyHint}</Text></View><Pressable accessibilityLabel={copy.close} onPress={() => setShowHistory(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.historyActions}><Pressable onPress={() => void exportHistory()} style={({ pressed }) => [styles.exportHistoryButton, pressed && styles.pressed]}><IconSymbol name="square.and.arrow.up" size={15} color={colors.primary} /><Text style={styles.exportHistoryText}>CSV</Text></Pressable><Pressable onPress={() => void clearHistory()} style={({ pressed }) => [styles.clearHistoryButton, pressed && styles.pressed]}><Text style={styles.clearHistoryText}>{copy.clear}</Text></Pressable></View>{visibleHistory.length ? <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleHistory.map((entry, index) => <Pressable key={entry.id} onPress={() => { restoreHistory(entry); setShowHistory(false); }} style={({ pressed }) => [styles.historyRow, pressed && styles.cardPressed]}><View style={styles.historyExpressionWrap}><Text style={styles.historyAutoSymbol}>a{index + 1}</Text><Text numberOfLines={1} style={styles.historyExpression}>{entry.expression}</Text></View><Text numberOfLines={1} style={styles.historyResult}>{entry.resultText}</Text></Pressable>)}</ScrollView> : <View style={styles.emptyState}><IconSymbol name="clock" size={22} color={colors.muted} /><Text style={styles.emptyStateTitle}>{copy.noHistory}</Text><Text style={styles.emptyStateText}>{copy.noHistoryHint}</Text></View>}</View></View>
+        <View style={styles.modalBackdrop}><View style={sheetStyle}><View style={styles.sheetHeader}><View style={styles.sheetHeaderMain}><Text style={styles.sheetTitle}>{copy.savedHistory}</Text><Text style={styles.sheetSubtitle}>{copy.historyHint}</Text></View><Pressable accessibilityLabel={copy.close} onPress={() => setShowHistory(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.historyActions}><Pressable onPress={() => void exportHistory()} style={({ pressed }) => [styles.exportHistoryButton, pressed && styles.pressed]}><IconSymbol name="square.and.arrow.up" size={15} color={colors.primary} /><Text style={styles.exportHistoryText}>CSV</Text></Pressable><Pressable onPress={() => void clearHistory()} style={({ pressed }) => [styles.clearHistoryButton, pressed && styles.pressed]}><Text style={styles.clearHistoryText}>{copy.clear}</Text></Pressable></View>{visibleHistory.length ? <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleHistory.map((entry, index) => <Pressable key={entry.id} onPress={() => { restoreHistory(entry); setShowHistory(false); }} style={({ pressed }) => [styles.historyRow, pressed && styles.cardPressed]}><View style={styles.historyExpressionWrap}><Text style={styles.historyAutoSymbol}>a{index + 1}</Text><Text numberOfLines={1} style={styles.historyExpression}>{entry.expression}</Text></View><Text numberOfLines={1} style={styles.historyResult}>{entry.resultText}</Text></Pressable>)}</ScrollView> : <View style={styles.emptyState}><IconSymbol name="clock" size={22} color={colors.muted} /><Text style={styles.emptyStateTitle}>{copy.noHistory}</Text><Text style={styles.emptyStateText}>{copy.noHistoryHint}</Text></View>}</View></View>
       </Modal>
 
       <Modal visible={Boolean(unitInfo)} transparent animationType="fade" onRequestClose={() => setUnitInfoSymbol(null)}>
@@ -2495,7 +2531,7 @@ const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "mon
 
 const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => StyleSheet.create(scaleFontSizes({
   // 画面全体を一枚に収め、縦スクロールを起こさない構成にする。
-  screen: { flex: 1, gap: layout.screenGap, paddingBottom: 4, paddingTop: 2 },
+  screen: { flex: 1, gap: layout.screenGap, paddingBottom: layout.screenPaddingBottom, paddingTop: 2 },
 
   inputCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, gap: 5, paddingHorizontal: 12, paddingVertical: 8 },
   inputRow: { alignItems: "center", flexDirection: "row", gap: 10 },
@@ -2506,15 +2542,15 @@ const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => St
   hiddenExpressionInput: { height: 1, left: 0, opacity: 0, position: "absolute", top: 0, width: 1 },
   // 式のどこが数値・単位・未登録なのかを一目で見分けられるようにする。
   expressionTokens: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", rowGap: 2 },
-  expressionPlaceholder: { color: colors.placeholder, fontFamily: mono, fontSize: 19, fontWeight: "600", lineHeight: 24 },
-  tokenNumber: { color: colors.foreground, fontFamily: mono, fontSize: 19, fontWeight: "600", lineHeight: 24 },
+  expressionPlaceholder: { color: colors.placeholder, fontFamily: mono, fontSize: EXPRESSION_FONT_SIZE, fontWeight: "600", lineHeight: EXPRESSION_LINE_HEIGHT },
+  tokenNumber: { color: colors.foreground, fontFamily: mono, fontSize: EXPRESSION_FONT_SIZE, fontWeight: "600", lineHeight: EXPRESSION_LINE_HEIGHT },
   // 単位は数値と一目で見分けられるように、文字色だけでなく薄い下地も敷く（明るいテーマでは
   // primary と foreground のコントラスト差だけでは弱かった）。**左右のpadding・marginは足さないこと**——
   // ExpressionPiece はタップ位置を「要素の幅に対する割合 × 文字数」で何文字目かに直すので、
   // 文字の幅と要素の幅がずれるとキャレットが打った場所と違う位置に入る。
-  tokenUnit: { backgroundColor: colors.primarySurface, borderRadius: 4, color: colors.primary, fontFamily: mono, fontSize: 19, fontWeight: "700", lineHeight: 24 },
-  tokenIdentifier: { color: colors.warning, fontFamily: mono, fontSize: 19, fontWeight: "600", lineHeight: 24 },
-  tokenOperator: { color: colors.muted, fontFamily: mono, fontSize: 19, fontWeight: "600", lineHeight: 24 },
+  tokenUnit: { backgroundColor: colors.primarySurface, borderRadius: 4, color: colors.primary, fontFamily: mono, fontSize: EXPRESSION_FONT_SIZE, fontWeight: "700", lineHeight: EXPRESSION_LINE_HEIGHT },
+  tokenIdentifier: { color: colors.warning, fontFamily: mono, fontSize: EXPRESSION_FONT_SIZE, fontWeight: "600", lineHeight: EXPRESSION_LINE_HEIGHT },
+  tokenOperator: { color: colors.muted, fontFamily: mono, fontSize: EXPRESSION_FONT_SIZE, fontWeight: "600", lineHeight: EXPRESSION_LINE_HEIGHT },
   // 範囲選択はキャレットではなく帯で示す（選択中はどこに挿入されるかではなく「何が置き換わるか」が要点）。
   // 単位の下地より濃くして、単位の上に帯が掛かっていることが分かるようにする。
   tokenSelected: { backgroundColor: colors.primaryBorder },
@@ -2523,7 +2559,7 @@ const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => St
   // 単位の色（primary）を帯（primaryBorder）に載せるとコントラストが3:1を割る。
   tokenSelectedText: { backgroundColor: "transparent", color: colors.primaryStrong },
   tokenUnknownWrap: { alignItems: "center", backgroundColor: colors.errorSurface, borderColor: colors.errorBorder, borderRadius: 5, borderWidth: 1, flexDirection: "row", gap: 2, paddingHorizontal: 3 },
-  tokenUnknown: { color: colors.error, fontFamily: mono, fontSize: 19, fontWeight: "700", lineHeight: 24, textDecorationLine: "underline" },
+  tokenUnknown: { color: colors.error, fontFamily: mono, fontSize: EXPRESSION_FONT_SIZE, fontWeight: "700", lineHeight: EXPRESSION_LINE_HEIGHT, textDecorationLine: "underline" },
   calculateButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 11, height: layout.inputRowHeight, justifyContent: "center", width: 52 },
   calculateText: { color: colors.onPrimary, fontFamily: mono, fontSize: 20, fontWeight: "800" },
 
@@ -2669,7 +2705,7 @@ const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => St
   // 画面幅に関係なく必ず4列で並ぶよう、25%幅のセルに収める。
   keypad: { flexDirection: "row", flexWrap: "wrap", marginHorizontal: -3 },
   // 5列（KEYS のコメント参照）。4列に戻すなら KEYS の並びも組み直すこと。
-  keyCell: { padding: 3, width: "20%" },
+  keyCell: { padding: KEY_CELL_PADDING, width: "20%" },
   key: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 12, borderWidth: 1, height: layout.keyHeight, justifyContent: "center" },
   keyOperator: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder },
   keyAction: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
@@ -2742,7 +2778,8 @@ const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => St
   historyResult: { color: colors.primary, fontFamily: mono, fontSize: 12, fontWeight: "700", maxWidth: "45%" },
 
   modalBackdrop: { backgroundColor: colors.overlay, flex: 1, justifyContent: "flex-end" },
-  compactSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "86%", paddingBottom: 28, paddingHorizontal: 18, paddingTop: 12 },
+  // paddingBottom は呼び出し側（sheetStyle）が safe area の下端を足して上書きする。
+  compactSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "86%", paddingBottom: SHEET_PADDING_BOTTOM, paddingHorizontal: 18, paddingTop: 12 },
   sheetHeader: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
   sheetTitle: { color: colors.foreground, fontSize: 20, fontWeight: "800" },
   sheetHeaderMain: { flex: 1, paddingRight: 10 },
