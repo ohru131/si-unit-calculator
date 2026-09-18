@@ -924,7 +924,7 @@ export default function CalculatorScreen() {
     return symbols.slice(0, 10);
   }, [compatibleUnitGroups, displayUnit, visibleGroupUnits]);
 
-  const targetUnitForSample = (sample: SampleCalculation) => {
+  const targetUnitForSample = useCallback((sample: SampleCalculation) => {
     if (unitSystem === "us") {
       if (sample.id === "length-add") return "in";
       if (sample.id === "speed") return "mph";
@@ -939,7 +939,7 @@ export default function CalculatorScreen() {
       if (sample.id === "pressure") return "psi";
     }
     return sample.targetUnit;
-  };
+  }, [unitSystem]);
 
   const copy = COPY[language];
 
@@ -1812,6 +1812,17 @@ export default function CalculatorScreen() {
   useEffect(() => {
     applyTargetUnitRef.current = applyTargetUnit;
   });
+  const selectSampleRef = useRef(selectSample);
+  const restoreHistoryRef = useRef(restoreHistory);
+  const exportHistoryRef = useRef(exportHistory);
+  useEffect(() => {
+    selectSampleRef.current = selectSample;
+    restoreHistoryRef.current = restoreHistory;
+    exportHistoryRef.current = exportHistory;
+  });
+  const stableSelectSample = useCallback((sample: SampleCalculation) => selectSampleRef.current(sample), []);
+  const stableRestoreHistory = useCallback((entry: (typeof history)[number]) => restoreHistoryRef.current(entry), []);
+  const stableExportHistory = useCallback(() => void exportHistoryRef.current(), []);
   const stableApplyTargetUnit = useCallback((symbol: string) => {
     hasUserInteractedRef.current = true;
     applyTargetUnitRef.current(symbol);
@@ -1820,6 +1831,103 @@ export default function CalculatorScreen() {
   // 編集キー行と接頭語キー行も、キーパッドと同じ理由でメモ化する（下のクラスタの残り）。
   // ここが見た目を変えるのはキャレットが端に来たとき・進数入力モード・接頭語の点灯・
   // キーボードの点灯だけで、**式が1文字変わっただけでは何も変わらない**。
+  // 式のトークン列（色分けした一片とキャレット）。
+  //
+  // **キャレットを一片の Fragment の中に入れないこと。** 以前は
+  // `pieces.map(...)` が `<Fragment key={piece}>{caret}<ExpressionPiece/></Fragment>` を返していて、
+  // キャレットが隣の一片へ移るたびに**別の親の下へ移る＝アンマウント＋再マウント**になっていた。
+  // ExpressionCaret は reanimated の共有値と `withRepeat` の点滅を持つので、1打鍵ごとにその
+  // 初期化をやり直すことになる（点滅も毎回振り出しに戻るので、打っている間はほぼ点滅しない）。
+  // **同じ配列の中で key を持つ兄弟**にすれば、React は再マウントせず位置を入れ替えるだけで済む。
+  const expressionTokenNodes = (() => {
+    const nodes: ReactNode[] = [];
+    const caretNode = <ExpressionCaret colors={colors} key="caret" />;
+    caretPreview.pieces.forEach((piece, index) => {
+      const { segment } = piece;
+      const isUnresolved = segment.kind === "unknown-unit" || segment.kind === "unknown-identifier";
+      const style = segment.kind === "unit" ? styles.tokenUnit
+        : isUnresolved ? styles.tokenUnknown
+        : segment.kind === "identifier" ? styles.tokenIdentifier
+        : segment.kind === "number" ? styles.tokenNumber
+        : styles.tokenOperator;
+      // キャレットは「その一片の手前」に入る。文字の間に挟み込む形にすることで、
+      // 等幅フォントの文字幅を自前で計算しなくても位置が必ず合う。
+      if (caretPreview.caretIndex === index) nodes.push(caretNode);
+      const selectedStyle = piece.selected ? styles.tokenSelected : null;
+      const key = `${piece.start}-${index}`;
+      if (!isUnresolved) {
+        nodes.push(
+          <ExpressionPiece
+            key={key}
+            length={piece.text.length}
+            onPlaceCaret={placeCaretFromTap}
+            proportional
+            start={piece.start}
+            style={selectedStyle}
+          >
+            <Text style={[style, piece.selected && styles.tokenSelectedText]}>{piece.text}</Text>
+          </ExpressionPiece>,
+        );
+        return;
+      }
+      // 単位の書き間違いだけをタップで修正できるようにする。定数・関数の未定義参照は
+      // 単位の候補を出しても意味がないため、見た目だけ知らせて修正候補は出さない。
+      // 警告アイコンは分割後の最後の一片だけに出す（キャレットが単位の途中に来たときに
+      // アイコンが2つ並ばないようにする）。
+      const icon = piece.isSegmentEnd
+        ? <IconSymbol name="exclamationmark.triangle.fill" size={13} color={colors.error} />
+        : null;
+      nodes.push(
+        <ExpressionPiece
+          accessibilityLabel={segment.kind === "unknown-unit" ? `${segment.text} ${copy.unknown}` : undefined}
+          key={key}
+          length={piece.text.length}
+          onPlaceCaret={placeCaretFromTap}
+          // タップで開く修正範囲は分割前のセグメント全体。一片の範囲にすると
+          // 単位の半分だけを差し替えることになる。
+          onPress={segment.kind === "unknown-unit"
+            ? () => setFixSelection({ start: segment.start, end: segment.end, text: segment.text })
+            : undefined}
+          proportional={false}
+          start={piece.start}
+          style={({ pressed }) => [styles.tokenUnknownWrap, selectedStyle, pressed && styles.pressed]}
+        >
+          <Text style={style}>{piece.text}</Text>
+          {icon}
+        </ExpressionPiece>,
+      );
+    });
+    // 末尾（どの一片も始まらない位置）のキャレット。式が空のときもここに出る。
+    if (caretPreview.caretIndex === caretPreview.pieces.length) nodes.push(caretNode);
+    return nodes;
+  })();
+
+  // **閉じているシートの中身も毎レンダー作り直されている。** `visible={false}` のときReact Nativeの
+  // Modal は何も描かないが、**JSXの中の `.map()` は親のレンダーで評価される**ので、式を1文字打つ
+  // たびにサンプル一覧・履歴一覧・数学キーの要素が作り直されていた。中身は式に依存しないので、
+  // キーパッドと同じようにメモ化する。**`{showX && ...}` で潰さないこと**——閉じるときのスライド
+  // アニメーションの最中に中身が消えて、空のシートが滑り落ちる。
+  const samplesSheet = useMemo(
+    () => (
+        <View style={styles.modalBackdrop}><View style={sheetStyle}><View style={styles.sheetHeader}><Text style={styles.sheetTitle}>{copy.samples}</Text><Pressable accessibilityLabel={copy.close} onPress={() => setShowSamples(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRail}>{visibleSampleCategories.map((category) => <Pressable key={category.id} onPress={() => setSampleCategory(category.id)} style={({ pressed }) => [styles.categoryChip, activeSampleCategory === category.id && styles.categoryChipActive, pressed && styles.pressed]}><Text style={[styles.categoryChipText, activeSampleCategory === category.id && styles.categoryChipTextActive]}>{localizedText(category.label, language)}</Text></Pressable>)}</ScrollView><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleSamples.map((sample) => <Pressable key={sample.id} onPress={() => stableSelectSample(sample)} style={({ pressed }) => [styles.sampleRow, pressed && styles.cardPressed]}><View style={styles.sampleCopy}><Text style={styles.sampleTitle}>{localizedText(sample.title, language)}</Text><Text style={styles.sampleDescription}>{localizedText(sample.description, language)}</Text></View><View style={styles.sampleExpressionWrap}><Text numberOfLines={1} style={styles.sampleExpression}>{sample.expression}</Text><Text style={styles.sampleTarget}>→ {targetUnitForSample(sample)}</Text></View></Pressable>)}</ScrollView></View></View>
+    ),
+    [activeSampleCategory, colors, copy, language, sheetStyle, stableSelectSample, styles, targetUnitForSample, visibleSampleCategories, visibleSamples],
+  );
+
+  const advancedKeysSheet = useMemo(
+    () => (
+        <View style={styles.modalBackdrop}><View style={sheetStyle}><View style={styles.sheetHeader}><View style={styles.sheetHeaderMain}><Text style={styles.sheetTitle}>{copy.advancedMath}</Text><Text style={styles.sheetSubtitle}>{copy.advancedMathHint}</Text></View><Pressable accessibilityLabel={copy.close} onPress={() => setShowAdvancedKeys(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.advancedKeyRow}>{ADVANCED_KEYS.map((key) => <Pressable accessibilityLabel={key} key={key} onPress={() => { stablePressKey(key); setShowAdvancedKeys(false); }} style={({ pressed }) => [styles.advancedKey, pressed && styles.pressed]}><Text style={styles.advancedKeyText}>{key}</Text></Pressable>)}</View></View></View>
+    ),
+    [colors, copy, sheetStyle, stablePressKey, styles],
+  );
+
+  const historySheet = useMemo(
+    () => (
+        <View style={styles.modalBackdrop}><View style={sheetStyle}><View style={styles.sheetHeader}><View style={styles.sheetHeaderMain}><Text style={styles.sheetTitle}>{copy.savedHistory}</Text><Text style={styles.sheetSubtitle}>{copy.historyHint}</Text></View><Pressable accessibilityLabel={copy.close} onPress={() => setShowHistory(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.historyActions}><Pressable onPress={stableExportHistory} style={({ pressed }) => [styles.exportHistoryButton, pressed && styles.pressed]}><IconSymbol name="square.and.arrow.up" size={15} color={colors.primary} /><Text style={styles.exportHistoryText}>CSV</Text></Pressable><Pressable onPress={() => void clearHistory()} style={({ pressed }) => [styles.clearHistoryButton, pressed && styles.pressed]}><Text style={styles.clearHistoryText}>{copy.clear}</Text></Pressable></View>{visibleHistory.length ? <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleHistory.map((entry, index) => <Pressable key={entry.id} onPress={() => { stableRestoreHistory(entry); setShowHistory(false); }} style={({ pressed }) => [styles.historyRow, pressed && styles.cardPressed]}><View style={styles.historyExpressionWrap}><Text style={styles.historyAutoSymbol}>a{index + 1}</Text><Text numberOfLines={1} style={styles.historyExpression}>{entry.expression}</Text></View><Text numberOfLines={1} style={styles.historyResult}>{entry.resultText}</Text></Pressable>)}</ScrollView> : <View style={styles.emptyState}><IconSymbol name="clock" size={22} color={colors.muted} /><Text style={styles.emptyStateTitle}>{copy.noHistory}</Text><Text style={styles.emptyStateText}>{copy.noHistoryHint}</Text></View>}</View></View>
+    ),
+    [clearHistory, colors, copy, sheetStyle, stableExportHistory, stableRestoreHistory, styles, visibleHistory],
+  );
+
   // 結果カードの単位チップ列。**値が変わっても候補は変わらない**（次元が同じなら同じ並び）ので、
   // 数字を1文字打つたびに作り直さない。キーパッド・編集キー行と同じ理由。
   const isFallbackUnit = Boolean(display?.isFallback);
@@ -2016,65 +2124,7 @@ export default function CalculatorScreen() {
                   </>
                 ) : (
                   <>
-                    {caretPreview.pieces.map((piece, index) => {
-                      const { segment } = piece;
-                      const isUnresolved = segment.kind === "unknown-unit" || segment.kind === "unknown-identifier";
-                      const style = segment.kind === "unit" ? styles.tokenUnit
-                        : isUnresolved ? styles.tokenUnknown
-                        : segment.kind === "identifier" ? styles.tokenIdentifier
-                        : segment.kind === "number" ? styles.tokenNumber
-                        : styles.tokenOperator;
-                      // キャレットは「その一片の手前」に入る。文字の間に挟み込む形にすることで、
-                      // 等幅フォントの文字幅を自前で計算しなくても位置が必ず合う。
-                      const caret = caretPreview.caretIndex === index ? <ExpressionCaret key="caret" colors={colors} /> : null;
-                      const selectedStyle = piece.selected ? styles.tokenSelected : null;
-                      if (!isUnresolved) {
-                        return (
-                          <Fragment key={`${piece.start}-${index}`}>
-                            {caret}
-                            <ExpressionPiece
-                              length={piece.text.length}
-                              onPlaceCaret={placeCaretFromTap}
-                              proportional
-                              start={piece.start}
-                              style={selectedStyle}
-                            >
-                              <Text style={[style, piece.selected && styles.tokenSelectedText]}>{piece.text}</Text>
-                            </ExpressionPiece>
-                          </Fragment>
-                        );
-                      }
-                      // 単位の書き間違いだけをタップで修正できるようにする。定数・関数の未定義参照は
-                      // 単位の候補を出しても意味がないため、見た目だけ知らせて修正候補は出さない。
-                      // 警告アイコンは分割後の最後の一片だけに出す（キャレットが単位の途中に来たときに
-                      // アイコンが2つ並ばないようにする）。
-                      const icon = piece.isSegmentEnd
-                        ? <IconSymbol name="exclamationmark.triangle.fill" size={13} color={colors.error} />
-                        : null;
-                      return (
-                        <Fragment key={`${piece.start}-${index}`}>
-                          {caret}
-                          <ExpressionPiece
-                            accessibilityLabel={segment.kind === "unknown-unit" ? `${segment.text} ${copy.unknown}` : undefined}
-                            length={piece.text.length}
-                            onPlaceCaret={placeCaretFromTap}
-                            // タップで開く修正範囲は分割前のセグメント全体。一片の範囲にすると
-                            // 単位の半分だけを差し替えることになる。
-                            onPress={segment.kind === "unknown-unit"
-                              ? () => setFixSelection({ start: segment.start, end: segment.end, text: segment.text })
-                              : undefined}
-                            proportional={false}
-                            start={piece.start}
-                            style={({ pressed }) => [styles.tokenUnknownWrap, selectedStyle, pressed && styles.pressed]}
-                          >
-                            <Text style={style}>{piece.text}</Text>
-                            {icon}
-                          </ExpressionPiece>
-                        </Fragment>
-                      );
-                    })}
-                    {/* 末尾（どの一片も始まらない位置）のキャレット。式が空のときもここに出る。 */}
-                    {caretPreview.caretIndex === caretPreview.pieces.length ? <ExpressionCaret colors={colors} /> : null}
+                    {expressionTokenNodes}
                     {expression.length ? null : <Text style={styles.expressionPlaceholder}>{copy.expressionPlaceholder}</Text>}
                   </>
                 )}
@@ -2419,9 +2469,7 @@ export default function CalculatorScreen() {
         {keypad}
       </View>
 
-      <Modal visible={showSamples} transparent animationType="slide" onRequestClose={() => setShowSamples(false)}>
-        <View style={styles.modalBackdrop}><View style={sheetStyle}><View style={styles.sheetHeader}><Text style={styles.sheetTitle}>{copy.samples}</Text><Pressable accessibilityLabel={copy.close} onPress={() => setShowSamples(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRail}>{visibleSampleCategories.map((category) => <Pressable key={category.id} onPress={() => setSampleCategory(category.id)} style={({ pressed }) => [styles.categoryChip, activeSampleCategory === category.id && styles.categoryChipActive, pressed && styles.pressed]}><Text style={[styles.categoryChipText, activeSampleCategory === category.id && styles.categoryChipTextActive]}>{localizedText(category.label, language)}</Text></Pressable>)}</ScrollView><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleSamples.map((sample) => <Pressable key={sample.id} onPress={() => selectSample(sample)} style={({ pressed }) => [styles.sampleRow, pressed && styles.cardPressed]}><View style={styles.sampleCopy}><Text style={styles.sampleTitle}>{localizedText(sample.title, language)}</Text><Text style={styles.sampleDescription}>{localizedText(sample.description, language)}</Text></View><View style={styles.sampleExpressionWrap}><Text numberOfLines={1} style={styles.sampleExpression}>{sample.expression}</Text><Text style={styles.sampleTarget}>→ {targetUnitForSample(sample)}</Text></View></Pressable>)}</ScrollView></View></View>
-      </Modal>
+      <Modal visible={showSamples} transparent animationType="slide" onRequestClose={() => setShowSamples(false)}>{samplesSheet}</Modal>
 
       <Modal visible={showUnitPicker} transparent animationType="slide" onRequestClose={() => setShowUnitPicker(false)}>
         <View style={styles.modalBackdrop}>
@@ -2504,13 +2552,9 @@ export default function CalculatorScreen() {
         </View>
       </Modal>
 
-      <Modal visible={showAdvancedKeys} transparent animationType="fade" onRequestClose={() => setShowAdvancedKeys(false)}>
-        <View style={styles.modalBackdrop}><View style={sheetStyle}><View style={styles.sheetHeader}><View style={styles.sheetHeaderMain}><Text style={styles.sheetTitle}>{copy.advancedMath}</Text><Text style={styles.sheetSubtitle}>{copy.advancedMathHint}</Text></View><Pressable accessibilityLabel={copy.close} onPress={() => setShowAdvancedKeys(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.advancedKeyRow}>{ADVANCED_KEYS.map((key) => <Pressable accessibilityLabel={key} key={key} onPress={() => { pressKey(key); setShowAdvancedKeys(false); }} style={({ pressed }) => [styles.advancedKey, pressed && styles.pressed]}><Text style={styles.advancedKeyText}>{key}</Text></Pressable>)}</View></View></View>
-      </Modal>
+      <Modal visible={showAdvancedKeys} transparent animationType="fade" onRequestClose={() => setShowAdvancedKeys(false)}>{advancedKeysSheet}</Modal>
 
-      <Modal visible={showHistory} transparent animationType="slide" onRequestClose={() => setShowHistory(false)}>
-        <View style={styles.modalBackdrop}><View style={sheetStyle}><View style={styles.sheetHeader}><View style={styles.sheetHeaderMain}><Text style={styles.sheetTitle}>{copy.savedHistory}</Text><Text style={styles.sheetSubtitle}>{copy.historyHint}</Text></View><Pressable accessibilityLabel={copy.close} onPress={() => setShowHistory(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><View style={styles.historyActions}><Pressable onPress={() => void exportHistory()} style={({ pressed }) => [styles.exportHistoryButton, pressed && styles.pressed]}><IconSymbol name="square.and.arrow.up" size={15} color={colors.primary} /><Text style={styles.exportHistoryText}>CSV</Text></Pressable><Pressable onPress={() => void clearHistory()} style={({ pressed }) => [styles.clearHistoryButton, pressed && styles.pressed]}><Text style={styles.clearHistoryText}>{copy.clear}</Text></Pressable></View>{visibleHistory.length ? <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleHistory.map((entry, index) => <Pressable key={entry.id} onPress={() => { restoreHistory(entry); setShowHistory(false); }} style={({ pressed }) => [styles.historyRow, pressed && styles.cardPressed]}><View style={styles.historyExpressionWrap}><Text style={styles.historyAutoSymbol}>a{index + 1}</Text><Text numberOfLines={1} style={styles.historyExpression}>{entry.expression}</Text></View><Text numberOfLines={1} style={styles.historyResult}>{entry.resultText}</Text></Pressable>)}</ScrollView> : <View style={styles.emptyState}><IconSymbol name="clock" size={22} color={colors.muted} /><Text style={styles.emptyStateTitle}>{copy.noHistory}</Text><Text style={styles.emptyStateText}>{copy.noHistoryHint}</Text></View>}</View></View>
-      </Modal>
+      <Modal visible={showHistory} transparent animationType="slide" onRequestClose={() => setShowHistory(false)}>{historySheet}</Modal>
 
       <Modal visible={Boolean(unitInfo)} transparent animationType="fade" onRequestClose={() => setUnitInfoSymbol(null)}>
         <View style={styles.unitInfoBackdrop}>
