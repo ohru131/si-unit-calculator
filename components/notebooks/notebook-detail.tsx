@@ -39,6 +39,7 @@ const EN_COPY = {
   switchDiscard: "Discard and switch",
   cancel: "Cancel",
   osKeyboard: "System keyboard", keypadDismiss: "Done", backspace: "Delete",
+  constantPlaceholder: "name=value (e.g. v0=5m/s)", stepPlaceholder: "name=expression (e.g. v=v0+a*t)",
 } as const;
 const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   en: EN_COPY,
@@ -59,6 +60,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     switchDiscard: "破棄して切り替え",
     cancel: "キャンセル",
     osKeyboard: "端末のキーボード", keypadDismiss: "閉じる", backspace: "削除",
+    constantPlaceholder: "名前=値（例: v0=5m/s）", stepPlaceholder: "名前=式（例: v=v0+a*t）",
   },
   es: {
     edit: "Editar", share: "Compartir cuaderno", save: "Guardar valores", copy: "Copiar", copied: "Copiado",
@@ -77,6 +79,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     switchDiscard: "Descartar y cambiar",
     cancel: "Cancelar",
     osKeyboard: "Teclado del sistema", keypadDismiss: "Listo", backspace: "Borrar",
+    constantPlaceholder: "nombre=valor (p. ej. v0=5m/s)", stepPlaceholder: "nombre=expresión (p. ej. v=v0+a*t)",
   },
   "pt-BR": {
     edit: "Editar", share: "Compartilhar caderno", save: "Salvar valores", copy: "Copiar", copied: "Copiado",
@@ -95,6 +98,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     switchDiscard: "Descartar e trocar",
     cancel: "Cancelar",
     osKeyboard: "Teclado do sistema", keypadDismiss: "Concluído", backspace: "Apagar",
+    constantPlaceholder: "nome=valor (ex.: v0=5m/s)", stepPlaceholder: "nome=expressão (ex.: v=v0+a*t)",
   },
   de: {
     edit: "Bearbeiten", share: "Rechenheft teilen", save: "Werte speichern", copy: "Kopieren", copied: "Kopiert",
@@ -113,6 +117,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     switchDiscard: "Verwerfen und wechseln",
     cancel: "Abbrechen",
     osKeyboard: "Systemtastatur", keypadDismiss: "Fertig", backspace: "Löschen",
+    constantPlaceholder: "Name=Wert (z. B. v0=5m/s)", stepPlaceholder: "Name=Ausdruck (z. B. v=v0+a*t)",
   },
   fr: {
     edit: "Modifier", share: "Partager le carnet", save: "Enregistrer les valeurs", copy: "Copier", copied: "Copié",
@@ -131,6 +136,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     switchDiscard: "Abandonner et changer",
     cancel: "Annuler",
     osKeyboard: "Clavier du système", keypadDismiss: "Terminé", backspace: "Effacer",
+    constantPlaceholder: "nom=valeur (ex. v0=5m/s)", stepPlaceholder: "nom=expression (ex. v=v0+a*t)",
   },
 };
 
@@ -202,6 +208,13 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   const [osKeyboardKey, setOsKeyboardKey] = useState<string | null>(null);
   // キーボードキーで出すときに focus() を呼ぶ相手。欄は id 基準のキーで引く。
   const inputRefs = useRef<Record<string, TextInput | null>>({});
+  // キーパッドが開いた瞬間に、フォーカスした欄がその下へ隠れないようにスクロールで見える位置へ寄せる
+  // ための測定値。ScrollView は下端にキーパッド（約200px）が挿さると縮むので、欄が画面の下半分に
+  // あるとちょうど隠れる（OS のキーボードなら Android が自動で寄せてくれるが、自前のキーパッドには
+  // その仕組みが無い）。
+  const scrollRef = useRef<ScrollView | null>(null);
+  const scrollOffsetRef = useRef(0);
+  const scrollViewportHeightRef = useRef(0);
   // ノート名からノートを切り替えようとしたとき、未保存の値があれば確認を挟む。
   // 切り替えでnotebook propが変わると下のレンダー中の同期がeditableConstants/editableStepsを
   // 作り直すので、確認なしだと編集途中の値が黙って消える（保存バーは出ているが、ノート名は
@@ -255,6 +268,34 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   // 「既にフォーカス済み」と見て何もせず、showSoftInputOnFocus を true にしても表示要求が出ない。
   // 別の Pressable の onPress からその場で focus() を呼ぶと実機で上がらないことがあるので、電卓の
   // 旧・単位検索パネルと同じく 50ms 遅らせる。
+  // キーパッドが開いた（またはフォーカスが別の欄へ移った）あと、欄がキーパッドの下に隠れていれば
+  // 見える位置までスクロールする。ScrollView が縮み終わってから測る必要があるので1フレーム待つ。
+  // 測定は ScrollView の枠に対する相対座標なので、現在のスクロール量を足して絶対位置にする。
+  useEffect(() => {
+    if (!activeRailKey) return;
+    const timer = setTimeout(() => {
+      const input = inputRefs.current[activeRailKey];
+      const scrollView = scrollRef.current;
+      const scrollNode = scrollView?.getNativeScrollRef();
+      if (!input || !scrollView || !scrollNode) return;
+      input.measureLayout(
+        scrollNode,
+        (_x, y, _width, height) => {
+          const viewport = scrollViewportHeightRef.current;
+          if (!viewport) return;
+          const margin = 12;
+          if (y + height + margin > viewport) {
+            scrollView.scrollTo({ y: scrollOffsetRef.current + y + height + margin - viewport, animated: true });
+          } else if (y < 0) {
+            scrollView.scrollTo({ y: scrollOffsetRef.current + y - margin, animated: true });
+          }
+        },
+        () => undefined,
+      );
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [activeRailKey]);
+
   useEffect(() => {
     if (!osKeyboardKey) return;
     inputRefs.current[osKeyboardKey]?.blur();
@@ -495,7 +536,16 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
         )}
       </View>
 
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.container}>
+      <ScrollView
+        ref={scrollRef}
+        style={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.container}
+        onLayout={(event) => { scrollViewportHeightRef.current = event.nativeEvent.layout.height; }}
+        onScroll={(event) => { scrollOffsetRef.current = event.nativeEvent.contentOffset.y; }}
+        scrollEventThrottle={32}
+      >
         {notebook.description ? <Text style={styles.description}>{notebook.description}</Text> : null}
 
         {notebook.formulas.length ? (
@@ -540,6 +590,8 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                   <TextInput
                     ref={(node) => { inputRefs.current[railKey] = node; }}
                     showSoftInputOnFocus={osKeyboardKey === railKey}
+                    placeholder={copy.constantPlaceholder}
+                    placeholderTextColor={colors.placeholder}
                     value={formatNameValue(item.symbol, item.expression)}
                     onChangeText={(text) => {
                       const { name, value } = parseNameValue(text);
@@ -602,6 +654,8 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                   <TextInput
                     ref={(node) => { inputRefs.current[stepRailKey] = node; }}
                     showSoftInputOnFocus={osKeyboardKey === stepRailKey}
+                    placeholder={copy.stepPlaceholder}
+                    placeholderTextColor={colors.placeholder}
                     value={formatNameValue(result.step.resultSymbol ?? "", result.step.expression)}
                     onChangeText={(text) => {
                       const { name, value } = parseNameValue(text);
@@ -754,7 +808,10 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   resultTitle: { color: colors.foreground, fontSize: 13, fontWeight: "800" },
   copyButton: { alignItems: "center", height: 26, justifyContent: "center", width: 30 },
   resultValue: { color: colors.primaryStrong, fontFamily: mono, fontSize: 24, fontWeight: "700", marginTop: 4 },
-  resultExpressionInput: { borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth, color: colors.foreground, fontFamily: mono, fontSize: 12, marginBottom: 8, paddingVertical: 2 },
+  // 手順の式欄。以前は12pxの文字に下線だけで、入力欄と分からないうえ**当たり判定も文字の高さ
+  // （約20px）しか無く**、行の余白をタップしても何も起きなかった（実機で「薄い文字を狙って押すと
+  // やっと入力できた」と報告された）。定数欄と同じ枠付き・高さ42の箱にして、行全体を押せる欄にする。
+  resultExpressionInput: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 10, borderWidth: 1, color: colors.foreground, fontFamily: mono, fontSize: 14, marginBottom: 8, minHeight: 42, paddingHorizontal: 12 },
   resultError: { color: colors.error, fontSize: 12, lineHeight: 17, marginTop: 4 },
   resultWarning: { color: colors.warning, fontSize: 11, lineHeight: 15, marginTop: 4 },
   resultReferenceHint: { color: colors.muted, fontSize: 10, marginTop: 5 },
