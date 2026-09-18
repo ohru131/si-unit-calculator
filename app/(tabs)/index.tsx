@@ -59,6 +59,7 @@ import {
   resolvePrefixCompletionRange,
   resolvePrefixKeyPress,
   shouldResetPaletteForKey,
+  insertedTextBetween,
   getUnitSuggestions,
   replaceExpressionRange,
   type ExpressionSegment,
@@ -249,14 +250,6 @@ function ExpressionPiece({ accessibilityLabel, children, length, onPlaceCaret, o
     </Pressable>
   );
 }
-
-/** 入力欄への打ち込み（貼り付け含む）で増えた文字。古い式と新しい式の共通の先頭から数える。 */
-const insertedTail = (previous: string, next: string) => {
-  if (next.length <= previous.length) return "";
-  let index = 0;
-  while (index < previous.length && previous[index] === next[index]) index += 1;
-  return next.slice(index, index + (next.length - previous.length));
-};
 
 const EDIT_KEYS: readonly { label: string; insert: string }[] = [
   { label: "x²", insert: "²" },
@@ -1895,7 +1888,7 @@ export default function CalculatorScreen() {
                 // OSのキーボード・貼り付けで演算子を入れたときも、キーパッドと同じようにパレットを
                 // 「候補」へ戻す。キャレットは onSelectionChange が別に届くので、ここでは
                 // 打ち込まれた文字（古い式との差分）の末尾だけを見る。
-                if (shouldResetPaletteForKey(insertedTail(expression, text).slice(-1))) resetPalette();
+                if (shouldResetPaletteForKey(insertedTextBetween(expression, text).slice(-1))) resetPalette();
                 setFixSelection(null);
                 // OSのキーボードから打った時点で「接頭語キーを押した直後」ではなくなる。
                 setPrefixEntry(null);

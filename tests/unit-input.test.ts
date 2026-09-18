@@ -13,6 +13,7 @@ import {
   replaceExpressionRange,
   requiredUnitGroupFromError,
   shouldResetPaletteForKey,
+  insertedTextBetween,
 } from "../lib/unit-input";
 import { diagnoseCalculatorInput } from "../lib/calculator-input";
 
@@ -491,6 +492,14 @@ describe("接頭語キーの候補を今の式の文脈へ寄せる", () => {
   const after = (prefix: string, options: { recentUnits?: string[]; contextUnits?: string[] } = {}) =>
     getPrefixedUnitSuggestions(prefix, { system: "metric", limit: 8, ...options }).map((candidate) => candidate.unit.symbol);
 
+  it("接頭語の分解でしか解決されない単位（kWh）も文脈として数える", () => {
+    // `2kWh / 3` で k を押した人に欲しいのは kW・kJ。kWh は UnitOption が無いので
+    // findRegisteredUnit では引けず、登録の有無だけで判定すると文脈が丸ごと落ちていた。
+    const withKwh = after("k", { contextUnits: ["kWh"] });
+    expect(withKwh).toEqual(after("k", { contextUnits: ["J"] }));
+    expect(withKwh.indexOf("kJ")).toBeLessThan(withKwh.indexOf("km"));
+  });
+
   it("文脈が無ければ従来どおりの並び", () => {
     // 回帰の目印として先頭3件を固定する（文脈を渡さない限り並びは変わらない）。
     expect(after("k").slice(0, 3)).toEqual(["km", "kg", "kt"]);
@@ -556,6 +565,26 @@ describe("掛け算・割り算の相手の候補をレールへ渡す", () => {
     expect(hint.candidates.map((candidate) => candidate.unit.symbol)).toEqual(
       getCommonUnitSuggestions("metric", [], { limit: 8 }).map((candidate) => candidate.unit.symbol),
     );
+  });
+});
+
+describe("入力欄の書き換えで新しく入った文字", () => {
+  it("末尾への打ち込みと途中への挿入", () => {
+    expect(insertedTextBetween("12", "12+")).toBe("+");
+    expect(insertedTextBetween("1m", "1km")).toBe("k");
+  });
+
+  it("範囲選択の置き換えは式が短くなっても同じ長さでも拾う", () => {
+    // 選択した `5m` を `+` で置き換えると式は短くなる。長くなった分だけ見ていると空になり、
+    // 演算子を打ったのにパレットが解除されなかった（CodeRabbitが#69で検出）。
+    expect(insertedTextBetween("3+5m", "3++")).toBe("+");
+    expect(insertedTextBetween("12", "1+")).toBe("+");
+    expect(insertedTextBetween("12V/4.7", "12V*4.7")).toBe("*");
+  });
+
+  it("削除だけなら空", () => {
+    expect(insertedTextBetween("12+", "12")).toBe("");
+    expect(insertedTextBetween("", "")).toBe("");
   });
 });
 

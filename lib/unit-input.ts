@@ -1,4 +1,5 @@
 import {
+  describeDimension,
   findRegisteredUnit,
   NUMBER_TOKEN_PATTERN,
   getCompatibleUnitGroups,
@@ -403,10 +404,12 @@ export function getPrefixedUnitSuggestions(prefix: string, options: { system: Un
   if (!prefix) return [];
 
   // 式に出ている単位のグループ。解決できない記号（定数名・書きかけの綴り）は黙って無視する。
+  // `kWh` のように接頭語の分解でしか解決されない（UnitOption が無い）単位も文脈としては数える
+  // （`2kWh / 3` で `k` を押した人に kW・kJ を先に出すため。CodeRabbitが#69で検出）。
   const contextGroupIds = new Set<string>();
   contextUnits.forEach((symbol) => {
-    const found = findRegisteredUnit(symbol);
-    if (found) contextGroupIds.add(found.group.id);
+    const groupId = unitGroupIdForSymbol(symbol);
+    if (groupId) contextGroupIds.add(groupId);
   });
   const clusterGroupRanks = relatedGroupRanks(contextGroupIds);
 
@@ -554,6 +557,44 @@ export function resolvePaletteTarget(options: { hint: UnitInputHint; expression:
   // （単位の上なら差し替え・数値の直後なら単位付け・それ以外は挿入）。
   const kind: UnitInputHintKind = target?.kind === "unit" ? "replace" : target?.kind === "number" ? "attach" : "insert";
   return { kind, start, end };
+}
+
+/**
+ * 単位記号からグループidを引く。登録済みの `UnitOption` が無くても、エンジンで計算できる記号
+ * （`kWh` のように接頭語の分解でだけ解決するもの）は次元まで落として同じ次元のグループを探す。
+ * 登録の有無だけで判断すると `1kWh÷` が「左側の次元が読めない」扱いになり、いちばん助けが要る
+ * 場面（電気料金・消費電力量の計算）で候補が出ない。
+ *
+ * 合成次元（`N·m²/C²` のように該当グループが無い）と無次元は、並べる単位の一覧が無いので
+ * 未解決として扱う（`describeDimension` はそれぞれ `""` と `"dimensionless"` を返す）。
+ */
+export function unitGroupIdForSymbol(symbol: string): string | undefined {
+  const source = symbol.trim();
+  if (!source) return undefined;
+  const found = findRegisteredUnit(source);
+  if (found) return found.group.id;
+  try {
+    const group = describeDimension(parseUnit(source).dimension).group;
+    return group && group !== "dimensionless" ? group : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * 入力欄の書き換え（打ち込み・貼り付け・範囲選択の置き換え）で**新しく入った文字列**。
+ * 古い式と新しい式の共通の先頭と末尾を除いた中身を返す。
+ *
+ * 「長くなった分の末尾」だけを見ると、範囲選択した `5m` を `+` で置き換えたとき（式が短くなる）
+ * や `12` を `+` で置き換えたとき（同じ長さ）に何も返らず、演算子を打ったのにパレットが
+ * 解除されない（CodeRabbitが#69で検出）。削除だけのときは空文字。
+ */
+export function insertedTextBetween(previous: string, next: string): string {
+  let prefix = 0;
+  while (prefix < previous.length && prefix < next.length && previous[prefix] === next[prefix]) prefix += 1;
+  let suffix = 0;
+  while (suffix < previous.length - prefix && suffix < next.length - prefix && previous[previous.length - 1 - suffix] === next[next.length - 1 - suffix]) suffix += 1;
+  return next.slice(prefix, next.length - suffix);
 }
 
 // 押すと「次の項」へ移るキー。演算子・括弧・べき乗と、数学シートの関数（`sin(` のように

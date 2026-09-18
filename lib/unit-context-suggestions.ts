@@ -1,7 +1,10 @@
 import { PRESET_NOTEBOOK_SEEDS } from "@/lib/notebook-formulas";
 import { SAMPLE_CALCULATIONS } from "@/lib/sample-calculations";
-import { analyzeExpression, relatedGroupRanks, type ExpressionAnalysis, type UnitFilter, type UnitSuggestion } from "@/lib/unit-input";
-import { describeDimension, findRegisteredUnit, getGroupUnitsForSystem, parseUnit, UNIT_GROUPS, type UnitGroup, type UnitOption, type UnitSystem } from "@/lib/units";
+import { analyzeExpression, relatedGroupRanks, unitGroupIdForSymbol, type ExpressionAnalysis, type UnitFilter, type UnitSuggestion } from "@/lib/unit-input";
+import { findRegisteredUnit, getGroupUnitsForSystem, UNIT_GROUPS, type UnitGroup, type UnitOption, type UnitSystem } from "@/lib/units";
+
+// テストと呼び出し側の import 先を変えないための再export（本体は lib/unit-input.ts。接頭語の候補も同じ解決を使う）。
+export { unitGroupIdForSymbol };
 
 /**
  * 1つの計算に一緒に出てきた単位の並び（登録済みの正式な記号・重複なし・出てきた順）。
@@ -80,31 +83,6 @@ export function resolveUnitContext(options: { analysis: ExpressionAnalysis; care
 }
 
 /**
- * 記号が属する単位グループのid。**単位チップに出る単位（`UnitOption`）でなくても引ける**のが
- * `findRegisteredUnit` との違い。
- *
- * `kWh` は `BASE_UNITS` に完全一致のキーが無く SI接頭語の分解でだけ解決する（＝`UnitOption` が
- * 無い）ので、登録済み単位としては引けないのにエンジンでは普通に計算できる。登録の有無だけで
- * 判断すると `1kWh÷` が「左側の次元が読めない」扱いになり、いちばん助けが要る場面
- * （電気料金・消費電力量の計算）で候補が出ない。次元まで落として同じ次元のグループを探す。
- *
- * 合成次元（`N·m²/C²` のように該当グループが無い）と無次元は、並べる単位の一覧が無いので
- * 未解決として扱う（`describeDimension` はそれぞれ `""` と `"dimensionless"` を返す）。
- */
-export function unitGroupIdForSymbol(symbol: string): string | undefined {
-  const source = symbol.trim();
-  if (!source) return undefined;
-  const found = findRegisteredUnit(source);
-  if (found) return found.group.id;
-  try {
-    const group = describeDimension(parseUnit(source).dimension).group;
-    return group && group !== "dimensionless" ? group : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/**
  * 記号を正式な記号へ寄せて重複なく足す。引けない記号（定数名・合成単位）は黙って捨てる。
  *
  * **次元でしか引けない記号（`kWh`）は綴りのまま残す。** 候補のチップとしては出せない
@@ -129,7 +107,7 @@ function pushExpressionUnits(symbols: string[], expression: string) {
  * 計算履歴を「一緒に使われた単位」の例に変える。**新しい順のまま**返す（履歴の並びがそのまま
  * 候補の優先順になる＝直前に自分がやった計算と同じ組み合わせが先頭に出る）。
  */
-export function unitExamplesFromHistory(history: ReadonlyArray<{ expression: string; targetUnit: string }>): UnitExample[] {
+export function unitExamplesFromHistory(history: readonly { expression: string; targetUnit: string }[]): UnitExample[] {
   const examples: UnitExample[] = [];
   history.forEach((entry) => {
     const symbols: string[] = [];
