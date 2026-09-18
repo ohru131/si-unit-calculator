@@ -106,6 +106,9 @@ const config: ExpoConfig = {
     // デバッグビルドだけ applicationId に ".debug" を付けて、Play版と同じ端末に共存させる。
     // 詳しい理由はプラグイン本体のコメント。
     "./plugins/withDebugPackageSuffix",
+    // release ビルドから SYSTEM_ALERT_WINDOW（使っていないのにPlayの権限一覧に出る）を外す。
+    // debug 側は開発メニューのために残す。詳しい理由はプラグイン本体のコメント。
+    "./plugins/withoutReleaseOverlayPermission",
     // credentials.json があるときだけ、release ビルドをそのkeystoreで署名する。
     // 無ければ何もしない（EASビルドを壊さない）。詳しい理由はプラグイン本体のコメント。
     "./plugins/withLocalReleaseSigning",
