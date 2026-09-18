@@ -25,6 +25,13 @@ export const NOTEBOOK_KEYPAD_KEYS: readonly NotebookKeypadKey[] = [
   { label: "0", insert: "0" }, { label: ".", insert: "." }, { label: "(", insert: "(" }, { label: ")", insert: ")" }, { label: "^", insert: "^" },
 ];
 
+/**
+ * `f(x)` キーで開く関数チップ。電卓の数学シート（`ADVANCED_KEYS`）と同じ並びで、`^` だけは
+ * キーパッド本体に既にあるので除く。関数は開き括弧まで入れ、キャレットをその直後に置く
+ * （引数を続けて打てる）。`π`・`e` は評価器がそのまま定数として読む。
+ */
+export const NOTEBOOK_KEYPAD_FUNCTIONS: readonly string[] = ["sqrt(", "sin(", "cos(", "tan(", "asin(", "acos(", "atan(", "atan2(", "ln(", "log(", "log2(", "π", "e"];
+
 /** 見た目を数字と分けるキー（演算子・括弧・べき乗）。電卓の `isOperator` と同じ区別。 */
 export const NOTEBOOK_KEYPAD_ACCENT_LABELS: ReadonlySet<string> = new Set(["×10ⁿ", "÷", "×", "-", "+", "(", ")", "^"]);
 

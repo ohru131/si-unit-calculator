@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { NOTEBOOK_KEYPAD_COLUMNS, NOTEBOOK_KEYPAD_KEYS, backspaceInField, insertKeypadText } from "@/lib/notebook-keypad";
+import { NOTEBOOK_KEYPAD_COLUMNS, NOTEBOOK_KEYPAD_FUNCTIONS, NOTEBOOK_KEYPAD_KEYS, backspaceInField, insertKeypadText } from "@/lib/notebook-keypad";
+import { evaluateExpression } from "@/lib/units";
 
 describe("NOTEBOOK_KEYPAD_KEYS", () => {
   it("is a full 5-column grid with every digit, the decimal point and the four operators", () => {
@@ -17,6 +18,24 @@ describe("NOTEBOOK_KEYPAD_KEYS", () => {
     expect(labels.slice(5, 8)).toEqual(["4", "5", "6"]);
     expect(labels.slice(10, 13)).toEqual(["1", "2", "3"]);
     expect(labels.slice(15, 17)).toEqual(["0", "."]);
+  });
+});
+
+describe("NOTEBOOK_KEYPAD_FUNCTIONS", () => {
+  it("lists functions with their opening paren and the two constants", () => {
+    const functions = NOTEBOOK_KEYPAD_FUNCTIONS.filter((item) => item.endsWith("("));
+    expect(functions).toContain("sqrt(");
+    expect(functions).toContain("sin(");
+    expect(NOTEBOOK_KEYPAD_FUNCTIONS).toContain("π");
+    expect(NOTEBOOK_KEYPAD_FUNCTIONS).toContain("e");
+    expect(NOTEBOOK_KEYPAD_FUNCTIONS).not.toContain("^");
+  });
+
+  it("every entry evaluates in the unit engine once an argument is supplied", () => {
+    for (const item of NOTEBOOK_KEYPAD_FUNCTIONS) {
+      const expression = item.endsWith("(") ? (item === "atan2(" ? "atan2(1, 2)" : `${item}0.5)`) : item;
+      expect(() => evaluateExpression(expression), expression).not.toThrow();
+    }
   });
 });
 

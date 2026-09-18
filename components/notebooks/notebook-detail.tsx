@@ -38,7 +38,7 @@ const EN_COPY = {
   switchMessage: "This notebook has values you haven't saved. Switching notebooks discards them.",
   switchDiscard: "Discard and switch",
   cancel: "Cancel",
-  osKeyboard: "System keyboard", keypadDismiss: "Done", backspace: "Delete",
+  osKeyboard: "System keyboard", keypadDismiss: "Done", backspace: "Delete", mathFunctions: "Math functions",
   constantPlaceholder: "name=value (e.g. v0=5m/s)", stepPlaceholder: "name=expression (e.g. v=v0+a*t)",
 } as const;
 const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
@@ -59,7 +59,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     switchMessage: "このノートには保存していない値があります。ノートを切り替えると破棄されます。",
     switchDiscard: "破棄して切り替え",
     cancel: "キャンセル",
-    osKeyboard: "端末のキーボード", keypadDismiss: "閉じる", backspace: "削除",
+    osKeyboard: "端末のキーボード", keypadDismiss: "閉じる", backspace: "削除", mathFunctions: "数学関数",
     constantPlaceholder: "名前=値（例: v0=5m/s）", stepPlaceholder: "名前=式（例: v=v0+a*t）",
   },
   es: {
@@ -78,7 +78,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     switchMessage: "Este cuaderno tiene valores que no has guardado. Al cambiar de cuaderno se descartan.",
     switchDiscard: "Descartar y cambiar",
     cancel: "Cancelar",
-    osKeyboard: "Teclado del sistema", keypadDismiss: "Listo", backspace: "Borrar",
+    osKeyboard: "Teclado del sistema", keypadDismiss: "Listo", backspace: "Borrar", mathFunctions: "Funciones matemáticas",
     constantPlaceholder: "nombre=valor (p. ej. v0=5m/s)", stepPlaceholder: "nombre=expresión (p. ej. v=v0+a*t)",
   },
   "pt-BR": {
@@ -97,7 +97,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     switchMessage: "Este caderno tem valores que você não salvou. Trocar de caderno descarta essas alterações.",
     switchDiscard: "Descartar e trocar",
     cancel: "Cancelar",
-    osKeyboard: "Teclado do sistema", keypadDismiss: "Concluído", backspace: "Apagar",
+    osKeyboard: "Teclado do sistema", keypadDismiss: "Concluído", backspace: "Apagar", mathFunctions: "Funções matemáticas",
     constantPlaceholder: "nome=valor (ex.: v0=5m/s)", stepPlaceholder: "nome=expressão (ex.: v=v0+a*t)",
   },
   de: {
@@ -116,7 +116,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     switchMessage: "Dieses Rechenheft hat Werte, die du nicht gespeichert hast. Beim Wechseln gehen sie verloren.",
     switchDiscard: "Verwerfen und wechseln",
     cancel: "Abbrechen",
-    osKeyboard: "Systemtastatur", keypadDismiss: "Fertig", backspace: "Löschen",
+    osKeyboard: "Systemtastatur", keypadDismiss: "Fertig", backspace: "Löschen", mathFunctions: "Mathematische Funktionen",
     constantPlaceholder: "Name=Wert (z. B. v0=5m/s)", stepPlaceholder: "Name=Ausdruck (z. B. v=v0+a*t)",
   },
   fr: {
@@ -135,7 +135,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     switchMessage: "Ce carnet contient des valeurs non enregistrées. Changer de carnet les abandonne.",
     switchDiscard: "Abandonner et changer",
     cancel: "Annuler",
-    osKeyboard: "Clavier du système", keypadDismiss: "Terminé", backspace: "Effacer",
+    osKeyboard: "Clavier du système", keypadDismiss: "Terminé", backspace: "Effacer", mathFunctions: "Fonctions mathématiques",
     constantPlaceholder: "nom=valeur (ex. v0=5m/s)", stepPlaceholder: "nom=expression (ex. v=v0+a*t)",
   },
 };
@@ -268,31 +268,36 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   // 「既にフォーカス済み」と見て何もせず、showSoftInputOnFocus を true にしても表示要求が出ない。
   // 別の Pressable の onPress からその場で focus() を呼ぶと実機で上がらないことがあるので、電卓の
   // 旧・単位検索パネルと同じく 50ms 遅らせる。
-  // キーパッドが開いた（またはフォーカスが別の欄へ移った）あと、欄がキーパッドの下に隠れていれば
-  // 見える位置までスクロールする。ScrollView が縮み終わってから測る必要があるので1フレーム待つ。
+  // 編集中の欄がキーパッドの下に隠れていれば、見える位置までスクロールする。
   // 測定は ScrollView の枠に対する相対座標なので、現在のスクロール量を足して絶対位置にする。
+  // 呼ぶのは2箇所: (1) フォーカスが欄へ移ってキーパッドが開いたとき、(2) ScrollView の高さが
+  // 変わったとき（最初の1文字で保存バーが出る・`f(x)` で関数チップの列が開く、のどちらも
+  // スクロール域を後から縮めるので、(1) だけだと欄がそのまま隠れる）。
+  const ensureActiveFieldVisible = (key: string | null) => {
+    if (!key) return;
+    const input = inputRefs.current[key];
+    const scrollView = scrollRef.current;
+    const scrollNode = scrollView?.getNativeScrollRef();
+    if (!input || !scrollView || !scrollNode) return;
+    input.measureLayout(
+      scrollNode,
+      (_x, y, _width, height) => {
+        const viewport = scrollViewportHeightRef.current;
+        if (!viewport) return;
+        const margin = 12;
+        if (y + height + margin > viewport) {
+          scrollView.scrollTo({ y: scrollOffsetRef.current + y + height + margin - viewport, animated: true });
+        } else if (y < 0) {
+          scrollView.scrollTo({ y: scrollOffsetRef.current + y - margin, animated: true });
+        }
+      },
+      () => undefined,
+    );
+  };
+  // ScrollView が縮み終わってから測る必要があるので1フレーム待つ。
   useEffect(() => {
     if (!activeRailKey) return;
-    const timer = setTimeout(() => {
-      const input = inputRefs.current[activeRailKey];
-      const scrollView = scrollRef.current;
-      const scrollNode = scrollView?.getNativeScrollRef();
-      if (!input || !scrollView || !scrollNode) return;
-      input.measureLayout(
-        scrollNode,
-        (_x, y, _width, height) => {
-          const viewport = scrollViewportHeightRef.current;
-          if (!viewport) return;
-          const margin = 12;
-          if (y + height + margin > viewport) {
-            scrollView.scrollTo({ y: scrollOffsetRef.current + y + height + margin - viewport, animated: true });
-          } else if (y < 0) {
-            scrollView.scrollTo({ y: scrollOffsetRef.current + y - margin, animated: true });
-          }
-        },
-        () => undefined,
-      );
-    }, 50);
+    const timer = setTimeout(() => ensureActiveFieldVisible(activeRailKey), 50);
     return () => clearTimeout(timer);
   }, [activeRailKey]);
 
@@ -542,7 +547,12 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.container}
-        onLayout={(event) => { scrollViewportHeightRef.current = event.nativeEvent.layout.height; }}
+        onLayout={(event) => {
+          const next = event.nativeEvent.layout.height;
+          const changed = scrollViewportHeightRef.current !== 0 && scrollViewportHeightRef.current !== next;
+          scrollViewportHeightRef.current = next;
+          if (changed) ensureActiveFieldVisible(activeRailKey);
+        }}
         onScroll={(event) => { scrollOffsetRef.current = event.nativeEvent.contentOffset.y; }}
         scrollEventThrottle={32}
       >
@@ -740,7 +750,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
         <NotebookKeypad
           fieldLabel={activeField.label}
           isOsKeyboardActive={osKeyboardKey === activeField.key}
-          labels={{ osKeyboard: copy.osKeyboard, dismiss: copy.keypadDismiss, backspace: copy.backspace }}
+          labels={{ osKeyboard: copy.osKeyboard, dismiss: copy.keypadDismiss, backspace: copy.backspace, functions: copy.mathFunctions }}
           onInsert={handleKeypadInsert}
           onBackspace={handleKeypadBackspace}
           onToggleOsKeyboard={toggleOsKeyboard}
