@@ -14,7 +14,8 @@
     "qr": "node scripts/generate_qr.mjs",
     "katex:generate": "node scripts/generate-katex-assets.mjs",
     "notebook:check": "tsx scripts/check-notebook-seed.ts",
-    "notebook:i18n": "tsx scripts/check-seed-translations.ts"
+    "notebook:i18n": "tsx scripts/check-seed-translations.ts",
+    "bench:keystroke": "tsx scripts/bench-calculator-keystroke.ts"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
