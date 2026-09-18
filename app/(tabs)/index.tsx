@@ -610,9 +610,19 @@ export default function CalculatorScreen() {
   // （同じカテゴリの単位を続けて入れるのが普通で、1つ入れるたびに選び直させる方が手数が多い）。
   // 端末には保存しない（画面を開くたびに「候補」から始めてよい）。
   const [paletteGroupId, setPaletteGroupId] = useState<string | null>(null);
+  // カテゴリの一覧を開いているか。**常時出しておかない**——一覧は単位を選ぶ一瞬しか触らないのに、
+  // 1行（約24px）を結果カードから奪い続ける。レール先頭のチップが今のカテゴリを示し、押すと開く。
+  const [isPaletteExpanded, setIsPaletteExpanded] = useState(false);
   // OSのキーボードが今出ているか（隠しTextInputにフォーカスがあるか）。編集キー行の
   // キーボードキーの点灯と、押したときにどちらへ倒すか（出す／閉じる）を決めるために持つ。
   const [isKeyboardInputActive, setIsKeyboardInputActive] = useState(false);
+  // 単位パレットを初期状態（文脈依存の「候補」＋カテゴリ一覧は閉じる）へ戻す。演算子キー・AC・=・
+  // 式の丸ごと差し替えのどれでも戻る先は同じなので、呼ぶ側が2つのstateを覚えずに済むよう1つに
+  // まとめてある（片方だけ戻すと、開いたままの一覧が結果カードを覆い続ける）。
+  const resetPalette = () => {
+    setPaletteGroupId(null);
+    setIsPaletteExpanded(false);
+  };
   const unitSearchRef = useRef<TextInput>(null);
   // 式のOSキーボード受け口（画面には出ない1×1のTextInput）。表示欄をタップしたときに
   // フォーカスを移すためだけに持つ。
@@ -1085,7 +1095,7 @@ export default function CalculatorScreen() {
       }
       playResultReveal();
       // 確定した時点で1つの計算が終わっているので、次の式は文脈依存の候補から始める。
-      setPaletteGroupId(null);
+      resetPalette();
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       // 表示単位が結果に合わないときは、行き止まりにせずSI標準へ戻す。
       let usedTargetUnit = selectedTargetUnit.trim();
@@ -1205,7 +1215,7 @@ export default function CalculatorScreen() {
         setExpression(decimalText);
         placeCaret(decimalText.length);
         setBaseInputMode(null);
-        setPaletteGroupId(null);
+        resetPalette();
       }
       return;
     }
@@ -1241,7 +1251,7 @@ export default function CalculatorScreen() {
     // 演算子・括弧・べき乗・数学関数を押した時点で、書いているのは「次の項」なので単位パレットの
     // カテゴリ選択を解除して文脈依存の「候補」へ戻す（判定は lib/unit-input.ts の純関数。
     // 数字・小数点・⌫・キャレット移動・接頭語キーでは解除しない＝同じ項を書いている途中の操作）。
-    if (shouldResetPaletteForKey(key)) setPaletteGroupId(null);
+    if (shouldResetPaletteForKey(key)) resetPalette();
     // 式が変わればリアルタイムの結果も変わるので、= を押して出したエラーは持ち越さない
     // （そのままだと、新しい結果が出ているのに古い赤いメッセージが上に残る）。
     setError("");
@@ -1255,7 +1265,7 @@ export default function CalculatorScreen() {
       setTargetUnit(DEFAULT_TARGET_UNIT);
       setFixSelection(null);
       setBaseInputMode(null);
-      setPaletteGroupId(null);
+      resetPalette();
       void Haptics.selectionAsync();
       return;
     }
@@ -1338,7 +1348,7 @@ export default function CalculatorScreen() {
       setExpression("");
       placeCaret(0);
       setBaseInputMode(null);
-      setPaletteGroupId(null);
+      resetPalette();
       return;
     }
     if (!canStartBaseInput) return;
@@ -1410,7 +1420,7 @@ export default function CalculatorScreen() {
     // 進数入力モードのまま通常の式を読み込むと、桁の制限が効いたまま計算もできない
     // 宙ぶらりんの状態になる。式を丸ごと差し替える経路では必ずモードを解除する。
     setBaseInputMode(null);
-    setPaletteGroupId(null);
+    resetPalette();
     setExpression(entry.expression);
     placeCaret(entry.expression.length);
     setTargetUnit(entry.targetUnit);
@@ -1452,7 +1462,7 @@ export default function CalculatorScreen() {
     });
     if (!restored) return;
     setBaseInputMode(null);
-    setPaletteGroupId(null);
+    resetPalette();
     setExpression(restored.expression);
     placeCaret(restored.expression.length);
     setTargetUnit(restored.targetUnit);
@@ -1468,7 +1478,7 @@ export default function CalculatorScreen() {
     appliedQuickRef.current = action ?? null;
     if (shortcut.expression && shortcut.targetUnit) {
       setBaseInputMode(null);
-      setPaletteGroupId(null);
+      resetPalette();
       setExpression(shortcut.expression);
       placeCaret(shortcut.expression.length);
       setTargetUnit(shortcut.targetUnit);
@@ -1491,7 +1501,7 @@ export default function CalculatorScreen() {
     if (appliedPresetRef.current === presetToken) return;
     appliedPresetRef.current = presetToken;
     setBaseInputMode(null);
-    setPaletteGroupId(null);
+    resetPalette();
     setExpression(nextExpression);
     placeCaret(nextExpression.length);
     setTargetUnit(nextUnit ?? "");
@@ -1504,7 +1514,7 @@ export default function CalculatorScreen() {
     markUserInteraction();
     // restoreHistoryと同じ理由で、通常の式を読み込む前に進数入力モードを解除する。
     setBaseInputMode(null);
-    setPaletteGroupId(null);
+    resetPalette();
     const sampleTargetUnit = targetUnitForSample(sample);
     setExpression(sample.expression);
     placeCaret(sample.expression.length);
@@ -1520,7 +1530,7 @@ export default function CalculatorScreen() {
   const applyQuickStart = (nextExpression: string) => {
     markUserInteraction();
     setBaseInputMode(null);
-    setPaletteGroupId(null);
+    resetPalette();
     setExpression(nextExpression);
     placeCaret(nextExpression.length);
     setFixSelection(null);
@@ -1579,6 +1589,108 @@ export default function CalculatorScreen() {
       <Text numberOfLines={1} style={[styles.unitChipName, active && styles.unitChipNameActive]}>{suggestionLabel(suggestion)}</Text>
     </Pressable>
   );
+
+  /** レールを入力欄の直下へ移すか。OSのキーボードが画面の下半分を覆っている間だけ true。
+   *
+   * **Webは移さない。** あちらは式をタップした時点で隠しTextInputへフォーカスが移る
+   * （物理キーボードで打つにはフォーカスが要るのでそうしている）ため、isKeyboardInputActive は
+   * タップのたびに true になる。同じ条件で移すと、式に触るたびにレールが画面の上下へ飛び回る。
+   * そもそもWebに軟キーボードは無く、レールが隠れることもないので移す理由が無い。 */
+  const isRailNearInput = Platform.OS !== "web" && isKeyboardInputActive;
+
+  /** 単位パレット（カテゴリチップ＋単位の候補レール）。**置き場所は2通りあるが描くのは必ず1箇所**
+   * （2箇所に出すと、どちらのチップを押したかで挿入位置の基準が変わったように見える）。
+   *
+   * そもそもこの行があるのは、Androidでは式の入力欄をタップしてもOSのキーボードが上がらず、
+   * 単位を「打って探す」経路が実質使えないため。虫眼鏡の検索パネルをやめて、カテゴリ → 単位の
+   * 2タップで必ず入れられるこの行に一本化してある。
+   *
+   * 既定の置き場所はキーパッドの直上。数字 → 接頭語 → 単位 → 演算子という打鍵が画面の下半分で
+   * 完結し、1項ごとに親指を画面上部のレールまで往復させずに済む。
+   * カテゴリの一覧は常時出さず、レール先頭のチップ（今のカテゴリ＋押したときに何が起きるかの
+   * 2段表示）から開く。常時出すと1行ぶんを結果カードから奪い続けるのに、触るのは一瞬だけ。
+   *
+   * 進数入力中は行ごと出さない。FFのような生の桁を式として解析するので「使えない単位」の
+   * 赤い警告や見当違いの候補が並ぶ。
+   *
+   * **この中の onPress で markUserInteraction() を呼ばないこと。** ここは render 中に呼ばれる
+   * 関数なので、refに触る関数が中から辿れると react-hooks/refs が「render中のref参照」として
+   * 誤検知する（renderUnitChip と同じ事情）。カテゴリの開閉・選択は式を変えないので、
+   * 起動時の履歴復元を止める必要も無い。 */
+  const renderUnitRail = (atBottom: boolean) => {
+    if (baseInputMode !== null) return null;
+    // 点灯・表示は paletteGroupId ではなく解決後の paletteGroup を見る。上級モードを切って
+    // 選択中のカテゴリが一覧から消えると候補の並びに戻るので、idだけ見ていると実際の中身と
+    // 食い違う（どのチップも点いていない・消えたカテゴリ名が出たまま）。
+    const categoryLabel = paletteGroup ? unitGroupLabel(paletteGroup.id) : copy.paletteAuto;
+    return (
+      <View style={[styles.unitRailBlock, atBottom && styles.unitRailBlockBottom]}>
+        {isPaletteExpanded ? (
+          // カテゴリ一覧。先頭の「候補」はカテゴリではなく従来の文脈依存の並び（キャレット位置から
+          // 推測した候補）。選んだ時点で閉じる——単位そのものは下のレールから選ぶので、
+          // 開いたままにしておく理由が無い。
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.paletteRail} keyboardShouldPersistTaps="handled">
+            <Pressable
+              accessibilityState={{ selected: !paletteGroup }}
+              onPress={() => resetPalette()}
+              style={({ pressed }) => [styles.categoryChipSmall, !paletteGroup && styles.categoryChipActive, pressed && styles.pressed]}
+            >
+              <Text style={[styles.categoryChipText, !paletteGroup && styles.categoryChipTextActive]}>{copy.paletteAuto}</Text>
+            </Pressable>
+            {visibleInputGroups.map((group) => (
+              <Pressable
+                accessibilityState={{ selected: paletteGroup?.id === group.id }}
+                key={group.id}
+                onPress={() => { setPaletteGroupId(group.id); setIsPaletteExpanded(false); }}
+                style={({ pressed }) => [styles.categoryChipSmall, paletteGroup?.id === group.id && styles.categoryChipActive, pressed && styles.pressed]}
+              >
+                <Text style={[styles.categoryChipText, paletteGroup?.id === group.id && styles.categoryChipTextActive]}>{unitGroupLabel(group.id)}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : null}
+
+        <View style={styles.hintRow}>
+          {/* レール先頭のカテゴリチップ。上段は今のカテゴリ、下段は旧・hintLabel（押したときに
+              起きること＝修正・単位付け・差し替えの区別。カテゴリを選んでも変わらない）。
+              2つを1枚にまとめたのは、レールの左に固定幅のラベルとカテゴリ行の両方を置くと
+              候補を並べる幅が足りなくなるため。 */}
+          <Pressable
+            accessibilityLabel={`${categoryLabel}, ${hintLabel}`}
+            accessibilityState={{ expanded: isPaletteExpanded }}
+            onPress={() => setIsPaletteExpanded((current) => !current)}
+            style={({ pressed }) => [styles.paletteToggle, isPaletteExpanded && styles.paletteToggleActive, pressed && styles.pressed]}
+          >
+            <View style={styles.paletteToggleLabels}>
+              <Text numberOfLines={1} style={styles.paletteToggleTitle}>{categoryLabel}</Text>
+              <Text numberOfLines={1} style={[styles.paletteToggleHint, paletteTarget.kind === "fix" && styles.hintLabelAlert]}>{hintLabel}</Text>
+            </View>
+            <IconSymbol name={isPaletteExpanded ? "chevron.up" : "chevron.down"} size={12} color={colors.muted} />
+          </Pressable>
+          {railCandidates.length ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hintRail} keyboardShouldPersistTaps="handled">
+              {railCandidates.map((suggestion) => renderUnitChip(suggestion, () => applyUnitCandidate(suggestion.unit.symbol)))}
+            </ScrollView>
+          ) : (
+            <Text style={styles.hintEmpty}>{copy.noCandidates}</Text>
+          )}
+          {/* 進数入力の入口。横スクロールするレールの隣に置くので、使わない人には縦幅を増やさない。
+              式が空か10進の整数のときだけ押せる（途中式からは基数を読み替えようが無いため）。
+              単位まわりのボタン（primary色の角丸四角）と同じ見た目にすると「単位検索の仲間」に
+              見えてしまうため、進数チップ（DEC/BIN/OCT/HEX）と同じwarning系の丸ピルにして、
+              レールの一番右＝単位の導線の外側に置いている。 */}
+          <Pressable
+            accessibilityLabel={copy.baseInput}
+            disabled={!canStartBaseInput}
+            onPress={toggleBaseInput}
+            style={({ pressed }) => [styles.baseEntryButton, !canStartBaseInput && styles.keyDisabled, pressed && styles.pressed]}
+          >
+            <Text style={styles.baseEntryText}>0x</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  };
 
   // 結果カードの基数チップ列（表示専用）。押しても入力欄は変わらず、大きい数値の読み方だけが変わる。
   // ハイライトは常に「いま表示している基数」を指す。入力中の基数は別のバーが持つので、
@@ -1782,7 +1894,7 @@ export default function CalculatorScreen() {
                 // OSのキーボード・貼り付けで演算子を入れたときも、キーパッドと同じようにパレットを
                 // 「候補」へ戻す。キャレットは onSelectionChange が別に届くので、ここでは
                 // 打ち込まれた文字（古い式との差分）の末尾だけを見る。
-                if (shouldResetPaletteForKey(insertedTail(expression, text).slice(-1))) setPaletteGroupId(null);
+                if (shouldResetPaletteForKey(insertedTail(expression, text).slice(-1))) resetPalette();
                 setFixSelection(null);
                 // OSのキーボードから打った時点で「接頭語キーを押した直後」ではなくなる。
                 setPrefixEntry(null);
@@ -1838,64 +1950,10 @@ export default function CalculatorScreen() {
             </View>
           ) : null}
 
-          {/* 進数入力中は単位の候補レールごと出さない。FFのような生の桁を式として解析するので、
-              「使えない単位」の赤い警告や見当違いの単位候補が並んでしまうため。 */}
-          {/* 単位パレットのカテゴリ行。Androidでは式の入力欄をタップしてもOSのキーボードが
-              上がらないため、単位を「打って探す」経路は実質使えない。虫眼鏡の検索パネルをやめて、
-              カテゴリ → 単位の2タップで必ず入れられるこの行に一本化した。
-              先頭の「候補」はカテゴリではなく従来の文脈依存の並び（キャレット位置から推測した候補）。 */}
-          {baseInputMode === null ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.paletteRail} keyboardShouldPersistTaps="handled">
-            <Pressable
-              // 点灯は paletteGroupId ではなく解決後の paletteGroup を見る。上級モードを切って
-              // 選択中のカテゴリが一覧から消えると候補の並びに戻るので、idだけ見ているとどのチップも
-              // 点いていない状態になる。
-              accessibilityState={{ selected: !paletteGroup }}
-              onPress={() => setPaletteGroupId(null)}
-              style={({ pressed }) => [styles.categoryChipSmall, !paletteGroup && styles.categoryChipActive, pressed && styles.pressed]}
-            >
-              <Text style={[styles.categoryChipText, !paletteGroup && styles.categoryChipTextActive]}>{copy.paletteAuto}</Text>
-            </Pressable>
-            {visibleInputGroups.map((group) => (
-              <Pressable
-                accessibilityState={{ selected: paletteGroup?.id === group.id }}
-                key={group.id}
-                onPress={() => setPaletteGroupId(group.id)}
-                style={({ pressed }) => [styles.categoryChipSmall, paletteGroup?.id === group.id && styles.categoryChipActive, pressed && styles.pressed]}
-              >
-                <Text style={[styles.categoryChipText, paletteGroup?.id === group.id && styles.categoryChipTextActive]}>{unitGroupLabel(group.id)}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-          ) : null}
-
-          {baseInputMode === null ? (
-          <View style={styles.hintRow}>
-            {/* ラベルはカテゴリを選んでいるときもそのまま（押したときに何が起きるか＝修正・単位付け・
-                差し替えの区別は、カテゴリを選んでも変わらない）。 */}
-            <Text numberOfLines={1} style={[styles.hintLabel, paletteTarget.kind === "fix" && styles.hintLabelAlert]}>{hintLabel}</Text>
-            {railCandidates.length ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hintRail} keyboardShouldPersistTaps="handled">
-                {railCandidates.map((suggestion) => renderUnitChip(suggestion, () => applyUnitCandidate(suggestion.unit.symbol)))}
-              </ScrollView>
-            ) : (
-              <Text style={styles.hintEmpty}>{copy.noCandidates}</Text>
-            )}
-            {/* 進数入力の入口。横スクロールするレールの隣に置くので、使わない人には縦幅を増やさない。
-                式が空か10進の整数のときだけ押せる（途中式からは基数を読み替えようが無いため）。
-                単位まわりのボタン（primary色の角丸四角）と同じ見た目にすると「単位検索の仲間」に
-                見えてしまうため、進数チップ（DEC/BIN/OCT/HEX）と同じwarning系の丸ピルにして、
-                レールの一番右＝単位の導線の外側に置いている。 */}
-            <Pressable
-              accessibilityLabel={copy.baseInput}
-              disabled={!canStartBaseInput}
-              onPress={toggleBaseInput}
-              style={({ pressed }) => [styles.baseEntryButton, !canStartBaseInput && styles.keyDisabled, pressed && styles.pressed]}
-            >
-              <Text style={styles.baseEntryText}>0x</Text>
-            </Pressable>
-          </View>
-          ) : null}
+          {/* OSのキーボードを出している間だけ、単位レールを入力欄の直下へ持ってくる（既定の
+              置き場所はキーパッドの直上）。軟キーボードが画面の下半分を覆うので、打った
+              `5mpa` の修正候補が下にあっても見えないため。 */}
+          {isRailNearInput ? renderUnitRail(false) : null}
 
         </View>
 
@@ -2203,6 +2261,11 @@ export default function CalculatorScreen() {
           ) : null}
         </View>
 
+        {/* 単位レールの既定の置き場所。キーパッドの直上に置くことで、数字・接頭語・単位・演算子の
+            打鍵が画面の下半分で完結する（以前は画面上部にあり、1項ごとに親指を往復させていた）。
+            OSのキーボードを出している間だけ入力欄の直下へ移る（renderUnitRail の注記を参照）。 */}
+        {isRailNearInput ? null : renderUnitRail(true)}
+
         {baseInputMode === 16 ? (
           // 16進の入力モード中だけ、キーパッド本体の配置は変えずに直上へA〜Fの行を足す。
           <View style={styles.hexKeyRow}>
@@ -2442,9 +2505,19 @@ const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => St
   calculateText: { color: colors.onPrimary, fontFamily: mono, fontSize: 20, fontWeight: "800" },
 
   hintRow: { alignItems: "center", flexDirection: "row", gap: 7 },
-  hintLabel: { color: colors.muted, flexShrink: 0, fontSize: 10, fontWeight: "800", width: 58 },
   hintLabelAlert: { color: colors.error },
   hintRail: { alignItems: "center", gap: 6, paddingRight: 4 },
+  // カテゴリ一覧（開いているときだけ）と候補レールのまとまり。キーパッドの直上に置くときは
+  // 編集キー・接頭語キーの行と同じリズムで下に余白を取る。
+  unitRailBlock: { gap: 4 },
+  unitRailBlockBottom: { marginBottom: layout.keyRowGap - 2 },
+  // レール先頭のカテゴリチップ。幅を取りすぎると候補を並べる場所が無くなるので上限を切り、
+  // 上下2段とも1行に固定する（訳語が長い言語のカテゴリ名でレールが折れないように）。
+  paletteToggle: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderRadius: 12, flexDirection: "row", flexShrink: 0, gap: 2, maxWidth: 96, paddingHorizontal: 8, paddingVertical: 3 },
+  paletteToggleActive: { backgroundColor: colors.primarySurface },
+  paletteToggleLabels: { flexShrink: 1 },
+  paletteToggleTitle: { color: colors.text, fontSize: 11, fontWeight: "800" },
+  paletteToggleHint: { color: colors.muted, fontSize: 9, fontWeight: "700" },
   hintEmpty: { color: colors.muted, flex: 1, fontSize: 11 },
   // 単位パレットのカテゴリ行。レールのすぐ上に置くので、上下の余白は最小にする
   // （ここで増やしたぶんだけキーパッドがタブバーへ近づく）。

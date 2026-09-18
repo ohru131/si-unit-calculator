@@ -594,6 +594,10 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 
 ### 単位パレットの設計（`app/(tabs)/index.tsx` + `lib/unit-input.ts`）
 
+- **レール（候補チップの行）はキーパッドの直上、接頭語キー行の直下に置く（2026-09-18に移動）。** 以前は入力欄の直下にあり、数字（キーパッド）→接頭語（キーパッド直上）→単位（画面上部）→演算子（キーパッド）で親指が画面を往復していた。行数は変えず並べ替えただけなので `=` の位置は不変（360×640 で下端 546.5・タブバー 608、360×780 で 686.5・748）。**カテゴリ行は常設せず、レール先頭の2段チップ（上段＝「候補」またはカテゴリ名・下段＝旧 hintLabel の 要修正／確定／単位付け／単位を置換／単位挿入・右に chevron）から開閉する**（`isPaletteExpanded`）。開くとカテゴリ行が接頭語行とレールの間に出て、選ぶと閉じる。自動絞り込みを入れた後はカテゴリを手で選ぶ頻度が下がったので、常設の約33pxを `middle` へ返した（360×640 で `12V / 4.7kΩ` の結果値 `mA` が22pxはみ出して半分切れていたのが、+25px で完全に見えるようになった）。**パレットの解除は `resetPalette()`（`paletteGroupId` と展開状態を同時に戻す）に一本化**してあり、`setPaletteGroupId(null)` を直接呼ばないこと。
+  - **OSのキーボードを出している間（`isRailNearInput` = `Platform.OS !== "web" && isKeyboardInputActive`）だけ、同じレールを入力欄の直下に描く**（下のクラスタはソフトキーボードに隠れるが、キーボードで `5mpa` と打ったときの修正候補は見えていなければならない）。`renderUnitRail()` を2箇所のうち**必ず片方だけ**で呼ぶ。**Webは除外**——Webでは式のトークンをタップするたびに隠しTextInputへフォーカスが当たり `isKeyboardInputActive` が true になるので、条件に入れるとタップのたびにレールが上下へ飛ぶ（実測して確認）。**ネイティブでの移動先の描画は実機未検証。**
+  - `renderUnitRail` 内の onPress から `markUserInteraction()` を呼ばないこと（`react-hooks/refs` が4件増える。`renderUnitChip` と同じ誤検知）。`accessibilityState={{ expanded }}` は react-native-web では `aria-expanded` として出ない（ネイティブには渡る）。
+  - **提出素材（スクショ・デモ動画）はレールの位置が変わったぶん陳腐化している。** 撮影スクリプト自体はカテゴリチップの文言に依存していないので無修正で通るはずだが、撮り直しは別作業。
 - **レールの中身は `paletteGroupId` で切り替える。** `null`（「候補」チップ）なら従来どおり `getUnitInputHint` の文脈依存の候補、グループを選ぶと `getPaletteUnitSuggestions(group, prefix, ...)` がそのグループの単位を単位ピッカーと同じ並びで返す。**チップのタップは必ず `applyUnitCandidate` を通す**ので、修正・置換・単位付け・挿入の範囲の決め方は1箇所のまま。選択は端末に保存しない。**単位チップで挿入した直後は保持する**（同じカテゴリで `cm`→`mm` と差し替える流れを切らないため）が、**演算子・括弧・べき乗・数学関数のキーを押した時点で「候補」へ戻す**（`shouldResetPaletteForKey`。AC・`=`・履歴やサンプルで式を丸ごと差し替える経路も同じ）。以前は「挿入後も AC でも保持する」としていたが、一度カテゴリを選ぶと文脈依存の絞り込みが二度と戻らず、「`1m+` で長さが出なくなった」と報告された（2026-09-17）。OSのキーボードから演算子を打った場合は `onChangeText` で増えた文字の末尾を見て同じ判定をする。
 - **パレット選択中は `fix` の範囲をそのまま使ってはいけない。** `getUnitInputHint` は**式のどこにあっても最後の未対応単位**を `fix` として返す（`3 + 5mpa` でキャレットが `3` の直後でも `[5,8]`）。従来はレールがその単位の修正候補しか出さなかったので整合していたが、パレットは「このカテゴリの単位を**ここに**入れる」と読まれるので、そのまま使うと**キャレットと無関係な場所が書き換わる**（`3 + 5kPa`。レビューで検出）。`resolvePaletteTarget` がキャレットが `fix` の範囲外にあるときだけ `getUnitInsertionRange` と同じ内部関数でキャレット位置の範囲に差し替え、**ラベル（単位付け／単位挿入）と `applyUnitCandidate` の両方がその結果を読む**（片方だけ差し替えると表示と挿入位置がずれる）。
 - **接頭語キーはトグル**（`resolvePrefixKeyPress` / `resolveActivePrefix`）。同じキーで取り消し、別のキーで差し替え、有効中は点灯。判定は「式とキャレットが押した直後のままか」で、範囲選択中と進数入力中は無効。**無効になった記録は `placeCaret`・`⌫`・`onChangeText`・`onSelectionChange`（`prefixEntryStillValid`）で即座に捨てる**——判定だけに任せると、キャレットを離してから同じ位置へ戻したときに古い記録が復活し、次の接頭語キーが無関係な1文字を消す（CodeRabbitが#67で検出）。捨てた記録は戻らない。**`isBaseDigitAllowed("c", 16)` は true** なので、進数の桁フィルタに任せると HEX 中に `c` が接頭語として通る。純関数に切り出してあるのでテスト（`tests/unit-palette.test.ts`）で固定している。
@@ -630,6 +634,15 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - `npx vitest run` → **1022 passed / 2 failed**。失敗2件は従来どおり `tests/revenuecat.credentials.test.ts`（環境依存）。新規: `tests/unit-context-suggestions.test.ts`（28件）、`tests/unit-input.test.ts` に `companionCandidates`・`shouldResetPaletteForKey` の5件。
 - `npx expo lint` → **2エラー・0警告**（`app/(tabs)/index.tsx` の既存分のまま。effect内に `setPaletteGroupId(null)` を並べても件数は増えない）。
 - `npx expo export --platform web` が通る。Playwright（ja・400×780）で `12V/` のレールが `A W mA Ω`、`1m+` が長さだけ、長さカテゴリを選んで `÷` を押すと「候補」へ戻ることを確認済み。
+
+39. **[完了]** **単位レールをキーパッド直上へ移し、カテゴリ行をレール先頭のチップから開く形にした。** 利用者からの「単位チップが上にあるので数値・接頭語・単位を打つのに上下しないといけない」という指摘と添付の並び案を採用（詳細は上の「単位パレットの設計」）。行数は同じなので `=` は動かず、常設だったカテゴリ行の分だけ結果カードが広がった。OSキーボード表示中だけレールを入力欄直下に出す（Webは除外）。
+
+### 現在の基準値（2026-09-18時点、単位レールをキーパッド直上へ移した後）
+
+- `npx tsc --noEmit` → **`app/_layout.tsx` の `@/global.css` で1件のみ**（従来どおりの環境依存）。
+- `npx vitest run` → **1022 passed / 2 failed**（前回から変わらず。JSXの並べ替えなので新規テストなし）。
+- `npx expo lint` → **2エラー・0警告**（`app/(tabs)/index.tsx` の既存分のまま）。
+- `npx expo export --platform web` が通る。Playwright（ja・light）で `=` の下端／タブバー上端が 360×640＝546.5／608、360×780＝686.5／748（変更前と同値）。360×640 の `middle` は 101px → 126px、`12V / 4.7kΩ` の `mA` が完全に見える。チップのタップでカテゴリ行が開き、「長さ」で閉じてレールが長さの単位に、`÷` で「候補」へ戻ることを確認済み。独語のチップ（Vorschläge / Ersetzen）も 96px に収まる。
 
 ## 次にやりそうなこと（ユーザーから明示的な指示待ち）
 
