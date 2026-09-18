@@ -515,4 +515,19 @@ describe("指数と単位サフィックスの境界（CodeRabbitの提案で明
     // （`1/m²` は parseUnit では書けない——1因子あたり数字を受け付けないため）。
     expect(parseUnit("m⁻²").dimension).toEqual([-2, 0, 0, 0, 0, 0, 0]);
   });
+
+  it("単位の記号にカンマを含めない（レールの key の区切りに使っている）", () => {
+    // 電卓の単位レールと結果カードのチップ列は、候補の記号を `,` で連結した文字列を
+    // ScrollView の key にして「並びが変わったら横スクロール位置を捨てる」を実現している
+    // （app/(tabs)/index.tsx の railScrollKey）。記号に `,` が混ざると別の候補列が同じ key に
+    // 潰れて作り直されなくなり、**Androidで範囲外に残ったオフセットのままレールが空に見える**
+    // 不具合が戻る。エラーにはならず「たまに候補が消える」形でしか出ないので、ここで固定する。
+    const offenders: string[] = [];
+    UNIT_GROUPS.forEach((group) => {
+      group.units.forEach((unitOption) => {
+        if (unitOption.symbol.includes(",")) offenders.push(`${group.id}:${unitOption.symbol}`);
+      });
+    });
+    expect(offenders).toEqual([]);
+  });
 });
