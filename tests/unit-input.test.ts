@@ -595,6 +595,10 @@ describe("入力欄の書き換えで新しく入った文字", () => {
     expect(shouldResetPaletteForInput("12", "12+")).toBe(true);
     expect(shouldResetPaletteForInput("3+5m", "3++")).toBe(true);
     expect(shouldResetPaletteForInput("1", "1×10^")).toBe(true);
+    // OSのキーボードから打った `=`（定数定義 `W = 3cm` の区切り）。キーパッドの = は
+    // submitCalculation が解除するが、この経路はそこを通らない。
+    expect(shouldResetPaletteForInput("W", "W=")).toBe(true);
+    expect(shouldResetPaletteForKey("=")).toBe(true);
     // 数字・単位の綴りだけなら解除しない（同じ項を書いている途中）。
     expect(shouldResetPaletteForInput("12", "123")).toBe(false);
     expect(shouldResetPaletteForInput("1", "1km")).toBe(false);
