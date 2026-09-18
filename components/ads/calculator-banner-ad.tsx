@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { memo, useCallback, useRef } from "react";
 import { View } from "react-native";
 import type { PaidEvent } from "react-native-google-mobile-ads";
 import { BannerAd, BannerAdSize, TestIds } from "react-native-google-mobile-ads";
@@ -25,7 +25,13 @@ const BANNER_UNIT_ID = PRODUCTION_BANNER_UNIT_ID || TestIds.BANNER;
  * 広告イベントはRevenueCat Ads（β）へも転送し、サブスク収益と広告収益をダッシュボード上で
  * まとめて確認できるようにする。
  */
-export function CalculatorBannerAd() {
+/**
+ * **`memo` で包む理由。** この中身は親（電卓画面）の状態に一切依存していないのに、式を1文字
+ * 打つたびに親が再レンダーされて一緒に作り直されていた。広告のネイティブビューを持つぶん
+ * 1回あたりの費用が大きい（実機のReact Profilerで10.6ms）。propsを取らないので、
+ * `memo` を掛ければ親の再レンダーでは呼ばれなくなる（中で見ている `useAds` が変わったときだけ動く）。
+ */
+export const CalculatorBannerAd = memo(function CalculatorBannerAd() {
   const { isAdsPlatformAvailable, isReady, adFree, canRequestAds } = useAds();
   // 読み込みが成功するたびに新しいimpressionIdへ更新し、以降のopened/paidイベントに
   // 同じIDを使うことでRevenueCat側が同一インプレッションとして関連付けられるようにする。
@@ -67,4 +73,4 @@ export function CalculatorBannerAd() {
       />
     </View>
   );
-}
+});
