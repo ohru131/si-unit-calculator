@@ -856,7 +856,7 @@ export default function CalculatorScreen() {
 
   // **並びが変わったらレールの横スクロールを先頭へ戻すための key。**
   // Androidの ScrollView は内容が縮んでも contentOffset をクランプしないので、候補の多い
-  // カテゴリ（長さは12件）で右までスクロールしたあと候補の少ないカテゴリ（電圧は V/mV/kV の
+  // カテゴリ（長さは11件）で右までスクロールしたあと候補の少ないカテゴリ（電圧は V/mV/kV の
   // 3件）へ切り替えると、範囲外に残ったオフセットのせいで**レールが空に見える**。しかも
   // スクロールできる範囲が0なので指で戻せず、カテゴリを変えるかアプリを再起動するまで
   // 単位を1つも選べない状態で詰まる（実機で踏んだ）。
@@ -1676,12 +1676,13 @@ export default function CalculatorScreen() {
           {railCandidates.length ? (
             // key は候補の記号列（railScrollKey の注記を参照）。候補が入れ替わったときだけ
             // ScrollView を作り直して、範囲外に残った横スクロール位置を捨てる。
-            // atBottom を混ぜているのは、キーボードの開閉でレールの置き場所が入れ替わるときに
-            // 上下のScrollViewが同じkeyで再利用されてオフセットを引き継がないようにするため。
+            // atBottom は混ぜない。キーボードの開閉でレールの置き場所が入れ替わっても、
+            // 上下の呼び出しは別の親（入力欄ブロックの子と画面ルート直下の兄弟）なので
+            // Reactがこの2つを相互に再利用することはなく、片方は必ずアンマウントされる。
             <ScrollView
               contentContainerStyle={styles.hintRail}
               horizontal
-              key={`${atBottom ? "bottom" : "top"}:${railScrollKey}`}
+              key={railScrollKey}
               keyboardShouldPersistTaps="handled"
               showsHorizontalScrollIndicator={false}
             >
@@ -2074,7 +2075,13 @@ export default function CalculatorScreen() {
                       （例 cm）を光らせたままにすると、値がm/sなのにcmが選ばれているように見えて
                       食い違う。フォールバック中はSIチップの方を点灯させる。 */}
                   <View style={styles.conversionRow}>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.conversionRail} keyboardShouldPersistTaps="handled">
+                    {/* key は候補の記号列。単位レールと同じ理由で、並びが変わったら
+                        ScrollView を作り直して範囲外に残った横スクロール位置を捨てる
+                        （railScrollKey の注記を参照）。ここは長さ（11件）で右端まで
+                        スクロールしたあと電圧（3件）の結果に変えると、チップ列が空に
+                        見えて表示単位を選ぶ主導線が消える。SIチップは常に先頭で固定なので
+                        conversionUnits だけを key にすれば足りる。 */}
+                    <ScrollView contentContainerStyle={styles.conversionRail} horizontal key={conversionUnits.join(",")} keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false}>
                       <Pressable accessibilityLabel={copy.noUnit} onPress={() => { markUserInteraction(); applyTargetUnit(""); }} style={({ pressed }) => [styles.convertChip, siChipActive && styles.convertChipActive, pressed && styles.pressed]}>
                         <Text style={[styles.convertChipText, siChipActive && styles.convertChipTextActive]}>SI</Text>
                       </Pressable>
