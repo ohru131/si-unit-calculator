@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { NOTEBOOK_KEYPAD_COLUMNS, NOTEBOOK_KEYPAD_FUNCTIONS, NOTEBOOK_KEYPAD_KEYS, backspaceInField, insertKeypadText } from "@/lib/notebook-keypad";
+import { MATH_FUNCTION_KEYS } from "@/lib/math-functions";
+import { NOTEBOOK_KEYPAD_COLUMNS, NOTEBOOK_KEYPAD_KEYS, backspaceInField, insertKeypadText } from "@/lib/notebook-keypad";
 import { evaluateExpression } from "@/lib/units";
 
 describe("NOTEBOOK_KEYPAD_KEYS", () => {
@@ -21,18 +22,18 @@ describe("NOTEBOOK_KEYPAD_KEYS", () => {
   });
 });
 
-describe("NOTEBOOK_KEYPAD_FUNCTIONS", () => {
+describe("MATH_FUNCTION_KEYS", () => {
   it("lists functions with their opening paren and the two constants", () => {
-    const functions = NOTEBOOK_KEYPAD_FUNCTIONS.filter((item) => item.endsWith("("));
+    const functions = MATH_FUNCTION_KEYS.filter((item) => item.endsWith("("));
     expect(functions).toContain("sqrt(");
     expect(functions).toContain("sin(");
-    expect(NOTEBOOK_KEYPAD_FUNCTIONS).toContain("π");
-    expect(NOTEBOOK_KEYPAD_FUNCTIONS).toContain("e");
-    expect(NOTEBOOK_KEYPAD_FUNCTIONS).not.toContain("^");
+    expect(MATH_FUNCTION_KEYS).toContain("π");
+    expect(MATH_FUNCTION_KEYS).toContain("e");
+    expect(MATH_FUNCTION_KEYS).not.toContain("^");
   });
 
   it("every entry evaluates in the unit engine once an argument is supplied", () => {
-    for (const item of NOTEBOOK_KEYPAD_FUNCTIONS) {
+    for (const item of MATH_FUNCTION_KEYS) {
       const expression = item.endsWith("(") ? (item === "atan2(" ? "atan2(1, 2)" : `${item}0.5)`) : item;
       expect(() => evaluateExpression(expression), expression).not.toThrow();
     }

@@ -1,10 +1,11 @@
 import { memo, useMemo, useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { MathFunctionRail } from "@/components/ui/math-function-rail";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
-import { NOTEBOOK_KEYPAD_ACCENT_LABELS, NOTEBOOK_KEYPAD_COLUMNS, NOTEBOOK_KEYPAD_FUNCTIONS, NOTEBOOK_KEYPAD_KEYS } from "@/lib/notebook-keypad";
+import { NOTEBOOK_KEYPAD_ACCENT_LABELS, NOTEBOOK_KEYPAD_COLUMNS, NOTEBOOK_KEYPAD_KEYS } from "@/lib/notebook-keypad";
 
 const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" });
 // 電卓の keyCell と同じ余白・同じ hitSlop。余白は外側の View に付くので、Pressable 自身の
@@ -73,15 +74,7 @@ export const NotebookKeypad = memo(function NotebookKeypad({ fieldLabel, isOsKey
           </Pressable>
         </View>
       </View>
-      {isOsKeyboardActive || !isFunctionRailOpen ? null : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.functionRail}>
-          {NOTEBOOK_KEYPAD_FUNCTIONS.map((item) => (
-            <Pressable key={item} accessibilityRole="button" hitSlop={4} onPress={() => onInsert(item)} style={({ pressed }) => [styles.functionChip, pressed && styles.pressed]}>
-              <Text style={styles.functionChipText}>{item}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      )}
+      {isOsKeyboardActive || !isFunctionRailOpen ? null : <MathFunctionRail onInsert={onInsert} style={styles.functionRail} />}
       {isOsKeyboardActive ? null : (
         <View style={styles.keypad}>
           {NOTEBOOK_KEYPAD_KEYS.map((key) => {
@@ -119,9 +112,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   topBarButtonActive: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
   topBarButtonText: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },
   topBarButtonTextActive: { color: colors.onPrimary },
-  functionRail: { gap: 6, paddingBottom: 6, paddingTop: 2 },
-  functionChip: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 6 },
-  functionChipText: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },
+  functionRail: { marginBottom: 6, marginTop: 2 },
   keypad: { flexDirection: "row", flexWrap: "wrap", marginHorizontal: -KEY_CELL_PADDING },
   keyCell: { padding: KEY_CELL_PADDING, width: `${100 / NOTEBOOK_KEYPAD_COLUMNS}%` },
   key: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 12, borderWidth: 1, height: KEY_HEIGHT, justifyContent: "center" },
