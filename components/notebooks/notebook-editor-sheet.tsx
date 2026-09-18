@@ -635,7 +635,7 @@ export function NotebookEditorSheet({
                   placeholderTextColor={colors.placeholder}
                   autoCapitalize="none"
                   autoCorrect={false}
-                  style={styles.stepInput}
+                  style={[styles.stepInput, styles.stepFieldBelow]}
                 />
                 {formula.latex ? (
                   <View style={styles.latexPreview}>
@@ -668,7 +668,7 @@ export function NotebookEditorSheet({
                       placeholderTextColor={colors.placeholder}
                       autoCapitalize="none"
                       autoCorrect={false}
-                      style={styles.stepInput}
+                      style={[styles.stepInput, styles.stepHeaderInput]}
                     />
                     <Pressable onPress={() => setNotebookLocalConstants((current) => current.filter((entry) => entry.id !== item.id))}><Text style={styles.removeStepText}>{copy.removeRow}</Text></Pressable>
                   </View>
@@ -714,7 +714,7 @@ export function NotebookEditorSheet({
                     placeholderTextColor={colors.placeholder}
                     autoCapitalize="none"
                     autoCorrect={false}
-                    style={styles.stepInput}
+                    style={[styles.stepInput, styles.stepHeaderInput]}
                   />
                   <Pressable onPress={() => setNotebookSteps((current) => current.filter((entry) => entry.id !== step.id))}><Text style={styles.removeStepText}>{copy.removeRow}</Text></Pressable>
                 </View>
@@ -736,8 +736,8 @@ export function NotebookEditorSheet({
                   (symbol) => insertUnitIntoField(railKey, step.resultSymbol ?? "", step.expression, symbol, stepFieldIdentifiers, (nextExpression) => updateStep(step.id, { expression: nextExpression })),
                 )}
                 <Text style={styles.fieldSubLabel}>{copy.resultTitleLabel}</Text>
-                <TextInput value={step.title} onChangeText={(text) => updateStep(step.id, { title: text })} placeholder={copy.resultTitlePlaceholder} placeholderTextColor={colors.placeholder} style={styles.stepInput} />
-                <TextInput value={step.targetUnit} onChangeText={(text) => updateStep(step.id, { targetUnit: text })} placeholder={copy.outputUnitLabel} placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.stepInput} />
+                <TextInput value={step.title} onChangeText={(text) => updateStep(step.id, { title: text })} placeholder={copy.resultTitlePlaceholder} placeholderTextColor={colors.placeholder} style={[styles.stepInput, styles.stepFieldBelow]} />
+                <TextInput value={step.targetUnit} onChangeText={(text) => updateStep(step.id, { targetUnit: text })} placeholder={copy.outputUnitLabel} placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={[styles.stepInput, styles.stepFieldBelow]} />
               </View>
               );
             })}
@@ -777,9 +777,14 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   inlineCategoryInput: { flex: 1, minHeight: 44 },
   inlineCategoryButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 10, justifyContent: "center", paddingHorizontal: 16 },
   inlineCategoryButtonText: { color: colors.onPrimary, fontSize: 13, fontWeight: "800" },
-  stepCard: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 13, borderWidth: 1, marginTop: 8, padding: 11 }, stepHeader: { alignItems: "center", flexDirection: "row", gap: 8, justifyContent: "space-between" }, removeStepText: { color: colors.error, fontSize: 12, fontWeight: "700" }, stepInput: { borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth, color: colors.foreground, fontFamily: mono, fontSize: 14, minHeight: 38, paddingHorizontal: 0 }, addStepButton: { alignItems: "center", borderColor: colors.primaryBorder, borderRadius: 11, borderStyle: "dashed", borderWidth: 1, marginTop: 10, paddingVertical: 11 }, addStepText: { color: colors.primary, fontSize: 13, fontWeight: "800" },
+  stepCard: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 13, borderWidth: 1, marginTop: 8, padding: 11 }, stepHeader: { alignItems: "center", flexDirection: "row", gap: 8, justifyContent: "space-between" }, removeStepText: { color: colors.error, fontSize: 12, fontWeight: "700" }, stepInput: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 10, borderWidth: 1, color: colors.foreground, fontFamily: mono, fontSize: 14, minHeight: 42, paddingHorizontal: 12 },
+  // 見出し行（削除ボタンと同じ行）に置く欄。**`flex: 1` が無いと TextInput の幅がプレースホルダの
+  // 文字幅で止まり、行の余白をタップしても何も起きない**（実機で「左の薄い文字を押すとやっと
+  // キーボードが出た」と報告された）。欄そのものも下線だけでは入力欄と分からないので枠付きの箱にする。
+  stepHeaderInput: { flex: 1 },
+  stepFieldBelow: { marginTop: 6 }, addStepButton: { alignItems: "center", borderColor: colors.primaryBorder, borderRadius: 11, borderStyle: "dashed", borderWidth: 1, marginTop: 10, paddingVertical: 11 }, addStepText: { color: colors.primary, fontSize: 13, fontWeight: "800" },
   latexPreview: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 10, borderWidth: 1, marginTop: 8, padding: 10 },
-  formulaExplanationInput: { borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth, color: colors.foreground, flex: 1, fontSize: 14, lineHeight: 19, minHeight: 38, paddingHorizontal: 0, paddingVertical: 6, textAlignVertical: "top" },
+  formulaExplanationInput: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 10, borderWidth: 1, color: colors.foreground, flex: 1, fontSize: 14, lineHeight: 19, minHeight: 42, paddingHorizontal: 12, paddingVertical: 6, textAlignVertical: "top" },
   fieldSubLabel: { color: colors.muted, fontSize: 11, fontWeight: "700", marginTop: 9 },
   // 記号ボタン列（ギリシャ文字・下付き文字・定義済み変数）。横スクロール1行に収め、モーダルが縦に伸びすぎないようにする。
   railLabel: { color: colors.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.3, marginTop: 8, textTransform: "uppercase" },
