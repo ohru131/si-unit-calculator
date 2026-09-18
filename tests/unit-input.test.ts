@@ -6,6 +6,7 @@ import {
   getSameDimensionUnitSuggestions,
   getUnitInputHint,
   getUnitInsertionRange,
+  hasDivisionOperator,
   getUnitSuggestions,
   getPrefixedUnitSuggestions,
   getUnitGroupSuggestions,
@@ -620,5 +621,29 @@ describe("単位パレットのカテゴリ選択を解除するキー", () => {
     // 数字・小数点・削除・全消し・上付き・接頭語キー・定数記号。ここで解除すると、選んだ
     // カテゴリが1文字打つたびに消えて選び直しになる。
     ["0", "7", ".", "⌫", "AC", "²", "³", "k", "M", "µ", "m", "π", "e", ""].forEach((key) => expect(shouldResetPaletteForKey(key), key).toBe(false));
+  });
+});
+
+describe("hasDivisionOperator", () => {
+  const segmentsOf = (expression: string) => analyzeExpression(expression).segments;
+
+  it("割り算の演算子があれば true（キーパッドの ÷ と OSキーボードの / の両方）", () => {
+    expect(hasDivisionOperator(segmentsOf("1/5"))).toBe(true);
+    expect(hasDivisionOperator(segmentsOf("1 ÷ 5"))).toBe(true);
+    expect(hasDivisionOperator(segmentsOf("12V / 4.7kΩ"))).toBe(true);
+  });
+
+  it("単位の中の / は割り算として数えない", () => {
+    // `0.25m/s` の `/` は複合単位の一部。ここを true にすると、割り算を打っていない式まで
+    // 「分数が見たい」と判定して結果カードに分数チップが出る。
+    expect(hasDivisionOperator(segmentsOf("0.25m/s"))).toBe(false);
+    expect(hasDivisionOperator(segmentsOf("3m/s^2"))).toBe(false);
+    expect(hasDivisionOperator(segmentsOf("15km/L"))).toBe(false);
+  });
+
+  it("割り算が無い式は false", () => {
+    expect(hasDivisionOperator(segmentsOf("5cm + 1mm"))).toBe(false);
+    expect(hasDivisionOperator(segmentsOf("2kg * 9.8m/s^2"))).toBe(false);
+    expect(hasDivisionOperator(segmentsOf(""))).toBe(false);
   });
 });

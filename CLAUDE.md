@@ -126,6 +126,8 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - **拡大率に上限（`CALCULATOR_MAX_FONT_SCALE` = 1.2）を掛ける。** 実装は「Textに `maxFontSizeMultiplier` を配る」ではなく、**`StyleSheet.create` に渡す定義の `fontSize`・`lineHeight` を `min(1, cap/fontScale)` 倍する**（`scaleFontSizes`）。端末側が自動で拡大するので掛け合わせて上限になる。**React 19 では `Text.defaultProps` が効かない**うえ、propを配る方式は新しいTextを足すたびに渡し忘れる。
   - **拡大を完全に無効（`allowFontScaling={false}`）にはしない。** 1.2倍までは端末の設定に従う——「大きめ」にしている人が読めなくなる方が損失が大きい。
   - **足りないぶんは高さで詰める。** 段階は REGULAR / COMPACT / DENSE / ULTRA の4つで、キーの高さ（42→38→34→30）・編集キー行・行間・`middle` の下限を同時に下げる。選ぶ物差しは**実効の高さ**＝`画面の高さ ÷ min(fontScale, 1.2)`（文字が1.2倍なら必要な縦も概ね1.2倍なので、フォント拡大と画面の低さを1つの数で扱える）。閾値は 640 / 560 / 480。**640は現状の基準端末（360×640）なので、そこは1pxも詰めない。**
+  - **キーの当たり判定はセル全体に広げる**（`hitSlop={KEY_CELL_PADDING}`）。`keyCell` の padding 3dp は外側の View に付いていて、キー本体（Pressable）は `layout.keyHeight` ちょうどの矩形しか持たない。**RNの当たり判定は Pressable 自身の矩形なので、この余白はどこにも効かない死に領域になる**——隣り合うキーの間に両側ぶん6dpの穴が空き、継ぎ目に指が落ちると何も起きない。さらに `=` の当たり判定が42dp（Materialの最小48dpを下回る）になり、狙いが下へ逸れるとタブバーの「設定」に当たって画面ごと切り替わっていた（実機で報告された）。**hitSlop は親（セル）の矩形までしか届かない**ので、値は `KEY_CELL_PADDING` と必ず一致させること。
+  - **キーパッド下段とタブバーの間は `layout.screenPaddingBottom` で空ける。** 実測（432×984dp・密度2.5）で `=` の下端 865.2dp に対しタブバーの上端が 871.6dp と、**約1mm しか離れていなかった**（指の接地面は8〜10mm）。REGULAR 段階だけ 4→12dp にして 14.4dp を確保してある。**画面が低い段階では広げないこと**（キーがタブバーへ潜る方が損失が大きい、というこのファイルの既定の優先順）。
   - **`middle` に `overflow: "hidden"` が要る。** 下限まで縮んだとき、Webでは結果カードが枠からはみ出して編集キーの行に重なる（ネイティブは切り取られる）。
   - **サンプル行（`startRailWrap`）は `flexShrink: 0`。** 横スクロールのScrollViewは縦が足りないと潰れてボタンが半分に切れる。縮むのは `middle` だけに任せる。
   - 検証は `npx expo export --platform web` + Playwright でビューポートの高さを変えて行う（**Webでは `fontScale` が常に1**なので、拡大そのものは再現できない。段階の分岐は高さで、係数の計算は `tests/calculator-layout.test.ts` で固定している）。360×780/640/600/520/460 でキーパッド下段の `=` がタブバーより上にあることを確認済み。
@@ -204,6 +206,8 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - **分割しても元のセグメントを持ち回る。** 未対応単位をタップしたときに開く修正範囲は分割前のセグメント全体でなければならない（一片の範囲にすると単位の半分だけを差し替えることになる）。警告アイコンは最後の一片だけに出す（分割で2つ並ばないように）。
   - **`showSoftInputOnFocus={false}` は使っていない。** iOSのFabric実装（`RCTTextInputComponentView.mm` の `_setShowSoftInputOnFocus`）には `// Hides keyboard, but keeps blinking cursor.` とあり、**iOS/Androidとも「キーボードを出さずに本物のキャレットだけ出す」ことは実際に可能**。それでも採らなかったのは、**キーパッドに英字が無く、定数名（`W = 3cm`）や単位名の打ち込みにOSのキーボードが要る**ため。恒久的に塞ぐと文字入力ができなくなる。
   - **隠した `TextInput` にフォーカスを当てたときの実機の挙動は未検証。** この環境ではWebしか動かせない。iOS/Androidで「キーボードが上がる」「候補バーが出る」「フォーカス時に画面がスクロールしない」ことは実機で確かめること。
+  - **入力欄の文字は `EXPRESSION_FONT_SIZE`（21px）/ `EXPRESSION_LINE_HEIGHT`（26px）の2定数で持つ。6つのトークン種別とプレースホルダが同じ値を使い、キャレットの高さも `EXPRESSION_FONT_SIZE + 3` で導く。** 1箇所でもずれると同じ行で数値と単位のベースラインが食い違い、キャレットだけ高さが取り残される（19px時代はキャレットが固定値 22 だった）。**上げるときは 360×640 で `=` の下端を実測すること**——21pxでは `=` の下端 547・タブバー上端 573 で、式が2行に折り返しても（入力欄 62→72px）`middle` が吸収して `=` は動かないことを確認済み。
+  - **下から出るシート（`compactSheet`）は safe area の下端を自分で足す**（`SHEET_PADDING_BOTTOM + insets.bottom`）。Modal は `ScreenContainer` とタブバーのどちらの外にも出るので、固定の `paddingBottom` だけだと **Androidの3ボタンナビゲーションバーに最下段が潜る**（数学シートの π・e が半分隠れると実機で報告された。`navigation_mode 0` の端末で再現）。サンプル・履歴・単位ピッカーも同じスタイルなので一緒に直る。
   - **Playwrightで検証するときは `fill()` を使わないこと。** `fill()` は値だけ入れて選択範囲のイベントを飛ばさないので `selection` が初期値のまま残り、「キャレットが動かない」という**実装ではなくテストの誤り**を踏む（実際に踏んだ）。`pressSequentially()` で実際のキー入力にする。ただし**隠し `TextInput` でも `click()` + `fill()` は従来どおり値が入り、表示側のトークン列も更新される**（撮影スクリプトはこの形のまま動く）。
 - 結果の値をKaTeXで描くときは **`\mathsf` を掛ける**（`app/(tabs)/index.tsx` の `resultLatex`）。KaTeXの既定は Computer Modern（明朝＝セリフ体）なので、`小数` から `厳密値`・`10ⁿ` へ切り替えると同じ数値なのに数字の字体だけが変わって見えていた。
   - **`\mathsf` が変えるのは数字（mathord）だけで、記号は KaTeX が数式用の字体を保つ**（π は `mathnormal` のまま、√・×・≈ も変わらない）。**これは都合が良い**: 記号の字幅が元のままなので、分数の横棒・根号の伸縮といったKaTeXの寸法計算が崩れない。
@@ -222,6 +226,7 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - `components/ui/latex-view.tsx` / `.web.tsx` — KaTeXによる本物のLaTeX描画。ネイティブはWebView（`react-native-webview`）+ `postMessage`で高さ・幅の自動調整、Webは`katex.renderToString`を直接DOMに挿入。フォント込みのKaTeXアセットは `scripts/generate-katex-assets.mjs` で `lib/katex-assets.generated.ts` に事前生成・コミット済み（`pnpm katex:generate`で再生成可能。中身は自動生成なので手編集しない）。
   - **`latex` が変わってもWebViewを読み直さない。** `source` に渡すHTMLは初回の1回だけ組み立てて固定し（初期値関数付きの`useState`）、以降は `injectJavaScript` で `renderLatex()` を呼び直す。`source` を差し替えると646KBのKaTeXアセットを毎回読み直すことになり、電卓の結果のように**数式が1文字ごとに変わる画面では描画が追いつかない**。読み込み完了前の変更を取りこぼさないよう `onLoadEnd` でも同じ関数を呼ぶ。
   - `fitContent` を付けると数式の幅ぶんだけ場所を取る（右に単位ラベル等を並べたいとき）。幅は**折り返しを止めた（`white-space:nowrap`）うえで `#target` の `scrollWidth` を見る**。こうすると数式がビューポートより広くても狭くても内容幅そのものが取れる。**`document.body.scrollWidth` を混ぜないこと**（bodyはビューポート全幅なので、数式が短いと常にビューポート幅が返り、幅が永久に縮まらない。CodeRabbitが🟠Majorとして検出した）。実測できるまでは全幅で描く（最初から1pxにするとWebView内の描画自体が潰れて測り直しても正しい幅にならない）。
+  - **分数は分子のインクが要素の枠より上へ出る。ネイティブではそれが切れる。** `html,body{overflow:hidden}` の直下に `#target` を置いているので、はみ出したぶんはビューポートに切り取られる（実機で「分数の分子の上が切れる」と報告された。22pxの分数で実測2px、フォントを上げると 0.083em → 0.167em まで増える）。**この「上へのはみ出し」はどの測定にも現れない**——`scrollHeight` は下と右へのはみ出ししか数えず、`getBoundingClientRect` で子孫を総なめしても KaTeX が `top:-Xem` で積む内部spanを拾って実際の描画範囲とはまるで違う値になる（実際に踏んだ。**実測にはスクリーンショットの画素を見るしかない**——空白画像とのバイト比較で二分探索した）。なので測るのではなく、**`.frac-line`（KaTeXが分数の横棒に付けるクラス）があるときだけ `padding-top: 0.2em` を足す**。1段の形（√・π・10ⁿ）は枠に収まっているので足さない（足すとそのぶん結果カードが縦に伸びる）。**Webでは表に出ない**——`exactValueRowStacked` の `paddingVertical: 4` が吸収していたため。
   - `mathsfFontFamily` / `mathsfFontWeight` を渡すと、`\mathsf` で組んだ範囲だけを別のフォントで描ける（電卓の結果カードが小数表示と字体をそろえるために使う。詳細は上の `\mathsf` の項）。渡さなければKaTeX既定のまま。
   - **WebViewに`ref`を渡すと型が壊れる。** 宣言が `class WebView<P = undefined> extends Component<WebViewProps & P>` で、`WebViewProps & undefined` が `never` に潰れるため。`useRef<ComponentRef<typeof WebView>>(null)` にすると通る。
 - `lib/exact-value.ts` — 小数で出た結果を**分数・πの有理数倍・√の有理数倍**として言い当てる純関数（`findExactValue`）。電卓の結果カードで「小数 ⇔ 厳密値」を切り替えるために使う。
@@ -379,6 +384,7 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 ### 厳密値表示で判断したこと
 
 - **厳密値チップは「厳密な形が見つかったとき」だけ出す。** 常時出すと、押しても何も変わらないボタンが並ぶ。
+- **有限小数（`0.051` → `51/1000`）は言い換えになっていないのでチップごと出さない。ただし自分で割り算を打ったときは出す**（`isTerminatingDecimalFraction` と `hasDivisionOperator` の組み合わせ）。`1/5` と打った人にとって `0.2` しか出ないのは「分数が消えた」としか見えない（実機で報告された）。割り算を打つ＝分数の形を求めている、と読める。**判定は `analyzeExpression` の `operator` セグメントで行い、文字列から `/` を数えないこと**——`0.25m/s` の `/` は複合単位の一部で、利用者は割り算を打っていない。
 - **進数チップとは排他になる**（厳密な形が出るのは整数でない値だけ、進数表示は安全整数のときだけ）ので、両方が同時に光ることはない。
 - **単位はLaTeXの外にTextで並べる。** 単位記号には `²` や `°` や `µ` が混ざり、`\text{}` に入れると環境によって描けない文字が出る。
 - **`\displaystyle` を付けないと分数が本文サイズで小さく組まれる**（隣の小数表示より明らかに小さく見える）。`displayMode: true` の方は中央寄せと上下の余白が付いて結果カードの詰まった配置に合わないので使わない。

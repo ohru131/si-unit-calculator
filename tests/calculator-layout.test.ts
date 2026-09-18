@@ -25,9 +25,11 @@ describe("resolveFontFactor", () => {
 });
 
 describe("resolveCalculatorLayout", () => {
-  it("基準端末（360×640・等倍）では今までの寸法のまま", () => {
+  it("基準端末（360×640・等倍）ではキーまわりの寸法を1pxも詰めない", () => {
     const layout = resolveCalculatorLayout({ fontScale: 1, height: 640 });
-    expect(layout).toEqual({ fontFactor: 1, inputRowHeight: 44, keyHeight: 42, keyRowGap: 6, keyRowMinHeight: 30, middleMinHeight: 56, screenGap: 6 });
+    // screenPaddingBottom だけは 4 から 12 へ意図的に広げてある（`=` の真下にある「設定」タブの
+    // 誤タップ対策。縮む先は middle で、この段階では下限 56 に対して十分な余裕がある）。
+    expect(layout).toEqual({ fontFactor: 1, inputRowHeight: 44, keyHeight: 42, keyRowGap: 6, keyRowMinHeight: 30, middleMinHeight: 56, screenPaddingBottom: 12, screenGap: 6 });
   });
 
   it("画面が低いほどキーの高さと行間を詰める", () => {
@@ -79,5 +81,22 @@ describe("scaleFontSizes", () => {
     expect(scaled.key).toEqual({ fontSize: 14.5, height: 42, fontWeight: "600" });
     expect(scaled.token).toEqual({ fontSize: 15, lineHeight: 19 });
     expect(scaled.card).toEqual({ borderRadius: 16, paddingVertical: 8 });
+  });
+});
+
+describe("screenPaddingBottom（キーパッド下段とタブバーの間の余白）", () => {
+  it("縦に余裕がある段階だけ余白を広く取る", () => {
+    // 右下の `=` を狙った指が行き過ぎると真下の「設定」タブに当たる。緩衝を広げられるのは
+    // 画面が高い段階だけで、低い段階まで広げるとキーがタブバーへ潜る（このファイルの既定の優先順）。
+    expect(resolveCalculatorLayout({ fontScale: 1, height: 780 }).screenPaddingBottom).toBe(12);
+    expect(resolveCalculatorLayout({ fontScale: 1, height: 640 }).screenPaddingBottom).toBe(12);
+    expect(resolveCalculatorLayout({ fontScale: 1, height: 600 }).screenPaddingBottom).toBe(4);
+    expect(resolveCalculatorLayout({ fontScale: 1, height: 520 }).screenPaddingBottom).toBe(4);
+    expect(resolveCalculatorLayout({ fontScale: 1, height: 460 }).screenPaddingBottom).toBe(4);
+  });
+
+  it("文字を大きくして実効の高さが下がると余白も戻る", () => {
+    // 段階の判定は実効の高さ（画面の高さ ÷ min(fontScale, 1.2)）で行う。
+    expect(resolveCalculatorLayout({ fontScale: 1.5, height: 640 }).screenPaddingBottom).toBe(4);
   });
 });

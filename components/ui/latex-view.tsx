@@ -79,6 +79,17 @@ html,body{margin:0;padding:0;background:transparent;overflow:hidden;}
     } catch (e) {
       target.textContent = payload.latex;
     }
+    // **分数は分子のインクが要素の枠より上へ出る。** html/body は overflow:hidden で、#target は
+    // body の一番上にあるので、その分だけ分子の上が切れる（実機で「分子の数字の上が切れる」と
+    // 報告された。22px の分数で実測2px、フォントを上げると 0.083em → 0.167em まで増える）。
+    // **この「上へのはみ出し」はどの測定にも現れない**——scrollHeight は下と右へのはみ出ししか
+    // 数えず、getBoundingClientRect で子孫を総なめしても KaTeX が top:-Xem で積む内部 span を
+    // 拾ってしまい実際の描画範囲とはまるで違う値になる（実際に踏んだ）。なので測るのではなく、
+    // **分数のときだけ上に余地を作る**。0.2em は実測の最大 0.167em に対する余裕分で、
+    // 12〜48px のどの大きさでも収まることを確認済み。
+    // 条件を .frac-line（KaTeXが分数の横棒に付けるクラス）に絞るのは、1段の形（√・π・10ⁿ）は
+    // 枠に収まっていて余地が要らず、入れるとそのぶん結果カードが縦に伸びるため。
+    target.style.paddingTop = target.querySelector(".frac-line") ? "0.2em" : "0px";
     postSize();
   }
   renderLatex(${encodePayload(payload)});

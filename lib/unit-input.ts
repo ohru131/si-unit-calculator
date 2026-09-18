@@ -229,6 +229,20 @@ export function analyzeExpression(input: string, identifiers: string[] = []): Ex
   return { segments, unresolved: segments.filter((segment) => segment.kind === "unknown-unit" || segment.kind === "unknown-identifier") };
 }
 
+/**
+ * 式に割り算の**演算子**があるか。
+ *
+ * **単位の中の `/` は数えない**（`0.25m/s` の `/` は単位記号の一部で、利用者は割り算を打って
+ * いない）。`analyzeExpression` が複合単位を1つの `unit` セグメントとして切り出しているので、
+ * `operator` セグメントだけを見ればその区別がそのまま付く。文字列を自前で走査して `/` を数えると
+ * この区別が消える。
+ *
+ * キーパッドは `÷` を入れるが、OSのキーボードからは `/` も打てるので両方を見る。
+ */
+export function hasDivisionOperator(segments: ExpressionSegment[]): boolean {
+  return segments.some((segment) => segment.kind === "operator" && (segment.text.includes("/") || segment.text.includes("÷")));
+}
+
 /** 表記ゆれ・打ち間違いも拾って、登録済み単位の候補を近い順に返す。 */
 export function getUnitSuggestions(query: string, options: UnitSuggestionOptions): UnitSuggestion[] {
   const { system, limit = 8, includeUnit } = options;
