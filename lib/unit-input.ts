@@ -618,6 +618,20 @@ export function shouldResetPaletteForKey(key: string): boolean {
 }
 
 /**
+ * 入力欄の書き換え（OSのキーボード・貼り付け・範囲選択の置き換え）でパレットを解除するか。
+ * 新しく入った文字列（`insertedTextBetween`）の**どこかに**演算子があれば解除する。
+ * キーパッドのキーと違って末尾だけを見てはいけない——`12` を選んで `+3` を貼り付けると末尾は
+ * `3` で、演算子を入れたのに解除されない（CodeRabbitが#69で検出）。
+ */
+export function shouldResetPaletteForInput(previous: string, next: string): boolean {
+  const inserted = insertedTextBetween(previous, next);
+  for (const character of inserted) {
+    if (PALETTE_RESET_CHARACTERS.includes(character)) return true;
+  }
+  return false;
+}
+
+/**
  * 単位パレット（カテゴリを選んで並べる行）の候補。**このグループの単位だけ**を、単位ピッカーと
  * 同じ並び（地域優先 → 表示モードの絞り込み）で返す。
  *

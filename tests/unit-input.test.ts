@@ -13,6 +13,7 @@ import {
   replaceExpressionRange,
   requiredUnitGroupFromError,
   shouldResetPaletteForKey,
+  shouldResetPaletteForInput,
   insertedTextBetween,
 } from "../lib/unit-input";
 import { diagnoseCalculatorInput } from "../lib/calculator-input";
@@ -585,6 +586,19 @@ describe("入力欄の書き換えで新しく入った文字", () => {
   it("削除だけなら空", () => {
     expect(insertedTextBetween("12+", "12")).toBe("");
     expect(insertedTextBetween("", "")).toBe("");
+  });
+
+  it("貼り付けた文字列のどこかに演算子があればパレットを解除する", () => {
+    // `12` を選んで `+3` を貼り付けると末尾は `3`。末尾だけ見ると演算子を入れたのに解除されない
+    // （CodeRabbitが#69で検出）。
+    expect(shouldResetPaletteForInput("12", "+3")).toBe(true);
+    expect(shouldResetPaletteForInput("12", "12+")).toBe(true);
+    expect(shouldResetPaletteForInput("3+5m", "3++")).toBe(true);
+    expect(shouldResetPaletteForInput("1", "1×10^")).toBe(true);
+    // 数字・単位の綴りだけなら解除しない（同じ項を書いている途中）。
+    expect(shouldResetPaletteForInput("12", "123")).toBe(false);
+    expect(shouldResetPaletteForInput("1", "1km")).toBe(false);
+    expect(shouldResetPaletteForInput("12+", "12")).toBe(false);
   });
 });
 

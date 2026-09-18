@@ -59,7 +59,7 @@ import {
   resolvePrefixCompletionRange,
   resolvePrefixKeyPress,
   shouldResetPaletteForKey,
-  insertedTextBetween,
+  shouldResetPaletteForInput,
   getUnitSuggestions,
   replaceExpressionRange,
   type ExpressionSegment,
@@ -1888,7 +1888,7 @@ export default function CalculatorScreen() {
                 // OSのキーボード・貼り付けで演算子を入れたときも、キーパッドと同じようにパレットを
                 // 「候補」へ戻す。キャレットは onSelectionChange が別に届くので、ここでは
                 // 打ち込まれた文字（古い式との差分）の末尾だけを見る。
-                if (shouldResetPaletteForKey(insertedTextBetween(expression, text).slice(-1))) resetPalette();
+                if (shouldResetPaletteForInput(expression, text)) resetPalette();
                 setFixSelection(null);
                 // OSのキーボードから打った時点で「接頭語キーを押した直後」ではなくなる。
                 setPrefixEntry(null);
