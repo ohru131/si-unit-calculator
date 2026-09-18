@@ -12,6 +12,9 @@ import {
   insertUnitAtEnd,
   replaceExpressionRange,
   requiredUnitGroupFromError,
+  shouldResetPaletteForKey,
+  shouldResetPaletteForInput,
+  insertedTextBetween,
 } from "../lib/unit-input";
 import { diagnoseCalculatorInput } from "../lib/calculator-input";
 
@@ -490,6 +493,14 @@ describe("接頭語キーの候補を今の式の文脈へ寄せる", () => {
   const after = (prefix: string, options: { recentUnits?: string[]; contextUnits?: string[] } = {}) =>
     getPrefixedUnitSuggestions(prefix, { system: "metric", limit: 8, ...options }).map((candidate) => candidate.unit.symbol);
 
+  it("接頭語の分解でしか解決されない単位（kWh）も文脈として数える", () => {
+    // `2kWh / 3` で k を押した人に欲しいのは kW・kJ。kWh は UnitOption が無いので
+    // findRegisteredUnit では引けず、登録の有無だけで判定すると文脈が丸ごと落ちていた。
+    const withKwh = after("k", { contextUnits: ["kWh"] });
+    expect(withKwh).toEqual(after("k", { contextUnits: ["J"] }));
+    expect(withKwh.indexOf("kJ")).toBeLessThan(withKwh.indexOf("km"));
+  });
+
   it("文脈が無ければ従来どおりの並び", () => {
     // 回帰の目印として先頭3件を固定する（文脈を渡さない限り並びは変わらない）。
     expect(after("k").slice(0, 3)).toEqual(["km", "kg", "kt"]);
@@ -524,5 +535,90 @@ describe("接頭語キーの候補を今の式の文脈へ寄せる", () => {
 
   it("解決できない記号は文脈として無視する", () => {
     expect(after("k", { contextUnits: ["zzz"] })).toEqual(after("k"));
+  });
+});
+
+describe("掛け算・割り算の相手の候補をレールへ渡す", () => {
+  // lib/unit-context-suggestions.ts が組み立てた候補（ここではその形だけを模す）。
+  const companion = getUnitGroupSuggestions("resistance", { system: "metric", limit: 3 });
+
+  it("要求されている次元が無いときは、渡された候補をそのまま出す", () => {
+    // `12V ÷ ` は次元不一致のエラーが出ない（掛け算・割り算はどんな次元でも通る）ので、
+    // 従来はよく使う単位（mm・cm・m・km・g…）が並んでいた場面。
+    const insert = getUnitInputHint("12V ÷ ", { system: "metric", caret: 6, companionCandidates: companion });
+    expect(insert.kind).toBe("insert");
+    expect(insert.candidates.map((candidate) => candidate.unit.symbol)).toEqual(companion.map((candidate) => candidate.unit.symbol));
+    // 数値を打ち始めた「単位付け」の場面でも同じ候補を出す（`12V/4.7` → kΩ）。
+    const attach = getUnitInputHint("12V/4.7", { system: "metric", caret: 7, companionCandidates: companion });
+    expect(attach.kind).toBe("attach");
+    expect(attach.candidates.map((candidate) => candidate.unit.symbol)).toEqual(companion.map((candidate) => candidate.unit.symbol));
+  });
+
+  it("要求されている次元がある式では、そちらを優先する", () => {
+    // 式が数学的に要求している次元（力）の方が、実例からの推測より確か。
+    const expression = "2kg×0.25×9.8m/s²-5";
+    const hint = getUnitInputHint(expression, { system: "metric", caret: expression.length, requiredGroup: "force", companionCandidates: companion });
+    expect(hint.candidates.every((candidate) => candidate.group.id === "force")).toBe(true);
+  });
+
+  it("渡された候補が空なら、従来どおりよく使う単位へ落とす", () => {
+    const hint = getUnitInputHint("5", { system: "metric", caret: 1, companionCandidates: [] });
+    expect(hint.candidates.map((candidate) => candidate.unit.symbol)).toEqual(
+      getCommonUnitSuggestions("metric", [], { limit: 8 }).map((candidate) => candidate.unit.symbol),
+    );
+  });
+});
+
+describe("入力欄の書き換えで新しく入った文字", () => {
+  it("末尾への打ち込みと途中への挿入", () => {
+    expect(insertedTextBetween("12", "12+")).toBe("+");
+    expect(insertedTextBetween("1m", "1km")).toBe("k");
+  });
+
+  it("範囲選択の置き換えは式が短くなっても同じ長さでも拾う", () => {
+    // 選択した `5m` を `+` で置き換えると式は短くなる。長くなった分だけ見ていると空になり、
+    // 演算子を打ったのにパレットが解除されなかった（CodeRabbitが#69で検出）。
+    expect(insertedTextBetween("3+5m", "3++")).toBe("+");
+    expect(insertedTextBetween("12", "1+")).toBe("+");
+    expect(insertedTextBetween("12V/4.7", "12V*4.7")).toBe("*");
+  });
+
+  it("削除だけなら空", () => {
+    expect(insertedTextBetween("12+", "12")).toBe("");
+    expect(insertedTextBetween("", "")).toBe("");
+  });
+
+  it("貼り付けた文字列のどこかに演算子があればパレットを解除する", () => {
+    // `12` を選んで `+3` を貼り付けると末尾は `3`。末尾だけ見ると演算子を入れたのに解除されない
+    // （CodeRabbitが#69で検出）。
+    expect(shouldResetPaletteForInput("12", "+3")).toBe(true);
+    expect(shouldResetPaletteForInput("12", "12+")).toBe(true);
+    expect(shouldResetPaletteForInput("3+5m", "3++")).toBe(true);
+    expect(shouldResetPaletteForInput("1", "1×10^")).toBe(true);
+    // OSのキーボードから打った `=`（定数定義 `W = 3cm` の区切り）。キーパッドの = は
+    // submitCalculation が解除するが、この経路はそこを通らない。
+    expect(shouldResetPaletteForInput("W", "W=")).toBe(true);
+    expect(shouldResetPaletteForKey("=")).toBe(true);
+    // 数字・単位の綴りだけなら解除しない（同じ項を書いている途中）。
+    expect(shouldResetPaletteForInput("12", "123")).toBe(false);
+    expect(shouldResetPaletteForInput("1", "1km")).toBe(false);
+    expect(shouldResetPaletteForInput("12+", "12")).toBe(false);
+  });
+});
+
+describe("単位パレットのカテゴリ選択を解除するキー", () => {
+  it("演算子・括弧・べき乗・数学関数で解除する", () => {
+    // 長さを選んで cm を入れたあと ÷ を押した人が次に入れたいのは時間で、長さではない。
+    ["+", "-", "×", "÷", "*", "/", "(", ")", "^"].forEach((key) => expect(shouldResetPaletteForKey(key), key).toBe(true));
+    // 複数文字のキー（編集キーの ×10^ と数学シートの関数）は末尾の1文字で判断する。
+    expect(shouldResetPaletteForKey("×10^")).toBe(true);
+    expect(shouldResetPaletteForKey("sin(")).toBe(true);
+    expect(shouldResetPaletteForKey("atan2(")).toBe(true);
+  });
+
+  it("同じ項を書いている途中の操作では解除しない", () => {
+    // 数字・小数点・削除・全消し・上付き・接頭語キー・定数記号。ここで解除すると、選んだ
+    // カテゴリが1文字打つたびに消えて選び直しになる。
+    ["0", "7", ".", "⌫", "AC", "²", "³", "k", "M", "µ", "m", "π", "e", ""].forEach((key) => expect(shouldResetPaletteForKey(key), key).toBe(false));
   });
 });

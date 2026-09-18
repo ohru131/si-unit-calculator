@@ -169,6 +169,14 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - `lib/unit-input.ts` の `requiredUnitGroupFromError` — **「この数値には何の単位を付けるべきか」を式から読む純関数**。裸の数値を足し引きして次元不一致になっている式では、反対側の次元がそのまま答えになる（`2kg×0.25×9.8m/s²-5` なら力＝N・kN）。エンジンが `add`/`subtract` で両辺のグループidをエラーの `params` に載せているので（`dimensionMismatchParams`）、そこから引くだけで済む。
   - **よく使う単位の一覧（`getCommonUnitSuggestions` の m・km・g・s…）は「何を付けたいか分からないとき」の並び**なので、付けるべき単位が分かっている場面に出すと見当違いになる（実際にスクショで指摘された）。`getUnitInputHint` の `requiredGroup` で差し替え、**案内する範囲（単位を差し込む位置）は変えず候補だけ**を入れ替える。
   - **両辺とも次元を持つ式（`3m + 2kg`）では何も返さない。** どちらへ寄せたいのか決められないうえ、その場面はキャレットが単位の上にあり同じ次元での差し替え候補が出る経路になる。グループidが空の合成次元（`N·m²/C²`）も並べる一覧が無いので返さない。どちらもよく使う単位へフォールバックする。
+- `lib/unit-context-suggestions.ts` — **キャレット直前の演算子から「次に入れる単位」の手掛かりを読み、掛け算・割り算の相手を実例から引く純関数群。** `requiredUnitGroupFromError` は次元不一致の**エラー**が出ている式（`1m+2`＝裸の数値を既に打った）でしか効かず、`1m+`（演算子で終わる途中の式）と `×`/`÷`（次元が制約されない）では何も絞れなかった。
+  - `resolveUnitContext({ analysis, caret })` — キャレット手前の区間を末尾から読む: 空白を飛ばす → 末尾が数値なら1つだけ跨ぐ（`1m+2|` を `1m+|` と同じ場面として扱う）→ そこが `+ - −`（additive）か `* / × ÷ ·`（multiplicative）の演算子でなければ `null` → 演算子から手前へ歩いて**最初の単位**を左側の項の単位とする。ただし項の切れ目 `+ - ( ,` に先に当たったら `null`（`1m+2×|` の `m` は `+` の向こう側）。`^` と `)` は跨ぐ（`(2m)^2×|` の左は長さとして読む）。**キーパッドは `×` `÷` を入れるが、OSのキーボードからは `*` `/` も打てる**ので両方を見る。
+  - **additive のときは左側のグループをそのまま `requiredGroup` に渡す**（`requiredUnitGroupFromError` の上位互換。エラーから読めた要求がある場合はそちらを優先）。multiplicative のときは `suggestCompanionUnits` の結果を `getUnitInputHint` の `companionCandidates` に渡し、`insertHint` は 要求された次元 → 相手の候補 → よく使う単位 の順で使う。**次元の要求の方が強い**（式が数学的に要求している次元そのものなので、実例からの推測より確か）。
+  - `suggestCompanionUnits` は「この単位と一緒に使われるのは何か」を実例（`UnitExample = { symbols }`）から引く。**計算履歴（新しい順・`unitExamplesFromHistory`）を先に、無ければプリセット計算ノート＋サンプル（`getPresetUnitExamples`）**。履歴は新しい順＝直前に自分がやった組み合わせが先頭。**プリセットは登場順ではなく頻度順**にすること——登場順だと `12V/` の候補が `A s kJ Ω`（電圧を含む最初のノートがたまたま持っていた単位）になり雑音が混ざる。頻度順なら `A W mA Ω`。左側と同じグループの単位は出さない（`12V ÷ ` に V・mV を並べても打ちたいものではない）。グループの穴埋めは**1巡3件ずつ**（1番目のグループが8枠を埋め尽くす前に2番目を見せる）、それでも足りなければ同じ分野（`relatedGroupRanks`）。
+  - **プリセットの例は最初に使うときに1度だけ組み立てる**（module変数にメモ化。import時に組み立てると194件の解析をノート画面しか見ない起動にも払わせる）。1つの次元しか出ない例（`5cm + 1mm`）は捨てる。手順の式は識別子だけなので、単位が書いてあるのは**ローカル定数の式と手順の `targetUnit`** の2箇所。
+  - **記号→グループの解決は `findRegisteredUnit` だけでは足りない。** `kWh` は接頭辞分解でしか解決されず `UnitOption` として登録されていないので、`describeDimension(parseUnit(symbol).dimension).group` へフォールバックする（`1kWh÷` が `null` になっていた）。この解決（`unitGroupIdForSymbol`）は **`lib/unit-input.ts` に置き**、`getPrefixedUnitSuggestions` の `contextUnits` の解決にも同じものを使う（登録の有無だけで判定すると `2kWh / 3` で `k` を押したときの文脈が丸ごと落ちる。CodeRabbitが#69で検出）。`unit-context-suggestions.ts` は再exportしているだけ。この経路で解決した記号は**グループの順位には数えるがチップとしては出さない**（出すための `UnitOption` が無い）。
+  - **履歴は新しい方から80件だけ走査する**（`HISTORY_UNIT_EXAMPLE_LIMIT`、`index.tsx`）。1件ごとに式を解析するので500件で実測33ms（node。Hermesではその数倍）が `=` を押すたびに乗る。レールは8件なので古い履歴まで見ても並びは変わらない。
+  - 進数入力モード中（`baseInputMode !== null`）は式が生の桁なので文脈を読まない。テストは `tests/unit-context-suggestions.test.ts`。
 - `lib/unit-input.ts` の `getUnitSuggestions` は**綴りがそのまま前方一致する候補をスコアより先に見る**（`caseMismatch * 1000 + score * 100`）。接頭語は大文字小文字で別物（`m`=ミリ / `M`=メガ、`k`=キロ / `K`=ケルビン）なのに、照合を `toLowerCase()` で潰しているため**大文字小文字を無視した完全一致が勝ってしまい、`M` の1位が m（メートル）・`k` の1位が K（ケルビン）**になっていた。照合自体を大文字小文字を区別する形にはしないこと——ここは打ち間違いも拾う場所で、`mpa` から MPa を出せなくなる。綴りが崩れた入力では全候補が同じ扱いになるので従来のスコア順がそのまま残る。
 - `app/(tabs)/index.tsx` の `prefixEntry` + `lib/unit-input.ts` の `getPrefixedUnitSuggestions` — **接頭語キーで入れた1文字は、単位として確定させずに「その接頭語で始まる単位」を候補に出す。**
   - **`m` と `G` は記号そのものが単位でもある**（メートル・標準重力）。状態を持たないと `1m` が「解決済みの単位」に分類され、単位の差し替えの経路（`getSameDimensionUnitSuggestions`）に入ってレールが長さの単位（cm・km・µm・in・ft）だけになり、**`mA`・`mV`・`ms` が候補から消える**。`m` はこの分野で最も使う接頭語なので、接頭語キーがほぼ機能しない状態だった（CodeRabbitが#59で🟡として検出）。
@@ -586,7 +594,11 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 
 ### 単位パレットの設計（`app/(tabs)/index.tsx` + `lib/unit-input.ts`）
 
-- **レールの中身は `paletteGroupId` で切り替える。** `null`（「候補」チップ）なら従来どおり `getUnitInputHint` の文脈依存の候補、グループを選ぶと `getPaletteUnitSuggestions(group, prefix, ...)` がそのグループの単位を単位ピッカーと同じ並びで返す。**チップのタップは必ず `applyUnitCandidate` を通す**ので、修正・置換・単位付け・挿入の範囲の決め方は1箇所のまま。選択は端末に保存せず、挿入後も AC でも保持する（「同じカテゴリで続けて入れる」流れを切らないため）。
+- **レール（候補チップの行）はキーパッドの直上、接頭語キー行の直下に置く（2026-09-18に移動）。** 以前は入力欄の直下にあり、数字（キーパッド）→接頭語（キーパッド直上）→単位（画面上部）→演算子（キーパッド）で親指が画面を往復していた。行数は変えず並べ替えただけなので `=` の位置は不変（360×640 で下端 546.5・タブバー 608、360×780 で 686.5・748）。**カテゴリ行は常設せず、レール先頭の2段チップ（上段＝「候補」またはカテゴリ名・下段＝旧 hintLabel の 要修正／確定／単位付け／単位を置換／単位挿入・右に chevron）から開閉する**（`isPaletteExpanded`）。開くとカテゴリ行が接頭語行とレールの間に出て、選ぶと閉じる。自動絞り込みを入れた後はカテゴリを手で選ぶ頻度が下がったので、常設の約33pxを `middle` へ返した（360×640 で `12V / 4.7kΩ` の結果値 `mA` が22pxはみ出して半分切れていたのが、+25px で完全に見えるようになった）。**パレットの解除は `resetPalette()`（`paletteGroupId` と展開状態を同時に戻す）に一本化**してあり、`setPaletteGroupId(null)` を直接呼ばないこと。
+  - **OSのキーボードを出している間（`isRailNearInput` = `Platform.OS !== "web" && isKeyboardInputActive`）だけ、同じレールを入力欄の直下に描く**（下のクラスタはソフトキーボードに隠れるが、キーボードで `5mpa` と打ったときの修正候補は見えていなければならない）。`renderUnitRail()` を2箇所のうち**必ず片方だけ**で呼ぶ。**Webは除外**——Webでは式のトークンをタップするたびに隠しTextInputへフォーカスが当たり `isKeyboardInputActive` が true になるので、条件に入れるとタップのたびにレールが上下へ飛ぶ（実測して確認）。**ネイティブでの移動先の描画は実機未検証。** CodeRabbitが#69で「フォーカス状態をキーボード可視のproxyにすると、Android 10以下の `resize` モードで `keyboardDidHide` が来ずレールが入力欄直下に残る」と指摘したが、RN 0.86.2 の `ReactRootView.checkForKeyboardEvents` は `onGlobalLayout` 内で `WindowInsetsCompat.isVisible(ime())` を見て送っており、adjustResize はまさにレイアウトが変わる側なので前提の裏付けが取れず現状維持にした。**Android実機の確認項目: 戻るボタンでキーボードを閉じたとき、レールがキーパッド直上へ戻るか**（戻らなければ inset ベースの可視判定へ切り替える）。
+  - `renderUnitRail` 内の onPress から `markUserInteraction()` を呼ばないこと（`react-hooks/refs` が4件増える。`renderUnitChip` と同じ誤検知）。`accessibilityState={{ expanded }}` は react-native-web では `aria-expanded` として出ない（ネイティブには渡る）。
+  - **提出素材（スクショ・デモ動画）は2026-09-18に撮り直した**（電卓系12カット×6言語＝72枚が差し替わり、ライブラリ／ノート／設定／Pro の36枚はバイト単位で同一。動画は 1:53・1080×1800・約9.5MB）。撮影・録画スクリプトは無修正で通った——レール先頭チップの aria-label は `候補, 単位を置換` のようにカンマ区切りの複合なので、スクリプトの完全一致セレクタ（`cm`・`A`・`Base input`）と衝突しない。旧位置を書いていたのは `docs/shipaton-demo-script.md` の 0:50 の行だけで、字幕SRTは無修正。
+- **レールの中身は `paletteGroupId` で切り替える。** `null`（「候補」チップ）なら従来どおり `getUnitInputHint` の文脈依存の候補、グループを選ぶと `getPaletteUnitSuggestions(group, prefix, ...)` がそのグループの単位を単位ピッカーと同じ並びで返す。**チップのタップは必ず `applyUnitCandidate` を通す**ので、修正・置換・単位付け・挿入の範囲の決め方は1箇所のまま。選択は端末に保存しない。**単位チップで挿入した直後は保持する**（同じカテゴリで `cm`→`mm` と差し替える流れを切らないため）が、**演算子・括弧・べき乗・数学関数のキーを押した時点で「候補」へ戻す**（`shouldResetPaletteForKey`。AC・`=`・履歴やサンプルで式を丸ごと差し替える経路も同じ）。以前は「挿入後も AC でも保持する」としていたが、一度カテゴリを選ぶと文脈依存の絞り込みが二度と戻らず、「`1m+` で長さが出なくなった」と報告された（2026-09-17）。OSのキーボードから演算子を打った場合は `onChangeText` で新しく入った文字（`insertedTextBetween`＝古い式と新しい式の共通の先頭・末尾を除いた中身）の末尾を見て同じ判定をする。**「長くなった分」だけを見てはいけない**——範囲選択した `5m` を `+` で置き換えると式は短くなり、演算子を打ったのに解除されない（CodeRabbitが#69で検出）。
 - **パレット選択中は `fix` の範囲をそのまま使ってはいけない。** `getUnitInputHint` は**式のどこにあっても最後の未対応単位**を `fix` として返す（`3 + 5mpa` でキャレットが `3` の直後でも `[5,8]`）。従来はレールがその単位の修正候補しか出さなかったので整合していたが、パレットは「このカテゴリの単位を**ここに**入れる」と読まれるので、そのまま使うと**キャレットと無関係な場所が書き換わる**（`3 + 5kPa`。レビューで検出）。`resolvePaletteTarget` がキャレットが `fix` の範囲外にあるときだけ `getUnitInsertionRange` と同じ内部関数でキャレット位置の範囲に差し替え、**ラベル（単位付け／単位挿入）と `applyUnitCandidate` の両方がその結果を読む**（片方だけ差し替えると表示と挿入位置がずれる）。
 - **接頭語キーはトグル**（`resolvePrefixKeyPress` / `resolveActivePrefix`）。同じキーで取り消し、別のキーで差し替え、有効中は点灯。判定は「式とキャレットが押した直後のままか」で、範囲選択中と進数入力中は無効。**無効になった記録は `placeCaret`・`⌫`・`onChangeText`・`onSelectionChange`（`prefixEntryStillValid`）で即座に捨てる**——判定だけに任せると、キャレットを離してから同じ位置へ戻したときに古い記録が復活し、次の接頭語キーが無関係な1文字を消す（CodeRabbitが#67で検出）。捨てた記録は戻らない。**`isBaseDigitAllowed("c", 16)` は true** なので、進数の桁フィルタに任せると HEX 中に `c` が接頭語として通る。純関数に切り出してあるのでテスト（`tests/unit-palette.test.ts`）で固定している。
 - **接頭語で絞った結果が空でもグループを跨がない。** 時間で `k` を押したときに `kg`・`km` を出すと、点灯している「時間」チップと中身が食い違う。そのグループの全単位に戻す（レールは空にならず、タップすれば `complete` の範囲で接頭語1文字が置き換わるので `k` が残ることもない）。
@@ -613,6 +625,25 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - `npx vitest run` → **989 passed / 2 failed**。失敗2件は従来どおり `tests/revenuecat.credentials.test.ts`（環境依存）。新規: `tests/calculator-layout.test.ts`（10件）。
 - `npx expo lint` → **2エラー・0警告**（`app/(tabs)/index.tsx` の既存分のまま）。
 - `npx expo export --platform web` が通る（**初回は `react-native-css-interop/.cache/web.css` のSHA-1で落ちることがあり、`--clear` を付けても落ちる。同じコマンドをもう一度走らせると通る**）。Playwrightでの実測（ja/de、式を打った状態でも同じ）: 360×780 → `=` の下端697・タブバー748、360×640 → 557・608、360×600 → 517・568（キー38）、360×520 → 437・488（キー34）、360×460 → 393・428（キー30）。**360×400 だけは収まらない**が、実端末の画面高さ（dp）がそこまで低くなることは無い（段階の選択は実効の高さで行い、実際のレイアウトは本物の高さの中で組まれる）。
+
+38. **[完了]** **単位候補の自動絞り込みを「演算子の直後」と「掛け算・割り算」へ広げ、単位パレットのカテゴリ選択を演算子キーで自動解除するようにした**（`lib/unit-context-suggestions.ts`）。きっかけは「`1m+` で長さの単位が出なくなった」という報告。原因は2つで、(1) #67 の単位パレットで一度カテゴリを選ぶと `paletteGroupId` が永久に残り、文脈依存の候補が二度と出ない（退行）、(2) `1m+`（演算子で終わる途中の式）と `×`/`÷` は元から何も絞っていなかった（`requiredUnitGroupFromError` は裸の数値を既に打った `1m+2` でしか効かない）。前者は演算子・括弧・べき乗・数学関数のキーで「候補」へ戻す形に、後者は左側の項の単位を読んで、足し引きなら同じ次元、掛け算・割り算なら**計算履歴（新しい順）→ プリセット計算ノート＋サンプル（頻度順）**から一緒に使われている単位を出す形にした（`12V ÷ ` → 履歴があれば `kΩ mA`、無ければ `A W mA Ω`）。
+
+### 現在の基準値（2026-09-17時点、単位候補の文脈絞り込みを入れた後）
+
+- `npx tsc --noEmit` → **`app/_layout.tsx` の `@/global.css` で1件のみ**（従来どおりの環境依存）。
+- `npx vitest run` → **1022 passed / 2 failed**。失敗2件は従来どおり `tests/revenuecat.credentials.test.ts`（環境依存）。新規: `tests/unit-context-suggestions.test.ts`（28件）、`tests/unit-input.test.ts` に `companionCandidates`・`shouldResetPaletteForKey` の5件。
+- `npx expo lint` → **2エラー・0警告**（`app/(tabs)/index.tsx` の既存分のまま。effect内に `setPaletteGroupId(null)` を並べても件数は増えない）。
+- `npx expo export --platform web` が通る。Playwright（ja・400×780）で `12V/` のレールが `A W mA Ω`、`1m+` が長さだけ、長さカテゴリを選んで `÷` を押すと「候補」へ戻ることを確認済み。
+
+39. **[完了]** **単位レールをキーパッド直上へ移し、カテゴリ行をレール先頭のチップから開く形にした。** 利用者からの「単位チップが上にあるので数値・接頭語・単位を打つのに上下しないといけない」という指摘と添付の並び案を採用（詳細は上の「単位パレットの設計」）。行数は同じなので `=` は動かず、常設だったカテゴリ行の分だけ結果カードが広がった。OSキーボード表示中だけレールを入力欄直下に出す（Webは除外）。
+
+### 現在の基準値（2026-09-18時点、単位レールをキーパッド直上へ移した後）
+
+- `npx tsc --noEmit` → **`app/_layout.tsx` の `@/global.css` で1件のみ**（従来どおりの環境依存）。
+- `npx vitest run` → **1026 passed / 2 failed**（#69 のレビュー対応で `tests/unit-input.test.ts` に `insertedTextBetween` 3件と接頭語候補の `kWh` 文脈1件を追加）。
+- **`npx expo lint` は `.expo/cache/eslint/` にキャッシュを持つ。** 構文エラーのあるファイルを直した直後も「Parse errors in imported module」が残って件数が1つ多く出ることがある。`rm -rf .expo/cache/eslint` してから再実行する（`npx eslint --no-cache <file>` で切り分けられる）。
+- `npx expo lint` → **2エラー・0警告**（`app/(tabs)/index.tsx` の既存分のまま）。
+- `npx expo export --platform web` が通る。Playwright（ja・light）で `=` の下端／タブバー上端が 360×640＝546.5／608、360×780＝686.5／748（変更前と同値）。360×640 の `middle` は 101px → 126px、`12V / 4.7kΩ` の `mA` が完全に見える。チップのタップでカテゴリ行が開き、「長さ」で閉じてレールが長さの単位に、`÷` で「候補」へ戻ることを確認済み。独語のチップ（Vorschläge / Ersetzen）も 96px に収まる。
 
 ## 次にやりそうなこと（ユーザーから明示的な指示待ち）
 

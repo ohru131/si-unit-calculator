@@ -1,4 +1,5 @@
 import {
+  describeDimension,
   findRegisteredUnit,
   NUMBER_TOKEN_PATTERN,
   getCompatibleUnitGroups,
@@ -370,7 +371,7 @@ const UNIT_GROUP_CLUSTERS: readonly (readonly string[])[] = [
 ];
 
 /** 渡したグループと同じ分野に属するグループidと、その分野の中での順位（小さいほど先）。 */
-function relatedGroupRanks(groupIds: ReadonlySet<string>): Map<string, number> {
+export function relatedGroupRanks(groupIds: ReadonlySet<string>): Map<string, number> {
   const ranks = new Map<string, number>();
   UNIT_GROUP_CLUSTERS.forEach((cluster) => {
     if (!cluster.some((id) => groupIds.has(id))) return;
@@ -403,10 +404,12 @@ export function getPrefixedUnitSuggestions(prefix: string, options: { system: Un
   if (!prefix) return [];
 
   // 式に出ている単位のグループ。解決できない記号（定数名・書きかけの綴り）は黙って無視する。
+  // `kWh` のように接頭語の分解でしか解決されない（UnitOption が無い）単位も文脈としては数える
+  // （`2kWh / 3` で `k` を押した人に kW・kJ を先に出すため。CodeRabbitが#69で検出）。
   const contextGroupIds = new Set<string>();
   contextUnits.forEach((symbol) => {
-    const found = findRegisteredUnit(symbol);
-    if (found) contextGroupIds.add(found.group.id);
+    const groupId = unitGroupIdForSymbol(symbol);
+    if (groupId) contextGroupIds.add(groupId);
   });
   const clusterGroupRanks = relatedGroupRanks(contextGroupIds);
 
@@ -557,6 +560,81 @@ export function resolvePaletteTarget(options: { hint: UnitInputHint; expression:
 }
 
 /**
+ * 単位記号からグループidを引く。登録済みの `UnitOption` が無くても、エンジンで計算できる記号
+ * （`kWh` のように接頭語の分解でだけ解決するもの）は次元まで落として同じ次元のグループを探す。
+ * 登録の有無だけで判断すると `1kWh÷` が「左側の次元が読めない」扱いになり、いちばん助けが要る
+ * 場面（電気料金・消費電力量の計算）で候補が出ない。
+ *
+ * 合成次元（`N·m²/C²` のように該当グループが無い）と無次元は、並べる単位の一覧が無いので
+ * 未解決として扱う（`describeDimension` はそれぞれ `""` と `"dimensionless"` を返す）。
+ */
+export function unitGroupIdForSymbol(symbol: string): string | undefined {
+  const source = symbol.trim();
+  if (!source) return undefined;
+  const found = findRegisteredUnit(source);
+  if (found) return found.group.id;
+  try {
+    const group = describeDimension(parseUnit(source).dimension).group;
+    return group && group !== "dimensionless" ? group : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * 入力欄の書き換え（打ち込み・貼り付け・範囲選択の置き換え）で**新しく入った文字列**。
+ * 古い式と新しい式の共通の先頭と末尾を除いた中身を返す。
+ *
+ * 「長くなった分の末尾」だけを見ると、範囲選択した `5m` を `+` で置き換えたとき（式が短くなる）
+ * や `12` を `+` で置き換えたとき（同じ長さ）に何も返らず、演算子を打ったのにパレットが
+ * 解除されない（CodeRabbitが#69で検出）。削除だけのときは空文字。
+ */
+export function insertedTextBetween(previous: string, next: string): string {
+  let prefix = 0;
+  while (prefix < previous.length && prefix < next.length && previous[prefix] === next[prefix]) prefix += 1;
+  let suffix = 0;
+  while (suffix < previous.length - prefix && suffix < next.length - prefix && previous[previous.length - 1 - suffix] === next[next.length - 1 - suffix]) suffix += 1;
+  return next.slice(prefix, next.length - suffix);
+}
+
+// 押すと「次の項」へ移るキー。演算子・括弧・べき乗と、数学シートの関数（`sin(` のように
+// `(` で終わる）が該当する。キーは1文字とは限らない（`×10^`・`atan2(`）ので末尾の1文字で見る。
+// `=` はキーパッドからは確定（submitCalculation が解除する）だが、OSのキーボードから打つと
+// 定数定義（`W = 3cm`）の区切りとして式に入る。その右側は新しい値なので同じく解除する
+// （CodeRabbitが#69で検出）。
+const PALETTE_RESET_CHARACTERS = ["+", "-", "−", "*", "/", "×", "÷", "·", "(", ")", "^", "="];
+
+/**
+ * そのキーを押したら単位パレットのカテゴリ選択を解除する（＝文脈依存の「候補」へ戻す）か。
+ *
+ * **カテゴリは一度選ぶと解除する場所が無かった。** 長さを選んで cm を入れたあと `÷` を押しても
+ * レールは長さの単位のままで、時間の単位を出すにはもう一度カテゴリを選び直すしか無い
+ * （＝自動の絞り込みが二度と戻ってこない）。演算子を押した時点で書いているのは次の項なので、
+ * そこで推測へ戻すと「必要なときだけ自分で選ぶ」形になる。
+ *
+ * **数字・小数点・`⌫`・キャレット移動・接頭語キーでは解除しない。** どれも同じ項を書いている
+ * 途中の操作で、ここで解除すると選んだカテゴリが1文字打つたびに消える。
+ */
+export function shouldResetPaletteForKey(key: string): boolean {
+  if (!key) return false;
+  return PALETTE_RESET_CHARACTERS.includes(key[key.length - 1]);
+}
+
+/**
+ * 入力欄の書き換え（OSのキーボード・貼り付け・範囲選択の置き換え）でパレットを解除するか。
+ * 新しく入った文字列（`insertedTextBetween`）の**どこかに**演算子があれば解除する。
+ * キーパッドのキーと違って末尾だけを見てはいけない——`12` を選んで `+3` を貼り付けると末尾は
+ * `3` で、演算子を入れたのに解除されない（CodeRabbitが#69で検出）。
+ */
+export function shouldResetPaletteForInput(previous: string, next: string): boolean {
+  const inserted = insertedTextBetween(previous, next);
+  for (const character of inserted) {
+    if (PALETTE_RESET_CHARACTERS.includes(character)) return true;
+  }
+  return false;
+}
+
+/**
  * 単位パレット（カテゴリを選んで並べる行）の候補。**このグループの単位だけ**を、単位ピッカーと
  * 同じ並び（地域優先 → 表示モードの絞り込み）で返す。
  *
@@ -645,23 +723,27 @@ export function requiredUnitGroupFromError(error: unknown): string | undefined {
  */
 export function getUnitInputHint(
   expression: string,
-  options: { system: UnitSystem; recentUnits?: string[]; identifiers?: string[]; includeUnit?: UnitFilter; limit?: number; analysis?: ExpressionAnalysis; caret?: number; requiredGroup?: string },
+  options: { system: UnitSystem; recentUnits?: string[]; identifiers?: string[]; includeUnit?: UnitFilter; limit?: number; analysis?: ExpressionAnalysis; caret?: number; requiredGroup?: string; companionCandidates?: UnitSuggestion[] },
 ): UnitInputHint {
-  const { system, recentUnits = [], identifiers = [], includeUnit, limit = 8, requiredGroup } = options;
+  const { system, recentUnits = [], identifiers = [], includeUnit, limit = 8, requiredGroup, companionCandidates } = options;
   const analysis = options.analysis ?? analyzeExpression(expression, identifiers);
   const caret = options.caret ?? expression.length;
   // 式が特定の次元を要求しているなら、その次元の単位を出す（requiredUnitGroupFromError）。
   // よく使う単位の一覧（m・km・g・s…）は「何を付けたいか分からないとき」の並びなので、
   // 2kg×9.8m/s²-5 のように付けるべき単位が力だと分かっている場面では見当違いになる。
-  // 要求が読めない・その次元の単位を並べられないときは従来どおりよく使う単位へ落とす。
+  // 要求が読めない・その次元の単位を並べられないときは、掛け算・割り算の相手として実例から
+  // 引いた候補（companionCandidates。lib/unit-context-suggestions.ts）を使い、それも無ければ
+  // 従来どおりよく使う単位へ落とす。**次元の要求の方が強い**——あちらは式が数学的に要求して
+  // いる次元そのもので、実例からの推測より確かなため。
   const insertHint = (start: number, kind: UnitInputHintKind): UnitInputHint => {
     const required = requiredGroup ? getUnitGroupSuggestions(requiredGroup, { system, recentUnits, limit, includeUnit }) : [];
+    const companions = companionCandidates?.length ? companionCandidates.slice(0, limit) : [];
     return {
       kind,
       fragment: "",
       start,
       end: start,
-      candidates: required.length ? required : getCommonUnitSuggestions(system, recentUnits, { limit, includeUnit }),
+      candidates: required.length ? required : companions.length ? companions : getCommonUnitSuggestions(system, recentUnits, { limit, includeUnit }),
     };
   };
 
