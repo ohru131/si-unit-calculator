@@ -178,6 +178,16 @@ const SHEET_PADDING_BOTTOM = 28;
 // 19px では小さいという実機の指摘で21pxへ上げた。行の高さは字送りに合わせて26px。
 // **これ以上上げるときは 360×640 でキーパッド下段の `=` がタブバーより上に残るか実測すること**
 // （式が2行に折り返したときがいちばん高くなる）。
+// キーパッドのセルの内側の余白。**キーの当たり判定（hitSlop）と必ず同じ値にすること。**
+// この余白は `keyCell`（外側のView）に付いていて、キー本体（Pressable）は
+// `layout.keyHeight` ちょうどの矩形しか持たない。RNの当たり判定は Pressable 自身の矩形なので、
+// **この余白はどこにも効かない死に領域になる**——隣り合うキーの間には両側ぶん（6dp）の穴が空き、
+// 継ぎ目に指が落ちると何も起きない。さらに最下段では `=` の当たり判定が 42dp（Material の
+// 最小 48dp を下回る）になり、狙いが少し下へ逸れるとタブバーの「設定」に当たって画面ごと
+// 切り替わっていた（実機で報告された）。hitSlop でセル全体を当たり判定にして塞ぐ。
+// Androidでは hitSlop は親の矩形までしか届かないが、セル（keyHeight + 上下の余白）の内側に
+// 収まっているので全量が効く。
+const KEY_CELL_PADDING = 3;
 const EXPRESSION_FONT_SIZE = 21;
 const EXPRESSION_LINE_HEIGHT = 26;
 const RESULT_VALUE_FONT_SIZE = 36;
@@ -2340,6 +2350,7 @@ export default function CalculatorScreen() {
                 <Pressable
                   accessibilityLabel={key === "⌫" ? copy.deleteKey : key === "AC" ? copy.clearAllKey : key}
                   disabled={isDisabledForBaseInput}
+                  hitSlop={KEY_CELL_PADDING}
                   onPress={() => pressKey(key)}
                   style={({ pressed }) => [styles.key, isAction && styles.keyAction, isOperator && styles.keyOperator, isDisabledForBaseInput && styles.keyDisabled, pressed && styles.keyPressed]}
                 >
@@ -2520,7 +2531,7 @@ const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "mon
 
 const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => StyleSheet.create(scaleFontSizes({
   // 画面全体を一枚に収め、縦スクロールを起こさない構成にする。
-  screen: { flex: 1, gap: layout.screenGap, paddingBottom: 4, paddingTop: 2 },
+  screen: { flex: 1, gap: layout.screenGap, paddingBottom: layout.screenPaddingBottom, paddingTop: 2 },
 
   inputCard: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, gap: 5, paddingHorizontal: 12, paddingVertical: 8 },
   inputRow: { alignItems: "center", flexDirection: "row", gap: 10 },
@@ -2694,7 +2705,7 @@ const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => St
   // 画面幅に関係なく必ず4列で並ぶよう、25%幅のセルに収める。
   keypad: { flexDirection: "row", flexWrap: "wrap", marginHorizontal: -3 },
   // 5列（KEYS のコメント参照）。4列に戻すなら KEYS の並びも組み直すこと。
-  keyCell: { padding: 3, width: "20%" },
+  keyCell: { padding: KEY_CELL_PADDING, width: "20%" },
   key: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 12, borderWidth: 1, height: layout.keyHeight, justifyContent: "center" },
   keyOperator: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder },
   keyAction: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
