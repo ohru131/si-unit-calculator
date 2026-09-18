@@ -1788,6 +1788,160 @@ export default function CalculatorScreen() {
     </View>
   ) : null;
 
+  // **キーパッドは打鍵のたびに作り直さない。**
+  // `pressKey` は式・キャレット・パレットの状態を読むので毎レンダー新しい関数になる。それを
+  // そのまま `onPress` に渡すと20個のキーのpropsが毎回変わり、キーパッド全体が作り直される。
+  // 実機（moto g52j 5G・デバッグビルド）のReact Profilerで、キーパッドを含む下のクラスタが
+  // **1打鍵あたり108〜154ms**（画面全体の約7割）かかっていた。キーの見た目と挙動は
+  // 進数入力モード以外では何も変わらないので、参照をrefで固定してJSXごとメモ化する。
+  // **ref の更新は effect で行うこと**（レンダー中に書くと react-hooks/refs が誤検知する）。
+  const pressKeyRef = useRef(pressKey);
+  useEffect(() => {
+    pressKeyRef.current = pressKey;
+  });
+  const stablePressKey = useCallback((key: string) => pressKeyRef.current(key), []);
+  const moveCaretRef = useRef(moveCaret);
+  const toggleKeyboardInputRef = useRef(toggleKeyboardInput);
+  useEffect(() => {
+    moveCaretRef.current = moveCaret;
+    toggleKeyboardInputRef.current = toggleKeyboardInput;
+  });
+  const stableMoveCaret = useCallback((delta: 1 | -1) => moveCaretRef.current(delta), []);
+  const stableToggleKeyboardInput = useCallback(() => toggleKeyboardInputRef.current(), []);
+  const applyTargetUnitRef = useRef(applyTargetUnit);
+  useEffect(() => {
+    applyTargetUnitRef.current = applyTargetUnit;
+  });
+  const stableApplyTargetUnit = useCallback((symbol: string) => {
+    hasUserInteractedRef.current = true;
+    applyTargetUnitRef.current(symbol);
+  }, []);
+
+  // 編集キー行と接頭語キー行も、キーパッドと同じ理由でメモ化する（下のクラスタの残り）。
+  // ここが見た目を変えるのはキャレットが端に来たとき・進数入力モード・接頭語の点灯・
+  // キーボードの点灯だけで、**式が1文字変わっただけでは何も変わらない**。
+  // 結果カードの単位チップ列。**値が変わっても候補は変わらない**（次元が同じなら同じ並び）ので、
+  // 数字を1文字打つたびに作り直さない。キーパッド・編集キー行と同じ理由。
+  const isFallbackUnit = Boolean(display?.isFallback);
+  const conversionChipRail = useMemo(
+    () => (
+                    <ScrollView contentContainerStyle={styles.conversionRail} horizontal key={conversionUnits.join(",")} keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false}>
+        <Pressable accessibilityLabel={copy.noUnit} onPress={() => stableApplyTargetUnit("")} style={({ pressed }) => [styles.convertChip, siChipActive && styles.convertChipActive, pressed && styles.pressed]}>
+          <Text style={[styles.convertChipText, siChipActive && styles.convertChipTextActive]}>SI</Text>
+        </Pressable>
+        {conversionUnits.map((symbol) => (
+          <Pressable accessibilityLabel={symbol} key={symbol} onPress={() => stableApplyTargetUnit(symbol)} style={({ pressed }) => [styles.convertChip, displayUnit === symbol && !isFallbackUnit && styles.convertChipActive, pressed && styles.pressed]}>
+            <Text style={[styles.convertChipText, displayUnit === symbol && !isFallbackUnit && styles.convertChipTextActive]}>{symbol}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+    ),
+    [conversionUnits, copy, displayUnit, isFallbackUnit, siChipActive, stableApplyTargetUnit, styles],
+  );
+
+  const editAndPrefixRows = useMemo(
+    () => (
+      <>
+        <View style={styles.editKeyRow}>
+        <Pressable accessibilityLabel={copy.caretLeft} disabled={caretAtStart} onPress={() => stableMoveCaret(-1)} style={({ pressed }) => [styles.editKey, caretAtStart && styles.keyDisabled, pressed && styles.pressed]}>
+          <IconSymbol name="chevron.left" size={16} color={colors.primary} />
+        </Pressable>
+        <Pressable accessibilityLabel={copy.caretRight} disabled={caretAtEnd} onPress={() => stableMoveCaret(1)} style={({ pressed }) => [styles.editKey, caretAtEnd && styles.keyDisabled, pressed && styles.pressed]}>
+          <IconSymbol name="chevron.right" size={16} color={colors.primary} />
+        </Pressable>
+        {EDIT_KEYS.map((editKey) => (
+          <Pressable
+            accessibilityLabel={editKey.insert}
+            disabled={baseInputMode !== null}
+            key={editKey.label}
+            onPress={() => stablePressKey(editKey.insert)}
+            style={({ pressed }) => [styles.editKey, baseInputMode !== null && styles.keyDisabled, pressed && styles.pressed]}
+          >
+            {/* 7キーに増えて1キーあたりの幅が狭くなったので、×10ⁿ が枠をはみ出さないように
+                1行へ固定する（flexは幅の割り当てを決めるだけでTextの内容幅は縮まない）。 */}
+            <Text numberOfLines={1} style={styles.editKeyText}>{editKey.label}</Text>
+          </Pressable>
+        ))}
+        {/* OSのキーボードは「頼まれたときだけ」出す。進数入力モード中も押せる（打ち込みは
+            onChangeText がその基数の桁だけに絞る）。 */}
+        <Pressable
+          accessibilityLabel={copy.keyboardKey}
+          accessibilityState={{ selected: isKeyboardInputActive }}
+          onPress={stableToggleKeyboardInput}
+          style={({ pressed }) => [styles.editKey, isKeyboardInputActive && styles.editKeyActive, pressed && styles.pressed]}
+        >
+          <IconSymbol name="keyboard" size={16} color={isKeyboardInputActive ? colors.onPrimary : colors.primary} />
+        </Pressable>
+      </View>
+
+      {/* 接頭語は単位の一部なので、演算子まわりの編集キーとは行を分ける（同じ行に混ぜると
+          どれが式の記号でどれが単位の文字か見分けられない）。 */}
+      <View style={styles.editKeyRow}>
+        {PREFIX_KEYS.map((prefix) => (
+          <Pressable
+            accessibilityLabel={prefix}
+            // 押した接頭語は、単位を選ぶまで点けたままにする。トグル（もう一度押すと取り消し・
+            // 別のキーを押すと差し替え）なので、今どれが効いているかが見えないと押し直せない。
+            accessibilityState={{ selected: activePrefix === prefix }}
+            disabled={baseInputMode !== null}
+            key={prefix}
+            onPress={() => stablePressKey(prefix)}
+            style={({ pressed }) => [styles.prefixKey, activePrefix === prefix && styles.prefixKeyActive, baseInputMode !== null && styles.keyDisabled, pressed && styles.pressed]}
+          >
+            <Text style={[styles.prefixKeyText, activePrefix === prefix && styles.prefixKeyTextActive]}>{prefix}</Text>
+          </Pressable>
+        ))}
+        {/* 数学はキャレット位置への挿入だけで書きかけの式を壊さないので、編集キーと同じ行に置く。 */}
+        {isAdvancedMode ? (
+          <Pressable
+            disabled={baseInputMode !== null}
+            onPress={() => setShowAdvancedKeys(true)}
+            style={({ pressed }) => [styles.editKey, styles.mathKey, baseInputMode !== null && styles.keyDisabled, pressed && styles.pressed]}
+          >
+            {/* 訳語が長い言語（独 Mathematik・西 Matemáticas・葡 Matemática）ではキーの
+                内容幅が flex の割り当てを超え、接頭語の G キーに重なって画面外へはみ出す。
+                1行に固定して縮める（flexは幅の上限を決めるだけで、Textの内容幅は縮まない）。 */}
+            <Text numberOfLines={1} style={styles.editKeyText}>{copy.math}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+      </>
+    ),
+    [activePrefix, baseInputMode, caretAtEnd, caretAtStart, colors, copy, isAdvancedMode, isKeyboardInputActive, stableMoveCaret, stablePressKey, stableToggleKeyboardInput, styles],
+  );
+
+  const keypad = useMemo(
+    () => (
+        <View style={styles.keypad}>
+        {KEYS.map((key, index) => {
+          const isAction = key === "=";
+          const isOperator = ["×", "÷", "+", "-"].includes(key);
+          const isDigit = /^[0-9]$/.test(key);
+          // 進数入力モード中は、演算子・小数点・括弧を全面的に無効化し（16進の桁のまま演算に
+          // 入ると評価器が解釈できないため。まず=で10進へ確定させる）、数字キーはその基数で
+          // 使えない桁だけを無効化する（例: 2進なら2〜9が押せない）。
+          const isDisabledForBaseInput = baseInputMode !== null
+            && (BASE_INPUT_DISABLED_KEYS.includes(key) || (isDigit && !isBaseDigitAllowed(key, baseInputMode)));
+          return (
+            <View key={`${key}-${index}`} style={styles.keyCell}>
+              <Pressable
+                accessibilityLabel={key === "⌫" ? copy.deleteKey : key === "AC" ? copy.clearAllKey : key}
+                disabled={isDisabledForBaseInput}
+                hitSlop={KEY_CELL_PADDING}
+                onPress={() => stablePressKey(key)}
+                style={({ pressed }) => [styles.key, isAction && styles.keyAction, isOperator && styles.keyOperator, isDisabledForBaseInput && styles.keyDisabled, pressed && styles.keyPressed]}
+              >
+                {key === "⌫" ? <IconSymbol name="delete.left" size={20} color={colors.muted} /> : <Text style={[styles.keyText, (isAction || isOperator) && styles.keyTextAccent, isAction && { color: colors.onPrimary }]}>{key}</Text>}
+              </Pressable>
+            </View>
+          );
+        })}
+      </View>
+    ),
+    // baseInputMode 以外は打鍵で変わらない。ここに式やキャレットを足すとメモ化の意味が消える。
+    [baseInputMode, colors, copy, stablePressKey, styles],
+  );
+
   return (
     <ScreenContainer className="px-4" containerClassName="bg-background">
       <View style={styles.screen}>
@@ -1795,7 +1949,6 @@ export default function CalculatorScreen() {
             すぐ先に「インストール」ボタンが並んで誤タップしやすく、入力欄と結果カードの間に
             割り込んで読む流れも切る（実機で指摘された）。 */}
         <CalculatorBannerAd />
-
         <View style={styles.inputCard}>
           {/* 色分けしたトークン列そのものが入力欄。かつては TextInput の下に同じ式のプレビュー行を
               別に並べていたが、同じ式が2段に出るうえ、TextInput はフォーカスが外れるとキャレットを
@@ -2008,7 +2161,6 @@ export default function CalculatorScreen() {
           {isRailNearInput ? renderUnitRail(false) : null}
 
         </View>
-
         <View style={styles.middle}>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.middleContent} keyboardShouldPersistTaps="handled">
             {error ? (
@@ -2116,16 +2268,7 @@ export default function CalculatorScreen() {
                         スクロールしたあと電圧（3件）の結果に変えると、チップ列が空に
                         見えて表示単位を選ぶ主導線が消える。SIチップは常に先頭で固定なので
                         conversionUnits だけを key にすれば足りる。 */}
-                    <ScrollView contentContainerStyle={styles.conversionRail} horizontal key={conversionUnits.join(",")} keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false}>
-                      <Pressable accessibilityLabel={copy.noUnit} onPress={() => { markUserInteraction(); applyTargetUnit(""); }} style={({ pressed }) => [styles.convertChip, siChipActive && styles.convertChipActive, pressed && styles.pressed]}>
-                        <Text style={[styles.convertChipText, siChipActive && styles.convertChipTextActive]}>SI</Text>
-                      </Pressable>
-                      {conversionUnits.map((symbol) => (
-                        <Pressable accessibilityLabel={symbol} key={symbol} onPress={() => { markUserInteraction(); applyTargetUnit(symbol); }} style={({ pressed }) => [styles.convertChip, displayUnit === symbol && !display.isFallback && styles.convertChipActive, pressed && styles.pressed]}>
-                          <Text style={[styles.convertChipText, displayUnit === symbol && !display.isFallback && styles.convertChipTextActive]}>{symbol}</Text>
-                        </Pressable>
-                      ))}
-                    </ScrollView>
+                    {conversionChipRail}
                     <Pressable accessibilityLabel={copy.outputUnit} onPress={() => openUnitPicker()} style={({ pressed }) => [styles.convertMore, pressed && styles.pressed]}>
                       <Text style={styles.convertMoreText}>{copy.more}</Text>
                       <IconSymbol name="chevron.right" size={11} color={colors.primary} />
@@ -2255,69 +2398,7 @@ export default function CalculatorScreen() {
             使えるが、べき乗まわりは桁以外を受け付けないモードなので無効にする（pressKey 側でも弾く）。
             数学ボタンもこの行に入れてある（単独の行にすると 360×640 の端末でキーパッド下段の
             「. 0 ⌫ =」が画面外へ押し出される。行を増やせるのは1行ぶんだけ）。 */}
-        <View style={styles.editKeyRow}>
-          <Pressable accessibilityLabel={copy.caretLeft} disabled={caretAtStart} onPress={() => moveCaret(-1)} style={({ pressed }) => [styles.editKey, caretAtStart && styles.keyDisabled, pressed && styles.pressed]}>
-            <IconSymbol name="chevron.left" size={16} color={colors.primary} />
-          </Pressable>
-          <Pressable accessibilityLabel={copy.caretRight} disabled={caretAtEnd} onPress={() => moveCaret(1)} style={({ pressed }) => [styles.editKey, caretAtEnd && styles.keyDisabled, pressed && styles.pressed]}>
-            <IconSymbol name="chevron.right" size={16} color={colors.primary} />
-          </Pressable>
-          {EDIT_KEYS.map((editKey) => (
-            <Pressable
-              accessibilityLabel={editKey.insert}
-              disabled={baseInputMode !== null}
-              key={editKey.label}
-              onPress={() => pressKey(editKey.insert)}
-              style={({ pressed }) => [styles.editKey, baseInputMode !== null && styles.keyDisabled, pressed && styles.pressed]}
-            >
-              {/* 7キーに増えて1キーあたりの幅が狭くなったので、×10ⁿ が枠をはみ出さないように
-                  1行へ固定する（flexは幅の割り当てを決めるだけでTextの内容幅は縮まない）。 */}
-              <Text numberOfLines={1} style={styles.editKeyText}>{editKey.label}</Text>
-            </Pressable>
-          ))}
-          {/* OSのキーボードは「頼まれたときだけ」出す。進数入力モード中も押せる（打ち込みは
-              onChangeText がその基数の桁だけに絞る）。 */}
-          <Pressable
-            accessibilityLabel={copy.keyboardKey}
-            accessibilityState={{ selected: isKeyboardInputActive }}
-            onPress={toggleKeyboardInput}
-            style={({ pressed }) => [styles.editKey, isKeyboardInputActive && styles.editKeyActive, pressed && styles.pressed]}
-          >
-            <IconSymbol name="keyboard" size={16} color={isKeyboardInputActive ? colors.onPrimary : colors.primary} />
-          </Pressable>
-        </View>
-
-        {/* 接頭語は単位の一部なので、演算子まわりの編集キーとは行を分ける（同じ行に混ぜると
-            どれが式の記号でどれが単位の文字か見分けられない）。 */}
-        <View style={styles.editKeyRow}>
-          {PREFIX_KEYS.map((prefix) => (
-            <Pressable
-              accessibilityLabel={prefix}
-              // 押した接頭語は、単位を選ぶまで点けたままにする。トグル（もう一度押すと取り消し・
-              // 別のキーを押すと差し替え）なので、今どれが効いているかが見えないと押し直せない。
-              accessibilityState={{ selected: activePrefix === prefix }}
-              disabled={baseInputMode !== null}
-              key={prefix}
-              onPress={() => pressKey(prefix)}
-              style={({ pressed }) => [styles.prefixKey, activePrefix === prefix && styles.prefixKeyActive, baseInputMode !== null && styles.keyDisabled, pressed && styles.pressed]}
-            >
-              <Text style={[styles.prefixKeyText, activePrefix === prefix && styles.prefixKeyTextActive]}>{prefix}</Text>
-            </Pressable>
-          ))}
-          {/* 数学はキャレット位置への挿入だけで書きかけの式を壊さないので、編集キーと同じ行に置く。 */}
-          {isAdvancedMode ? (
-            <Pressable
-              disabled={baseInputMode !== null}
-              onPress={() => setShowAdvancedKeys(true)}
-              style={({ pressed }) => [styles.editKey, styles.mathKey, baseInputMode !== null && styles.keyDisabled, pressed && styles.pressed]}
-            >
-              {/* 訳語が長い言語（独 Mathematik・西 Matemáticas・葡 Matemática）ではキーの
-                  内容幅が flex の割り当てを超え、接頭語の G キーに重なって画面外へはみ出す。
-                  1行に固定して縮める（flexは幅の上限を決めるだけで、Textの内容幅は縮まない）。 */}
-              <Text numberOfLines={1} style={styles.editKeyText}>{copy.math}</Text>
-            </Pressable>
-          ) : null}
-        </View>
+        {editAndPrefixRows}
 
         {/* 単位レールの既定の置き場所。キーパッドの直上に置くことで、数字・接頭語・単位・演算子の
             打鍵が画面の下半分で完結する（以前は画面上部にあり、1項ごとに親指を往復させていた）。
@@ -2335,31 +2416,7 @@ export default function CalculatorScreen() {
           </View>
         ) : null}
 
-        <View style={styles.keypad}>
-          {KEYS.map((key, index) => {
-            const isAction = key === "=";
-            const isOperator = ["×", "÷", "+", "-"].includes(key);
-            const isDigit = /^[0-9]$/.test(key);
-            // 進数入力モード中は、演算子・小数点・括弧を全面的に無効化し（16進の桁のまま演算に
-            // 入ると評価器が解釈できないため。まず=で10進へ確定させる）、数字キーはその基数で
-            // 使えない桁だけを無効化する（例: 2進なら2〜9が押せない）。
-            const isDisabledForBaseInput = baseInputMode !== null
-              && (BASE_INPUT_DISABLED_KEYS.includes(key) || (isDigit && !isBaseDigitAllowed(key, baseInputMode)));
-            return (
-              <View key={`${key}-${index}`} style={styles.keyCell}>
-                <Pressable
-                  accessibilityLabel={key === "⌫" ? copy.deleteKey : key === "AC" ? copy.clearAllKey : key}
-                  disabled={isDisabledForBaseInput}
-                  hitSlop={KEY_CELL_PADDING}
-                  onPress={() => pressKey(key)}
-                  style={({ pressed }) => [styles.key, isAction && styles.keyAction, isOperator && styles.keyOperator, isDisabledForBaseInput && styles.keyDisabled, pressed && styles.keyPressed]}
-                >
-                  {key === "⌫" ? <IconSymbol name="delete.left" size={20} color={colors.muted} /> : <Text style={[styles.keyText, (isAction || isOperator) && styles.keyTextAccent, isAction && { color: colors.onPrimary }]}>{key}</Text>}
-                </Pressable>
-              </View>
-            );
-          })}
-        </View>
+        {keypad}
       </View>
 
       <Modal visible={showSamples} transparent animationType="slide" onRequestClose={() => setShowSamples(false)}>
