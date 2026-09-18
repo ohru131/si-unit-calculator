@@ -1094,8 +1094,6 @@ export default function CalculatorScreen() {
         setNotice(copy.constantSaved(definition.symbol));
       }
       playResultReveal();
-      // 確定した時点で1つの計算が終わっているので、次の式は文脈依存の候補から始める。
-      resetPalette();
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       // 表示単位が結果に合わないときは、行き止まりにせずSI標準へ戻す。
       let usedTargetUnit = selectedTargetUnit.trim();
@@ -1205,6 +1203,10 @@ export default function CalculatorScreen() {
   // 起きる。経路ごとに書くと必ずどれかが漏れる（実際に = キー以外は進数の生の桁をそのまま
   // 通常の式として評価しようとしていた）ので、確定は必ずこの1関数を通す。
   const submitCalculation = () => {
+    // = を押した時点で「この計算はここまで」なので、結果が出ても出なくても（空・未対応の単位・
+    // 評価エラーで calculate() が途中で戻る場合も）パレットのカテゴリ選択は文脈依存の候補へ戻す。
+    // 成功時だけ戻すと、失敗した式を直しているあいだ古いカテゴリの単位が並び続ける（CodeRabbitが#69で検出）。
+    resetPalette();
     if (baseInputMode !== null) {
       // 進数入力モードでは確定は「計算」ではなく「その基数の生の桁を10進の数値へ変換する」操作。
       // 変換できないとき（空・不正な桁）は何もしない。=を押すまでエラーを出さない通常の
@@ -1215,7 +1217,6 @@ export default function CalculatorScreen() {
         setExpression(decimalText);
         placeCaret(decimalText.length);
         setBaseInputMode(null);
-        resetPalette();
       }
       return;
     }
