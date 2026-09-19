@@ -1,26 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { MATH_FUNCTION_KEYS } from "@/lib/math-functions";
-import { NOTEBOOK_KEYPAD_COLUMNS, NOTEBOOK_KEYPAD_KEYS, backspaceInField, insertKeypadText } from "@/lib/notebook-keypad";
+import { backspaceInField, insertKeypadText, moveCaretInField } from "@/lib/notebook-keypad";
 import { evaluateExpression } from "@/lib/units";
-
-describe("NOTEBOOK_KEYPAD_KEYS", () => {
-  it("is a full 5-column grid with every digit, the decimal point and the four operators", () => {
-    expect(NOTEBOOK_KEYPAD_KEYS.length % NOTEBOOK_KEYPAD_COLUMNS).toBe(0);
-    const inserts = NOTEBOOK_KEYPAD_KEYS.flatMap((key) => ("insert" in key ? [key.insert] : []));
-    for (const digit of "0123456789.") expect(inserts).toContain(digit);
-    for (const operator of ["+", "-", "×", "÷", "(", ")", "^"]) expect(inserts).toContain(operator);
-    expect(NOTEBOOK_KEYPAD_KEYS.filter((key) => "action" in key && key.action === "backspace")).toHaveLength(1);
-  });
-
-  it("keeps the same digit positions as the calculator keypad", () => {
-    const labels = NOTEBOOK_KEYPAD_KEYS.map((key) => key.label);
-    expect(labels.slice(0, 3)).toEqual(["7", "8", "9"]);
-    expect(labels.slice(5, 8)).toEqual(["4", "5", "6"]);
-    expect(labels.slice(10, 13)).toEqual(["1", "2", "3"]);
-    expect(labels.slice(15, 17)).toEqual(["0", "."]);
-  });
-});
 
 describe("MATH_FUNCTION_KEYS", () => {
   it("lists functions with their opening paren and the two constants", () => {
@@ -81,5 +63,22 @@ describe("backspaceInField", () => {
 
   it("falls back to deleting the last character when no selection was recorded beyond the end", () => {
     expect(backspaceInField("m", "5kg", 99, 99)).toEqual({ expression: "5k", combinedCaret: 4 });
+  });
+});
+
+describe("moveCaretInField", () => {
+  it("moves within the expression part and clamps at both ends", () => {
+    expect(moveCaretInField("m", "5kg", 3, 3, 1)).toEqual({ start: 4, end: 4 });
+    expect(moveCaretInField("m", "5kg", 5, 5, 1)).toEqual({ start: 5, end: 5 });
+    expect(moveCaretInField("m", "5kg", 2, 2, -1)).toEqual({ start: 2, end: 2 });
+  });
+
+  it("collapses a selection toward the direction of movement", () => {
+    expect(moveCaretInField("m", "5kg", 2, 4, -1)).toEqual({ start: 2, end: 2 });
+    expect(moveCaretInField("m", "5kg", 2, 4, 1)).toEqual({ start: 5, end: 5 });
+  });
+
+  it("never enters the name part", () => {
+    expect(moveCaretInField("mass", "5kg", 5, 5, -1)).toEqual({ start: 5, end: 5 });
   });
 });

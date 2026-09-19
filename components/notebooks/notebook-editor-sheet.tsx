@@ -14,6 +14,7 @@ import {
   UNCATEGORIZED_CATEGORY_ID,
 } from "@/lib/calculator-store";
 import { FORMULA_CHARACTER_GROUPS } from "@/lib/formula-characters";
+import { toHalfWidthAscii } from "@/lib/fullwidth-input";
 import { localizedText, type AppLanguage } from "@/lib/i18n";
 import { clampSelectionRange, getLocalConstantFieldSuggestions, getStepFieldSuggestions, insertConstantSymbol, mapCombinedSelectionToExpressionRange } from "@/lib/notebook-constant-suggestions";
 import { evaluateNotebookSteps, formatNameValue, normalizeStepForSave, parseNameValue, resolveNotebookLocalConstants } from "@/lib/notebook-engine";
@@ -657,7 +658,7 @@ export function NotebookEditorSheet({
                     <TextInput
                       value={formatNameValue(item.symbol, item.expression)}
                       onChangeText={(text) => {
-                        const { name, value } = parseNameValue(text);
+                        const { name, value } = parseNameValue(toHalfWidthAscii(text));
                         updateLocalConstant(item.id, { symbol: name, expression: value });
                         setForcedSelection((current) => (current?.key === railKey ? null : current));
                       }}
@@ -703,7 +704,7 @@ export function NotebookEditorSheet({
                   <TextInput
                     value={formatNameValue(step.resultSymbol ?? "", step.expression)}
                     onChangeText={(text) => {
-                      const { name, value } = parseNameValue(text);
+                      const { name, value } = parseNameValue(toHalfWidthAscii(text));
                       applyStepNameValue(step, name, value);
                       setForcedSelection((current) => (current?.key === railKey ? null : current));
                     }}

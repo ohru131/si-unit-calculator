@@ -23,11 +23,13 @@ import { ScreenContainer } from "@/components/screen-container";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { LatexView } from "@/components/ui/latex-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { MathFunctionRail } from "@/components/ui/math-function-rail";
+import { ExpressionKeyboard } from "@/components/ui/expression-keyboard";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { isSampleCategoryVisible, isUnitGroupVisible, isUnitVisible, visibleUnits } from "@/lib/advanced-display";
 import { resolveCalculatorLayout, scaleFontSizes, type CalculatorLayout } from "@/lib/calculator-layout";
+import { PREFIX_KEYS, type KeyboardTool } from "@/lib/expression-keyboard";
+import { toHalfWidthAscii } from "@/lib/fullwidth-input";
 import { buildCaretPreview, normalizeSelection } from "@/lib/expression-caret";
 import { findExactValue, isTerminatingDecimalFraction } from "@/lib/exact-value";
 import { inferSignificantDigits, significantDigitsAfterConversion, toScientificNotation } from "@/lib/significant-figures";
@@ -86,12 +88,6 @@ import { convertQuantity, formatDimension, formatNumberForLocale, formatQuantity
 //
 // カーソルキー（`<` `>`）はキーパッドに入れず編集キーの行に置いたまま。関数電卓でも
 // カーソルは数字キーの外の別クラスタなので、ここへ入れて5段に戻す方が不自然になる。
-const KEYS = [
-  "7", "8", "9", "⌫", "AC",
-  "4", "5", "6", "÷", "×",
-  "1", "2", "3", "-", "+",
-  "0", ".", "(", ")", "=",
-];
 // 結果の見せ方。小数を先頭にする（分数・π や科学表記で出せる値の方が少ないため、既定は常に小数）。
 // exact・scientific は出せるときだけチップを並べる（押しても何も変わらないボタンを作らない）。
 const VALUE_FORMS = ["decimal", "exact", "scientific"] as const;
@@ -140,7 +136,6 @@ const BASE_INPUT_DISABLED_KEYS = ["(", ")", "÷", "×", "-", "+", "."];
 // **その直後にレールがその接頭語で始まる単位を候補に出す**（lib/unit-input.ts の綴り一致優先）。
 // マイクロはマイクロ記号 µ(U+00B5)。ギリシャ小文字の μ(U+03BC) は定数名用で別コードポイント。
 // 範囲はピコ〜ギガに絞る（この電卓が扱う電気・機械の量はこの間に収まる）。
-const PREFIX_KEYS = ["p", "n", "µ", "m", "c", "k", "M", "G"] as const;
 const isPrefixKey = (key: string) => (PREFIX_KEYS as readonly string[]).includes(key);
 
 /**
@@ -187,7 +182,6 @@ const SHEET_PADDING_BOTTOM = 28;
 // 切り替わっていた（実機で報告された）。hitSlop でセル全体を当たり判定にして塞ぐ。
 // Androidでは hitSlop は親の矩形までしか届かないが、セル（keyHeight + 上下の余白）の内側に
 // 収まっているので全量が効く。
-const KEY_CELL_PADDING = 3;
 const EXPRESSION_FONT_SIZE = 21;
 const EXPRESSION_LINE_HEIGHT = 26;
 const RESULT_VALUE_FONT_SIZE = 36;
@@ -274,12 +268,6 @@ function ExpressionPiece({ accessibilityLabel, children, length, onPlaceCaret, o
   );
 }
 
-const EDIT_KEYS: readonly { label: string; insert: string }[] = [
-  { label: "x²", insert: "²" },
-  { label: "x³", insert: "³" },
-  { label: "xʸ", insert: "^" },
-  { label: "×10ⁿ", insert: "×10^" },
-];
 const RAIL_LIMIT = 8;
 const RECENT_UNIT_LIMIT = 8;
 // 掛け算・割り算の相手の候補を引くときに走査する履歴の件数（新しい方から）。
@@ -608,7 +596,9 @@ export default function CalculatorScreen() {
   const [showHistory, setShowHistory] = useState(false);
   // f(x) キーで開く数学関数のチップ列。以前はモーダルのシートだったが、計算ノートのキーパッドと同じ
   // 「キーの並びの中に開く横スクロールの列」にそろえた（1回の操作で挿せて、押したあと閉じる手間も無い）。
-  const [showFunctionRail, setShowFunctionRail] = useState(false);
+  // 式キーボードで開いているパネル。既定は「単位」（この電卓の主用途）。未対応単位を赤字でタップして
+  // 修正候補を出すときは、別のパネルを開いていても「単位」へ切り替える（候補はそこにしか出ない）。
+  const [keyboardTool, setKeyboardTool] = useState<KeyboardTool | null>("units");
   // 単位シートの用途。display＝結果の表示単位を選ぶ（結果カードの「他 ›」）、insert＝式へ挿す単位を
   // 検索する（単位パレットのカテゴリ行の「検索」）。選んだときに呼ぶ先が違うだけで、中身は同じシート。
   const [unitPickerMode, setUnitPickerMode] = useState<"display" | "insert">("display");
@@ -1124,6 +1114,7 @@ export default function CalculatorScreen() {
     if (unresolvedUnit) {
       setError(describeUnresolved(unresolvedUnit));
       setFixSelection({ start: unresolvedUnit.start, end: unresolvedUnit.end, text: unresolvedUnit.text });
+      setKeyboardTool("units");
       playErrorShake();
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
@@ -1284,7 +1275,9 @@ export default function CalculatorScreen() {
     placeCaret(Math.max(0, Math.min(expression.length, start + delta)));
   };
 
-  const pressKey = (key: string) => {
+  // literal=true はパネル（べき乗・関数・記号・英字）からの素の挿入。接頭語キーと同じ文字（m・k…）でも
+  // トグルにしない（英字パネルで `mm` と打つ2文字目が取り消しになる、という事故を防ぐ）。
+  const pressKey = (key: string, literal = false) => {
     markUserInteraction();
     if (key === "=") {
       submitCalculation();
@@ -1340,7 +1333,7 @@ export default function CalculatorScreen() {
     // **進数入力モード中はトグルに入れない。** isBaseDigitAllowed("c", 16) は真なので、
     // キーパッドの disabled をすり抜ける経路が将来できると、16進の桁の c が接頭語の
     // セント扱いで消えることになる。
-    if (baseInputMode === null && isPrefixKey(key)) {
+    if (baseInputMode === null && !literal && isPrefixKey(key)) {
       const toggled = resolvePrefixKeyPress({ expression, selection, prefixEntry, key });
       if (toggled) {
         setExpression(toggled.expression);
@@ -1355,7 +1348,7 @@ export default function CalculatorScreen() {
     setExpression(replaceExpressionRange(expression, start, end, inserted));
     placeCaret(start + inserted.length);
     setFixSelection(null);
-    setPrefixEntry(isPrefixKey(key) ? { start, end: start + inserted.length, prefix: inserted } : null);
+    setPrefixEntry(!literal && isPrefixKey(key) ? { start, end: start + inserted.length, prefix: inserted } : null);
   };
 
   // 進数入力を始められるのは、式が空か、そのまま別の基数へ読み替えられる10進の整数のときだけ。
@@ -1826,6 +1819,13 @@ export default function CalculatorScreen() {
     pressKeyRef.current = pressKey;
   });
   const stablePressKey = useCallback((key: string) => pressKeyRef.current(key), []);
+  const stableInsertText = useCallback((text: string) => pressKeyRef.current(text, true), []);
+  // 進数入力モード中は、演算子・小数点・括弧を全面的に無効化し（16進の桁のまま演算に入ると評価器が
+  // 解釈できないため。まず=で10進へ確定させる）、数字キーはその基数で使えない桁だけを無効化する。
+  const isKeyDisabledForBaseInput = useCallback(
+    (key: string) => baseInputMode !== null && (BASE_INPUT_DISABLED_KEYS.includes(key) || (/^[0-9]$/.test(key) && !isBaseDigitAllowed(key, baseInputMode))),
+    [baseInputMode],
+  );
   const moveCaretRef = useRef(moveCaret);
   const toggleKeyboardInputRef = useRef(toggleKeyboardInput);
   useEffect(() => {
@@ -1912,7 +1912,7 @@ export default function CalculatorScreen() {
           // タップで開く修正範囲は分割前のセグメント全体。一片の範囲にすると
           // 単位の半分だけを差し替えることになる。
           onPress={segment.kind === "unknown-unit"
-            ? () => setFixSelection({ start: segment.start, end: segment.end, text: segment.text })
+            ? () => { setFixSelection({ start: segment.start, end: segment.end, text: segment.text }); setKeyboardTool("units"); }
             : undefined}
           proportional={false}
           start={piece.start}
@@ -1964,112 +1964,6 @@ export default function CalculatorScreen() {
       </ScrollView>
     ),
     [conversionUnits, copy, displayUnit, isFallbackUnit, siChipActive, stableApplyTargetUnit, styles],
-  );
-
-  const editAndPrefixRows = useMemo(
-    () => (
-      <>
-        <View style={styles.editKeyRow}>
-        <Pressable accessibilityLabel={copy.caretLeft} disabled={caretAtStart} onPress={() => stableMoveCaret(-1)} style={({ pressed }) => [styles.editKey, caretAtStart && styles.keyDisabled, pressed && styles.pressed]}>
-          <IconSymbol name="chevron.left" size={16} color={colors.primary} />
-        </Pressable>
-        <Pressable accessibilityLabel={copy.caretRight} disabled={caretAtEnd} onPress={() => stableMoveCaret(1)} style={({ pressed }) => [styles.editKey, caretAtEnd && styles.keyDisabled, pressed && styles.pressed]}>
-          <IconSymbol name="chevron.right" size={16} color={colors.primary} />
-        </Pressable>
-        {EDIT_KEYS.map((editKey) => (
-          <Pressable
-            accessibilityLabel={editKey.insert}
-            disabled={baseInputMode !== null}
-            key={editKey.label}
-            onPress={() => stablePressKey(editKey.insert)}
-            style={({ pressed }) => [styles.editKey, baseInputMode !== null && styles.keyDisabled, pressed && styles.pressed]}
-          >
-            {/* 7キーに増えて1キーあたりの幅が狭くなったので、×10ⁿ が枠をはみ出さないように
-                1行へ固定する（flexは幅の割り当てを決めるだけでTextの内容幅は縮まない）。 */}
-            <Text numberOfLines={1} style={styles.editKeyText}>{editKey.label}</Text>
-          </Pressable>
-        ))}
-        {/* OSのキーボードは「頼まれたときだけ」出す。進数入力モード中も押せる（打ち込みは
-            onChangeText がその基数の桁だけに絞る）。 */}
-        <Pressable
-          accessibilityLabel={copy.keyboardKey}
-          accessibilityState={{ selected: isKeyboardInputActive }}
-          onPress={stableToggleKeyboardInput}
-          style={({ pressed }) => [styles.editKey, isKeyboardInputActive && styles.editKeyActive, pressed && styles.pressed]}
-        >
-          <IconSymbol name="keyboard" size={16} color={isKeyboardInputActive ? colors.onPrimary : colors.primary} />
-        </Pressable>
-      </View>
-
-      {/* 接頭語は単位の一部なので、演算子まわりの編集キーとは行を分ける（同じ行に混ぜると
-          どれが式の記号でどれが単位の文字か見分けられない）。 */}
-      <View style={styles.editKeyRow}>
-        {PREFIX_KEYS.map((prefix) => (
-          <Pressable
-            accessibilityLabel={prefix}
-            // 押した接頭語は、単位を選ぶまで点けたままにする。トグル（もう一度押すと取り消し・
-            // 別のキーを押すと差し替え）なので、今どれが効いているかが見えないと押し直せない。
-            accessibilityState={{ selected: activePrefix === prefix }}
-            disabled={baseInputMode !== null}
-            key={prefix}
-            onPress={() => stablePressKey(prefix)}
-            style={({ pressed }) => [styles.prefixKey, activePrefix === prefix && styles.prefixKeyActive, baseInputMode !== null && styles.keyDisabled, pressed && styles.pressed]}
-          >
-            <Text style={[styles.prefixKeyText, activePrefix === prefix && styles.prefixKeyTextActive]}>{prefix}</Text>
-          </Pressable>
-        ))}
-        {/* 数学はキャレット位置への挿入だけで書きかけの式を壊さないので、編集キーと同じ行に置く。
-            ラベルは訳さず f(x)（計算ノートのキーパッドと同じ字面。訳語だと独・西・葡で行からはみ出す）。 */}
-        {isAdvancedMode ? (
-          <Pressable
-            accessibilityLabel={copy.advancedMath}
-            accessibilityState={{ selected: showFunctionRail }}
-            disabled={baseInputMode !== null}
-            onPress={() => setShowFunctionRail((current) => !current)}
-            style={({ pressed }) => [styles.editKey, styles.mathKey, showFunctionRail && styles.editKeyActive, baseInputMode !== null && styles.keyDisabled, pressed && styles.pressed]}
-          >
-            <Text numberOfLines={1} style={[styles.editKeyText, showFunctionRail && styles.editKeyTextActive]}>f(x)</Text>
-          </Pressable>
-        ) : null}
-      </View>
-      {/* f(x) で開く関数チップ。計算ノートのキーパッドと同じ部品（components/ui/math-function-rail）。
-          進数入力モード中は pressKey 側でも弾くが、押せるのに何も起きないチップにしないため disabled にする。 */}
-      {showFunctionRail ? <MathFunctionRail disabled={baseInputMode !== null} onInsert={stablePressKey} style={styles.functionRailBlock} /> : null}
-      </>
-    ),
-    [activePrefix, baseInputMode, caretAtEnd, caretAtStart, colors, copy, isAdvancedMode, isKeyboardInputActive, showFunctionRail, stableMoveCaret, stablePressKey, stableToggleKeyboardInput, styles],
-  );
-
-  const keypad = useMemo(
-    () => (
-        <View style={styles.keypad}>
-        {KEYS.map((key, index) => {
-          const isAction = key === "=";
-          const isOperator = ["×", "÷", "+", "-"].includes(key);
-          const isDigit = /^[0-9]$/.test(key);
-          // 進数入力モード中は、演算子・小数点・括弧を全面的に無効化し（16進の桁のまま演算に
-          // 入ると評価器が解釈できないため。まず=で10進へ確定させる）、数字キーはその基数で
-          // 使えない桁だけを無効化する（例: 2進なら2〜9が押せない）。
-          const isDisabledForBaseInput = baseInputMode !== null
-            && (BASE_INPUT_DISABLED_KEYS.includes(key) || (isDigit && !isBaseDigitAllowed(key, baseInputMode)));
-          return (
-            <View key={`${key}-${index}`} style={styles.keyCell}>
-              <Pressable
-                accessibilityLabel={key === "⌫" ? copy.deleteKey : key === "AC" ? copy.clearAllKey : key}
-                disabled={isDisabledForBaseInput}
-                hitSlop={KEY_CELL_PADDING}
-                onPress={() => stablePressKey(key)}
-                style={({ pressed }) => [styles.key, isAction && styles.keyAction, isOperator && styles.keyOperator, isDisabledForBaseInput && styles.keyDisabled, pressed && styles.keyPressed]}
-              >
-                {key === "⌫" ? <IconSymbol name="delete.left" size={20} color={colors.muted} /> : <Text style={[styles.keyText, (isAction || isOperator) && styles.keyTextAccent, isAction && { color: colors.onPrimary }]}>{key}</Text>}
-              </Pressable>
-            </View>
-          );
-        })}
-      </View>
-    ),
-    // baseInputMode 以外は打鍵で変わらない。ここに式やキャレットを足すとメモ化の意味が消える。
-    [baseInputMode, colors, copy, stablePressKey, styles],
   );
 
   return (
@@ -2163,8 +2057,10 @@ export default function CalculatorScreen() {
             <TextInput
               ref={expressionInputRef}
               value={expression}
-              onChangeText={(text) => {
+              onChangeText={(rawText) => {
                 markUserInteraction();
+                // 日本語IMEのままだと全角の ｍ・３ が入り式として通らない。受け口で半角に揃える。
+                const text = toHalfWidthAscii(rawText);
                 // 進数入力モード中は入力欄への直接入力・貼り付けも桁だけに絞る。キーパッドと
                 // 数学シートを塞いでも、ここが素通りだと確定できない桁が混ざる。
                 setExpression(baseInputMode === null ? text : sanitizeBaseInput(text, baseInputMode));
@@ -2470,25 +2366,37 @@ export default function CalculatorScreen() {
             使えるが、べき乗まわりは桁以外を受け付けないモードなので無効にする（pressKey 側でも弾く）。
             数学ボタンもこの行に入れてある（単独の行にすると 360×640 の端末でキーパッド下段の
             「. 0 ⌫ =」が画面外へ押し出される。行を増やせるのは1行ぶんだけ）。 */}
-        {editAndPrefixRows}
-
-        {/* 単位レールの既定の置き場所。キーパッドの直上に置くことで、数字・接頭語・単位・演算子の
-            打鍵が画面の下半分で完結する（以前は画面上部にあり、1項ごとに親指を往復させていた）。
-            OSのキーボードを出している間だけ入力欄の直下へ移る（renderUnitRail の注記を参照）。 */}
-        {isRailNearInput ? null : renderUnitRail(true)}
-
-        {baseInputMode === 16 ? (
-          // 16進の入力モード中だけ、キーパッド本体の配置は変えずに直上へA〜Fの行を足す。
-          <View style={styles.hexKeyRow}>
-            {HEX_LETTER_KEYS.map((letter) => (
-              <Pressable accessibilityLabel={letter} key={letter} onPress={() => pressKey(letter)} style={({ pressed }) => [styles.hexKey, pressed && styles.pressed]}>
-                <Text style={styles.hexKeyText}>{letter}</Text>
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
-
-        {keypad}
+        {/* 式キーボード（計算ノートと共用）。ツール行 → 開いているパネル → キーパッド。単位レールは
+            「単位」パネルの中に入り、数字・接頭語・単位・演算子の打鍵が画面の下半分で完結する。
+            OSのキーボードを出している間だけレールは入力欄の直下へ移る（renderUnitRail の注記を参照）。 */}
+        <ExpressionKeyboard
+          language={language}
+          layout={layout}
+          tool={keyboardTool}
+          onToolChange={setKeyboardTool}
+          onKey={stablePressKey}
+          onInsert={stableInsertText}
+          onPrefix={stablePressKey}
+          activePrefix={activePrefix}
+          onMoveCaret={stableMoveCaret}
+          caretAtStart={caretAtStart}
+          caretAtEnd={caretAtEnd}
+          isKeyDisabled={isKeyDisabledForBaseInput}
+          panelsDisabled={baseInputMode !== null}
+          unitPanel={isRailNearInput ? null : renderUnitRail(true)}
+          aboveKeypad={baseInputMode === 16 ? (
+            // 16進の入力モード中だけ、キーパッド本体の配置は変えずに直上へA〜Fの行を足す。
+            <View style={styles.hexKeyRow}>
+              {HEX_LETTER_KEYS.map((letter) => (
+                <Pressable accessibilityLabel={letter} key={letter} onPress={() => pressKey(letter)} style={({ pressed }) => [styles.hexKey, pressed && styles.pressed]}>
+                  <Text style={styles.hexKeyText}>{letter}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+          isOsKeyboardActive={isKeyboardInputActive}
+          onToggleOsKeyboard={stableToggleKeyboardInput}
+        />
       </View>
 
       <Modal visible={showSamples} transparent animationType="slide" onRequestClose={() => setShowSamples(false)}>{samplesSheet}</Modal>
@@ -2828,15 +2736,6 @@ const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => St
   // 数学・進数はキーパッドの一部に見せたいので、primarySurface系の色使いにする。
 
   // 画面幅に関係なく必ず4列で並ぶよう、25%幅のセルに収める。
-  keypad: { flexDirection: "row", flexWrap: "wrap", marginHorizontal: -3 },
-  // 5列（KEYS のコメント参照）。4列に戻すなら KEYS の並びも組み直すこと。
-  keyCell: { padding: KEY_CELL_PADDING, width: "20%" },
-  key: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 12, borderWidth: 1, height: layout.keyHeight, justifyContent: "center" },
-  keyOperator: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder },
-  keyAction: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
-  keyText: { color: colors.foreground, fontFamily: mono, fontSize: 18, fontWeight: "600" },
-  keyTextAccent: { color: colors.primary },
-  keyPressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
   // 進数入力モードでその基数の桁として使えないキー・演算子キーを薄く見せる（押せないことを示す）。
   keyDisabled: { opacity: 0.35 },
   pressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
@@ -2862,7 +2761,6 @@ const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => St
   unitGroupLabel: { color: colors.muted, fontSize: 11, fontWeight: "700" },
   favoritePicker: { backgroundColor: colors.warningSurface, borderColor: colors.warningBorder, borderRadius: 12, borderWidth: 1, marginTop: 6, padding: 10 },
 
-  functionRailBlock: { flexShrink: 0, marginBottom: layout.keyRowGap - 2 },
 
   // 16進入力モード専用の小さめのA〜F行。キーパッド本体
   // （styles.keypad/key）はここでは一切変えない。
@@ -2873,19 +2771,9 @@ const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => St
   // 高さは2行ぶんで8px詰めてある（32→30・余白6→4）。単位パレットのカテゴリ行を足したぶん、
   // 縮むのは画面で唯一伸縮する middle ＝ 結果カードの見える高さなので、その分をここから返す。
   // これ以上詰めると押しやすさ（最小タップ高）を割るので、行を足すときは別の場所から取ること。
-  editKeyRow: { flexDirection: "row", gap: layout.keyRowGap, marginBottom: layout.keyRowGap - 2 },
-  editKey: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, flex: 1, justifyContent: "center", minHeight: layout.keyRowMinHeight },
-  editKeyText: { color: colors.primary, fontFamily: mono, fontSize: 15, fontWeight: "800" },
   // 接頭語は「単位の文字」なので、単位チップと同じ面の色にして編集キー（枠だけ）と区別する。
-  prefixKey: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, flex: 1, justifyContent: "center", minHeight: layout.keyRowMinHeight },
-  prefixKeyText: { color: colors.primary, fontFamily: mono, fontSize: 15, fontWeight: "800" },
-  editKeyActive: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
-  editKeyTextActive: { color: colors.onPrimary },
-  prefixKeyActive: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
-  prefixKeyTextActive: { color: colors.onPrimary },
   // 数学は文字数が多いので、他の編集キーより少し広く取る（アイコンは外した。1行に収めるため）。
   // minWidth: 0 が無いと、内容幅が flex の割り当てより大きい言語で行からはみ出す。
-  mathKey: { backgroundColor: colors.primarySurface, flex: 1.6, minWidth: 0, paddingHorizontal: 2 },
   hexKeyRow: { flexDirection: "row", gap: layout.keyRowGap, marginTop: layout.keyRowGap },
   hexKey: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, flex: 1, justifyContent: "center", minHeight: layout.keyRowMinHeight },
   hexKeyText: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
-import { Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 
 import { NotebookKeypad } from "@/components/notebooks/notebook-keypad";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -13,7 +13,9 @@ import { type AppLanguage } from "@/lib/i18n";
 import { getLocalConstantFieldSuggestions, getStepFieldSuggestions, insertConstantSymbol, mapCombinedSelectionToExpressionRange } from "@/lib/notebook-constant-suggestions";
 import { evaluateNotebookSteps, formatNameValue, normalizeStepForSave, parseNameValue, resolveNotebookLocalConstants, trimResultSymbol } from "@/lib/notebook-engine";
 import { resolveNotebookStepDisplay } from "@/lib/notebook-export-model";
-import { backspaceInField, insertKeypadText } from "@/lib/notebook-keypad";
+import { resolveCalculatorLayout } from "@/lib/calculator-layout";
+import { toHalfWidthAscii } from "@/lib/fullwidth-input";
+import { backspaceInField, insertKeypadText, moveCaretInField } from "@/lib/notebook-keypad";
 import { nextStepNamePatch, stepDisplayTitle } from "@/lib/notebook-step-title";
 import { getUnitInsertionRange, replaceExpressionRange } from "@/lib/unit-input";
 import { compatibleUnitOptions, compatibleUnitOptionsFromHints } from "@/lib/unit-options";
@@ -37,7 +39,7 @@ const EN_COPY = {
   switchMessage: "This notebook has values you haven't saved. Switching notebooks discards them.",
   switchDiscard: "Discard and switch",
   cancel: "Cancel",
-  osKeyboard: "System keyboard", keypadDismiss: "Done", backspace: "Delete", mathFunctions: "Math functions",
+  keypadDismiss: "Done",
   constantPlaceholder: "name=value (e.g. v0=5m/s)", stepPlaceholder: "name=expression (e.g. v=v0+a*t)",
 } as const;
 const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
@@ -57,7 +59,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     switchMessage: "このノートには保存していない値があります。ノートを切り替えると破棄されます。",
     switchDiscard: "破棄して切り替え",
     cancel: "キャンセル",
-    osKeyboard: "端末のキーボード", keypadDismiss: "閉じる", backspace: "削除", mathFunctions: "数学関数",
+    keypadDismiss: "閉じる",
     constantPlaceholder: "名前=値（例: v0=5m/s）", stepPlaceholder: "名前=式（例: v=v0+a*t）",
   },
   es: {
@@ -75,7 +77,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     switchMessage: "Este cuaderno tiene valores que no has guardado. Al cambiar de cuaderno se descartan.",
     switchDiscard: "Descartar y cambiar",
     cancel: "Cancelar",
-    osKeyboard: "Teclado del sistema", keypadDismiss: "Listo", backspace: "Borrar", mathFunctions: "Funciones matemáticas",
+    keypadDismiss: "Listo",
     constantPlaceholder: "nombre=valor (p. ej. v0=5m/s)", stepPlaceholder: "nombre=expresión (p. ej. v=v0+a*t)",
   },
   "pt-BR": {
@@ -93,7 +95,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     switchMessage: "Este caderno tem valores que você não salvou. Trocar de caderno descarta essas alterações.",
     switchDiscard: "Descartar e trocar",
     cancel: "Cancelar",
-    osKeyboard: "Teclado do sistema", keypadDismiss: "Concluído", backspace: "Apagar", mathFunctions: "Funções matemáticas",
+    keypadDismiss: "Concluído",
     constantPlaceholder: "nome=valor (ex.: v0=5m/s)", stepPlaceholder: "nome=expressão (ex.: v=v0+a*t)",
   },
   de: {
@@ -111,7 +113,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     switchMessage: "Dieses Rechenheft hat Werte, die du nicht gespeichert hast. Beim Wechseln gehen sie verloren.",
     switchDiscard: "Verwerfen und wechseln",
     cancel: "Abbrechen",
-    osKeyboard: "Systemtastatur", keypadDismiss: "Fertig", backspace: "Löschen", mathFunctions: "Mathematische Funktionen",
+    keypadDismiss: "Fertig",
     constantPlaceholder: "Name=Wert (z. B. v0=5m/s)", stepPlaceholder: "Name=Ausdruck (z. B. v=v0+a*t)",
   },
   fr: {
@@ -129,7 +131,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     switchMessage: "Ce carnet contient des valeurs non enregistrées. Changer de carnet les abandonne.",
     switchDiscard: "Abandonner et changer",
     cancel: "Annuler",
-    osKeyboard: "Clavier du système", keypadDismiss: "Terminé", backspace: "Effacer", mathFunctions: "Fonctions mathématiques",
+    keypadDismiss: "Terminé",
     constantPlaceholder: "nom=valeur (ex. v0=5m/s)", stepPlaceholder: "nom=expression (ex. v=v0+a*t)",
   },
 };
@@ -171,6 +173,9 @@ type Props = {
 export function NotebookDetail({ language, locale, unitSystem, measuringStandard, notebook, categoryLabel, globalConstants, onBack, onEdit, onShare, onTogglePinned, onTitlePress, onUse, onSaveValues }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  // キーパッドのキーの高さ・文字の拡大率は電卓と同じ規則で決める（画面の高さと文字サイズ設定）。
+  const { fontScale, height: windowHeight } = useWindowDimensions();
+  const keyboardLayout = useMemo(() => resolveCalculatorLayout({ fontScale, height: windowHeight }), [fontScale, windowHeight]);
   const [editableConstants, setEditableConstants] = useState<NotebookLocalConstant[]>(() => notebook.localConstants.map((item) => ({ ...item })));
   const [editableSteps, setEditableSteps] = useState<CalculationNoteStep[]>(() => notebook.steps.map((item) => ({ ...item })));
   const [unitOverrides, setUnitOverrides] = useState<Record<string, string>>({});
@@ -478,6 +483,32 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     setForcedSelection({ key: activeField.key, selection: caretSelection });
   };
 
+  // `<` `>`。式の先頭と末尾の間でキャレットを動かす（名前側へは入らない）。
+  const handleKeypadMoveCaret = (delta: 1 | -1) => {
+    if (!activeField) return;
+    const fallback = combinedCaretEnd(activeField.name, activeField.expression);
+    const selection = fieldSelections[activeField.key] ?? { start: fallback, end: fallback };
+    const next = moveCaretInField(activeField.name, activeField.expression, selection.start, selection.end, delta);
+    setFieldSelections((current) => ({ ...current, [activeField.key]: next }));
+    setForcedSelection({ key: activeField.key, selection: next });
+  };
+
+  // キーパッド本体の20キー。数字・演算子・括弧は挿入、⌫ は1文字削除、AC は式を空に、
+  // ✓（電卓の = の位置）は編集を終えてキーパッドを畳む。
+  const handleKeypadKey = (key: string) => {
+    if (!activeField) return;
+    if (key === "⌫") { handleKeypadBackspace(); return; }
+    if (key === "=") { dismissKeypad(); return; }
+    if (key === "AC") {
+      activeField.apply("");
+      const caret = combinedCaretEnd(activeField.name, "");
+      setFieldSelections((current) => ({ ...current, [activeField.key]: { start: caret, end: caret } }));
+      setForcedSelection({ key: activeField.key, selection: { start: caret, end: caret } });
+      return;
+    }
+    handleKeypadInsert(key);
+  };
+
   // キーボードキー。出している欄でもう一度押せば閉じる（iOS には戻るボタンが無いので、閉じる
   // 導線をここに持たせる）。出す側の focus() は osKeyboardKey の effect が行う。
   const toggleOsKeyboard = () => {
@@ -597,7 +628,8 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                     placeholderTextColor={colors.placeholder}
                     value={formatNameValue(item.symbol, item.expression)}
                     onChangeText={(text) => {
-                      const { name, value } = parseNameValue(text);
+                      // 日本語IMEのままだと全角の ｍ・３ が入る。式として通るよう受け口で半角に揃える。
+                      const { name, value } = parseNameValue(toHalfWidthAscii(text));
                       updateConstant(item.id, { symbol: name, expression: value });
                       setForcedSelection((current) => (current?.key === railKey ? null : current));
                     }}
@@ -644,7 +676,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                     placeholderTextColor={colors.placeholder}
                     value={formatNameValue(result.step.resultSymbol ?? "", result.step.expression)}
                     onChangeText={(text) => {
-                      const { name, value } = parseNameValue(text);
+                      const { name, value } = parseNameValue(toHalfWidthAscii(text));
                       // 以前は名前があると問答無用でtitleを記号名(name)に置き換えていたが、それだと
                       // プリセットの翻訳済み表示タイトル（例:「速さ v」）を名前欄に触れただけで記号名だけに
                       // 潰してしまっていた。titleが「以前この仕組みで記号から自動生成されたもの」
@@ -719,15 +751,18 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
           ようにする。OS のキーボードを出している間は上段だけ残り、キーボードの直上に付く。 */}
       {activeField ? (
         <NotebookKeypad
+          language={language}
+          layout={keyboardLayout}
           fieldLabel={activeField.label}
           isOsKeyboardActive={osKeyboardKey === activeField.key}
-          labels={{ osKeyboard: copy.osKeyboard, dismiss: copy.keypadDismiss, backspace: copy.backspace, functions: copy.mathFunctions, insertSymbol: copy.insertConstant, insertUnit: copy.insertUnit }}
+          labels={{ dismiss: copy.keypadDismiss, insertSymbol: copy.insertConstant, insertUnit: copy.insertUnit }}
           symbols={activeField.symbols}
           units={activeField.units}
+          onKey={handleKeypadKey}
           onInsert={handleKeypadInsert}
           onInsertSymbol={(symbol) => insertSymbolIntoField(activeField.key, activeField.name, activeField.expression, symbol, activeField.apply)}
           onInsertUnit={(symbol) => insertUnitIntoField(activeField.key, activeField.name, activeField.expression, symbol, activeField.apply)}
-          onBackspace={handleKeypadBackspace}
+          onMoveCaret={handleKeypadMoveCaret}
           onToggleOsKeyboard={toggleOsKeyboard}
           onDismiss={dismissKeypad}
         />
