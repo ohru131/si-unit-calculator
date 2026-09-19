@@ -1,5 +1,5 @@
 import { memo, useMemo, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { MathFunctionRail } from "@/components/ui/math-function-rail";
@@ -20,8 +20,14 @@ type Props = {
   /** OS のキーボードをこの欄に出している最中か。true の間はキーの並びを畳み、上段だけ残す
    * （OS のキーボードの直上にキーの並びまで積むと、本文の表示域がほとんど残らない）。 */
   isOsKeyboardActive: boolean;
-  labels: { osKeyboard: string; dismiss: string; backspace: string; functions: string };
+  labels: { osKeyboard: string; dismiss: string; backspace: string; functions: string; insertSymbol: string; insertUnit: string };
+  /** 編集中の欄で参照できる定数・先行手順の記号。空なら記号の列は出ない。 */
+  symbols: readonly string[];
+  /** 編集中の欄の値に合う単位（SI接頭辞違いなど）。空なら単位の列は出ない。 */
+  units: readonly { symbol: string; label: string }[];
   onInsert: (text: string) => void;
+  onInsertSymbol: (symbol: string) => void;
+  onInsertUnit: (symbol: string) => void;
   onBackspace: () => void;
   onToggleOsKeyboard: () => void;
   onDismiss: () => void;
@@ -35,7 +41,7 @@ type Props = {
  * **Web ではキーボードキーを出さない。** Web の TextInput は `showSoftInputOnFocus` を持たず、
  * フォーカスさえあれば物理キーボードで従来どおり打てるので、押しても何も変わらないキーになる。
  */
-export const NotebookKeypad = memo(function NotebookKeypad({ fieldLabel, isOsKeyboardActive, labels, onInsert, onBackspace, onToggleOsKeyboard, onDismiss }: Props) {
+export const NotebookKeypad = memo(function NotebookKeypad({ fieldLabel, isOsKeyboardActive, labels, symbols, units, onInsert, onInsertSymbol, onInsertUnit, onBackspace, onToggleOsKeyboard, onDismiss }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   // 関数チップの列は要るときだけ開く（常設すると約40px分だけ本文の表示域が減る）。
@@ -74,6 +80,26 @@ export const NotebookKeypad = memo(function NotebookKeypad({ fieldLabel, isOsKey
           </Pressable>
         </View>
       </View>
+      {/* 記号と単位のチップ。以前は各欄の直下に「定数」レールと単位チップ列を出していたが、欄ごとに
+          2行ずつ場所を取るうえ、数字はキーパッド・記号と単位は欄の下、と親指が上下していた。電卓の
+          「単位レールはキーパッド直上」と同じ考えで、編集中の欄のぶんだけをここに1行で出す。
+          記号（下地付き）と単位（枠付き）は見た目で区別し、間に仕切りを置く。OS のキーボードを出して
+          いる間も残す（キーの並びは畳むが、記号と単位はキーボードでは打ちにくいものだから）。 */}
+      {symbols.length || units.length ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.chipRail} style={styles.chipRailWrap}>
+          {symbols.map((symbol) => (
+            <Pressable accessibilityLabel={`${labels.insertSymbol} ${symbol}`} accessibilityRole="button" hitSlop={4} key={`symbol:${symbol}`} onPress={() => onInsertSymbol(symbol)} style={({ pressed }) => [styles.symbolChip, pressed && styles.pressed]}>
+              <Text style={styles.symbolChipText}>{symbol}</Text>
+            </Pressable>
+          ))}
+          {symbols.length && units.length ? <View style={styles.chipDivider} /> : null}
+          {units.map((unit) => (
+            <Pressable accessibilityLabel={`${labels.insertUnit} ${unit.symbol}`} accessibilityRole="button" hitSlop={4} key={`unit:${unit.symbol}`} onPress={() => onInsertUnit(unit.symbol)} style={({ pressed }) => [styles.unitChip, pressed && styles.pressed]}>
+              <Text style={styles.unitChipText}>{unit.label}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
       {isOsKeyboardActive || !isFunctionRailOpen ? null : <MathFunctionRail onInsert={onInsert} style={styles.functionRail} />}
       {isOsKeyboardActive ? null : (
         <View style={styles.keypad}>
@@ -113,6 +139,13 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   topBarButtonText: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },
   topBarButtonTextActive: { color: colors.onPrimary },
   functionRail: { marginBottom: 6, marginTop: 2 },
+  chipRailWrap: { marginBottom: 6, marginTop: 2 },
+  chipRail: { alignItems: "center", gap: 6 },
+  symbolChip: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 6 },
+  symbolChipText: { color: colors.primaryStrong, fontFamily: mono, fontSize: 13, fontWeight: "800" },
+  chipDivider: { backgroundColor: colors.border, height: 18, width: 1 },
+  unitChip: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 6 },
+  unitChipText: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },
   keypad: { flexDirection: "row", flexWrap: "wrap", marginHorizontal: -KEY_CELL_PADDING },
   keyCell: { padding: KEY_CELL_PADDING, width: `${100 / NOTEBOOK_KEYPAD_COLUMNS}%` },
   key: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 12, borderWidth: 1, height: KEY_HEIGHT, justifyContent: "center" },

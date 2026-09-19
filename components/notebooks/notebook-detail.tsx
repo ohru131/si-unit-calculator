@@ -31,8 +31,7 @@ const EN_COPY = {
   invalidStepName: "Enter each step as name=expression (e.g. v=v0+a*t), or remove the \"=\" to leave it unnamed.",
   saveFailed: "Could not save. Please try again.",
   noStepsError: "This notebook needs at least one step.",
-  constantsRailLabel: "Constants",
-  insertConstant: "Insert",
+  insertConstant: "Insert", insertUnit: "Insert unit",
   back: "Back",
   switchTitle: "Unsaved changes",
   switchMessage: "This notebook has values you haven't saved. Switching notebooks discards them.",
@@ -52,8 +51,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     invalidStepName: "手順は「名前＝式」の形式（例：v=v0+a*t）で入力するか、「＝」を外して名前なしにしてください。",
     saveFailed: "保存できませんでした。もう一度お試しください。",
     noStepsError: "手順が最低1つ必要です。",
-    constantsRailLabel: "定数",
-    insertConstant: "挿入",
+    insertConstant: "挿入", insertUnit: "単位を挿入",
     back: "戻る",
     switchTitle: "保存していない変更があります",
     switchMessage: "このノートには保存していない値があります。ノートを切り替えると破棄されます。",
@@ -71,8 +69,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     invalidStepName: "Escribe cada paso como nombre=expresión (por ejemplo, v=v0+a*t), o quita el \"=\" para dejarlo sin nombre.",
     saveFailed: "No se pudo guardar. Inténtalo de nuevo.",
     noStepsError: "Este cuaderno necesita al menos un paso.",
-    constantsRailLabel: "Constantes",
-    insertConstant: "Insertar",
+    insertConstant: "Insertar", insertUnit: "Insertar unidad",
     back: "Atrás",
     switchTitle: "Cambios sin guardar",
     switchMessage: "Este cuaderno tiene valores que no has guardado. Al cambiar de cuaderno se descartan.",
@@ -90,8 +87,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     invalidStepName: "Digite cada etapa como nome=expressão (por exemplo, v=v0+a*t), ou remova o \"=\" para deixar sem nome.",
     saveFailed: "Não foi possível salvar. Tente novamente.",
     noStepsError: "Este caderno precisa de pelo menos uma etapa.",
-    constantsRailLabel: "Constantes",
-    insertConstant: "Inserir",
+    insertConstant: "Inserir", insertUnit: "Inserir unidade",
     back: "Voltar",
     switchTitle: "Alterações não salvas",
     switchMessage: "Este caderno tem valores que você não salvou. Trocar de caderno descarta essas alterações.",
@@ -109,8 +105,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     invalidStepName: "Gib jeden Schritt als Name=Ausdruck ein (z. B. v=v0+a*t), oder entferne das \"=\", um ihn unbenannt zu lassen.",
     saveFailed: "Speichern fehlgeschlagen. Bitte erneut versuchen.",
     noStepsError: "Dieses Rechenheft braucht mindestens einen Schritt.",
-    constantsRailLabel: "Konstanten",
-    insertConstant: "Einfügen",
+    insertConstant: "Einfügen", insertUnit: "Einheit einfügen",
     back: "Zurück",
     switchTitle: "Nicht gespeicherte Änderungen",
     switchMessage: "Dieses Rechenheft hat Werte, die du nicht gespeichert hast. Beim Wechseln gehen sie verloren.",
@@ -128,8 +123,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     invalidStepName: "Saisissez chaque étape sous la forme nom=expression (par exemple v=v0+a*t), ou retirez le \"=\" pour la laisser sans nom.",
     saveFailed: "Impossible d'enregistrer. Veuillez réessayer.",
     noStepsError: "Ce carnet nécessite au moins une étape.",
-    constantsRailLabel: "Constantes",
-    insertConstant: "Insérer",
+    insertConstant: "Insérer", insertUnit: "Insérer une unité",
     back: "Retour",
     switchTitle: "Modifications non enregistrées",
     switchMessage: "Ce carnet contient des valeurs non enregistrées. Changer de carnet les abandonne.",
@@ -425,14 +419,38 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   // 欄の並びが編集シートで変わって id が消えていれば null になり、キーパッドも出ない。
   const activeField = (() => {
     if (!activeRailKey) return null;
+    // 記号と単位のチップはキーパッドに出す（以前は各欄の直下）。記号は「この欄の式で参照できる
+    // 定数・先行手順」、単位は「この欄の値に合う単位」で、どちらも編集シートのレールと同じ関数で求める。
     if (activeRailKey.startsWith("constant:")) {
-      const item = editableConstants.find((entry) => constantFieldKey(entry.id) === activeRailKey);
+      const index = editableConstants.findIndex((entry) => constantFieldKey(entry.id) === activeRailKey);
+      const item = editableConstants[index];
       if (!item) return null;
-      return { key: activeRailKey, name: item.symbol, expression: item.expression, label: item.symbol.trim() || copy.inputs, apply: (next: string) => updateConstant(item.id, { expression: next }) };
+      return {
+        key: activeRailKey,
+        name: item.symbol,
+        expression: item.expression,
+        label: item.symbol.trim() || copy.inputs,
+        symbols: getLocalConstantFieldSuggestions(editableConstants, globalConstants, index),
+        // フォールバックの手掛かりはこの定数自身の式（例: "8.99e9N*m^2/C^2"）を渡す。
+        // クーロンの法則のkのように次元に対応するグループが無くても、式中の単位から
+        // SI接頭辞違いの候補を組み立てられる。
+        units: compatibleUnitOptions(resolvedBySymbol.get(item.symbol.trim())?.quantity, unitSystem, { expression: item.expression }),
+        apply: (next: string) => updateConstant(item.id, { expression: next }),
+      };
     }
-    const step = editableSteps.find((entry) => stepFieldKey(entry.id) === activeRailKey);
+    const index = editableSteps.findIndex((entry) => stepFieldKey(entry.id) === activeRailKey);
+    const step = editableSteps[index];
     if (!step) return null;
-    return { key: activeRailKey, name: step.resultSymbol ?? "", expression: step.expression, label: stepDisplayTitle(step.title, step.expression) || copy.results, apply: (next: string) => updateStepField(step.id, { expression: next }) };
+    return {
+      key: activeRailKey,
+      name: step.resultSymbol ?? "",
+      expression: step.expression,
+      label: stepDisplayTitle(step.title, step.expression) || copy.results,
+      symbols: getStepFieldSuggestions(editableConstants, globalConstants, editableSteps, index),
+      // 手順は表示単位が決まっていればそれを、無ければ式自体を手掛かりにする（編集シートと同じ）。
+      units: compatibleUnitOptions(stepResults[index]?.quantity, unitSystem, { expression: step.targetUnit.trim() || step.expression }),
+      apply: (next: string) => updateStepField(step.id, { expression: next }),
+    };
   })();
 
   // キーパッドの文字キー。定数チップと同じ挿入規則（キャレット位置・範囲選択の置き換え・
@@ -478,27 +496,6 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     setActiveRailKey(null);
     setOsKeyboardKey(null);
     Keyboard.dismiss();
-  };
-
-  const renderConstantsRail = (key: string, symbols: string[], onInsert: (symbol: string) => void) => {
-    if (activeRailKey !== key || !symbols.length) return null;
-    return (
-      <View>
-        <Text style={styles.constantsRailLabel}>{copy.constantsRailLabel}</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.unitRail}>
-          {symbols.map((symbol) => (
-            <Pressable
-              key={symbol}
-              accessibilityLabel={`${copy.insertConstant} ${symbol}`}
-              onPress={() => onInsert(symbol)}
-              style={({ pressed }) => [styles.unitChip, pressed && styles.pressed]}
-            >
-              <Text style={styles.unitChipText}>{symbol}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
-    );
   };
 
   // 戻る先のカテゴリ名が空になることは基本無いが、propsの契約上は空文字も来うるため
@@ -588,11 +585,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
         <Text style={styles.sectionLabel}>{copy.inputs}</Text>
         {notebook.localConstants.length ? (
           <View style={styles.inputCard}>
-            {editableConstants.map((item, constantIndex) => {
-              // フォールバックの手掛かりはこの定数自身の式（例: "8.99e9N*m^2/C^2"）を渡す。
-              // クーロンの法則のkのように次元に対応するグループが無くても、式中の単位から
-              // SI接頭辞違いの候補を組み立てられる。
-              const inputUnits = compatibleUnitOptions(resolvedBySymbol.get(item.symbol.trim())?.quantity, unitSystem, { expression: item.expression });
+            {editableConstants.map((item) => {
               const railKey = constantFieldKey(item.id);
               const isRailForced = forcedSelection?.key === railKey;
               return (
@@ -616,23 +609,6 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                     autoCorrect={false}
                     style={[styles.inputField, errors[item.id] && styles.inputFieldError]}
                   />
-                  {renderConstantsRail(railKey, getLocalConstantFieldSuggestions(editableConstants, globalConstants, constantIndex), (symbol) =>
-                    insertSymbolIntoField(railKey, item.symbol, item.expression, symbol, (nextExpression) => updateConstant(item.id, { expression: nextExpression })),
-                  )}
-                  {inputUnits.length ? (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.unitRail}>
-                      {inputUnits.map((unitOption) => (
-                        <Pressable
-                          key={unitOption.symbol}
-                          disabled={isSaving}
-                          onPress={() => insertUnitIntoField(railKey, item.symbol, item.expression, unitOption.symbol, (nextExpression) => updateConstant(item.id, { expression: nextExpression }))}
-                          style={({ pressed }) => [styles.unitChip, pressed && styles.pressed]}
-                        >
-                          <Text style={styles.unitChipText}>{unitOption.label}</Text>
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  ) : null}
                   {errors[item.id] ? <Text numberOfLines={1} style={styles.inputError}>{errors[item.id]}</Text> : null}
                 </View>
               );
@@ -690,11 +666,6 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                     autoCorrect={false}
                     style={styles.resultExpressionInput}
                   />
-                  {renderConstantsRail(stepRailKey, getStepFieldSuggestions(editableConstants, globalConstants, editableSteps, index), (symbol) =>
-                    insertSymbolIntoField(stepRailKey, result.step.resultSymbol ?? "", result.step.expression, symbol, (nextExpression) =>
-                      updateStepField(result.step.id, { expression: nextExpression }),
-                    ),
-                  )}
                   <View style={styles.resultHeader}>
                     <View style={styles.resultHeaderMain}>
                       <Text style={styles.resultTitle}>{stepDisplayTitle(result.step.title, result.step.expression)}</Text>
@@ -750,8 +721,12 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
         <NotebookKeypad
           fieldLabel={activeField.label}
           isOsKeyboardActive={osKeyboardKey === activeField.key}
-          labels={{ osKeyboard: copy.osKeyboard, dismiss: copy.keypadDismiss, backspace: copy.backspace, functions: copy.mathFunctions }}
+          labels={{ osKeyboard: copy.osKeyboard, dismiss: copy.keypadDismiss, backspace: copy.backspace, functions: copy.mathFunctions, insertSymbol: copy.insertConstant, insertUnit: copy.insertUnit }}
+          symbols={activeField.symbols}
+          units={activeField.units}
           onInsert={handleKeypadInsert}
+          onInsertSymbol={(symbol) => insertSymbolIntoField(activeField.key, activeField.name, activeField.expression, symbol, activeField.apply)}
+          onInsertUnit={(symbol) => insertUnitIntoField(activeField.key, activeField.name, activeField.expression, symbol, activeField.apply)}
           onBackspace={handleKeypadBackspace}
           onToggleOsKeyboard={toggleOsKeyboard}
           onDismiss={dismissKeypad}
@@ -825,7 +800,6 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   resultError: { color: colors.error, fontSize: 12, lineHeight: 17, marginTop: 4 },
   resultWarning: { color: colors.warning, fontSize: 11, lineHeight: 15, marginTop: 4 },
   resultReferenceHint: { color: colors.muted, fontSize: 10, marginTop: 5 },
-  constantsRailLabel: { color: colors.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.3, marginTop: 6, textTransform: "uppercase" },
   unitRail: { gap: 6, paddingTop: 9 },
   unitChip: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, paddingHorizontal: 9, paddingVertical: 5 },
   unitChipActive: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
