@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 
+import { NotebookKeypad } from "@/components/notebooks/notebook-keypad";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { LatexView } from "@/components/ui/latex-view";
@@ -12,6 +13,9 @@ import { type AppLanguage } from "@/lib/i18n";
 import { getLocalConstantFieldSuggestions, getStepFieldSuggestions, insertConstantSymbol, mapCombinedSelectionToExpressionRange } from "@/lib/notebook-constant-suggestions";
 import { evaluateNotebookSteps, formatNameValue, normalizeStepForSave, parseNameValue, resolveNotebookLocalConstants, trimResultSymbol } from "@/lib/notebook-engine";
 import { resolveNotebookStepDisplay } from "@/lib/notebook-export-model";
+import { resolveCalculatorLayout } from "@/lib/calculator-layout";
+import { toHalfWidthAscii } from "@/lib/fullwidth-input";
+import { backspaceInField, insertKeypadText, moveCaretInField } from "@/lib/notebook-keypad";
 import { nextStepNamePatch, stepDisplayTitle } from "@/lib/notebook-step-title";
 import { getUnitInsertionRange, replaceExpressionRange } from "@/lib/unit-input";
 import { compatibleUnitOptions, compatibleUnitOptionsFromHints } from "@/lib/unit-options";
@@ -29,13 +33,14 @@ const EN_COPY = {
   invalidStepName: "Enter each step as name=expression (e.g. v=v0+a*t), or remove the \"=\" to leave it unnamed.",
   saveFailed: "Could not save. Please try again.",
   noStepsError: "This notebook needs at least one step.",
-  constantsRailLabel: "Constants",
-  insertConstant: "Insert",
+  insertConstant: "Insert", insertUnit: "Insert unit",
   back: "Back",
   switchTitle: "Unsaved changes",
   switchMessage: "This notebook has values you haven't saved. Switching notebooks discards them.",
   switchDiscard: "Discard and switch",
   cancel: "Cancel",
+  keypadDismiss: "Done",
+  constantPlaceholder: "name=value (e.g. v0=5m/s)", stepPlaceholder: "name=expression (e.g. v=v0+a*t)",
 } as const;
 const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   en: EN_COPY,
@@ -48,13 +53,14 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     invalidStepName: "手順は「名前＝式」の形式（例：v=v0+a*t）で入力するか、「＝」を外して名前なしにしてください。",
     saveFailed: "保存できませんでした。もう一度お試しください。",
     noStepsError: "手順が最低1つ必要です。",
-    constantsRailLabel: "定数",
-    insertConstant: "挿入",
+    insertConstant: "挿入", insertUnit: "単位を挿入",
     back: "戻る",
     switchTitle: "保存していない変更があります",
     switchMessage: "このノートには保存していない値があります。ノートを切り替えると破棄されます。",
     switchDiscard: "破棄して切り替え",
     cancel: "キャンセル",
+    keypadDismiss: "閉じる",
+    constantPlaceholder: "名前=値（例: v0=5m/s）", stepPlaceholder: "名前=式（例: v=v0+a*t）",
   },
   es: {
     edit: "Editar", share: "Compartir cuaderno", save: "Guardar valores", copy: "Copiar", copied: "Copiado",
@@ -65,13 +71,14 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     invalidStepName: "Escribe cada paso como nombre=expresión (por ejemplo, v=v0+a*t), o quita el \"=\" para dejarlo sin nombre.",
     saveFailed: "No se pudo guardar. Inténtalo de nuevo.",
     noStepsError: "Este cuaderno necesita al menos un paso.",
-    constantsRailLabel: "Constantes",
-    insertConstant: "Insertar",
+    insertConstant: "Insertar", insertUnit: "Insertar unidad",
     back: "Atrás",
     switchTitle: "Cambios sin guardar",
     switchMessage: "Este cuaderno tiene valores que no has guardado. Al cambiar de cuaderno se descartan.",
     switchDiscard: "Descartar y cambiar",
     cancel: "Cancelar",
+    keypadDismiss: "Listo",
+    constantPlaceholder: "nombre=valor (p. ej. v0=5m/s)", stepPlaceholder: "nombre=expresión (p. ej. v=v0+a*t)",
   },
   "pt-BR": {
     edit: "Editar", share: "Compartilhar caderno", save: "Salvar valores", copy: "Copiar", copied: "Copiado",
@@ -82,13 +89,14 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     invalidStepName: "Digite cada etapa como nome=expressão (por exemplo, v=v0+a*t), ou remova o \"=\" para deixar sem nome.",
     saveFailed: "Não foi possível salvar. Tente novamente.",
     noStepsError: "Este caderno precisa de pelo menos uma etapa.",
-    constantsRailLabel: "Constantes",
-    insertConstant: "Inserir",
+    insertConstant: "Inserir", insertUnit: "Inserir unidade",
     back: "Voltar",
     switchTitle: "Alterações não salvas",
     switchMessage: "Este caderno tem valores que você não salvou. Trocar de caderno descarta essas alterações.",
     switchDiscard: "Descartar e trocar",
     cancel: "Cancelar",
+    keypadDismiss: "Concluído",
+    constantPlaceholder: "nome=valor (ex.: v0=5m/s)", stepPlaceholder: "nome=expressão (ex.: v=v0+a*t)",
   },
   de: {
     edit: "Bearbeiten", share: "Rechenheft teilen", save: "Werte speichern", copy: "Kopieren", copied: "Kopiert",
@@ -99,13 +107,14 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     invalidStepName: "Gib jeden Schritt als Name=Ausdruck ein (z. B. v=v0+a*t), oder entferne das \"=\", um ihn unbenannt zu lassen.",
     saveFailed: "Speichern fehlgeschlagen. Bitte erneut versuchen.",
     noStepsError: "Dieses Rechenheft braucht mindestens einen Schritt.",
-    constantsRailLabel: "Konstanten",
-    insertConstant: "Einfügen",
+    insertConstant: "Einfügen", insertUnit: "Einheit einfügen",
     back: "Zurück",
     switchTitle: "Nicht gespeicherte Änderungen",
     switchMessage: "Dieses Rechenheft hat Werte, die du nicht gespeichert hast. Beim Wechseln gehen sie verloren.",
     switchDiscard: "Verwerfen und wechseln",
     cancel: "Abbrechen",
+    keypadDismiss: "Fertig",
+    constantPlaceholder: "Name=Wert (z. B. v0=5m/s)", stepPlaceholder: "Name=Ausdruck (z. B. v=v0+a*t)",
   },
   fr: {
     edit: "Modifier", share: "Partager le carnet", save: "Enregistrer les valeurs", copy: "Copier", copied: "Copié",
@@ -116,13 +125,14 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     invalidStepName: "Saisissez chaque étape sous la forme nom=expression (par exemple v=v0+a*t), ou retirez le \"=\" pour la laisser sans nom.",
     saveFailed: "Impossible d'enregistrer. Veuillez réessayer.",
     noStepsError: "Ce carnet nécessite au moins une étape.",
-    constantsRailLabel: "Constantes",
-    insertConstant: "Insérer",
+    insertConstant: "Insérer", insertUnit: "Insérer une unité",
     back: "Retour",
     switchTitle: "Modifications non enregistrées",
     switchMessage: "Ce carnet contient des valeurs non enregistrées. Changer de carnet les abandonne.",
     switchDiscard: "Abandonner et changer",
     cancel: "Annuler",
+    keypadDismiss: "Terminé",
+    constantPlaceholder: "nom=valeur (ex. v0=5m/s)", stepPlaceholder: "nom=expression (ex. v=v0+a*t)",
   },
 };
 
@@ -163,6 +173,9 @@ type Props = {
 export function NotebookDetail({ language, locale, unitSystem, measuringStandard, notebook, categoryLabel, globalConstants, onBack, onEdit, onShare, onTogglePinned, onTitlePress, onUse, onSaveValues }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  // キーパッドのキーの高さ・文字の拡大率は電卓と同じ規則で決める（画面の高さと文字サイズ設定）。
+  const { fontScale, height: windowHeight } = useWindowDimensions();
+  const keyboardLayout = useMemo(() => resolveCalculatorLayout({ fontScale, height: windowHeight }), [fontScale, windowHeight]);
   const [editableConstants, setEditableConstants] = useState<NotebookLocalConstant[]>(() => notebook.localConstants.map((item) => ({ ...item })));
   const [editableSteps, setEditableSteps] = useState<CalculationNoteStep[]>(() => notebook.steps.map((item) => ({ ...item })));
   const [unitOverrides, setUnitOverrides] = useState<Record<string, string>>({});
@@ -185,6 +198,22 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   // 記号を挿し込んだ直後だけ、TextInputのselection propでキャレットを挿入位置の直後へ強制する。
   // ユーザー自身の入力と衝突しないよう、反映されたら（onSelectionChange/onChangeTextで）すぐ手放す。
   const [forcedSelection, setForcedSelection] = useState<{ key: string; selection: { start: number; end: number } } | null>(null);
+  // 【なぜ値欄は OS のキーボードを出さないか】値欄の入力手段が OS のキーボードだけだと、それが
+  // 上がらない端末（Android 実機で報告。電卓の隠し TextInput と同じ現象で原因は未特定）では
+  // ノートの値を**一切**変えられない。数字・演算子は下端のアプリ内キーパッド（NotebookKeypad）、
+  // 単位・定数記号は欄の直下のチップで打てるので、OS のキーボードは英字が要るときだけ
+  // キーパッド上段のキーボードキーで出す（電卓の #67 と同じ「要求したときだけ」の設計）。
+  // この state は「どの欄に OS のキーボードを出しているか」。null なら全欄 showSoftInputOnFocus=false。
+  const [osKeyboardKey, setOsKeyboardKey] = useState<string | null>(null);
+  // キーボードキーで出すときに focus() を呼ぶ相手。欄は id 基準のキーで引く。
+  const inputRefs = useRef<Record<string, TextInput | null>>({});
+  // キーパッドが開いた瞬間に、フォーカスした欄がその下へ隠れないようにスクロールで見える位置へ寄せる
+  // ための測定値。ScrollView は下端にキーパッド（約200px）が挿さると縮むので、欄が画面の下半分に
+  // あるとちょうど隠れる（OS のキーボードなら Android が自動で寄せてくれるが、自前のキーパッドには
+  // その仕組みが無い）。
+  const scrollRef = useRef<ScrollView | null>(null);
+  const scrollOffsetRef = useRef(0);
+  const scrollViewportHeightRef = useRef(0);
   // ノート名からノートを切り替えようとしたとき、未保存の値があれば確認を挟む。
   // 切り替えでnotebook propが変わると下のレンダー中の同期がeditableConstants/editableStepsを
   // 作り直すので、確認なしだと編集途中の値が黙って消える（保存バーは出ているが、ノート名は
@@ -220,9 +249,63 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     setActiveRailKey(null);
     setFieldSelections({});
     setForcedSelection(null);
+    setOsKeyboardKey(null);
   }
 
   const copy = COPY[language];
+
+  // Android の戻るボタンで OS のキーボードを閉じると onBlur が来ないことがあり、キーボードキーが
+  // 点いたまま残る（電卓の同名の対処と同じ）。OS が隠した時点でこちらの記録も消し、次に押したときに
+  // 「出す」側の動作になるようにする。iOS で自分から閉じたときにも来るが、その時点で既に null。
+  useEffect(() => {
+    const subscription = Keyboard.addListener("keyboardDidHide", () => setOsKeyboardKey(null));
+    return () => subscription.remove();
+  }, []);
+
+  // キーボードキーで OS のキーボードを出す。**一度 blur してから focus する**——その欄は利用者が
+  // 直前にタップしていて既にフォーカス中なので、そのまま focus() を呼ぶと RN の TextInputState が
+  // 「既にフォーカス済み」と見て何もせず、showSoftInputOnFocus を true にしても表示要求が出ない。
+  // 別の Pressable の onPress からその場で focus() を呼ぶと実機で上がらないことがあるので、電卓の
+  // 旧・単位検索パネルと同じく 50ms 遅らせる。
+  // 編集中の欄がキーパッドの下に隠れていれば、見える位置までスクロールする。
+  // 測定は ScrollView の枠に対する相対座標なので、現在のスクロール量を足して絶対位置にする。
+  // 呼ぶのは2箇所: (1) フォーカスが欄へ移ってキーパッドが開いたとき、(2) ScrollView の高さが
+  // 変わったとき（最初の1文字で保存バーが出る・`f(x)` で関数チップの列が開く、のどちらも
+  // スクロール域を後から縮めるので、(1) だけだと欄がそのまま隠れる）。
+  const ensureActiveFieldVisible = (key: string | null) => {
+    if (!key) return;
+    const input = inputRefs.current[key];
+    const scrollView = scrollRef.current;
+    const scrollNode = scrollView?.getNativeScrollRef();
+    if (!input || !scrollView || !scrollNode) return;
+    input.measureLayout(
+      scrollNode,
+      (_x, y, _width, height) => {
+        const viewport = scrollViewportHeightRef.current;
+        if (!viewport) return;
+        const margin = 12;
+        if (y + height + margin > viewport) {
+          scrollView.scrollTo({ y: scrollOffsetRef.current + y + height + margin - viewport, animated: true });
+        } else if (y < 0) {
+          scrollView.scrollTo({ y: scrollOffsetRef.current + y - margin, animated: true });
+        }
+      },
+      () => undefined,
+    );
+  };
+  // ScrollView が縮み終わってから測る必要があるので1フレーム待つ。
+  useEffect(() => {
+    if (!activeRailKey) return;
+    const timer = setTimeout(() => ensureActiveFieldVisible(activeRailKey), 50);
+    return () => clearTimeout(timer);
+  }, [activeRailKey]);
+
+  useEffect(() => {
+    if (!osKeyboardKey) return;
+    inputRefs.current[osKeyboardKey]?.blur();
+    const timer = setTimeout(() => inputRefs.current[osKeyboardKey]?.focus(), 50);
+    return () => clearTimeout(timer);
+  }, [osKeyboardKey]);
 
   const isDirty = useMemo(() => {
     const constantsDirty = editableConstants.some((item) => {
@@ -283,6 +366,8 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     setIsSaving(true);
     try {
       await onSaveValues(normalizedConstants, normalizedSteps);
+      // 保存は編集の終わり。キーパッドと OS のキーボードを畳んで結果を見せる。
+      dismissKeypad();
     } catch (cause) {
       setSaveError(cause instanceof Error ? cause.message : copy.saveFailed);
     } finally {
@@ -335,25 +420,113 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     setForcedSelection((current) => (current?.key === key ? null : current));
   };
 
-  const renderConstantsRail = (key: string, symbols: string[], onInsert: (symbol: string) => void) => {
-    if (activeRailKey !== key || !symbols.length) return null;
-    return (
-      <View>
-        <Text style={styles.constantsRailLabel}>{copy.constantsRailLabel}</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.unitRail}>
-          {symbols.map((symbol) => (
-            <Pressable
-              key={symbol}
-              accessibilityLabel={`${copy.insertConstant} ${symbol}`}
-              onPress={() => onInsert(symbol)}
-              style={({ pressed }) => [styles.unitChip, pressed && styles.pressed]}
-            >
-              <Text style={styles.unitChipText}>{symbol}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
-    );
+  // キーパッドが今操作する欄。「最後にフォーカスした欄」（activeRailKey）を id から引き直す。
+  // 欄の並びが編集シートで変わって id が消えていれば null になり、キーパッドも出ない。
+  const activeField = (() => {
+    if (!activeRailKey) return null;
+    // 記号と単位のチップはキーパッドに出す（以前は各欄の直下）。記号は「この欄の式で参照できる
+    // 定数・先行手順」、単位は「この欄の値に合う単位」で、どちらも編集シートのレールと同じ関数で求める。
+    if (activeRailKey.startsWith("constant:")) {
+      const index = editableConstants.findIndex((entry) => constantFieldKey(entry.id) === activeRailKey);
+      const item = editableConstants[index];
+      if (!item) return null;
+      return {
+        key: activeRailKey,
+        name: item.symbol,
+        expression: item.expression,
+        label: item.symbol.trim() || copy.inputs,
+        symbols: getLocalConstantFieldSuggestions(editableConstants, globalConstants, index),
+        // フォールバックの手掛かりはこの定数自身の式（例: "8.99e9N*m^2/C^2"）を渡す。
+        // クーロンの法則のkのように次元に対応するグループが無くても、式中の単位から
+        // SI接頭辞違いの候補を組み立てられる。
+        units: compatibleUnitOptions(resolvedBySymbol.get(item.symbol.trim())?.quantity, unitSystem, { expression: item.expression }),
+        apply: (next: string) => updateConstant(item.id, { expression: next }),
+      };
+    }
+    const index = editableSteps.findIndex((entry) => stepFieldKey(entry.id) === activeRailKey);
+    const step = editableSteps[index];
+    if (!step) return null;
+    return {
+      key: activeRailKey,
+      name: step.resultSymbol ?? "",
+      expression: step.expression,
+      label: stepDisplayTitle(step.title, step.expression) || copy.results,
+      symbols: getStepFieldSuggestions(editableConstants, globalConstants, editableSteps, index),
+      // 手順は表示単位が決まっていればそれを、無ければ式自体を手掛かりにする（編集シートと同じ）。
+      units: compatibleUnitOptions(stepResults[index]?.quantity, unitSystem, { expression: step.targetUnit.trim() || step.expression }),
+      apply: (next: string) => updateStepField(step.id, { expression: next }),
+    };
+  })();
+
+  // キーパッドの文字キー。定数チップと同じ挿入規則（キャレット位置・範囲選択の置き換え・
+  // 名前側にあるキャレットは式の先頭へ）を通す。
+  const handleKeypadInsert = (text: string) => {
+    if (!activeField) return;
+    const fallback = combinedCaretEnd(activeField.name, activeField.expression);
+    const selection = fieldSelections[activeField.key] ?? { start: fallback, end: fallback };
+    const { expression: nextExpression, combinedCaret } = insertKeypadText(activeField.name, activeField.expression, selection.start, selection.end, text);
+    activeField.apply(nextExpression);
+    const caretSelection = { start: combinedCaret, end: combinedCaret };
+    setFieldSelections((current) => ({ ...current, [activeField.key]: caretSelection }));
+    setForcedSelection({ key: activeField.key, selection: caretSelection });
+  };
+
+  const handleKeypadBackspace = () => {
+    if (!activeField) return;
+    const fallback = combinedCaretEnd(activeField.name, activeField.expression);
+    const selection = fieldSelections[activeField.key] ?? { start: fallback, end: fallback };
+    const result = backspaceInField(activeField.name, activeField.expression, selection.start, selection.end);
+    if (!result) return;
+    activeField.apply(result.expression);
+    const caretSelection = { start: result.combinedCaret, end: result.combinedCaret };
+    setFieldSelections((current) => ({ ...current, [activeField.key]: caretSelection }));
+    setForcedSelection({ key: activeField.key, selection: caretSelection });
+  };
+
+  // `<` `>`。式の先頭と末尾の間でキャレットを動かす（名前側へは入らない）。
+  const handleKeypadMoveCaret = (delta: 1 | -1) => {
+    if (!activeField) return;
+    const fallback = combinedCaretEnd(activeField.name, activeField.expression);
+    const selection = fieldSelections[activeField.key] ?? { start: fallback, end: fallback };
+    const next = moveCaretInField(activeField.name, activeField.expression, selection.start, selection.end, delta);
+    setFieldSelections((current) => ({ ...current, [activeField.key]: next }));
+    setForcedSelection({ key: activeField.key, selection: next });
+  };
+
+  // キーパッド本体の20キー。数字・演算子・括弧は挿入、⌫ は1文字削除、AC は式を空に、
+  // ✓（電卓の = の位置）は編集を終えてキーパッドを畳む。
+  const handleKeypadKey = (key: string) => {
+    if (!activeField) return;
+    if (key === "⌫") { handleKeypadBackspace(); return; }
+    if (key === "=") { dismissKeypad(); return; }
+    if (key === "AC") {
+      activeField.apply("");
+      const caret = combinedCaretEnd(activeField.name, "");
+      setFieldSelections((current) => ({ ...current, [activeField.key]: { start: caret, end: caret } }));
+      setForcedSelection({ key: activeField.key, selection: { start: caret, end: caret } });
+      return;
+    }
+    handleKeypadInsert(key);
+  };
+
+  // キーボードキー。出している欄でもう一度押せば閉じる（iOS には戻るボタンが無いので、閉じる
+  // 導線をここに持たせる）。出す側の focus() は osKeyboardKey の effect が行う。
+  const toggleOsKeyboard = () => {
+    if (!activeField) return;
+    if (osKeyboardKey === activeField.key) {
+      setOsKeyboardKey(null);
+      Keyboard.dismiss();
+      return;
+    }
+    setOsKeyboardKey(activeField.key);
+  };
+
+  // 上段の「閉じる」。キーパッド・レール・OS のキーボードをまとめて畳み、欄のフォーカスも外す
+  // （欄がフォーカス中のままだとキャレットだけ点滅し続けて、まだ編集中に見える）。
+  const dismissKeypad = () => {
+    setActiveRailKey(null);
+    setOsKeyboardKey(null);
+    Keyboard.dismiss();
   };
 
   // 戻る先のカテゴリ名が空になることは基本無いが、propsの契約上は空文字も来うるため
@@ -396,7 +569,21 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
         )}
       </View>
 
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.container}>
+      <ScrollView
+        ref={scrollRef}
+        style={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.container}
+        onLayout={(event) => {
+          const next = event.nativeEvent.layout.height;
+          const changed = scrollViewportHeightRef.current !== 0 && scrollViewportHeightRef.current !== next;
+          scrollViewportHeightRef.current = next;
+          if (changed) ensureActiveFieldVisible(activeRailKey);
+        }}
+        onScroll={(event) => { scrollOffsetRef.current = event.nativeEvent.contentOffset.y; }}
+        scrollEventThrottle={32}
+      >
         {notebook.description ? <Text style={styles.description}>{notebook.description}</Text> : null}
 
         {notebook.formulas.length ? (
@@ -429,19 +616,20 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
         <Text style={styles.sectionLabel}>{copy.inputs}</Text>
         {notebook.localConstants.length ? (
           <View style={styles.inputCard}>
-            {editableConstants.map((item, constantIndex) => {
-              // フォールバックの手掛かりはこの定数自身の式（例: "8.99e9N*m^2/C^2"）を渡す。
-              // クーロンの法則のkのように次元に対応するグループが無くても、式中の単位から
-              // SI接頭辞違いの候補を組み立てられる。
-              const inputUnits = compatibleUnitOptions(resolvedBySymbol.get(item.symbol.trim())?.quantity, unitSystem, { expression: item.expression });
+            {editableConstants.map((item) => {
               const railKey = constantFieldKey(item.id);
               const isRailForced = forcedSelection?.key === railKey;
               return (
                 <View key={item.id} style={styles.inputRow}>
                   <TextInput
+                    ref={(node) => { inputRefs.current[railKey] = node; }}
+                    showSoftInputOnFocus={osKeyboardKey === railKey}
+                    placeholder={copy.constantPlaceholder}
+                    placeholderTextColor={colors.placeholder}
                     value={formatNameValue(item.symbol, item.expression)}
                     onChangeText={(text) => {
-                      const { name, value } = parseNameValue(text);
+                      // 日本語IMEのままだと全角の ｍ・３ が入る。式として通るよう受け口で半角に揃える。
+                      const { name, value } = parseNameValue(toHalfWidthAscii(text));
                       updateConstant(item.id, { symbol: name, expression: value });
                       setForcedSelection((current) => (current?.key === railKey ? null : current));
                     }}
@@ -453,23 +641,6 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                     autoCorrect={false}
                     style={[styles.inputField, errors[item.id] && styles.inputFieldError]}
                   />
-                  {renderConstantsRail(railKey, getLocalConstantFieldSuggestions(editableConstants, globalConstants, constantIndex), (symbol) =>
-                    insertSymbolIntoField(railKey, item.symbol, item.expression, symbol, (nextExpression) => updateConstant(item.id, { expression: nextExpression })),
-                  )}
-                  {inputUnits.length ? (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.unitRail}>
-                      {inputUnits.map((unitOption) => (
-                        <Pressable
-                          key={unitOption.symbol}
-                          disabled={isSaving}
-                          onPress={() => insertUnitIntoField(railKey, item.symbol, item.expression, unitOption.symbol, (nextExpression) => updateConstant(item.id, { expression: nextExpression }))}
-                          style={({ pressed }) => [styles.unitChip, pressed && styles.pressed]}
-                        >
-                          <Text style={styles.unitChipText}>{unitOption.label}</Text>
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  ) : null}
                   {errors[item.id] ? <Text numberOfLines={1} style={styles.inputError}>{errors[item.id]}</Text> : null}
                 </View>
               );
@@ -499,9 +670,13 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
               return (
                 <View key={result.step.id} style={[styles.resultCard, isFinalStep && result.quantity ? styles.resultCardFinal : null]}>
                   <TextInput
+                    ref={(node) => { inputRefs.current[stepRailKey] = node; }}
+                    showSoftInputOnFocus={osKeyboardKey === stepRailKey}
+                    placeholder={copy.stepPlaceholder}
+                    placeholderTextColor={colors.placeholder}
                     value={formatNameValue(result.step.resultSymbol ?? "", result.step.expression)}
                     onChangeText={(text) => {
-                      const { name, value } = parseNameValue(text);
+                      const { name, value } = parseNameValue(toHalfWidthAscii(text));
                       // 以前は名前があると問答無用でtitleを記号名(name)に置き換えていたが、それだと
                       // プリセットの翻訳済み表示タイトル（例:「速さ v」）を名前欄に触れただけで記号名だけに
                       // 潰してしまっていた。titleが「以前この仕組みで記号から自動生成されたもの」
@@ -523,11 +698,6 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                     autoCorrect={false}
                     style={styles.resultExpressionInput}
                   />
-                  {renderConstantsRail(stepRailKey, getStepFieldSuggestions(editableConstants, globalConstants, editableSteps, index), (symbol) =>
-                    insertSymbolIntoField(stepRailKey, result.step.resultSymbol ?? "", result.step.expression, symbol, (nextExpression) =>
-                      updateStepField(result.step.id, { expression: nextExpression }),
-                    ),
-                  )}
                   <View style={styles.resultHeader}>
                     <View style={styles.resultHeaderMain}>
                       <Text style={styles.resultTitle}>{stepDisplayTitle(result.step.title, result.step.expression)}</Text>
@@ -575,6 +745,27 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
           </Pressable>
           {saveError ? <Text style={styles.saveErrorText}>{saveError}</Text> : null}
         </View>
+      ) : null}
+
+      {/* 値欄のキーパッド。保存バーより下（画面の一番下）に置き、電卓と同じく親指の届く位置で打てる
+          ようにする。OS のキーボードを出している間は上段だけ残り、キーボードの直上に付く。 */}
+      {activeField ? (
+        <NotebookKeypad
+          language={language}
+          layout={keyboardLayout}
+          fieldLabel={activeField.label}
+          isOsKeyboardActive={osKeyboardKey === activeField.key}
+          labels={{ dismiss: copy.keypadDismiss, insertSymbol: copy.insertConstant, insertUnit: copy.insertUnit }}
+          symbols={activeField.symbols}
+          units={activeField.units}
+          onKey={handleKeypadKey}
+          onInsert={handleKeypadInsert}
+          onInsertSymbol={(symbol) => insertSymbolIntoField(activeField.key, activeField.name, activeField.expression, symbol, activeField.apply)}
+          onInsertUnit={(symbol) => insertUnitIntoField(activeField.key, activeField.name, activeField.expression, symbol, activeField.apply)}
+          onMoveCaret={handleKeypadMoveCaret}
+          onToggleOsKeyboard={toggleOsKeyboard}
+          onDismiss={dismissKeypad}
+        />
       ) : null}
 
       <ConfirmDialog
@@ -637,11 +828,13 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   resultTitle: { color: colors.foreground, fontSize: 13, fontWeight: "800" },
   copyButton: { alignItems: "center", height: 26, justifyContent: "center", width: 30 },
   resultValue: { color: colors.primaryStrong, fontFamily: mono, fontSize: 24, fontWeight: "700", marginTop: 4 },
-  resultExpressionInput: { borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth, color: colors.foreground, fontFamily: mono, fontSize: 12, marginBottom: 8, paddingVertical: 2 },
+  // 手順の式欄。以前は12pxの文字に下線だけで、入力欄と分からないうえ**当たり判定も文字の高さ
+  // （約20px）しか無く**、行の余白をタップしても何も起きなかった（実機で「薄い文字を狙って押すと
+  // やっと入力できた」と報告された）。定数欄と同じ枠付き・高さ42の箱にして、行全体を押せる欄にする。
+  resultExpressionInput: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 10, borderWidth: 1, color: colors.foreground, fontFamily: mono, fontSize: 14, marginBottom: 8, minHeight: 42, paddingHorizontal: 12 },
   resultError: { color: colors.error, fontSize: 12, lineHeight: 17, marginTop: 4 },
   resultWarning: { color: colors.warning, fontSize: 11, lineHeight: 15, marginTop: 4 },
   resultReferenceHint: { color: colors.muted, fontSize: 10, marginTop: 5 },
-  constantsRailLabel: { color: colors.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.3, marginTop: 6, textTransform: "uppercase" },
   unitRail: { gap: 6, paddingTop: 9 },
   unitChip: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, paddingHorizontal: 9, paddingVertical: 5 },
   unitChipActive: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },

@@ -29,7 +29,19 @@ describe("resolveCalculatorLayout", () => {
     const layout = resolveCalculatorLayout({ fontScale: 1, height: 640 });
     // screenPaddingBottom だけは 4 から 12 へ意図的に広げてある（`=` の真下にある「設定」タブの
     // 誤タップ対策。縮む先は middle で、この段階では下限 56 に対して十分な余裕がある）。
-    expect(layout).toEqual({ fontFactor: 1, inputRowHeight: 44, keyHeight: 42, keyRowGap: 6, keyRowMinHeight: 30, middleMinHeight: 56, screenPaddingBottom: 12, screenGap: 6 });
+    expect(layout).toEqual({ fontFactor: 1, inputRowHeight: 44, keyHeight: 42, keyRowGap: 6, keyRowMinHeight: 30, middleMinHeight: 56, panelsScrollHorizontally: false, screenPaddingBottom: 12, screenGap: 6 });
+  });
+
+  it("画面が低い段階ではパネルを1行の横スクロールに畳む", () => {
+    // 折り返したグリッド（`ABC` は4行）は縦を食い、結果カードが下限まで潰れて中身が切れる。
+    // 基準端末では一覧できる方が速いので折り返しのまま、低い端末でだけ1行にする。
+    expect(resolveCalculatorLayout({ fontScale: 1, height: 640 }).panelsScrollHorizontally).toBe(false);
+    expect(resolveCalculatorLayout({ fontScale: 1, height: 600 }).panelsScrollHorizontally).toBe(true);
+    expect(resolveCalculatorLayout({ fontScale: 1, height: 460 }).panelsScrollHorizontally).toBe(true);
+    // 文字を最大まで大きくすると、画面が高くても実効の高さが下がって1行へ落ちる
+    // （760 / 1.2 ＝ 633 で基準の 640 を割る。780 なら 650 で基準内のまま）。
+    expect(resolveCalculatorLayout({ fontScale: 1.5, height: 760 }).panelsScrollHorizontally).toBe(true);
+    expect(resolveCalculatorLayout({ fontScale: 1.5, height: 780 }).panelsScrollHorizontally).toBe(false);
   });
 
   it("画面が低いほどキーの高さと行間を詰める", () => {

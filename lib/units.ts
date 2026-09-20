@@ -58,7 +58,7 @@ type UnitDefinition = {
 type Token =
   | { type: "quantity"; value: Quantity }
   | { type: "identifier"; value: string }
-  | { type: "operator"; value: "+" | "-" | "*" | "/" | "^" }
+  | { type: "operator"; value: "+" | "-" | "*" | "/" | "^" | "!" }
   | { type: "comma" }
   | { type: "leftParen" }
   | { type: "rightParen" };
@@ -722,6 +722,26 @@ export function getUnitRegistration(input: string): UnitRegistration {
   }
 }
 
+/**
+ * 階乗の上限。171! は倍精度で Infinity になるので、そこまで来たら専用のエラーで止める
+ * （`quantity` の「有限の数値を入力してください」だと、何が起きたのか分からない）。
+ */
+const FACTORIAL_LIMIT = 170;
+
+/**
+ * 階乗。**単位の付いた量には使えない**——`5m!` に意味を与えられないため（次元は掛け算で増えるので
+ * 階乗の結果の次元が定まらない）。0以上の整数だけを受ける。
+ */
+function factorial(value: Quantity): Quantity {
+  if (!isDimensionless(value.dimension)) throw new UnitError("factorialNotDimensionless");
+  const n = value.siValue;
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) throw new UnitError("factorialNotWholeNumber");
+  if (n > FACTORIAL_LIMIT) throw new UnitError("factorialTooLarge");
+  let result = 1;
+  for (let index = 2; index <= n; index += 1) result *= index;
+  return quantity(result);
+}
+
 function quantity(value: number, dimension: Dimension = ZERO): Quantity {
   if (!Number.isFinite(value)) throw new UnitError("nonFiniteNumber");
   return { siValue: value, dimension: [...dimension] as Dimension };
@@ -872,8 +892,8 @@ function tokenize(input: string, knownIdentifiers: ReadonlySet<string> = new Set
       continue;
     }
 
-    if (/[+\-*/^]/.test(current)) {
-      tokens.push({ type: "operator", value: current as "+" | "-" | "*" | "/" | "^" });
+    if (/[+\-*/^!]/.test(current)) {
+      tokens.push({ type: "operator", value: current as "+" | "-" | "*" | "/" | "^" | "!" });
       index += 1;
       continue;
     }
@@ -971,7 +991,10 @@ export function evaluateExpression(
     if (!token) throw new UnitError("unexpectedEndOfExpression");
     if (token.type === "operator" && (token.value === "+" || token.value === "-")) {
       position += 1;
-      const inner = parsePrimary();
+      // 単項の符号は**後置の `!` より後**に掛ける（`-3!` は `-(3!)` ＝ -6。数学の慣行と同じで、
+      // `(-3)!` として階乗の定義域エラーにしない）。相互再帰になるが parsePostfix はこの下で
+      // 定義されていて、呼ばれるのは実行時なので解決できる。
+      const inner = parsePostfix();
       return token.value === "-" ? quantity(-inner.siValue, inner.dimension) : inner;
     }
     if (token.type === "quantity") {
@@ -1057,8 +1080,22 @@ export function evaluateExpression(
     throw new UnitError("invalidExpressionSyntax");
   };
 
+  /**
+   * 後置の `!`（階乗）。**べき乗より先に適用する**ので `2^3!` は `2^(3!)` ＝ 64、
+   * `3!^2` は `(3!)^2` ＝ 36 になる（数学の慣行と同じ）。`5!!` のように続けて書けば
+   * `(5!)!` として読む。
+   */
+  const parsePostfix = (): Quantity => {
+    let value = parsePrimary();
+    while (tokens[position]?.type === "operator" && (tokens[position] as { value: string }).value === "!") {
+      position += 1;
+      value = factorial(value);
+    }
+    return value;
+  };
+
   const parsePower = (): Quantity => {
-    const left = parsePrimary();
+    const left = parsePostfix();
     const nextToken = tokens[position];
     if (nextToken?.type === "operator" && nextToken.value === "^") {
       position += 1;

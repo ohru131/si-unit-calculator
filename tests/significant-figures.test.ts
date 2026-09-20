@@ -216,3 +216,27 @@ describe("表示単位への換算を挟んだあとの桁数", () => {
     expect(result?.text.startsWith("≈")).toBe(false);
   });
 });
+
+describe("階乗の桁", () => {
+  it("階乗の対象は測定値として数えない", () => {
+    // `5!` の 5 は「5の階乗」という厳密な指定で、答えの 120 も厳密。ここを1桁と数えると
+    // `≈ 1×10²` に丸まって正しい値を出せなくなる。
+    expect(inferSignificantDigits("5!")).toBeNull();
+    expect(inferSignificantDigits("10!")).toBeNull();
+    // 同じ式に本物の測定値があれば、そちらの桁で決まる。
+    expect(inferSignificantDigits("12.5*2!")).toBe(3);
+    expect(inferSignificantDigits("10!*1.5")).toBe(2);
+  });
+
+  it("括弧で括った階乗の対象も数えない", () => {
+    // 評価器は `(5)!` も `3*(4)!` も受ける。直後の1文字しか見ない判定だと括弧の中の
+    // 数字が測定値として数えられ、厳密な 120 が `≈ 1×10²` に丸まる（CodeRabbitが#72で検出）。
+    expect(inferSignificantDigits("(5)!")).toBeNull();
+    expect(inferSignificantDigits("(5) !")).toBeNull();
+    // 括弧の外の数値は従来どおり測定値。`1.75` の3桁で決まり、`4` には引きずられない。
+    expect(inferSignificantDigits("1.75*(4)!")).toBe(3);
+    expect(inferSignificantDigits("(2.5)!*1.75")).toBe(3);
+    // 階乗ではない括弧の中は従来どおり数える。
+    expect(inferSignificantDigits("(4.70)*1.2345")).toBe(3);
+  });
+});

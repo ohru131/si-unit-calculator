@@ -70,6 +70,32 @@ function isExponentPosition(tokens: readonly ScanToken[]): boolean {
 }
 
 /**
+ * `(` から対応する `)` を探し、その後ろ（空白は読み飛ばす）に `!` が続くか。
+ *
+ * **括弧で括った階乗の対象も測定値ではない。** 評価器は `(5)!` も `3*(4)!` も受けるのに、
+ * 直後の1文字だけを見る判定では括弧の中の `5` が1桁として数えられ、厳密な 120 が
+ * `≈ 1×10²` に丸まる（CodeRabbitが#72で検出）。中身の式まで見ずに、括弧の範囲を丸ごと
+ * 除外する——`(2+3)!` のように中が式のこともあり、そこは「どの数字が測定値か」を
+ * 読む話ではないため。
+ */
+function isFactorialParen(source: string, openIndex: number): boolean {
+  let depth = 0;
+  for (let index = openIndex; index < source.length; index += 1) {
+    const character = source[index];
+    if (character === "(") depth += 1;
+    else if (character === ")") {
+      depth -= 1;
+      if (depth === 0) {
+        let after = index + 1;
+        while (source[after] === " ") after += 1;
+        return source[after] === "!";
+      }
+    }
+  }
+  return false;
+}
+
+/**
  * 入力式から、結果を丸めるべき有効数字の桁数を読む。読めなければ null（丸めない）。
  *
  * 掛け算・割り算の規則（**リテラルの最小桁数**）を当てる。この電卓の主な用途である電気・
@@ -81,10 +107,13 @@ function isExponentPosition(tokens: readonly ScanToken[]): boolean {
  * 数えないもの:
  * - 指数の位置にある数値（`(6371km)^2` の 2）。表記であって測定値ではない。
  * - 科学表記の底の `10`（`3×10^8` の 10）。同じ理由。
+ * - 階乗の対象（`5!` の 5、`(5)!` や `3*(4)!` の括弧の中も同じ）。厳密な整数の指定で、結果も厳密。
  */
 export function inferSignificantDigits(expression: string): number | null {
   const source = normalizeExpression(expression);
   const tokens: ScanToken[] = [];
+  // 開いている括弧が階乗の対象かどうか。`)` で pop するので入れ子でも対応が保てる。
+  const parenIsFactorial: boolean[] = [];
   let minimum: number | null = null;
   let index = 0;
 
@@ -110,7 +139,11 @@ export function inferSignificantDigits(expression: string): number | null {
       let beforeCaret = next;
       while (source[beforeCaret] === " ") beforeCaret += 1;
       const isScientificBase = literal === "10" && source[beforeCaret] === "^";
-      if (!isExponentPosition(tokens) && !isScientificBase) {
+      // **階乗の対象は測定値ではない。** `5!` の 5 は「5の階乗」という厳密な指定で、120 という
+      // 答えも厳密な整数。ここを1桁と数えると `5!` が `≈ 1×10²` に丸まり、正しい 120 を出せない。
+      // 指数の位置と科学表記の底を数えないのと同じ理由。
+      const isFactorialTarget = source[beforeCaret] === "!" || parenIsFactorial.some(Boolean);
+      if (!isExponentPosition(tokens) && !isScientificBase && !isFactorialTarget) {
         const digits = significantDigitsOfLiteral(literal);
         if (digits !== null) minimum = minimum === null ? digits : Math.min(minimum, digits);
       }
@@ -127,6 +160,13 @@ export function inferSignificantDigits(expression: string): number | null {
       continue;
     }
 
+    if (character === "!") {
+      // 後置の階乗。値の一部として読み飛ばす（直前の数値は上で既に「数えない」判定をしている）。
+      tokens.push({ kind: "value" });
+      index += 1;
+      continue;
+    }
+
     if (character === "*" || character === "/" || character === "^") {
       tokens.push({ kind: "operator", value: character });
       index += 1;
@@ -136,12 +176,14 @@ export function inferSignificantDigits(expression: string): number | null {
     // カンマは関数の引数の区切り。値として扱うと直後の符号が二項の引き算に見え、
     // atan2(2.0, -3.00) のような式で桁を読めなくなる（丸めが効かない）。
     if (character === "(" || character === ",") {
+      if (character === "(") parenIsFactorial.push(isFactorialParen(source, index));
       tokens.push({ kind: "open" });
       index += 1;
       continue;
     }
 
     if (character === ")") {
+      parenIsFactorial.pop();
       tokens.push({ kind: "value" });
       index += 1;
       continue;

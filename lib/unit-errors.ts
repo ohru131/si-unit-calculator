@@ -9,6 +9,9 @@ export type UnitErrorCode =
   | "unparsableUnitFormat"
   | "temperatureUnitStandalone"
   | "nonFiniteNumber"
+  | "factorialNotDimensionless"
+  | "factorialNotWholeNumber"
+  | "factorialTooLarge"
   | "dimensionMismatchAddSubtract"
   | "divideByZero"
   | "exponentMustBeDimensionless"
@@ -81,6 +84,9 @@ const UNIT_ERROR_MESSAGES: Record<AppLanguage, UnitErrorMessageCatalog> = {
     unparsableUnitFormat: ({ input }) => `Could not parse the format of unit "${input}".`,
     temperatureUnitStandalone: () => "Enter Celsius or Fahrenheit as a standalone temperature value.",
     nonFiniteNumber: () => "Enter a finite number.",
+    factorialNotDimensionless: () => "A factorial needs a plain number without a unit.",
+    factorialNotWholeNumber: () => "A factorial needs a whole number that is 0 or greater.",
+    factorialTooLarge: () => "That factorial is too large to calculate (up to 170! is supported).",
     dimensionMismatchAddSubtract: (params) => {
       const sides = describeMismatchSides(params, "en");
       if (!sides) return "Only values with the same dimension can be added or subtracted.";
@@ -121,6 +127,9 @@ const UNIT_ERROR_MESSAGES: Record<AppLanguage, UnitErrorMessageCatalog> = {
     unparsableUnitFormat: ({ input }) => `単位「${input}」の書式を解釈できません。`,
     temperatureUnitStandalone: () => "摂氏・華氏は単独の温度値として入力してください。",
     nonFiniteNumber: () => "有限の数値を入力してください。",
+    factorialNotDimensionless: () => "階乗は単位の付かない数にだけ使えます。",
+    factorialNotWholeNumber: () => "階乗は0以上の整数にだけ使えます。",
+    factorialTooLarge: () => "この階乗は大きすぎて計算できません（170! まで）。",
     dimensionMismatchAddSubtract: (params) => {
       const sides = describeMismatchSides(params, "ja");
       if (!sides) return "加算・減算できるのは同じ次元の値だけです。";
@@ -161,6 +170,9 @@ const UNIT_ERROR_MESSAGES: Record<AppLanguage, UnitErrorMessageCatalog> = {
     unparsableUnitFormat: ({ input }) => `No se pudo interpretar el formato de la unidad "${input}".`,
     temperatureUnitStandalone: () => "Introduce los grados Celsius o Fahrenheit como un valor de temperatura independiente.",
     nonFiniteNumber: () => "Introduce un número finito.",
+    factorialNotDimensionless: () => "El factorial solo admite números sin unidad.",
+    factorialNotWholeNumber: () => "El factorial solo admite números enteros mayores o iguales que 0.",
+    factorialTooLarge: () => "Ese factorial es demasiado grande para calcularlo (hasta 170!).",
     dimensionMismatchAddSubtract: (params) => {
       const sides = describeMismatchSides(params, "es");
       if (!sides) return "Solo se pueden sumar o restar valores con la misma dimensión.";
@@ -201,6 +213,9 @@ const UNIT_ERROR_MESSAGES: Record<AppLanguage, UnitErrorMessageCatalog> = {
     unparsableUnitFormat: ({ input }) => `Não foi possível interpretar o formato da unidade "${input}".`,
     temperatureUnitStandalone: () => "Informe Celsius ou Fahrenheit como um valor de temperatura isolado.",
     nonFiniteNumber: () => "Informe um número finito.",
+    factorialNotDimensionless: () => "O fatorial só aceita números sem unidade.",
+    factorialNotWholeNumber: () => "O fatorial só aceita números inteiros maiores ou iguais a 0.",
+    factorialTooLarge: () => "Esse fatorial é grande demais para calcular (até 170!).",
     dimensionMismatchAddSubtract: (params) => {
       const sides = describeMismatchSides(params, "pt-BR");
       if (!sides) return "Só é possível somar ou subtrair valores com a mesma dimensão.";
@@ -241,6 +256,9 @@ const UNIT_ERROR_MESSAGES: Record<AppLanguage, UnitErrorMessageCatalog> = {
     unparsableUnitFormat: ({ input }) => `Das Format der Einheit „${input}“ konnte nicht erkannt werden.`,
     temperatureUnitStandalone: () => "Gib Celsius oder Fahrenheit als eigenständigen Temperaturwert ein.",
     nonFiniteNumber: () => "Gib eine endliche Zahl ein.",
+    factorialNotDimensionless: () => "Die Fakultät gilt nur für Zahlen ohne Einheit.",
+    factorialNotWholeNumber: () => "Die Fakultät gilt nur für ganze Zahlen ab 0.",
+    factorialTooLarge: () => "Diese Fakultät ist zu groß für die Berechnung (bis 170!).",
     dimensionMismatchAddSubtract: (params) => {
       const sides = describeMismatchSides(params, "de");
       if (!sides) return "Addiert oder subtrahiert werden können nur Werte mit derselben Dimension.";
@@ -281,6 +299,9 @@ const UNIT_ERROR_MESSAGES: Record<AppLanguage, UnitErrorMessageCatalog> = {
     unparsableUnitFormat: ({ input }) => `Le format de l'unité « ${input} » n'a pas pu être interprété.`,
     temperatureUnitStandalone: () => "Saisissez les degrés Celsius ou Fahrenheit comme valeur de température isolée.",
     nonFiniteNumber: () => "Saisissez un nombre fini.",
+    factorialNotDimensionless: () => "La factorielle ne s’applique qu’aux nombres sans unité.",
+    factorialNotWholeNumber: () => "La factorielle ne s’applique qu’aux entiers supérieurs ou égaux à 0.",
+    factorialTooLarge: () => "Cette factorielle est trop grande pour être calculée (jusqu’à 170!).",
     dimensionMismatchAddSubtract: (params) => {
       const sides = describeMismatchSides(params, "fr");
       if (!sides) return "Seules des valeurs de même dimension peuvent être additionnées ou soustraites.";
