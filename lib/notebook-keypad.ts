@@ -42,6 +42,10 @@ export function moveCaretInField(name: string, expression: string, selectionStar
   const prefixLength = name ? name.length + 1 : 0;
   const total = prefixLength + expression.length;
   const anchor = delta < 0 ? Math.min(selectionStart, selectionEnd) : Math.max(selectionStart, selectionEnd);
-  const next = Math.max(prefixLength, Math.min(total, anchor + delta));
+  // **範囲選択があるときは端へ畳むだけ。** どのテキスト欄でも矢印キーは「選択を解除して
+  // その端へ」であって、さらに1文字進むものではない。delta を足すと `2..4` で `>` を押した
+  // ときに 5 まで飛び、選択していた文字の外へ出る（CodeRabbitが#72で検出）。
+  const target = selectionStart === selectionEnd ? anchor + delta : anchor;
+  const next = Math.max(prefixLength, Math.min(total, target));
   return { start: next, end: next };
 }

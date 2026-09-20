@@ -141,7 +141,12 @@ export const ExpressionKeyboard = memo(function ExpressionKeyboard({
   // 低い端末（`panelsScrollHorizontally`）ではパネルを折り返さず1行の横スクロールにする。
   // 3〜4行ぶんの縦は結果カードを押し潰すので、端に隠れたキーはスクロールで出す方を採る。
   const scrollPanels = layout.panelsScrollHorizontally;
-  const PanelRows = ({ children }: { children: ReactNode }) =>
+  // **コンポーネントではなく描画関数にすること。** コンポーネントとして書くとレンダーのたびに
+  // 新しい型になり、親が再レンダーするたびに React がパネルをアンマウントして作り直す。
+  // 低い端末の横スクロールのパネルでは、1文字打つたびにスクロール位置が先頭へ戻る
+  // （この部品は memo してあるが、親は毎レンダー新しい unitPanel を渡すので打鍵ごとに
+  // 再レンダーされる）。CodeRabbitが#72で検出。
+  const panelRows = (children: ReactNode) =>
     scrollPanels ? (
       <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.panelScrollRow} style={styles.panelScroll}>
         {children}
@@ -153,17 +158,13 @@ export const ExpressionKeyboard = memo(function ExpressionKeyboard({
   const renderPanel = () => {
     if (!tool || panelsDisabled) return null;
     if (tool === "powers") {
-      return (
-        <PanelRows>
-          {POWER_KEYS.map((key) => (
-            <View key={key.label} style={scrollPanels ? styles.scrollCell : styles.functionCell}>
-              <Pressable accessibilityLabel={key.insert} hitSlop={KEY_CELL_PADDING} onPress={() => onInsert(key.insert)} style={({ pressed }) => [styles.panelGridKey, pressed && styles.pressed]}>
-                <Text numberOfLines={1} style={styles.functionKeyText}>{key.label}</Text>
-              </Pressable>
-            </View>
-          ))}
-        </PanelRows>
-      );
+      return panelRows(POWER_KEYS.map((key) => (
+        <View key={key.label} style={scrollPanels ? styles.scrollCell : styles.functionCell}>
+          <Pressable accessibilityLabel={key.insert} hitSlop={KEY_CELL_PADDING} onPress={() => onInsert(key.insert)} style={({ pressed }) => [styles.panelGridKey, pressed && styles.pressed]}>
+            <Text numberOfLines={1} style={styles.functionKeyText}>{key.label}</Text>
+          </Pressable>
+        </View>
+      )));
     }
     if (tool === "constants") {
       // 数学定数（π・e）と、画面が渡す「今その式で使える名前」（電卓は保存済みの定数、ノートは
@@ -171,45 +172,35 @@ export const ExpressionKeyboard = memo(function ExpressionKeyboard({
       // **中身は画面側が決める**——電卓とノートで「使える名前」が違うため。
       const entries = [...MATH_CONSTANT_KEYS.map((symbol) => ({ symbol, hint: undefined as string | undefined })), ...(constants ?? [])];
       if (!entries.length) return null;
-      return (
-        <PanelRows>
-          {entries.map((entry) => (
-            <View key={entry.symbol} style={scrollPanels ? styles.scrollCell : styles.functionCell}>
-              <Pressable accessibilityLabel={entry.hint ? `${entry.symbol} ${entry.hint}` : entry.symbol} hitSlop={KEY_CELL_PADDING} onPress={() => onInsert(entry.symbol)} style={({ pressed }) => [styles.panelGridKey, pressed && styles.pressed]}>
-                <Text numberOfLines={1} style={styles.functionKeyText}>{entry.symbol}</Text>
-                {entry.hint ? <Text numberOfLines={1} style={styles.panelKeyHint}>{entry.hint}</Text> : null}
-              </Pressable>
-            </View>
-          ))}
-        </PanelRows>
-      );
+      return panelRows(entries.map((entry) => (
+        <View key={entry.symbol} style={scrollPanels ? styles.scrollCell : styles.functionCell}>
+          <Pressable accessibilityLabel={entry.hint ? `${entry.symbol} ${entry.hint}` : entry.symbol} hitSlop={KEY_CELL_PADDING} onPress={() => onInsert(entry.symbol)} style={({ pressed }) => [styles.panelGridKey, pressed && styles.pressed]}>
+            <Text numberOfLines={1} style={styles.functionKeyText}>{entry.symbol}</Text>
+            {entry.hint ? <Text numberOfLines={1} style={styles.panelKeyHint}>{entry.hint}</Text> : null}
+          </Pressable>
+        </View>
+      )));
     }
     if (tool === "functions") {
-      return (
-        <PanelRows>
-          {MATH_FUNCTION_KEYS.map((item) => (
-            <View key={item} style={scrollPanels ? styles.scrollCell : styles.functionCell}>
-              <Pressable accessibilityLabel={item} hitSlop={KEY_CELL_PADDING} onPress={() => onInsert(item)} style={({ pressed }) => [styles.panelGridKey, pressed && styles.pressed]}>
-                <Text numberOfLines={1} style={styles.functionKeyText}>{item}</Text>
-              </Pressable>
-            </View>
-          ))}
-        </PanelRows>
-      );
+      return panelRows(MATH_FUNCTION_KEYS.map((item) => (
+        <View key={item} style={scrollPanels ? styles.scrollCell : styles.functionCell}>
+          <Pressable accessibilityLabel={item} hitSlop={KEY_CELL_PADDING} onPress={() => onInsert(item)} style={({ pressed }) => [styles.panelGridKey, pressed && styles.pressed]}>
+            <Text numberOfLines={1} style={styles.functionKeyText}>{item}</Text>
+          </Pressable>
+        </View>
+      )));
     }
     if (tool === "symbols") {
       const group = FORMULA_CHARACTER_GROUPS.find((entry) => entry.id === symbolGroupId) ?? FORMULA_CHARACTER_GROUPS[0];
       return (
         <View>
-          <PanelRows>
-            {group.chars.map((char) => (
-              <View key={char} style={scrollPanels ? styles.scrollCell : styles.symbolCell}>
-                <Pressable accessibilityLabel={char} hitSlop={KEY_CELL_PADDING} onPress={() => onInsert(char)} style={({ pressed }) => [styles.panelGridKey, pressed && styles.pressed]}>
-                  <Text style={styles.panelKeyText}>{char}</Text>
-                </Pressable>
-              </View>
-            ))}
-          </PanelRows>
+          {panelRows(group.chars.map((char) => (
+            <View key={char} style={scrollPanels ? styles.scrollCell : styles.symbolCell}>
+              <Pressable accessibilityLabel={char} hitSlop={KEY_CELL_PADDING} onPress={() => onInsert(char)} style={({ pressed }) => [styles.panelGridKey, pressed && styles.pressed]}>
+                <Text style={styles.panelKeyText}>{char}</Text>
+              </Pressable>
+            </View>
+          )))}
           {/* **タブは文字のグリッドより下、ツール行のすぐ上に置く。** グループごとに行数が違う
               （下付き数字10個＝1行・ギリシャ小文字24個＝3行）ので、タブを上に置くと切り替えるたびに
               タブ自身が上下して次に押したいタブが逃げる。下に置けば固定の高さを持たせなくても動かず、

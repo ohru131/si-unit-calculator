@@ -74,12 +74,36 @@ describe("moveCaretInField", () => {
     expect(moveCaretInField("m", "5kg", 2, 2, -1)).toEqual({ start: 2, end: 2 });
   });
 
-  it("collapses a selection toward the direction of movement", () => {
+  it("collapses a selection to its edge without moving past it", () => {
+    // どのテキスト欄でも矢印キーは「選択を解除してその端へ」。delta を足すと選択の外へ
+    // 1文字出る（2..4 で `>` を押すと 5 まで飛んでいた。CodeRabbitが#72で検出）。
     expect(moveCaretInField("m", "5kg", 2, 4, -1)).toEqual({ start: 2, end: 2 });
-    expect(moveCaretInField("m", "5kg", 2, 4, 1)).toEqual({ start: 5, end: 5 });
+    expect(moveCaretInField("m", "5kg", 2, 4, 1)).toEqual({ start: 4, end: 4 });
+  });
+
+  it("collapses a reversed selection to the same edges", () => {
+    // Android では右から左へ引いた選択が start > end のまま届く。
+    expect(moveCaretInField("m", "5kg", 4, 2, -1)).toEqual({ start: 2, end: 2 });
+    expect(moveCaretInField("m", "5kg", 4, 2, 1)).toEqual({ start: 4, end: 4 });
   });
 
   it("never enters the name part", () => {
     expect(moveCaretInField("mass", "5kg", 5, 5, -1)).toEqual({ start: 5, end: 5 });
+  });
+});
+
+describe("逆向きの選択範囲", () => {
+  // Android では選択を右から左へ引くと `start > end` のまま届く。そのまま
+  // replaceExpressionRange（slice(0,start) + 置換 + slice(end)）へ渡すと選択部分が
+  // 置き換わらず、間の文字が二重に残る（CodeRabbitが#72で検出）。
+  it("inserts over the selection regardless of the order it arrives in", () => {
+    expect(insertKeypadText("v", "10m/s", 4, 2, "2")).toEqual({ expression: "2m/s", combinedCaret: 3 });
+    // 昇順で渡したときと同じ結果になること。
+    expect(insertKeypadText("v", "10m/s", 4, 2, "2")).toEqual(insertKeypadText("v", "10m/s", 2, 4, "2"));
+  });
+
+  it("deletes the selection regardless of the order it arrives in", () => {
+    expect(backspaceInField("v", "10m/s", 4, 2)).toEqual(backspaceInField("v", "10m/s", 2, 4));
+    expect(backspaceInField("v", "10m/s", 4, 2)).toEqual({ expression: "m/s", combinedCaret: 2 });
   });
 });

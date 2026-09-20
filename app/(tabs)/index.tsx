@@ -574,6 +574,11 @@ export default function CalculatorScreen() {
   // 縮める**——marginBottom だけ足すと、86% のままのシートが上へはみ出して見出しと検索欄が
   // 画面の外に出る。キーボードが出ている間は insets.bottom を足さない（キーボードの高さに
   // ナビゲーションバーのぶんが既に入っている）。
+  //
+  // **下限（SHEET_MIN_HEIGHT_WITH_KEYBOARD）は残りの画面高で頭打ちにすること。** 無条件に
+  // 当てると `marginBottom + maxHeight` が画面の高さを超え、今度は**上**へはみ出して見出しと
+  // 検索欄が画面の外に出る（画面高600・キーボード400なら 400+220=620）。これでは隠れる先が
+  // キーボードから画面の上端に変わるだけ。CodeRabbitが#72で検出。
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const sheetStyle = useMemo(
     () => [
@@ -581,7 +586,10 @@ export default function CalculatorScreen() {
       keyboardHeight > 0
         ? {
             marginBottom: keyboardHeight,
-            maxHeight: Math.max(SHEET_MIN_HEIGHT_WITH_KEYBOARD, windowHeight * SHEET_MAX_HEIGHT_RATIO - keyboardHeight),
+            maxHeight: Math.min(
+              Math.max(0, windowHeight - keyboardHeight),
+              Math.max(SHEET_MIN_HEIGHT_WITH_KEYBOARD, windowHeight * SHEET_MAX_HEIGHT_RATIO - keyboardHeight),
+            ),
             paddingBottom: SHEET_PADDING_BOTTOM,
           }
         : { paddingBottom: SHEET_PADDING_BOTTOM + insets.bottom },
