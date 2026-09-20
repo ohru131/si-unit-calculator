@@ -23,7 +23,7 @@ The previous version of this script assumed spoken English narration. **The narr
 | 0:22–0:31 | Press `AC`, type `100km / 2h`; tap **Compare units** under the result card and let the comparison table expand | **See one result across every compatible unit, at a glance.** |
 | 0:31–0:40 | Press `AC`, type `1/3`; the `Decimal` / `Exact` chip pair appears under the unit chips. Tap **Exact** and hold on the typeset fraction (real horizontal bar, KaTeX) | **Not 0.3333… — the answer as an exact fraction.** |
 | 0:40–0:50 | Still in `Exact` mode: press `AC`, type `2*pi*50` → shows `100π`; press `AC`, type `sqrt(8)` → shows `2√2`. Hold ~2s on each | **π and roots stay exact, typeset the way you would write them.** |
-| 0:50–0:57 | Press `AC`, tap the round `0x` pill at the right-hand end of the unit-suggestion rail directly above the keypad; type `FF`; tap `DEC` in the `DEC/BIN/OCT/HEX` bar so the digits become `255` | **Switch a number between decimal, binary, octal, and hex.** |
+| 0:50–0:57 | Press `AC`, tap the round `0x` pill at the right-hand end of the unit-suggestion rail (inside the `Unit` panel, just above the tool row); type `FF`; tap `DEC` in the `DEC/BIN/OCT/HEX` bar so the digits become `255` | **Switch a number between decimal, binary, octal, and hex.** |
 | 0:57–1:04 | Open the **Library** tab (Notebooks section); slowly scroll the nine category cards (School science, High school physics, Chemistry stoichiometry, Astronomy & space, Electricity & energy, Hobbies & making, Home & everyday life, Physics of cars & bicycles, Mechanical & structural design) | **194 ready-made formula notebooks, in nine categories.** |
 | 1:04–1:12 | Tap the "Search all notebooks" field at the top of the Library list and type `photography`; the 7 Photography notebooks appear from wherever you were in the hierarchy | **Search all of them at once — titles, descriptions, even category names.** |
 | 1:12–1:21 | Tap "Depth of field (near and far limits)"; the notebook opens on the **Notebooks** tab. Scroll through its typeset formula card and its step results | **Real typeset math, with every step shown — not just the number.** |
@@ -35,6 +35,12 @@ The previous version of this script assumed spoken English narration. **The narr
 Total run time as written: **1:53**, under the 2-minute target.
 
 ## Production notes found while recording
+
+- **`=` is the button to the right of the expression field, not a keypad key (2026-09-20).** The shared
+  expression keyboard dropped `=` from the keypad — the result appears as you type, so `=` is only the
+  commit step (save to history, raise the error). `scripts/record-demo-video.mjs` drives it through
+  `submit(page)` (`getByLabel("Result")`); the earlier `key(page, "=")` now times out, because the only
+  remaining `=` key lives inside the `ABC` panel for constant definitions (`W = 3cm`).
 
 - **The dimension-mismatch error only appears after `=`.** The real-time preview simply leaves the result blank for `5m + 1kg`; the red error is part of the confirm step (`app/(tabs)/index.tsx` — `=` is what commits, saves and raises errors). Scene 3 therefore presses `=`.
 - **The history sheet is only populated by `=`.** Scene 2 deliberately shows the result *without* `=`, so the confirm for that expression happens at the head of scene 3, and scenes 4–7 each confirm at their end. That is what fills the sheet shown at 1:38.
