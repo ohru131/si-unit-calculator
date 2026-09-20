@@ -53,6 +53,11 @@ export function getStepFieldSuggestions(
  * 「名前＝式」の1行テキスト（TextInputに表示している結合文字列）のキャレット/選択範囲を、
  * 内部で保持しているexpression単体の範囲へ変換する。名前部分（"name="の中）にキャレットが
  * あるときはexpressionの先頭（0）へ丸め、名前を誤って書き換えないようにする。
+ *
+ * **返す範囲は必ず昇順にすること。** Androidでは選択を右から左へ引くと `start > end` の
+ * まま届く。そのまま `replaceExpressionRange`（`slice(0,start) + 置換 + slice(end)`）へ渡すと
+ * 選択部分が置き換わらず**間に挟まれた文字が二重に残る**（`⌫` も同じ経路）。
+ * CodeRabbitが#72で検出。
  */
 export function mapCombinedSelectionToExpressionRange(
   name: string,
@@ -62,7 +67,9 @@ export function mapCombinedSelectionToExpressionRange(
 ): { start: number; end: number } {
   const prefixLength = name ? name.length + 1 : 0;
   const clamp = (value: number) => Math.max(0, Math.min(value - prefixLength, expression.length));
-  return { start: clamp(selectionStart), end: clamp(selectionEnd) };
+  const first = clamp(selectionStart);
+  const second = clamp(selectionEnd);
+  return { start: Math.min(first, second), end: Math.max(first, second) };
 }
 
 export type ConstantInsertionResult = {

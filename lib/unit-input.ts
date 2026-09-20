@@ -249,6 +249,14 @@ export function getUnitSuggestions(query: string, options: UnitSuggestionOptions
   const raw = query.trim();
   const normalized = raw.toLowerCase();
   if (!normalized) return [];
+  // **日本語IMEは `kPa` を `k Pa` のように空白入りで確定することがある**（実機で報告）。記号として
+  // 引くときは空白を無視したい。一方で**単位の名前には空白を含むものが327件ある**（"square meter"・
+  // "astronomical unit"・"mètre carré"…）ので、**入力から空白を落とすのではなく、空白ありの照合を
+  // 残したまま空白なしの照合を足す**（落とすと "square meter" で m² が引けなくなる）。
+  // 空白が無い普段の入力では squeezed === normalized なので、判定は増えても結果は変わらない。
+  const squeezed = normalized.replace(/\s+/g, "");
+  const hasSpace = squeezed !== normalized;
+  const rawSqueezed = hasSpace ? raw.replace(/\s+/g, "") : raw;
 
   const scored: { suggestion: UnitSuggestion; score: number; order: number }[] = [];
   let order = 0;
@@ -263,18 +271,19 @@ export function getUnitSuggestions(query: string, options: UnitSuggestionOptions
       const tolerance = normalized.length <= 3 ? 1 : 2;
 
       let score = Number.POSITIVE_INFINITY;
-      if (symbol === normalized) score = 0;
-      else if (aliases.includes(normalized)) score = 1;
-      else if (symbol.startsWith(normalized)) score = 2;
-      else if (aliases.some((alias) => alias.startsWith(normalized))) score = 3;
+      if (symbol === normalized || (hasSpace && symbol === squeezed)) score = 0;
+      else if (aliases.includes(normalized) || (hasSpace && aliases.includes(squeezed))) score = 1;
+      else if (symbol.startsWith(normalized) || (hasSpace && symbol.startsWith(squeezed))) score = 2;
+      else if (aliases.some((alias) => alias.startsWith(normalized) || (hasSpace && alias.startsWith(squeezed)))) score = 3;
       else if (unitSearchText(group, unitOption).includes(normalized)) score = 4;
-      else if (editDistance(symbol, normalized) <= tolerance) score = 5;
-      else if (aliases.some((alias) => editDistance(alias, normalized) <= tolerance)) score = 6;
+      else if (editDistance(symbol, normalized) <= tolerance || (hasSpace && editDistance(symbol, squeezed) <= tolerance)) score = 5;
+      else if (aliases.some((alias) => editDistance(alias, normalized) <= tolerance || (hasSpace && editDistance(alias, squeezed) <= tolerance))) score = 6;
       if (!Number.isFinite(score)) return;
 
       const matchedAlias = unitOption.aliases?.find((alias) => {
         const lowered = alias.toLowerCase();
-        return lowered === normalized || lowered.startsWith(normalized) || editDistance(lowered, normalized) <= tolerance;
+        if (lowered === normalized || lowered.startsWith(normalized) || editDistance(lowered, normalized) <= tolerance) return true;
+        return hasSpace && (lowered === squeezed || lowered.startsWith(squeezed) || editDistance(lowered, squeezed) <= tolerance);
       });
       // **接頭語は大文字小文字で別物**（m=ミリ / M=メガ）なので、綴りがそのまま前方一致する
       // 候補を同スコア内で先に見せる。照合自体を大文字小文字を区別する形にはしない——
@@ -283,7 +292,7 @@ export function getUnitSuggestions(query: string, options: UnitSuggestionOptions
       // **綴り一致はスコアより強い。** そうしないと大文字小文字を無視した完全一致が勝ってしまい、
       // M を押した直後の1位が m（メートル）・k の1位が K（ケルビン）になる。逆に "mpa" のような
       // 綴りが崩れた入力では全候補が同じ扱いになるので、従来のスコア順がそのまま残る。
-      const caseMismatch = unitOption.symbol.startsWith(raw) ? 0 : 1;
+      const caseMismatch = unitOption.symbol.startsWith(raw) || (hasSpace && unitOption.symbol.startsWith(rawSqueezed)) ? 0 : 1;
       // 地域の優先単位を同スコア内で先に見せる。
       const positioned = caseMismatch * 1000 + score * 100 + (prioritized.includes(unitOption) ? 0 : 1);
       scored.push({ suggestion: { group, unit: unitOption, matchedAlias }, score: positioned, order });

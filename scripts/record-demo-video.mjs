@@ -155,6 +155,11 @@ const LANGUAGE_SECTION = /^(App language|アプリの言語|App-Sprache)$/;
 
 const tab = (page, lang, key) => page.getByText(TABS[lang][key], { exact: true }).last().click();
 const key = (page, label) => page.getByLabel(label, { exact: true }).first().click();
+// 確定（履歴に残す）。**キーパッドの `=` は 2026-09-20 に廃止**され、入力欄の右の
+// ボタンだけになった（打つそばから答えが出るので `=` は確定操作でしかない）。
+// ラベルは `t("result")`＝"Result"。`key(page, "=")` に戻さないこと——`=` は
+// `ABC` パネルの中（定数定義用）にしか無く、パネルを開いていないと見つからない。
+const submit = (page) => page.getByLabel("Result", { exact: true }).first().click();
 
 // 打ち終わったらフォーカスを外す。ブラウザのフォーカスリング（黒い枠）は実機の
 // 見え方ではないので、静止して見せる区間には出したくない。
@@ -219,13 +224,13 @@ function buildTimeline(cues) {
     {
       cue: 3, // 0:15–0:22 = で履歴に残してから AC → 5m + 1kg の次元エラー
       run: async (page, at) => {
-        await key(page, "=");
+        await submit(page);
         await at(cueAt(3).start + 1.2);
         await key(page, "Clear all");
         await typeExpression(page, "5m + 1kg", 130);
         // 次元エラーは確定操作（=）で出る。打っただけでは結果が空欄になるだけなので、
         // 台本どおり「結果の代わりにエラーが出ている」画にするには = が要る。
-        await key(page, "=");
+        await submit(page);
         await at(cueAt(3).end);
       },
     },
@@ -234,7 +239,7 @@ function buildTimeline(cues) {
       run: async (page, at) => {
         await key(page, "Clear all");
         await typeExpression(page, "100km / 2h", 120);
-        await key(page, "=");
+        await submit(page);
         await at(cueAt(4).start + 4.0);
         await page.getByLabel("Compare units", { exact: true }).first().click();
         await at(cueAt(4).start + 5.5);
@@ -249,7 +254,7 @@ function buildTimeline(cues) {
         await page.getByLabel("Compare units", { exact: true }).first().click();
         await key(page, "Clear all");
         await typeExpression(page, "1/3", 170);
-        await key(page, "=");
+        await submit(page);
         await at(cueAt(5).start + 3.0);
         await key(page, "Exact");
         await at(cueAt(5).end);
@@ -260,11 +265,11 @@ function buildTimeline(cues) {
       run: async (page, at) => {
         await key(page, "Clear all");
         await typeExpression(page, "2*pi*50", 120);
-        await key(page, "=");
+        await submit(page);
         await at(cueAt(6).start + 4.6);
         await key(page, "Clear all");
         await typeExpression(page, "sqrt(8)", 120);
-        await key(page, "=");
+        await submit(page);
         await at(cueAt(6).end);
       },
     },
@@ -280,7 +285,7 @@ function buildTimeline(cues) {
         await at(cueAt(7).start + 3.8);
         await key(page, "DEC");
         await at(cueAt(7).end - 0.6);
-        await key(page, "=");
+        await submit(page);
         await at(cueAt(7).end);
       },
     },

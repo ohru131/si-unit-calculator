@@ -92,6 +92,22 @@ describe("単位の候補提示", () => {
     expect(getUnitSuggestions("キロメートル", { system: "metric" })[0].unit.symbol).toBe("km");
   });
 
+  it("日本語IMEが挟む空白を無視して記号に当てる", () => {
+    // Google日本語入力は `kPa` を `k Pa` のように空白入りで確定することがある（実機で報告）。
+    // 空白ありのまま完全一致として扱えないと、登録済みの単位が1位に来ない。
+    expect(getUnitSuggestions("k Pa", { system: "metric" })[0].unit.symbol).toBe("kPa");
+    expect(getUnitSuggestions("M Pa", { system: "metric" })[0].unit.symbol).toBe("MPa");
+    expect(getUnitSuggestions("k m / h", { system: "metric" })[0].unit.symbol).toBe("km/h");
+  });
+
+  it("空白を含む単位名は空白ありのままでも引ける", () => {
+    // **入力から空白を落とす実装にしてはいけない**——単位の名前には "square meter"・
+    // "astronomical unit" のように空白を含むものが327件あり、落とすと引けなくなる。
+    expect(getUnitSuggestions("square meter", { system: "metric" })[0].unit.symbol).toBe("m²");
+    expect(getUnitSuggestions("astronomical unit", { system: "metric" })[0].unit.symbol).toBe("au");
+    expect(getUnitSuggestions("light year", { system: "metric" })[0].unit.symbol).toBe("ly");
+  });
+
   it("打ち間違いにも近い候補を返す", () => {
     expect(getUnitSuggestions("kmh", { system: "metric" }).map((suggestion) => suggestion.unit.symbol)).toContain("km/h");
     expect(getUnitSuggestions("hoir", { system: "metric" }).map((suggestion) => suggestion.unit.symbol)).toContain("h");
