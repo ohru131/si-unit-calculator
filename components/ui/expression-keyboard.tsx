@@ -2,22 +2,23 @@ import { memo, useMemo, useState, type ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { MathFunctionRail } from "@/components/ui/math-function-rail";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { type CalculatorLayout, scaleFontSizes } from "@/lib/calculator-layout";
-import { ALPHABET_ROWS, EXPRESSION_KEYS, EXPRESSION_KEY_COLUMNS, KEY_CELL_PADDING, OPERATOR_KEYS, POWER_KEYS, PREFIX_KEYS, SHIFT_KEY, type KeyboardTool } from "@/lib/expression-keyboard";
+import { ALPHABET_ROWS, EXPRESSION_CELLS, EXPRESSION_KEY_COLUMNS, FUNCTION_KEY_COLUMNS, KEY_CELL_PADDING, MATH_CONSTANT_KEYS, OPERATOR_KEYS, POWER_KEYS, PREFIX_KEYS, SHIFT_KEY, SYMBOL_KEY_COLUMNS, type ExpressionKey, type KeyboardTool } from "@/lib/expression-keyboard";
 import { FORMULA_CHARACTER_GROUPS, type FormulaCharacterGroupId } from "@/lib/formula-characters";
+import { MATH_FUNCTION_KEYS } from "@/lib/math-functions";
 import { type AppLanguage } from "@/lib/i18n";
 
 const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" });
+
 
 // 英語のキー集合を正にして、言語を足したときにキー漏れがその言語のブロックで型エラーになるようにする。
 const EN_COPY = {
   caretLeft: "Move cursor left", caretRight: "Move cursor right", keyboardKey: "System keyboard",
   deleteKey: "Delete", clearAllKey: "Clear all", submitKey: "Equals", doneKey: "Done",
-  toolPowers: "Powers and exponents", toolFunctions: "Math functions", toolSymbols: "Subscripts and Greek letters", toolAlphabet: "Letters", toolUnits: "Units",
-  unitsShort: "Unit", shift: "Shift",
+  toolConstants: "Constants", toolPowers: "Powers and exponents", toolFunctions: "Math functions", toolSymbols: "Subscripts and Greek letters", toolAlphabet: "Letters", toolUnits: "Units",
+  unitsShort: "Unit", constantsShort: "Const", shift: "Shift",
   subscriptDigits: "Subscript digits", subscriptLetters: "Subscript letters", greekLower: "Greek (lowercase)", greekUpper: "Greek (uppercase)",
 } as const;
 const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
@@ -25,36 +26,36 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   ja: {
     caretLeft: "カーソルを左へ", caretRight: "カーソルを右へ", keyboardKey: "端末のキーボード",
     deleteKey: "一文字削除", clearAllKey: "全消去", submitKey: "計算", doneKey: "確定",
-    toolPowers: "べき乗・指数", toolFunctions: "数学関数", toolSymbols: "下付き文字・ギリシャ文字", toolAlphabet: "英字", toolUnits: "単位",
-    unitsShort: "単位", shift: "大文字",
+    toolConstants: "定数", toolPowers: "べき乗・指数", toolFunctions: "数学関数", toolSymbols: "下付き文字・ギリシャ文字", toolAlphabet: "英字", toolUnits: "単位",
+    unitsShort: "単位", constantsShort: "定数", shift: "大文字",
     subscriptDigits: "下付き数字", subscriptLetters: "下付き文字", greekLower: "ギリシャ文字（小文字）", greekUpper: "ギリシャ文字（大文字）",
   },
   es: {
     caretLeft: "Mover el cursor a la izquierda", caretRight: "Mover el cursor a la derecha", keyboardKey: "Teclado del sistema",
     deleteKey: "Eliminar", clearAllKey: "Borrar todo", submitKey: "Calcular", doneKey: "Listo",
-    toolPowers: "Potencias y exponentes", toolFunctions: "Funciones matemáticas", toolSymbols: "Subíndices y letras griegas", toolAlphabet: "Letras", toolUnits: "Unidades",
-    unitsShort: "Unid.", shift: "Mayúsculas",
+    toolConstants: "Constantes", toolPowers: "Potencias y exponentes", toolFunctions: "Funciones matemáticas", toolSymbols: "Subíndices y letras griegas", toolAlphabet: "Letras", toolUnits: "Unidades",
+    unitsShort: "Unid.", constantsShort: "Const.", shift: "Mayúsculas",
     subscriptDigits: "Dígitos en subíndice", subscriptLetters: "Letras en subíndice", greekLower: "Griego (minúsculas)", greekUpper: "Griego (mayúsculas)",
   },
   "pt-BR": {
     caretLeft: "Mover o cursor para a esquerda", caretRight: "Mover o cursor para a direita", keyboardKey: "Teclado do sistema",
     deleteKey: "Excluir", clearAllKey: "Limpar tudo", submitKey: "Calcular", doneKey: "Concluído",
-    toolPowers: "Potências e expoentes", toolFunctions: "Funções matemáticas", toolSymbols: "Subscritos e letras gregas", toolAlphabet: "Letras", toolUnits: "Unidades",
-    unitsShort: "Unid.", shift: "Maiúsculas",
+    toolConstants: "Constantes", toolPowers: "Potências e expoentes", toolFunctions: "Funções matemáticas", toolSymbols: "Subscritos e letras gregas", toolAlphabet: "Letras", toolUnits: "Unidades",
+    unitsShort: "Unid.", constantsShort: "Const.", shift: "Maiúsculas",
     subscriptDigits: "Dígitos subscritos", subscriptLetters: "Letras subscritas", greekLower: "Grego (minúsculas)", greekUpper: "Grego (maiúsculas)",
   },
   de: {
     caretLeft: "Cursor nach links", caretRight: "Cursor nach rechts", keyboardKey: "Systemtastatur",
     deleteKey: "Rücktaste", clearAllKey: "Alles löschen", submitKey: "Berechnen", doneKey: "Fertig",
-    toolPowers: "Potenzen und Exponenten", toolFunctions: "Mathematische Funktionen", toolSymbols: "Tiefgestellte Zeichen und griechische Buchstaben", toolAlphabet: "Buchstaben", toolUnits: "Einheiten",
-    unitsShort: "Einh.", shift: "Großschreibung",
+    toolConstants: "Konstanten", toolPowers: "Potenzen und Exponenten", toolFunctions: "Mathematische Funktionen", toolSymbols: "Tiefgestellte Zeichen und griechische Buchstaben", toolAlphabet: "Buchstaben", toolUnits: "Einheiten",
+    unitsShort: "Einh.", constantsShort: "Konst.", shift: "Großschreibung",
     subscriptDigits: "Tiefgestellte Ziffern", subscriptLetters: "Tiefgestellte Buchstaben", greekLower: "Griechisch (klein)", greekUpper: "Griechisch (groß)",
   },
   fr: {
     caretLeft: "Déplacer le curseur vers la gauche", caretRight: "Déplacer le curseur vers la droite", keyboardKey: "Clavier du système",
     deleteKey: "Supprimer", clearAllKey: "Tout effacer", submitKey: "Calculer", doneKey: "Terminé",
-    toolPowers: "Puissances et exposants", toolFunctions: "Fonctions mathématiques", toolSymbols: "Indices et lettres grecques", toolAlphabet: "Lettres", toolUnits: "Unités",
-    unitsShort: "Unité", shift: "Majuscules",
+    toolConstants: "Constantes", toolPowers: "Puissances et exposants", toolFunctions: "Fonctions mathématiques", toolSymbols: "Indices et lettres grecques", toolAlphabet: "Lettres", toolUnits: "Unités",
+    unitsShort: "Unité", constantsShort: "Const.", shift: "Majuscules",
     subscriptDigits: "Chiffres en indice", subscriptLetters: "Lettres en indice", greekLower: "Grec (minuscules)", greekUpper: "Grec (majuscules)",
   },
 };
@@ -82,16 +83,20 @@ type Props = {
   panelsDisabled?: boolean;
   /** 「単位」パネルの接頭語行の下に出す中身（電卓は単位レール、ノートは記号・単位チップ）。 */
   unitPanel?: ReactNode;
+  /**
+   * 「定数」パネルに π・e の後ろへ並べる名前。電卓は保存済みの定数と直近の計算結果（a1…）、
+   * ノートはその手順から参照できる記号。**渡さなければ数学定数だけ**が出る。
+   */
+  constants?: readonly { symbol: string; hint?: string }[];
   /** キーパッド本体の直上に挟む行（16進入力の A〜F など）。 */
   aboveKeypad?: ReactNode;
   isOsKeyboardActive?: boolean;
   onToggleOsKeyboard?: () => void;
-  /** `=` の代わりに確定（✓）を出す（ノートの値欄には「計算」が無い）。 */
-  submitAsDone?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
 const TOOLS: readonly { id: KeyboardTool; label: string }[] = [
+  { id: "constants", label: "" },
   { id: "powers", label: "xⁿ" },
   { id: "functions", label: "f(x)" },
   { id: "symbols", label: "αβ" },
@@ -109,59 +114,144 @@ const TOOLS: readonly { id: KeyboardTool; label: string }[] = [
  * 【ツール行の考え方】常に見えるのはキャレット移動と各パネルの入口だけ。べき乗・関数・記号・英字・
  * 単位は**どれか1つのパネルだけ**を開く（縦に積むと画面の低い端末でキーパッドがタブバーに潜る）。
  * 同じツールをもう一度押すと畳む。既定は「単位」（この電卓の主用途）。
+ *
+ * 【なぜツール行がパネルの「下」にあるか】上に置くと、開いたパネルの高さ（`xⁿ` は1行・`f(x)` と
+ * `ABC` は3行・`αβ` はタブ＋3行）ぶんツール行そのものが上下に動き、**次に押したいツールのキーが
+ * 押すたびに逃げる**（実機で指摘された）。キーパッドは画面の下端に固定なので、ツール行をその直上に
+ * 置けば位置が変わらない。動くのはパネルの上端＝`middle`（結果カード）の高さだけで、そこは元々
+ * 伸縮する場所。**この順序を入れ替えないこと。**
  */
 export const ExpressionKeyboard = memo(function ExpressionKeyboard({
   language, layout, tool, onToolChange, onKey, onInsert, onPrefix, activePrefix = null, onMoveCaret, caretAtStart = false, caretAtEnd = false,
-  isKeyDisabled, panelsDisabled = false, unitPanel, aboveKeypad, isOsKeyboardActive = false, onToggleOsKeyboard, submitAsDone = false, style,
+  isKeyDisabled, panelsDisabled = false, unitPanel, constants, aboveKeypad, isOsKeyboardActive = false, onToggleOsKeyboard, style,
 }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors, layout), [colors, layout]);
   const copy = COPY[language];
   const [symbolGroupId, setSymbolGroupId] = useState<FormulaCharacterGroupId>(FORMULA_CHARACTER_GROUPS[0].id);
-  // 英字パネルの ⇧。1文字打つと戻る（定数名の頭文字だけ大文字にする使い方が大半）。
+  // 英字パネルの ⇧。**1文字ぶんではなく固定のトグル**——`MPa`・`kWh`・`GPa` のように大文字が
+  // 続く単位記号が多く、1文字ごとに戻ると押し直しになる（実機で指摘された）。
   const [shift, setShift] = useState(false);
 
   const toolLabel = (id: KeyboardTool) =>
-    id === "powers" ? copy.toolPowers : id === "functions" ? copy.toolFunctions : id === "symbols" ? copy.toolSymbols : id === "alphabet" ? copy.toolAlphabet : copy.toolUnits;
+    id === "powers" ? copy.toolPowers : id === "constants" ? copy.toolConstants : id === "functions" ? copy.toolFunctions : id === "symbols" ? copy.toolSymbols : id === "alphabet" ? copy.toolAlphabet : copy.toolUnits;
   const symbolGroupLabel = (id: FormulaCharacterGroupId) =>
     id === "subscriptDigits" ? copy.subscriptDigits : id === "subscriptLetters" ? copy.subscriptLetters : id === "greekLower" ? copy.greekLower : copy.greekUpper;
+
+  // 低い端末（`panelsScrollHorizontally`）ではパネルを折り返さず1行の横スクロールにする。
+  // 3〜4行ぶんの縦は結果カードを押し潰すので、端に隠れたキーはスクロールで出す方を採る。
+  const scrollPanels = layout.panelsScrollHorizontally;
+  const PanelRows = ({ children }: { children: ReactNode }) =>
+    scrollPanels ? (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.panelScrollRow} style={styles.panelScroll}>
+        {children}
+      </ScrollView>
+    ) : (
+      <View style={styles.panelGrid}>{children}</View>
+    );
 
   const renderPanel = () => {
     if (!tool || panelsDisabled) return null;
     if (tool === "powers") {
       return (
-        <View style={styles.chipRow}>
+        <PanelRows>
           {POWER_KEYS.map((key) => (
-            <Pressable accessibilityLabel={key.insert} hitSlop={2} key={key.label} onPress={() => onInsert(key.insert)} style={({ pressed }) => [styles.panelKey, pressed && styles.pressed]}>
-              <Text numberOfLines={1} style={styles.panelKeyText}>{key.label}</Text>
-            </Pressable>
+            <View key={key.label} style={scrollPanels ? styles.scrollCell : styles.functionCell}>
+              <Pressable accessibilityLabel={key.insert} hitSlop={KEY_CELL_PADDING} onPress={() => onInsert(key.insert)} style={({ pressed }) => [styles.panelGridKey, pressed && styles.pressed]}>
+                <Text numberOfLines={1} style={styles.functionKeyText}>{key.label}</Text>
+              </Pressable>
+            </View>
           ))}
-        </View>
+        </PanelRows>
       );
     }
-    if (tool === "functions") return <MathFunctionRail onInsert={onInsert} style={styles.panelRail} />;
+    if (tool === "constants") {
+      // 数学定数（π・e）と、画面が渡す「今その式で使える名前」（電卓は保存済みの定数、ノートは
+      // その手順から参照できるローカル定数と先行手順の記号）を1つのグリッドに並べる。
+      // **中身は画面側が決める**——電卓とノートで「使える名前」が違うため。
+      const entries = [...MATH_CONSTANT_KEYS.map((symbol) => ({ symbol, hint: undefined as string | undefined })), ...(constants ?? [])];
+      if (!entries.length) return null;
+      return (
+        <PanelRows>
+          {entries.map((entry) => (
+            <View key={entry.symbol} style={scrollPanels ? styles.scrollCell : styles.functionCell}>
+              <Pressable accessibilityLabel={entry.hint ? `${entry.symbol} ${entry.hint}` : entry.symbol} hitSlop={KEY_CELL_PADDING} onPress={() => onInsert(entry.symbol)} style={({ pressed }) => [styles.panelGridKey, pressed && styles.pressed]}>
+                <Text numberOfLines={1} style={styles.functionKeyText}>{entry.symbol}</Text>
+                {entry.hint ? <Text numberOfLines={1} style={styles.panelKeyHint}>{entry.hint}</Text> : null}
+              </Pressable>
+            </View>
+          ))}
+        </PanelRows>
+      );
+    }
+    if (tool === "functions") {
+      return (
+        <PanelRows>
+          {MATH_FUNCTION_KEYS.map((item) => (
+            <View key={item} style={scrollPanels ? styles.scrollCell : styles.functionCell}>
+              <Pressable accessibilityLabel={item} hitSlop={KEY_CELL_PADDING} onPress={() => onInsert(item)} style={({ pressed }) => [styles.panelGridKey, pressed && styles.pressed]}>
+                <Text numberOfLines={1} style={styles.functionKeyText}>{item}</Text>
+              </Pressable>
+            </View>
+          ))}
+        </PanelRows>
+      );
+    }
     if (tool === "symbols") {
       const group = FORMULA_CHARACTER_GROUPS.find((entry) => entry.id === symbolGroupId) ?? FORMULA_CHARACTER_GROUPS[0];
       return (
         <View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.groupTabs}>
-            {FORMULA_CHARACTER_GROUPS.map((entry) => (
-              <Pressable accessibilityState={{ selected: entry.id === symbolGroupId }} key={entry.id} onPress={() => setSymbolGroupId(entry.id)} style={({ pressed }) => [styles.groupTab, entry.id === symbolGroupId && styles.groupTabActive, pressed && styles.pressed]}>
-                <Text style={[styles.groupTabText, entry.id === symbolGroupId && styles.groupTabTextActive]}>{symbolGroupLabel(entry.id)}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.chipRail} style={styles.panelRail}>
+          <PanelRows>
             {group.chars.map((char) => (
-              <Pressable accessibilityLabel={char} hitSlop={4} key={char} onPress={() => onInsert(char)} style={({ pressed }) => [styles.chip, pressed && styles.pressed]}>
-                <Text style={styles.chipText}>{char}</Text>
+              <View key={char} style={scrollPanels ? styles.scrollCell : styles.symbolCell}>
+                <Pressable accessibilityLabel={char} hitSlop={KEY_CELL_PADDING} onPress={() => onInsert(char)} style={({ pressed }) => [styles.panelGridKey, pressed && styles.pressed]}>
+                  <Text style={styles.panelKeyText}>{char}</Text>
+                </Pressable>
+              </View>
+            ))}
+          </PanelRows>
+          {/* **タブは文字のグリッドより下、ツール行のすぐ上に置く。** グループごとに行数が違う
+              （下付き数字10個＝1行・ギリシャ小文字24個＝3行）ので、タブを上に置くと切り替えるたびに
+              タブ自身が上下して次に押したいタブが逃げる。下に置けば固定の高さを持たせなくても動かず、
+              行数の少ないグループでは余った縦を `middle`（結果カード）に返せる。
+              ラベルは訳語ではなく中身の記号（`αβ`・`ΔΦ`）。訳した名前は4つ並べると行に収まらず、
+              横スクロールにすると端のタブが隠れて何があるか分からない。名前は accessibilityLabel に残す。 */}
+          <View style={styles.groupTabs}>
+            {FORMULA_CHARACTER_GROUPS.map((entry) => (
+              <Pressable accessibilityLabel={symbolGroupLabel(entry.id)} accessibilityState={{ selected: entry.id === symbolGroupId }} hitSlop={2} key={entry.id} onPress={() => setSymbolGroupId(entry.id)} style={({ pressed }) => [styles.groupTab, entry.id === symbolGroupId && styles.groupTabActive, pressed && styles.pressed]}>
+                <Text numberOfLines={1} style={[styles.groupTabText, entry.id === symbolGroupId && styles.groupTabTextActive]}>{entry.tabLabel}</Text>
               </Pressable>
             ))}
-          </ScrollView>
+          </View>
         </View>
       );
     }
     if (tool === "alphabet") {
+      if (scrollPanels) {
+        return (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.panelScrollRow} style={styles.panelScroll}>
+            {ALPHABET_ROWS.flat().map((key) => {
+              if (key === SHIFT_KEY) {
+                return (
+                  <View key={key} style={styles.scrollCell}>
+                    <Pressable accessibilityLabel={copy.shift} accessibilityState={{ selected: shift }} hitSlop={KEY_CELL_PADDING} onPress={() => setShift((current) => !current)} style={({ pressed }) => [styles.panelGridKey, shift && styles.panelKeyActive, pressed && styles.pressed]}>
+                      <Text style={[styles.panelKeyText, shift && styles.panelKeyTextActive]}>{SHIFT_KEY}</Text>
+                    </Pressable>
+                  </View>
+                );
+              }
+              const label = shift && /^[a-z]$/.test(key) ? key.toUpperCase() : key;
+              return (
+                <View key={key} style={styles.scrollCell}>
+                  <Pressable accessibilityLabel={label} hitSlop={KEY_CELL_PADDING} onPress={() => onInsert(label)} style={({ pressed }) => [styles.panelGridKey, pressed && styles.pressed]}>
+                    <Text style={styles.panelKeyText}>{label}</Text>
+                  </Pressable>
+                </View>
+              );
+            })}
+          </ScrollView>
+        );
+      }
       return (
         <View style={styles.alphabet}>
           {ALPHABET_ROWS.map((row, rowIndex) => (
@@ -174,9 +264,9 @@ export const ExpressionKeyboard = memo(function ExpressionKeyboard({
                     </Pressable>
                   );
                 }
-                const label = shift && key !== "_" ? key.toUpperCase() : key;
+                const label = shift && /^[a-z]$/.test(key) ? key.toUpperCase() : key;
                 return (
-                  <Pressable accessibilityLabel={label} hitSlop={2} key={key} onPress={() => { onInsert(label); if (shift) setShift(false); }} style={({ pressed }) => [styles.panelKey, pressed && styles.pressed]}>
+                  <Pressable accessibilityLabel={label} hitSlop={2} key={key} onPress={() => onInsert(label)} style={({ pressed }) => [styles.panelKey, pressed && styles.pressed]}>
                     <Text style={styles.panelKeyText}>{label}</Text>
                   </Pressable>
                 );
@@ -211,13 +301,11 @@ export const ExpressionKeyboard = memo(function ExpressionKeyboard({
 
   return (
     <View style={style}>
+      {renderPanel()}
+      {/* ツール行はパネルの入口だけに絞る。キャレット移動（`◀ ▶`）はキーパッド本体へ移した——
+          用途が違う（パネルを開かず式を直接動かす）うえ、ここに置くと枠を2つ食って
+          1キーが窄くなる。 */}
       <View style={styles.toolRow}>
-        <Pressable accessibilityLabel={copy.caretLeft} disabled={caretAtStart} hitSlop={2} onPress={() => onMoveCaret(-1)} style={({ pressed }) => [styles.toolKey, styles.caretKey, caretAtStart && styles.keyDisabled, pressed && styles.pressed]}>
-          <IconSymbol name="chevron.left" size={16} color={colors.primary} />
-        </Pressable>
-        <Pressable accessibilityLabel={copy.caretRight} disabled={caretAtEnd} hitSlop={2} onPress={() => onMoveCaret(1)} style={({ pressed }) => [styles.toolKey, styles.caretKey, caretAtEnd && styles.keyDisabled, pressed && styles.pressed]}>
-          <IconSymbol name="chevron.right" size={16} color={colors.primary} />
-        </Pressable>
         {TOOLS.map((entry) => {
           const active = tool === entry.id && !panelsDisabled;
           return (
@@ -230,7 +318,7 @@ export const ExpressionKeyboard = memo(function ExpressionKeyboard({
               onPress={() => onToolChange(tool === entry.id ? null : entry.id)}
               style={({ pressed }) => [styles.toolKey, active && styles.toolKeyActive, panelsDisabled && styles.keyDisabled, pressed && styles.pressed]}
             >
-              <Text numberOfLines={1} style={[styles.toolKeyText, active && styles.toolKeyTextActive]}>{entry.id === "units" ? copy.unitsShort : entry.label}</Text>
+              <Text numberOfLines={1} style={[styles.toolKeyText, active && styles.toolKeyTextActive]}>{entry.id === "units" ? copy.unitsShort : entry.id === "constants" ? copy.constantsShort : entry.label}</Text>
             </Pressable>
           );
         })}
@@ -246,54 +334,72 @@ export const ExpressionKeyboard = memo(function ExpressionKeyboard({
           </Pressable>
         ) : null}
       </View>
-      {renderPanel()}
       {aboveKeypad}
-      <KeypadGrid colors={colors} copy={copy} isKeyDisabled={isKeyDisabled} onKey={onKey} styles={styles} submitAsDone={submitAsDone} />
+      <KeypadGrid caretAtEnd={caretAtEnd} caretAtStart={caretAtStart} colors={colors} copy={copy} isKeyDisabled={isKeyDisabled} onKey={onKey} onMoveCaret={onMoveCaret} styles={styles} />
     </View>
   );
 });
 
 type KeypadGridProps = {
+  caretAtEnd: boolean;
+  caretAtStart: boolean;
   colors: ThemeColorPalette;
   copy: Record<keyof typeof EN_COPY, string>;
   isKeyDisabled?: (key: string) => boolean;
   onKey: (key: string) => void;
+  onMoveCaret: (delta: 1 | -1) => void;
   styles: ReturnType<typeof createStyles>;
-  submitAsDone: boolean;
 };
 
 /**
  * キーパッド本体。式を1文字打つたびに親が再レンダーされても、ここは props（進数モードの判定関数と
  * 固定参照のハンドラ）が変わらない限り作り直さない（電卓の実機で1打鍵あたり100ms超の主因だった）。
  */
-const KeypadGrid = memo(function KeypadGrid({ colors, copy, isKeyDisabled, onKey, styles, submitAsDone }: KeypadGridProps) {
+const KeypadGrid = memo(function KeypadGrid({ caretAtEnd, caretAtStart, colors, copy, isKeyDisabled, onKey, onMoveCaret, styles }: KeypadGridProps) {
+  const renderKey = (entry: ExpressionKey, half: boolean) => {
+    const text = entry.insert ?? entry.label;
+    const isOperator = OPERATOR_KEYS.has(entry.label);
+    // キャレット移動は式を動かすだけなので、桁しか受け付けない進数入力モードでも使える。
+    // 端に着いているときだけ押せなくする。
+    const isCaret = entry.action !== undefined;
+    const disabled = isCaret ? (entry.action === "caretLeft" ? caretAtStart : caretAtEnd) : (isKeyDisabled?.(text) ?? false);
+    const label =
+      entry.label === "⌫" ? copy.deleteKey
+      : entry.label === "AC" ? copy.clearAllKey
+      : entry.action === "caretLeft" ? copy.caretLeft
+      : entry.action === "caretRight" ? copy.caretRight
+      : entry.label;
+    return (
+      <Pressable
+        accessibilityLabel={label}
+        disabled={disabled}
+        hitSlop={KEY_CELL_PADDING}
+        key={entry.label}
+        onPress={() => (entry.action ? onMoveCaret(entry.action === "caretLeft" ? -1 : 1) : onKey(text))}
+        style={({ pressed }) => [styles.key, half && styles.keyHalf, isOperator && styles.keyOperator, isCaret && styles.keyCaret, disabled && styles.keyDisabled, pressed && styles.keyPressed]}
+      >
+        {entry.label === "⌫" ? (
+          <IconSymbol name="delete.left" size={20} color={colors.muted} />
+        ) : entry.action ? (
+          <IconSymbol name={entry.action === "caretLeft" ? "chevron.left" : "chevron.right"} size={18} color={colors.muted} />
+        ) : (
+          <Text numberOfLines={1} style={[styles.keyText, isOperator && styles.keyTextAccent]}>{entry.label}</Text>
+        )}
+      </Pressable>
+    );
+  };
   return (
     <View style={styles.keypad}>
-      {EXPRESSION_KEYS.map((key, index) => {
-        const isAction = key === "=";
-        const isOperator = OPERATOR_KEYS.has(key);
-        const disabled = isKeyDisabled?.(key) ?? false;
-        const label = key === "⌫" ? copy.deleteKey : key === "AC" ? copy.clearAllKey : key === "=" ? (submitAsDone ? copy.doneKey : copy.submitKey) : key;
-        return (
-          <View key={`${key}-${index}`} style={styles.keyCell}>
-            <Pressable
-              accessibilityLabel={label}
-              disabled={disabled}
-              hitSlop={KEY_CELL_PADDING}
-              onPress={() => onKey(key)}
-              style={({ pressed }) => [styles.key, isAction && styles.keyAction, isOperator && styles.keyOperator, disabled && styles.keyDisabled, pressed && styles.keyPressed]}
-            >
-              {key === "⌫" ? (
-                <IconSymbol name="delete.left" size={20} color={colors.muted} />
-              ) : isAction && submitAsDone ? (
-                <IconSymbol name="checkmark" size={22} color={colors.onPrimary} />
-              ) : (
-                <Text style={[styles.keyText, (isAction || isOperator) && styles.keyTextAccent, isAction && { color: colors.onPrimary }]}>{key}</Text>
-              )}
-            </Pressable>
-          </View>
-        );
-      })}
+      {EXPRESSION_CELLS.map((cell, index) => (
+        <View key={index} style={styles.keyCell}>
+          {"split" in cell ? (
+            // 括弧だけは1セルを半分ずつ分け合う（`(` と `)` は必ず対で打つので隣り合っていた方が早い）。
+            <View style={styles.keySplit}>{cell.split.map((entry) => renderKey(entry, true))}</View>
+          ) : (
+            renderKey(cell.key, false)
+          )}
+        </View>
+      ))}
     </View>
   );
 });
@@ -312,22 +418,38 @@ const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => St
   panelKeyText: { color: colors.primary, fontFamily: mono, fontSize: 15, fontWeight: "800" },
   panelKeyTextActive: { color: colors.onPrimary },
   alphabet: { gap: 0 },
-  panelRail: { flexShrink: 0, marginBottom: layout.keyRowGap - 2 },
-  groupTabs: { gap: 6, paddingBottom: 4 },
-  groupTab: { backgroundColor: colors.surfaceSecondary, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
+  // 折り返すグリッド。セルが幅を持ち、キーはその中いっぱいに広がる（キーパッド本体と同じ組み方）。
+  // 余った枠は空けたままにするので、最終行のキーだけ広くなることがない。
+  panelGrid: { flexDirection: "row", flexWrap: "wrap", marginBottom: layout.keyRowGap - 2 - KEY_CELL_PADDING, marginHorizontal: -KEY_CELL_PADDING },
+  functionCell: { padding: KEY_CELL_PADDING, width: `${100 / FUNCTION_KEY_COLUMNS}%` },
+  // 低い端末で1行に畳むときのセル。幅は内容なりで、最低限タップできる大きさを保つ。
+  panelScroll: { flexGrow: 0, flexShrink: 0, marginBottom: layout.keyRowGap - 2 - KEY_CELL_PADDING, marginHorizontal: -KEY_CELL_PADDING },
+  panelScrollRow: { alignItems: "center" },
+  scrollCell: { padding: KEY_CELL_PADDING },
+  symbolCell: { padding: KEY_CELL_PADDING, width: `${100 / SYMBOL_KEY_COLUMNS}%` },
+  panelGridKey: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, justifyContent: "center", minHeight: layout.keyRowMinHeight, minWidth: layout.keyRowMinHeight, paddingHorizontal: 8 },
+  // 関数は `atan2(` の6文字が入る必要があるので、記号より1段小さい字で組む。
+  functionKeyText: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },
+  panelKeyHint: { color: colors.muted, fontSize: 9, marginTop: 1 },
+  groupTabs: { flexDirection: "row", gap: layout.keyRowGap, marginBottom: layout.keyRowGap - 2 },
+  groupTab: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderRadius: 8, flex: 1, justifyContent: "center", minHeight: layout.keyRowMinHeight, minWidth: 0 },
   groupTabActive: { backgroundColor: colors.primaryFill },
-  groupTabText: { color: colors.foreground, fontSize: 12, fontWeight: "700" },
+  groupTabText: { color: colors.foreground, fontFamily: mono, fontSize: 15, fontWeight: "800" },
   groupTabTextActive: { color: colors.onPrimary },
-  chipRail: { alignItems: "center", gap: 6 },
-  chip: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 6 },
-  chipText: { color: colors.primary, fontFamily: mono, fontSize: 14, fontWeight: "800" },
   unitPanel: {},
   keypad: { flexDirection: "row", flexWrap: "wrap", marginHorizontal: -KEY_CELL_PADDING },
   keyCell: { padding: KEY_CELL_PADDING, width: `${100 / EXPRESSION_KEY_COLUMNS}%` },
   key: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 12, borderWidth: 1, height: layout.keyHeight, justifyContent: "center" },
   keyOperator: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder },
-  keyAction: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
+  // **キャレット移動は加減乗除と用途が違う**（式に文字を足さず、入れる場所を動かすだけ）ので、
+  // 演算子の青とは別のグレー系にする。`⌫` と同じ「編集する側のキー」に見えるのが狙い。
+  keyCaret: { backgroundColor: colors.surfaceSecondary, borderColor: colors.border },
+  // 括弧の2つ割り。セルの中で横に並べ、隙間だけ空ける。
+  keySplit: { flexDirection: "row", gap: 2 },
+  keyHalf: { flex: 1 },
   keyText: { color: colors.foreground, fontFamily: mono, fontSize: 18, fontWeight: "600" },
+  // `×10ⁿ` のようにラベルが長いキーだけ字を落とす（6列では18pxだと収まらない）。
+  keyTextSmall: { fontSize: 13, fontWeight: "800" },
   keyTextAccent: { color: colors.primary },
   keyPressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
   keyDisabled: { opacity: 0.35 },

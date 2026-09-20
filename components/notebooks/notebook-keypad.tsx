@@ -45,6 +45,7 @@ export const NotebookKeypad = memo(function NotebookKeypad({ language, layout, f
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [tool, setTool] = useState<KeyboardTool | null>("units");
+  const keyboardConstants = useMemo(() => symbols.map((symbol) => ({ symbol })), [symbols]);
 
   const chipRail = symbols.length || units.length ? (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.chipRail} style={styles.chipRailWrap}>
@@ -85,10 +86,12 @@ export const NotebookKeypad = memo(function NotebookKeypad({ language, layout, f
           onPrefix={onInsert}
           onMoveCaret={onMoveCaret}
           unitPanel={chipRail}
+          // 「定数」パネルにも、この手順から参照できる記号（ローカル定数と先行手順の結果）を出す。
+          // 単位パネルのレールと同じ一覧だが、**単位に混ざらず名前だけを見たい**ときはこちらが速い。
+          constants={keyboardConstants}
           isOsKeyboardActive={isOsKeyboardActive}
           // Web の TextInput は showSoftInputOnFocus を持たず、フォーカスさえあれば物理キーボードで打てる。
           onToggleOsKeyboard={Platform.OS === "web" ? undefined : onToggleOsKeyboard}
-          submitAsDone
         />
       )}
     </View>

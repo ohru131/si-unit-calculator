@@ -531,3 +531,37 @@ describe("指数と単位サフィックスの境界（CodeRabbitの提案で明
     expect(offenders).toEqual([]);
   });
 });
+
+describe("階乗", () => {
+  it("後置の ! を計算する", () => {
+    expect(evaluateExpression("5!").siValue).toBe(120);
+    expect(evaluateExpression("0!").siValue).toBe(1);
+    expect(evaluateExpression("1!").siValue).toBe(1);
+    expect(evaluateExpression("10!").siValue).toBe(3628800);
+    expect(evaluateExpression("(2+3)!").siValue).toBe(120);
+  });
+
+  it("べき乗より先に適用する（数学の慣行）", () => {
+    expect(evaluateExpression("2^3!").siValue).toBe(64); // 2^(3!)
+    expect(evaluateExpression("3!^2").siValue).toBe(36); // (3!)^2
+  });
+
+  it("単項の符号は階乗の後に掛ける", () => {
+    // `(-3)!` として定義域エラーにしない。-3! は -(3!) ＝ -6。
+    expect(evaluateExpression("-3!").siValue).toBe(-6);
+    expect(evaluateExpression("2-3!").siValue).toBe(-4);
+  });
+
+  it("単位の付いた量・小数・負数は受け付けない", () => {
+    // 次元は掛け算で増えるので `5m!` の結果の次元が定まらない。
+    expect(() => evaluateExpression("5m!")).toThrowError(expect.objectContaining({ code: "factorialNotDimensionless" }));
+    expect(() => evaluateExpression("5.5!")).toThrowError(expect.objectContaining({ code: "factorialNotWholeNumber" }));
+    expect(() => evaluateExpression("(0-3)!")).toThrowError(expect.objectContaining({ code: "factorialNotWholeNumber" }));
+  });
+
+  it("倍精度で表せる上限（170!）までを計算し、その先は専用のエラーにする", () => {
+    // 171! は Infinity になる。`quantity` の「有限の数値を入力してください」だと原因が分からない。
+    expect(evaluateExpression("170!").siValue).toBeGreaterThan(1e306);
+    expect(() => evaluateExpression("171!")).toThrowError(expect.objectContaining({ code: "factorialTooLarge" }));
+  });
+});

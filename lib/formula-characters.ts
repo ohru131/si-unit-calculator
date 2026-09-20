@@ -22,6 +22,14 @@ export type FormulaCharacterGroupId = "subscriptDigits" | "subscriptLetters" | "
 
 export type FormulaCharacterGroup = {
   id: FormulaCharacterGroupId;
+  /**
+   * 式キーボード（components/ui/expression-keyboard.tsx）のタブに出す短いラベル。
+   * 訳した名前（「ギリシャ文字（小文字）」・"Griechisch (klein)"）は4つ並べると行に収まらず、
+   * 横スクロールにすると端のタブが隠れて何があるか分からない。**中身そのものを見せる記号**なら
+   * 訳が要らず、どの言語でも同じ幅で4つ並ぶ。長い名前は accessibilityLabel に残す。
+   * 下付きの2つは `x` を添えて「何かの下に付く」ことを示す（`₂`・`ₐ` だけでは小さすぎて読めない）。
+   */
+  tabLabel: string;
   chars: string[];
 };
 
@@ -29,17 +37,20 @@ export const FORMULA_CHARACTER_GROUPS: FormulaCharacterGroup[] = [
   {
     // 下付き数字（例: m₁, m₂）。10種すべて実用性が高いので全部出す。
     id: "subscriptDigits",
+    tabLabel: "x₂",
     chars: ["₀", "₁", "₂", "₃", "₄", "₅", "₆", "₇", "₈", "₉"],
   },
   {
     // 下付き英字（例: mₒ, nₜ, Vₛ）。プリセットで実際に使われているものを先頭に、
     // lib/units.tsが許可する残りの下付き文字（下付きシュワ ₔ は使用頻度が極めて低いため対象外）を続ける。
     id: "subscriptLetters",
+    tabLabel: "xₐ",
     chars: ["ₐ", "ₑ", "ₒ", "ₛ", "ₜ", "ᵢ", "ᵣ", "ᵤ", "ᵥ", "ₕ", "ₗ", "ₘ", "ₙ", "ₚ", "ⱼ", "ₓ", "ₖ", "ᵦ", "ᵧ", "ᵨ", "ᵩ", "ᵪ"],
   },
   {
     // ギリシャ小文字。α・ε・λ・μ・θ・ρ・σ・φ はプリセットで使用済みなので先頭に置く。
     id: "greekLower",
+    tabLabel: "αβ",
     chars: ["α", "ε", "λ", "μ", "θ", "ρ", "σ", "φ", "β", "γ", "δ", "ζ", "η", "ι", "κ", "ν", "ξ", "ο", "π", "τ", "υ", "χ", "ψ", "ω"],
   },
   {
@@ -47,6 +58,10 @@ export const FORMULA_CHARACTER_GROUPS: FormulaCharacterGroup[] = [
     // もとになるため対象外にし、字形が異なる文字だけを出す。Δ・Φ はプリセットで使用済みなので先頭に置く。
     // Ω（オーム、U+03A9）は単位専用のため対象外。
     id: "greekUpper",
+    // **`ΑΒ` にはしないこと**——ギリシャ大文字のアルファ・ベータはラテンの `AB` と字形が同じで、
+    // 画面では区別できない（ツール行の `ABC` とも紛らわしい）。下の chars が Α・Β を「ラテン文字と
+    // 紛らわしい」として除外しているのと同じ理由。実際にこのタブに並ぶ先頭2文字を使う。
+    tabLabel: "ΔΦ",
     chars: ["Δ", "Φ", "Θ", "Λ", "Ξ", "Π", "Σ", "Ψ", "Γ"],
   },
 ];

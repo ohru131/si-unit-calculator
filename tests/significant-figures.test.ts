@@ -216,3 +216,15 @@ describe("表示単位への換算を挟んだあとの桁数", () => {
     expect(result?.text.startsWith("≈")).toBe(false);
   });
 });
+
+describe("階乗の桁", () => {
+  it("階乗の対象は測定値として数えない", () => {
+    // `5!` の 5 は「5の階乗」という厳密な指定で、答えの 120 も厳密。ここを1桁と数えると
+    // `≈ 1×10²` に丸まって正しい値を出せなくなる。
+    expect(inferSignificantDigits("5!")).toBeNull();
+    expect(inferSignificantDigits("10!")).toBeNull();
+    // 同じ式に本物の測定値があれば、そちらの桁で決まる。
+    expect(inferSignificantDigits("12.5*2!")).toBe(3);
+    expect(inferSignificantDigits("10!*1.5")).toBe(2);
+  });
+});

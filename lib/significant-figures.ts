@@ -81,6 +81,7 @@ function isExponentPosition(tokens: readonly ScanToken[]): boolean {
  * 数えないもの:
  * - 指数の位置にある数値（`(6371km)^2` の 2）。表記であって測定値ではない。
  * - 科学表記の底の `10`（`3×10^8` の 10）。同じ理由。
+ * - 階乗の対象（`5!` の 5）。厳密な整数の指定で、結果も厳密。
  */
 export function inferSignificantDigits(expression: string): number | null {
   const source = normalizeExpression(expression);
@@ -110,7 +111,11 @@ export function inferSignificantDigits(expression: string): number | null {
       let beforeCaret = next;
       while (source[beforeCaret] === " ") beforeCaret += 1;
       const isScientificBase = literal === "10" && source[beforeCaret] === "^";
-      if (!isExponentPosition(tokens) && !isScientificBase) {
+      // **階乗の対象は測定値ではない。** `5!` の 5 は「5の階乗」という厳密な指定で、120 という
+      // 答えも厳密な整数。ここを1桁と数えると `5!` が `≈ 1×10²` に丸まり、正しい 120 を出せない。
+      // 指数の位置と科学表記の底を数えないのと同じ理由。
+      const isFactorialTarget = source[beforeCaret] === "!";
+      if (!isExponentPosition(tokens) && !isScientificBase && !isFactorialTarget) {
         const digits = significantDigitsOfLiteral(literal);
         if (digits !== null) minimum = minimum === null ? digits : Math.min(minimum, digits);
       }
@@ -123,6 +128,13 @@ export function inferSignificantDigits(expression: string): number | null {
       // 直前が値なら二項の加減算。桁の決まり方が乗除と違うので、この式では丸めない。
       if (tokens[tokens.length - 1]?.kind === "value") return null;
       tokens.push({ kind: "operator", value: character });
+      index += 1;
+      continue;
+    }
+
+    if (character === "!") {
+      // 後置の階乗。値の一部として読み飛ばす（直前の数値は上で既に「数えない」判定をしている）。
+      tokens.push({ kind: "value" });
       index += 1;
       continue;
     }

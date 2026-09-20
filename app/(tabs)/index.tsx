@@ -168,6 +168,12 @@ const KATEX_EM_SCALE = 1.21;
 // 結果の数字の大きさ。小数表示（styles.resultValue）と同じ36px。
 // 下から出るシートの下端の余白。ナビゲーションバー（safe area の下端）はこれに加算する。
 const SHEET_PADDING_BOTTOM = 28;
+// シートの高さの上限（画面に対する比）。styles.compactSheet の maxHeight: "86%" と必ず同じ値にすること
+// ——キーボードが出ている間だけ、この比から実際のキーボードの高さを引いた数値で上書きする。
+const SHEET_MAX_HEIGHT_RATIO = 0.86;
+// キーボードを避けたあとに残す最低限の高さ。これを割るくらい狭い端末では、見出しと検索欄だけでも
+// 出したうえで中身をスクロールさせる（何も見えないより良い）。
+const SHEET_MIN_HEIGHT_WITH_KEYBOARD = 220;
 // 式の入力欄（トークン列）の文字。**6つのトークン種別で必ず同じ値にすること**——1つでもずれると
 // 同じ行の中で数値と単位のベースラインが食い違い、キャレットの高さも合わなくなる。
 // 19px では小さいという実機の指摘で21pxへ上げた。行の高さは字送りに合わせて26px。
@@ -562,7 +568,26 @@ export default function CalculatorScreen() {
   // Modal はそのどちらの外に出るので固定の paddingBottom だけだと Android の3ボタン
   // ナビゲーションバーに最下段が潜る（数学シートの π・e が半分隠れると実機で報告された）。
   const insets = useSafeAreaInsets();
-  const sheetStyle = useMemo(() => [styles.compactSheet, { paddingBottom: SHEET_PADDING_BOTTOM + insets.bottom }], [insets.bottom, styles.compactSheet]);
+  // **シートは OS のキーボードからも自分で逃げる。** Modal は Android の adjustResize が効く
+  // ウィンドウの外に出るので、キーボードが出てもシートは下端に貼り付いたままで、単位ピッカーの
+  // 検索欄がキーボードの裏に隠れる（実機で報告）。実測した高さぶん持ち上げ、**上限の高さも同時に
+  // 縮める**——marginBottom だけ足すと、86% のままのシートが上へはみ出して見出しと検索欄が
+  // 画面の外に出る。キーボードが出ている間は insets.bottom を足さない（キーボードの高さに
+  // ナビゲーションバーのぶんが既に入っている）。
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const sheetStyle = useMemo(
+    () => [
+      styles.compactSheet,
+      keyboardHeight > 0
+        ? {
+            marginBottom: keyboardHeight,
+            maxHeight: Math.max(SHEET_MIN_HEIGHT_WITH_KEYBOARD, windowHeight * SHEET_MAX_HEIGHT_RATIO - keyboardHeight),
+            paddingBottom: SHEET_PADDING_BOTTOM,
+          }
+        : { paddingBottom: SHEET_PADDING_BOTTOM + insets.bottom },
+    ],
+    [insets.bottom, keyboardHeight, styles.compactSheet, windowHeight],
+  );
   const { quick, presetExpression, presetUnit } = useLocalSearchParams<{ quick?: string | string[]; presetExpression?: string | string[]; presetUnit?: string | string[] }>();
   const { constants, history, favoriteUnits, upsertConstant, addHistoryEntry, clearHistory, isLoading: isHistoryLoading } = useCalculatorStore();
   const { isPro } = usePro();
@@ -731,6 +756,10 @@ export default function CalculatorScreen() {
   // 電卓アプリの低評価の定番パターン（docs/market-research-2026-09.md 第4節）で、
   // 無料の価値を削ってProを売る設計はこのジャンルで最も反発が強い。
   const visibleHistory = history;
+  // 「定数」パネルに π・e の後ろへ並べる名前＝**自分で定義した定数だけ**。
+  // 履歴参照（a1・a2…）も一度は並べたが、数件だけ出しても中途半端で（全部出すとボタンが
+  // 数十個に膨らむ）、履歴は入力欄の下の履歴バーから開く方が早い。
+  const keyboardConstants = useMemo(() => constants.map((entry) => ({ symbol: entry.symbol, hint: entry.expression })), [constants]);
   const autoConstants = useMemo(() => historyToAutoConstants(history), [history]);
   const availableConstants = useMemo(() => [...constants, ...autoConstants], [autoConstants, constants]);
   // = を押す前でも計算できる入力ならその場で結果を出す。計算できない入力は「なぜ計算できないか」
@@ -747,7 +776,12 @@ export default function CalculatorScreen() {
   );
   const compatibleUnitGroups = useMemo(() => (result ? getCompatibleUnitGroups(result.dimension).filter((group) => isUnitGroupVisible(group, isAdvancedMode) && visibleUnits(getRegionalUnits(group, unitSystem), isAdvancedMode).length > 0) : []), [isAdvancedMode, result, unitSystem]);
   const unitInfo = useMemo(() => getUnitExplanation(unitInfoSymbol ?? ""), [unitInfoSymbol]);
-  const searchedUnitRegistration = useMemo(() => getUnitRegistration(unitSearch), [unitSearch]);
+  // 検索欄に打った文字列を**単位記号として**解釈するときは空白を落とす。日本語IMEは `kPa` を
+  // `k Pa` のように空白入りで確定することがあり（実機で報告）、そのままだと登録済みの単位なのに
+  // 「使えない単位」と出る。候補の一覧（getUnitSuggestions）は名前に空白を含む単位（"square meter"）
+  // も引けるよう、空白ありの照合を残したまま空白なしでも照合する側で吸収している。
+  const unitSearchSymbol = useMemo(() => unitSearch.replace(/\s+/g, ""), [unitSearch]);
+  const searchedUnitRegistration = useMemo(() => getUnitRegistration(unitSearchSymbol), [unitSearchSymbol]);
 
   const identifiers = useMemo(
     () => [...constants.map((item) => item.symbol), ...autoConstants.map((item) => item.symbol)],
@@ -1284,7 +1318,7 @@ export default function CalculatorScreen() {
       return;
     }
     // 進数入力モード中は、その基数の桁とAC・⌫以外を一切受け付けない。キーパッド側の disabled
-    // だけでは関数チップ（MathFunctionRail）が pressKey("sin(") を直接呼べてしまい、確定できない
+    // だけでは関数パネルのキーが pressKey("sin(") を直接呼べてしまい、確定できない
     // 桁が混ざる。入力の経路が複数あるので、ここでも弾く。
     if (baseInputMode !== null && key !== "AC" && key !== "⌫" && !isBaseDigitAllowed(key, baseInputMode)) return;
     // 演算子・括弧・べき乗・数学関数を押した時点で、書いているのは「次の項」なので単位パレットの
@@ -1482,8 +1516,16 @@ export default function CalculatorScreen() {
   // 点いたまま残る（次に押すと blur() が空振りして、出したいのに出ない）。OSがキーボードを
   // 隠した時点でこちらもフォーカスを外し、状態を実際の見た目に合わせる。
   useEffect(() => {
-    const subscription = Keyboard.addListener("keyboardDidHide", () => expressionInputRef.current?.blur());
-    return () => subscription.remove();
+    const hidden = Keyboard.addListener("keyboardDidHide", () => {
+      expressionInputRef.current?.blur();
+      setKeyboardHeight(0);
+    });
+    // 高さは下から出るシート（sheetStyle）がキーボードを避けるのに使う。
+    const shown = Keyboard.addListener("keyboardDidShow", (event) => setKeyboardHeight(event.endCoordinates?.height ?? 0));
+    return () => {
+      hidden.remove();
+      shown.remove();
+    };
   }, []);
 
   // pendingSelection は挿入直後の1回だけ TextInput のカーソル位置を強制するためのもの。
@@ -2350,17 +2392,18 @@ export default function CalculatorScreen() {
                 <Text style={styles.historyBarCount}>{history.length} ›</Text>
               </Pressable>
             ) : null}
+            {/* サンプルは式を丸ごと置き換える破壊的な操作なので、キーパッドの延長ではなく
+                「ここから始める」導線として控えめに独立させる（数学とはデザインを分ける）。
+                **履歴バーの直下＝結果の並びの末尾に置く。** キーパッドとの間に置くと、開いている
+                パネルの高さが変わるたびにボタンが上下に動いて狙いが外れる（実機で指摘された）。 */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.startRail} keyboardShouldPersistTaps="handled" style={styles.startRailWrap}>
+              <Pressable onPress={() => setShowSamples(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}>
+                <IconSymbol name="book.fill" size={13} color={colors.primary} />
+                <Text style={styles.toolButtonText}>{copy.samples}</Text>
+              </Pressable>
+            </ScrollView>
           </ScrollView>
         </View>
-
-        {/* サンプルは式を丸ごと置き換える破壊的な操作なので、キーパッドの延長ではなく
-            「ここから始める」導線として控えめに独立させる（数学とはデザインを分ける）。 */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.startRail} keyboardShouldPersistTaps="handled" style={styles.startRailWrap}>
-          <Pressable onPress={() => setShowSamples(true)} style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}>
-            <IconSymbol name="book.fill" size={13} color={colors.primary} />
-            <Text style={styles.toolButtonText}>{copy.samples}</Text>
-          </Pressable>
-        </ScrollView>
 
         {/* 入力欄をタップせずに式を組み立てられるようにする行。キャレット移動は進数入力モード中も
             使えるが、べき乗まわりは桁以外を受け付けないモードなので無効にする（pressKey 側でも弾く）。
@@ -2384,6 +2427,7 @@ export default function CalculatorScreen() {
           isKeyDisabled={isKeyDisabledForBaseInput}
           panelsDisabled={baseInputMode !== null}
           unitPanel={isRailNearInput ? null : renderUnitRail(true)}
+          constants={keyboardConstants}
           aboveKeypad={baseInputMode === 16 ? (
             // 16進の入力モード中だけ、キーパッド本体の配置は変えずに直上へA〜Fの行を足す。
             <View style={styles.hexKeyRow}>
@@ -2413,19 +2457,19 @@ export default function CalculatorScreen() {
             </View>
             <View style={styles.unitSearchWrap}>
               <IconSymbol name="magnifyingglass" size={18} color={colors.muted} />
-              <TextInput ref={unitSearchRef} value={unitSearch} onChangeText={setUnitSearch} placeholder={copy.unitSearch} placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.unitSearchInput} />
+              <TextInput ref={unitSearchRef} value={unitSearch} onChangeText={(text) => setUnitSearch(toHalfWidthAscii(text))} placeholder={copy.unitSearch} placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.unitSearchInput} />
             </View>
             {unitSearch.trim() ? (
               <View style={[styles.registrationCard, searchedUnitRegistration.status === "unknown" && styles.registrationCardUnknown, searchedUnitRegistration.status === "supported" && styles.registrationCardSupported]}>
                 <Text style={styles.registrationCardTitle}>{searchedUnitRegistration.status === "registered" ? copy.registered : searchedUnitRegistration.status === "supported" ? copy.supported : copy.unknown}</Text>
                 <Text style={styles.registrationCardHint}>
                   {searchedUnitRegistration.status === "registered"
-                    ? `${unitSearch.trim()}${searchedUnitRegistration.matchedAlias ? ` ${copy.aliasNote} ${searchedUnitRegistration.canonical}` : ""} · ${unitGroupLabel(searchedUnitRegistration.group?.id ?? "")}`
-                    : searchedUnitRegistration.status === "supported" ? unitSearch.trim() : copy.unknownHint}
+                    ? `${unitSearchSymbol}${searchedUnitRegistration.matchedAlias ? ` ${copy.aliasNote} ${searchedUnitRegistration.canonical}` : ""} · ${unitGroupLabel(searchedUnitRegistration.group?.id ?? "")}`
+                    : searchedUnitRegistration.status === "supported" ? unitSearchSymbol : copy.unknownHint}
                 </Text>
                 {searchedUnitRegistration.status !== "unknown" ? (
-                  <Pressable onPress={() => chooseUnit(searchedUnitRegistration.canonical ?? unitSearch.trim())} style={({ pressed }) => [styles.useTypedUnitButton, pressed && styles.pressed]}>
-                    <Text style={styles.useTypedUnitText}>{copy.use} “{searchedUnitRegistration.canonical ?? unitSearch.trim()}”</Text>
+                  <Pressable onPress={() => chooseUnit(searchedUnitRegistration.canonical ?? unitSearchSymbol)} style={({ pressed }) => [styles.useTypedUnitButton, pressed && styles.pressed]}>
+                    <Text style={styles.useTypedUnitText}>{copy.use} “{searchedUnitRegistration.canonical ?? unitSearchSymbol}”</Text>
                   </Pressable>
                 ) : null}
               </View>
@@ -2791,6 +2835,8 @@ const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => St
 
   modalBackdrop: { backgroundColor: colors.overlay, flex: 1, justifyContent: "flex-end" },
   // paddingBottom は呼び出し側（sheetStyle）が safe area の下端を足して上書きする。
+  // maxHeight の "86%" は SHEET_MAX_HEIGHT_RATIO と同じ値にすること（キーボードが出ている間は
+  // sheetStyle がその比から実測のキーボード高さを引いた数値で上書きする）。
   compactSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "86%", paddingBottom: SHEET_PADDING_BOTTOM, paddingHorizontal: 18, paddingTop: 12 },
   sheetHeader: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
   sheetTitle: { color: colors.foreground, fontSize: 20, fontWeight: "800" },

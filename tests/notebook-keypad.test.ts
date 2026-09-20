@@ -9,8 +9,9 @@ describe("MATH_FUNCTION_KEYS", () => {
     const functions = MATH_FUNCTION_KEYS.filter((item) => item.endsWith("("));
     expect(functions).toContain("sqrt(");
     expect(functions).toContain("sin(");
-    expect(MATH_FUNCTION_KEYS).toContain("π");
-    expect(MATH_FUNCTION_KEYS).toContain("e");
+    // π・e は関数ではなく値なので `定数` パネル（MATH_CONSTANT_KEYS）へ移した。
+    expect(MATH_FUNCTION_KEYS).not.toContain("π");
+    expect(MATH_FUNCTION_KEYS).not.toContain("e");
     expect(MATH_FUNCTION_KEYS).not.toContain("^");
   });
 
