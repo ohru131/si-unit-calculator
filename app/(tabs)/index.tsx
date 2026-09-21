@@ -1842,8 +1842,8 @@ export default function CalculatorScreen() {
    * を明示する（RNの既定は `flexShrink: 0` なので、書かないと件数の多いカテゴリで
    * チップ行が潰れてチップが半分に切れる）。
    *
-   * **チップ行は横スクロールにしない**（2026-09-21）。9件あるので端に隠れたタブは存在ごと
-   * 気付かれない（`exam`・`lab` は言語によっては最後尾に来る）。折り返せば2行で全部見える。
+   * **チップ行は横スクロールにしない**（2026-09-21）。7件あるので端に隠れたタブは存在ごと
+   * 気付かれない（`lab`・`math` は言語によっては最後尾に来る）。折り返せば2〜3行で全部見える。
    */
   const samplesSheet = useMemo(
     () => (
@@ -1856,8 +1856,8 @@ export default function CalculatorScreen() {
             </Pressable>
           </View>
           {/* key にカテゴリIDを渡して、切り替えのたびに ScrollView を作り直す。Androidの ScrollView は
-              内容が縮んでも contentOffset をクランプしないので、件数の多いカテゴリ（電気は8件）で
-              下までスクロールしたあと少ないカテゴリ（割合は1件）へ移ると、範囲外に残ったオフセットの
+              内容が縮んでも contentOffset をクランプしないので、件数の多いカテゴリ（電気は13件）で
+              下までスクロールしたあと少ないカテゴリ（基本は4件）へ移ると、範囲外に残ったオフセットの
               せいで**一覧が空に見える**（単位レールの railScrollKey と同じ事象）。 */}
           <ScrollView key={activeSampleCategory} showsVerticalScrollIndicator={false} style={styles.sampleList} contentContainerStyle={styles.sampleListContent}>
             {visibleSamples.map((sample) => {
@@ -1881,7 +1881,7 @@ export default function CalculatorScreen() {
               );
             })}
           </ScrollView>
-          {/* チップは横スクロールではなく折り返して全部見せる（9件あり、端に隠れると何のタブがあるか分からない）。
+          {/* チップは横スクロールではなく折り返して全部見せる（7件あり、端に隠れると何のタブがあるか分からない）。
               並びは lib/locale-relevance.ts の言語別の関連度順で、「基本」だけは全言語で先頭に固定してある。 */}
           <View style={styles.sampleCategoryRail}>
             {visibleSampleCategories.map((category) => (

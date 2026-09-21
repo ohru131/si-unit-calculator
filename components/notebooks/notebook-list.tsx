@@ -8,12 +8,15 @@ import { useColors } from "@/hooks/use-colors";
 import { type CalculationNotebook } from "@/lib/calculator-store";
 import { type AppLanguage } from "@/lib/i18n";
 import { evaluateNotebookSteps, resolveNotebookLocalConstants } from "@/lib/notebook-engine";
-import { notebookStepSignificantDigits, roundedValueFor } from "@/lib/notebook-export-model";
-import { formatQuantity, type SavedConstant } from "@/lib/units";
+import { notebookStepSignificantDigits, resolveNotebookStepDisplay } from "@/lib/notebook-export-model";
+import { type SavedConstant, type UnitSystem } from "@/lib/units";
 
 type Props = {
   language: AppLanguage;
   locale?: string;
+  // 単位ラベルの見栄え差し替え（`J/kg/K` → `J/(kg·K)`）は候補の絞り込みに計量系を使うので、
+  // プレビューも詳細画面・PDFと同じ値を出すにはここまで渡す必要がある。
+  unitSystem: UnitSystem;
   categoryLabel: string;
   notebooks: CalculationNotebook[];
   globalConstants: SavedConstant[];
@@ -77,7 +80,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
   },
 };
 
-export function NotebookList({ language, locale, categoryLabel, notebooks, globalConstants, searchResultCategoryLabels, onBack, onOpen, onDelete, onTogglePinned }: Props) {
+export function NotebookList({ language, locale, unitSystem, categoryLabel, notebooks, globalConstants, searchResultCategoryLabels, onBack, onOpen, onDelete, onTogglePinned }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
@@ -98,15 +101,16 @@ export function NotebookList({ language, locale, categoryLabel, notebooks, globa
         map.set(notebook.id, "");
         return;
       }
-      const value = finalResult.formatted ?? formatQuantity(finalResult.quantity, undefined, locale);
-      // ノートの結果は有効数字で丸めたものが既定（詳細画面・PDFと同じ判断を通す）。
-      // ここだけ素の値を出すと、カードで 3.5 h・開くと ≈ 4 h という食い違いになる。
+      // **詳細画面・PDFと同じ resolveNotebookStepDisplay を通すこと。** 以前はここだけ
+      // roundedValueFor を直接呼んでいて、有効数字の丸めは揃っていたのに**単位ラベルの
+      // 見栄え差し替えだけが漏れていた**（`J/kg/K` を選んだ手順が、カードでは `J/kg/K`・
+      // 開くと `J/(kg·K)`）。CLAUDE.mdの「画面・PDF・一覧プレビューが同じ関数を通ること」は
+      // 丸めだけの話ではない。表示単位の上書きは一覧では無いので undefined を渡す。
       const digits = notebookStepSignificantDigits(finalResult.step, notebook.localConstants, results.slice(0, finalIndex));
-      const rounded = roundedValueFor(finalResult, value, finalResult.step.targetUnit.trim(), digits, locale);
-      map.set(notebook.id, rounded?.value ?? value);
+      map.set(notebook.id, resolveNotebookStepDisplay(finalResult, undefined, unitSystem, locale, digits).value ?? "");
     });
     return map;
-  }, [globalConstants, language, locale, notebooks]);
+  }, [globalConstants, language, locale, notebooks, unitSystem]);
 
   return (
     <View style={styles.container}>

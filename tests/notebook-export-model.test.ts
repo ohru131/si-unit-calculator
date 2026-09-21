@@ -228,6 +228,14 @@ describe("resolveNotebookStepDisplay", () => {
     const display = resolveNotebookStepDisplay(results[0], "", "metric", undefined);
     expect(display).toEqual({ value: "5 m", error: undefined, isError: false });
   });
+
+  it("単位ラベルの見栄え差し替え（J/kg/K → J/(kg·K)）を通す", () => {
+    // ノート一覧のプレビュー（components/notebooks/notebook-list.tsx）が roundedValueFor を
+    // 直接呼んでいた頃は、丸めだけ揃っていてこの差し替えが漏れ、カードと詳細画面で
+    // 単位の綴りが割れていた（CodeRabbitが#73で指摘）。3つの表示が同じ関数を通ることの担保。
+    const results = evaluateNotebookSteps([{ id: "s1", title: "", expression: "4200J/kg/K", targetUnit: "J/kg/K" }], [], "en", [], undefined);
+    expect(resolveNotebookStepDisplay(results[0], undefined, "metric", undefined).value).toBe("4200 J/(kg·K)");
+  });
 });
 
 describe("notebookWithDraftValues", () => {
