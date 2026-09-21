@@ -17,6 +17,8 @@ type Props = {
   // 単位ラベルの見栄え差し替え（`J/kg/K` → `J/(kg·K)`）は候補の絞り込みに計量系を使うので、
   // プレビューも詳細画面・PDFと同じ値を出すにはここまで渡す必要がある。
   unitSystem: UnitSystem;
+  /** 結果プレビューに出す有効数字の上限（設定タブの resultDigits）。詳細画面・PDFと同じ値を出すため。 */
+  resultDigits: number;
   categoryLabel: string;
   notebooks: CalculationNotebook[];
   globalConstants: SavedConstant[];
@@ -80,7 +82,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
   },
 };
 
-export function NotebookList({ language, locale, unitSystem, categoryLabel, notebooks, globalConstants, searchResultCategoryLabels, onBack, onOpen, onDelete, onTogglePinned }: Props) {
+export function NotebookList({ language, locale, unitSystem, resultDigits, categoryLabel, notebooks, globalConstants, searchResultCategoryLabels, onBack, onOpen, onDelete, onTogglePinned }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
@@ -94,7 +96,7 @@ export function NotebookList({ language, locale, unitSystem, categoryLabel, note
     notebooks.forEach((notebook) => {
       const { resolved } = resolveNotebookLocalConstants(notebook.localConstants, globalConstants, language);
       const pool = [...globalConstants, ...resolved];
-      const results = evaluateNotebookSteps(notebook.steps, pool, language, [], locale);
+      const results = evaluateNotebookSteps(notebook.steps, pool, language, [], locale, resultDigits);
       const finalIndex = results.map((result) => Boolean(result.quantity)).lastIndexOf(true);
       const finalResult = finalIndex < 0 ? undefined : results[finalIndex];
       if (!finalResult?.quantity) {
@@ -107,10 +109,10 @@ export function NotebookList({ language, locale, unitSystem, categoryLabel, note
       // 開くと `J/(kg·K)`）。CLAUDE.mdの「画面・PDF・一覧プレビューが同じ関数を通ること」は
       // 丸めだけの話ではない。表示単位の上書きは一覧では無いので undefined を渡す。
       const digits = notebookStepSignificantDigits(finalResult.step, notebook.localConstants, results.slice(0, finalIndex));
-      map.set(notebook.id, resolveNotebookStepDisplay(finalResult, undefined, unitSystem, locale, digits).value ?? "");
+      map.set(notebook.id, resolveNotebookStepDisplay(finalResult, undefined, unitSystem, locale, digits, resultDigits).value ?? "");
     });
     return map;
-  }, [globalConstants, language, locale, notebooks, unitSystem]);
+  }, [globalConstants, language, locale, notebooks, resultDigits, unitSystem]);
 
   return (
     <View style={styles.container}>

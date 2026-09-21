@@ -175,9 +175,11 @@ type Props = {
    * 連打・1文字ごとの入力でも呼ばれるので、間引きは受け手側（pushNotebookHistoryEntry）に任せる。 */
   onUse: () => void;
   onSaveValues: (localConstants: NotebookLocalConstant[], steps: CalculationNoteStep[]) => Promise<void>;
+  /** 結果に出す有効数字の上限（設定タブの resultDigits）。 */
+  resultDigits: number;
 };
 
-export function NotebookDetail({ language, locale, unitSystem, measuringStandard, notebook, categoryLabel, globalConstants, onBack, onEdit, onShare, onTogglePinned, onTitlePress, onUse, onSaveValues }: Props) {
+export function NotebookDetail({ language, locale, unitSystem, measuringStandard, notebook, categoryLabel, globalConstants, onBack, onEdit, onShare, onTogglePinned, onTitlePress, onUse, onSaveValues, resultDigits }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   // キーパッドのキーの高さ・文字の拡大率は電卓と同じ規則で決める（画面の高さと文字サイズ設定）。
@@ -336,8 +338,8 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   // 依存配列に含めて設定変更時に再計算させる（値自体は参照するだけで使わない）。
   const stepResults = useMemo(() => {
     void measuringStandard;
-    return evaluateNotebookSteps(editableSteps, pool, language, [], locale);
-  }, [locale, editableSteps, pool, measuringStandard, language]);
+    return evaluateNotebookSteps(editableSteps, pool, language, [], locale, resultDigits);
+  }, [locale, editableSteps, pool, measuringStandard, language, resultDigits]);
 
   const updateConstant = (id: string, patch: Partial<NotebookLocalConstant>) => {
     onUse();
@@ -729,7 +731,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
               // 辿って数える——手順の式は `V*I*cos(φ)` のように識別子だけで、リテラルが1つも無い。
               const stepDigits = notebookStepSignificantDigits(result.step, editableConstants, stepResults.slice(0, index));
               const { value: displayValue, rawValue: displayRawValue, significantDigits: displayDigits, error: displayError } =
-                resolveNotebookStepDisplay(result, overrideUnit, unitSystem, locale, stepDigits);
+                resolveNotebookStepDisplay(result, overrideUnit, unitSystem, locale, stepDigits, resultDigits);
               const stepRailKey = stepFieldKey(result.step.id);
               return (
                 <View key={result.step.id} style={[styles.resultCard, isFinalStep && result.quantity ? styles.resultCardFinal : null]}>

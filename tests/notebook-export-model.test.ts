@@ -352,3 +352,21 @@ describe("厳密値の印が付いたプリセット（穴まわりの応力集�
     expect(display.significantDigits).toBeUndefined();
   });
 });
+
+describe("表示する桁数の上限（PDFと画面をそろえる）", () => {
+  // **PDFの書き出しにも上限を渡すこと。** 渡さないとPDFだけ10桁のまま出て、画面（既定6桁）と
+  // 値が食い違う（resolveNotebookStepDisplay を画面とPDFで共有しているのと同じ理由）。
+  // CodeRabbitが#79でdiff範囲外のコメントとして検出した。
+  const seedIndex = PRESET_NOTEBOOK_SEEDS["electricity-basics"].findIndex((seed) => seed.title.en.includes("Motor"));
+
+  it("上限を渡すとPDFの結果も丸まる", () => {
+    expect(seedIndex).toBeGreaterThanOrEqual(0);
+    const notebook = notebookFromSeed("electricity-basics", seedIndex, "ja");
+    const base = { notebook, globalConstants: [], language: "ja" as const, locale: "ja-JP", unitSystem: "metric" as const, measuringStandard: "jis" as const, unitOverrides: {} };
+    const withoutCap = buildNotebookExportModel(base);
+    const withCap = buildNotebookExportModel({ ...base, maxDigits: 6 });
+    // 定格 5PS の出力は有効1桁で丸めが効かないので、上限だけが桁を決める。
+    expect(withoutCap.steps[0].resultText).toBe("3.67749375 kW");
+    expect(withCap.steps[0].resultText).toBe("3.67749 kW");
+  });
+});
