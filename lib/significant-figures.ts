@@ -386,7 +386,13 @@ export function toSignificantDecimal(
   // 1文字も変わらない。数値だけを比べると「≈ 70（元の値 70）」という無意味な併記になる
   // （プリセットの「速さ v」で実際に出た）。
   if (localized === plain) return null;
-  const changed = rounded !== value;
+  // **「桁が落ちたか」も表示される値どうしで比べる。** ここを `rounded !== value` にすると、
+  // 倍精度の誤差だけで真になる（`40g ÷ 50cm³` は 0.8000000000000002 に落ちるので、2桁の
+  // `0.80` に対して「元の値 0.8」という**何も失われていない併記**が出ていた）。小数表示は
+  // 有効10桁で頭打ちなので、その桁まで丸めた値と突き合わせれば「画面で読める範囲で変わったか」
+  // が分かる。上の localized === plain は文字列が1文字も変わらない場合、こちらは
+  // 末尾に0が増えただけの場合を弾く。
+  const changed = Number(value.toPrecision(MAX_MANTISSA_DIGITS)) !== rounded;
   return { text: `${changed ? "≈ " : ""}${localized}`, significantDigits: digits, roundedFrom: changed ? plain : null };
 }
 

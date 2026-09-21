@@ -48,6 +48,9 @@ export const ENG_POWER_SEEDS: NotebookSeed[] = [
       { symbol: "J", expression: "pi*d^4/32" },
     ],
     steps: [
+      // Jは θ の式に出てくるのに、このノートでは定数の中でしか定義されていなかった
+      // （同じ J を使う「中実軸のねじり応力」には手順があるのに、こちらだけ無かった）。
+      { title: { en: "Polar second moment of area J", ja: "断面二次極モーメント J", es: "Momento polar de inercia de área J", "pt-BR": "Momento polar de inércia de área J", de: "Polares Flächenträgheitsmoment J", fr: "Moment quadratique polaire J" }, expression: "J", targetUnit: "mm^4", formulaLatex: "J = \\dfrac{\\pi d^4}{32}" },
       { title: { en: "Angle of twist θ (radians)", ja: "ねじれ角 θ（ラジアン）", es: "Ángulo de torsión θ (radianes)", "pt-BR": "Ângulo de torção θ (radianos)", de: "Verdrehwinkel θ (Radiant)", fr: "Angle de torsion θ (radians)" }, expression: "T*L/(G*J)", targetUnit: "rad", formulaLatex: "\\theta = \\dfrac{TL}{GJ}" },
       { title: { en: "Angle of twist θ (degrees)", ja: "ねじれ角 θ（度）", es: "Ángulo de torsión θ (grados)", "pt-BR": "Ângulo de torção θ (graus)", de: "Verdrehwinkel θ (Grad)", fr: "Angle de torsion θ (degrés)" }, expression: "T*L/(G*J)", targetUnit: "deg", formulaLatex: "\\theta = \\dfrac{TL}{GJ}" },
     ],

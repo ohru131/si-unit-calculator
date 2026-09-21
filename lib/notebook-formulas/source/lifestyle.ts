@@ -240,6 +240,14 @@ export const WEATHER_SEEDS: NotebookSeed[] = [
       { symbol: "γ", expression: "17.62*T/(243.12+T)+ln(RH)" },
     ],
     steps: [
+      // γ は露点の式に出てくるのに、定数の中でしか定義されていなかった（数式カードには
+      // T_d = 243.12γ/(17.62-γ) とだけ出て、その γ がどこから来たのか読めない）。
+      {
+        title: { en: "Magnus term γ", ja: "マグヌス式の中間量 γ", es: "Término de Magnus γ", "pt-BR": "Termo de Magnus γ", de: "Magnus-Term γ", fr: "Terme de Magnus γ" },
+        expression: "γ",
+        targetUnit: "",
+        formulaLatex: "\\gamma = \\dfrac{17.62\\,T}{243.12 + T} + \\ln(RH)",
+      },
       {
         title: { en: "Water vapour pressure", ja: "水蒸気圧", es: "Presión de vapor de agua", "pt-BR": "Pressão de vapor d'água", de: "Wasserdampfdruck", fr: "Pression de vapeur d'eau" },
         expression: "RH*(6.112hPa)*e^(17.62*T/(243.12+T))",
@@ -305,6 +313,14 @@ export const WEATHER_SEEDS: NotebookSeed[] = [
       { symbol: "eₐ", expression: "RH*(6.105hPa)*e^(17.27*Tₐ/(237.7+Tₐ))" },
     ],
     steps: [
+      // 水蒸気圧 eₐ は AT・ΔT の両方に出てくるのに、定数の中でしか定義されていなかった
+      // （露点ノートの γ と同じ抜け）。
+      {
+        title: { en: "Water vapour pressure eₐ", ja: "水蒸気圧 eₐ", es: "Presión de vapor de agua eₐ", "pt-BR": "Pressão de vapor d'água eₐ", de: "Wasserdampfdruck eₐ", fr: "Pression de vapeur d'eau eₐ" },
+        expression: "eₐ",
+        targetUnit: "hPa",
+        formulaLatex: "e_a = RH \\times 6.105\\,\\text{hPa} \\times e^{\\frac{17.27\\,T_a}{237.7 + T_a}}",
+      },
       {
         title: { en: "Apparent temperature", ja: "体感温度", es: "Temperatura aparente", "pt-BR": "Temperatura aparente", de: "Gefühlte Temperatur", fr: "Température ressentie" },
         expression: "(Tₐ+0.33*(eₐ/(1hPa))-0.70*(w/(1m/s))-4.00)*K+273.15*K",
