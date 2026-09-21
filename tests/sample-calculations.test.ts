@@ -13,6 +13,14 @@ describe("サンプル計算式", () => {
     }
   });
 
+  it("どのカテゴリにも2件以上のサンプルがある", () => {
+    // 1件しか無いタブは「タップして1件だけ出る」ので、タブを分けた意味が無い
+    // （旧 `ratio`＝割合が実際にそうなっていて、2026-09-21 に basic へ畳んだ）。
+    for (const category of SAMPLE_CATEGORIES) {
+      expect(SAMPLE_CALCULATIONS.filter((sample) => sample.category === category.id).length, category.id).toBeGreaterThanOrEqual(2);
+    }
+  });
+
   it("すべてのサンプルのカテゴリはカテゴリ一覧に存在する", () => {
     const categoryIds = new Set(SAMPLE_CATEGORIES.map((category) => category.id));
     for (const sample of SAMPLE_CALCULATIONS) {
@@ -82,5 +90,17 @@ describe("ターゲット層向けサンプルの数値", () => {
     // mL を L に直し忘れると1000倍ずれる（仏語圏の教材が名指しする躓き）。
     expect(value("0.5mol ÷ 250mL", "mol/L")).toBeCloseTo(2);
     expect(value("25°C", "K")).toBeCloseTo(298.15);
+    // 同じ単位どうしを割ると無次元の比になり、% でそのまま読める（質量パーセント濃度・相対誤差）。
+    expect(value("15g ÷ 300g", "%")).toBeCloseTo(5);
+    expect(value("(25.2mL - 25.0mL) ÷ 25.0mL", "%")).toBeCloseTo(0.8);
+    // 気体定数の J/mol/K が mol・K・Pa を打ち消して体積が残る。ここが崩れると次元エラーになる。
+    expect(value("8.314J/mol/K × 2mol × 300K ÷ 100kPa", "L")).toBeCloseTo(49.884, 2);
+  });
+
+  it("エネルギーの非SI単位（kcal・PS）が正しい", () => {
+    // 1 kcal = 4184 J（熱化学カロリー）。4186 や 4200 と取り違えても桁は合うので目視では気付けない。
+    expect(value("500kcal", "kJ")).toBeCloseTo(2092);
+    // メートル馬力 735.49875 W。英馬力 hp（745.7 W）と1.4%違う。
+    expect(value("1PS", "kW")).toBeCloseTo(0.7355, 4);
   });
 });

@@ -154,10 +154,14 @@ ASOのキーワードは英語からの直訳にしないこと。
 - 追加したサンプル6件（`lib/sample-calculations.ts`）: `imperial-to-si`（en・FE / C&G）、`psi-to-kpa`（en）、
   `metric-horsepower`（de の PS・fr の CV）、`voltage-drop`（de / ja / pt-BR の電気系）、
   `gravity-field`・`coulomb-force`（es の EBAU・pt-BR の ENEM・fr の lycée・de の Klausur）。
-- **`exam` カテゴリに置くのは「試験のための計算」そのものだけ**にした（2026-09-08）。`exam` のラベルは
-  言語ごとに現地の試験名になり、**日本語版だけは「試験対策（電験・電工）」と電気の資格に限定される**ので、
-  `kmh-to-ms`・`gravity-field`・`coulomb-force` のような一般物理を入れるとタブ名と中身が食い違っていた。
-  この3件は `motion`・`mechanics` へ移し、拾わせたい言語（es / pt-BR / fr / de）では並べ替えで補っている。
+- **`exam`（試験対策）カテゴリは 2026-09-21 に `electric` へ統合して廃止した。** 2026-09-08 の時点で
+  「置くのは試験のための計算そのものだけ」と絞った結果、中身は接頭語の打ち消し・三相電力・消費電力量と
+  **4件とも電気の計算**になり、日本語では「試験対策（電験・電工）」と「電気」が並んで区別が付かなかった
+  （利用者からの指摘）。一方 EBAU・ENEM・lycée は一般物理の試験なので、その名前のタブに電気しか
+  入っていないのは中身との食い違いそのものだった。資格・試験の名前は **それが本当に電気の試験である言語
+  （日・独・英）だけ** `electric` のラベルに残し、西・葡・仏は電気の名前だけにしてある。
+  `kmh-to-ms`・`gravity-field`・`coulomb-force` は従来どおり `motion`・`mechanics` にあり、
+  拾わせたい言語（es / pt-BR / fr / de）では並べ替えで補っている。
   **サンプルはカテゴリを1つしか持てない**ので、「どの言語でも通る分野のタブに置き、並べ替えで各言語の
   ターゲットに寄せる」のが唯一の解になる。**補う口は2つあり、両方を見ないと取りこぼす**:
   `SAMPLE_CATEGORY_RELEVANCE`（そのタブ自体を上位に）と `SAMPLE_RELEVANCE`（タブの中の順）。

@@ -66,16 +66,16 @@
 
 **画像は翻訳ではない。** どのノート・どのサンプルを開くかを言語ごとに変えてあり、その根拠は
 `docs/target-users-by-locale-2026-09.md` 第1節のターゲット設定。情報源は
-`scripts/capture-submission-assets.mjs` の `NOTEBOOK_TARGETS` と `LABELS[].examCategory` / `searchQuery`。
+`scripts/capture-submission-assets.mjs` の `NOTEBOOK_TARGETS` と `LABELS[].electricCategory` / `searchQuery`。
 
 | 言語 | 06・07 で開くノート | 14 のタブ | 13 の検索語 |
 |---|---|---|---|
-| en | Mechanics → Uniformly accelerated motion | Exam prep | solar |
-| ja | 電気の基礎計算 → 電圧降下と必要な電線の太さ | 試験対策（電験・電工） | 太陽光 |
-| de | Praktische Elektrotechnik → Spannungsfall und der nötige Leiterquerschnitt | Klausur & Prüfung | Spannung |
-| es | Electricidad → Campo eléctrico y potencial de una carga puntual | Preparación (EBAU) | campo |
-| pt-BR | Eletricidade → Campo elétrico e potencial de uma carga pontual | Preparação (ENEM) | tensão |
-| fr | Mécanique → Mouvement uniformément accéléré | Révisions (physique-chimie) | masse volumique |
+| en | Mechanics → Uniformly accelerated motion | Electricity & exams | solar |
+| ja | 電気の基礎計算 → 電圧降下と必要な電線の太さ | 電気（電験・電工） | 太陽光 |
+| de | Praktische Elektrotechnik → Spannungsfall und der nötige Leiterquerschnitt | Elektrotechnik & Prüfung | Spannung |
+| es | Electricidad → Campo eléctrico y potencial de una carga puntual | Electricidad | campo |
+| pt-BR | Eletricidade → Campo elétrico e potencial de uma carga pontual | Eletricidade | tensão |
+| fr | Mécanique → Mouvement uniformément accéléré | Électricité | masse volumique |
 
 `05-library-grid` は操作が全言語同じでも、カテゴリカードの並びが `lib/locale-relevance.ts` で
 言語ごとに変わるため違う絵になる（独語なら「Elektrizität & Energie」が先頭）。
@@ -298,7 +298,8 @@ Play Console 側でそのアカウントに権限を付ける。**掲載情報�
 - **スペイン語は2掲載ある。** `es` → `es-ES`（スペイン）と `es-419`（スペイン語圏の中南米）。
   **本文は2箇所だけ差し替えてあり**（EBAU の減点の話と、国別の電源電圧）、
   **画像は es のものを流用する**（`IMAGE_SOURCE`。アプリのスペイン語は1種類なので絵は同じになる）。
-  ただし `14-exam-samples` には「Preparación (EBAU)」が写る（アプリ側のラベルなので掲載文では直せない）。
+  `14-exam-samples` に写る西語のタブは中立な「Electricidad」なので、中南米でも違和感は出ない
+  （2026-09-21に旧 `exam` タブを電気へ統合した際に直した）。
   詳細は `docs/store-listing-copy.md` の「es-419 を別掲載として足した」。
 - **ブラジルは `pt-BR` で最初から対応済み**（ENEM を名指しした本文・専用のスクショ・図版）。
   スペイン語圏の中南米とは別の市場なので、混同しないこと。
