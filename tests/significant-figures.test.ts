@@ -376,11 +376,50 @@ describe("厳密値（図面の呼び寸法・個数）は桁に数えない", (
     expect(inferSignificantDigits("Kₜ*F/((w-d)*t)", { resolveIdentifier: resolveHole })).toBe(2);
   });
 
-  it("測定値が絡む加減算は従来どおり塞ぐ", () => {
-    // 同じ括弧の中に測定値が1つでもあれば、加減算は精度を失う。
+  it("同じ単位どうしの加減算は、位の規則で桁を出す", () => {
+    // 分圧回路が `3.836734694 V` と生値で出ていた件（利用者からの報告）。`R₁+R₂` は
+    // kΩ で数えて 10（1の位）と 4.7（0.1の位）なので和は1の位までの `15kΩ` ＝2桁。
+    const divider = (symbol: string) => ({ "Vᵢₙ": { expression: "12V" }, "R₁": { expression: "10kΩ" }, "R₂": { expression: "4.7kΩ" } } as Record<string, { expression: string }>)[symbol];
+    expect(inferSignificantDigits("Vᵢₙ*R₂/(R₁+R₂)", { resolveIdentifier: divider })).toBe(2);
+    expect(inferSignificantDigits("R₁+R₂", { resolveIdentifier: divider })).toBe(2);
+    // **項ごとの有効数字の最小値では駄目。** `20g + 180g` は min(2,3)=2桁ではなく、1の位まで
+    // 読めるので `200g` ＝3桁。最小値で丸めると実在する桁を落とす。
+    const solution = (symbol: string) => ({ ma: { expression: "20g" }, mb: { expression: "180g" } } as Record<string, { expression: string }>)[symbol];
+    expect(inferSignificantDigits("ma+mb", { resolveIdentifier: solution })).toBe(3);
+    // 打ち消し合う引き算は逆に桁が消える。和を実際に計算しているので正しく1桁になる。
+    const close = (symbol: string) => ({ a: { expression: "1000.0mm" }, b: { expression: "999.9mm" } } as Record<string, { expression: string }>)[symbol];
+    expect(inferSignificantDigits("a-b", { resolveIdentifier: close })).toBe(1);
+    // 打ち消して0になる場合は桁を主張できないので従来どおり塞ぐ。
+    const same = (symbol: string) => ({ a: { expression: "5m" }, b: { expression: "5m" } } as Record<string, { expression: string }>)[symbol];
+    expect(inferSignificantDigits("(a-b)*2.5", { resolveIdentifier: same })).toBeNull();
+  });
+
+  it("`1/R` の形の加減算も畳む（合成抵抗・レンズの式）", () => {
+    // 逆数は有効数字の桁数を保つので、桁数から位を組み立て直せる。`100Ω`・`200Ω` はどちらも
+    // 3桁なので並列合成も3桁（`≈ 66.7 Ω`）。利用者から生値 `66.66666667 Ω` を報告された件。
+    const parallel = (symbol: string) => ({ "R₁": { expression: "100Ω" }, "R₂": { expression: "200Ω" } } as Record<string, { expression: string }>)[symbol];
+    expect(inferSignificantDigits("(1/R₁+1/R₂)^-1", { resolveIdentifier: parallel })).toBe(3);
+    expect(inferSignificantDigits("1/R₁+1/R₂", { resolveIdentifier: parallel })).toBe(3);
+  });
+
+  it("畳めない加減算は従来どおり塞ぐ", () => {
+    // **単位が違う加減算は文字面から位が読めない。** `12.5cm + 3.0mm` を「最小の2桁」で
+    // 丸めると 13cm になり、利用者が打った 0.1cm の桁を消してしまう。
+    expect(inferSignificantDigits("5cm + 1mm")).toBeNull();
+    expect(inferSignificantDigits("12.5cm + 3.0mm")).toBeNull();
+    // 項が単一のリテラルに還元できない引き算も塞ぐ（値が分からないと打ち消しを見抜けない）。
+    const motor = (symbol: string) => ({ "P₂": { expression: "3.6775kW" }, "η": { expression: "0.88" } } as Record<string, { expression: string }>)[symbol];
+    expect(inferSignificantDigits("P₂/η-P₂", { resolveIdentifier: motor })).toBeNull();
+    // オフセットを持つ単位の加減算も畳まない（換算で位が変わるため）。
+    expect(inferSignificantDigits("20°C + 5°C")).toBeNull();
+  });
+
+  it("厳密値と測定値が混ざる加減算は、位を測定値の側で決める", () => {
+    // `60mm`（厳密）− `1.5mm`（測定）は 58.5mm。厳密値は精度の上限を作らないので、位は
+    // 測定値の 0.1mm 刻みで決まり3桁。**厳密値の 60 を「2桁」として数えてはいけない。**
     const mixed = (symbol: string) => (symbol === "a" ? { expression: "60mm", exact: true } : symbol === "b" ? { expression: "1.5mm" } : undefined);
-    expect(inferSignificantDigits("(a-b)*2.25", { resolveIdentifier: mixed })).toBeNull();
-    expect(inferSignificantDigits("a-b", { resolveIdentifier: mixed })).toBeNull();
+    expect(inferSignificantDigits("(a-b)*2.25", { resolveIdentifier: mixed })).toBe(3);
+    expect(inferSignificantDigits("a-b", { resolveIdentifier: mixed })).toBe(3);
   });
 
   it("厳密値は桁の最小値を引き下げない", () => {
@@ -413,6 +452,8 @@ describe("厳密値（図面の呼び寸法・個数）は桁に数えない", (
     // 深さごとに判定する理由そのもの。`(厳密+厳密)*測定` は通し、`厳密*(測定+測定)` は塞ぐ。
     const box = (symbol: string) => (symbol === "a" ? { expression: "60mm", exact: true } : symbol === "b" ? { expression: "20mm", exact: true } : undefined);
     expect(inferSignificantDigits("(a-b)*1.25", { resolveIdentifier: box })).toBe(3);
-    expect(inferSignificantDigits("a*(1.25m+2.5m)", { resolveIdentifier: box })).toBeNull();
+    // 同じ単位どうしの加減算は位が読めるので畳む（`1.25m + 2.5m` は 0.1m 刻みの `3.8m` ＝2桁）。
+    // 単位が違う `5cm + 1mm` は文字面から位が読めないので、従来どおり塞ぐ（下のテスト）。
+    expect(inferSignificantDigits("a*(1.25m+2.5m)", { resolveIdentifier: box })).toBe(2);
   });
 });

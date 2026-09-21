@@ -226,9 +226,207 @@ export function inferSignificantDigits(expression: string, options: InferOptions
   return result.blocked ? null : result.digits;
 }
 
+/**
+ * 同じ単位どうしの加減算を、あらかじめ1つの数値リテラルへ畳んでおくための下準備。
+ *
+ * **加減算の桁は「有効数字の最小」ではなく「小数点以下の位の最小」で決まる。** 項ごとに単位が
+ * 違うと（`5cm + 1mm`）リテラルの文字面からは位が読めないので、このモジュールは従来
+ * 加減算を含む式を丸ごと諦めていた（`blocked`）。**ただし項が全部同じ単位なら位は読める**——
+ * `10kΩ + 4.7kΩ` は kΩ で数えて 10（1の位まで）と 4.7（0.1の位まで）なので、和は1の位までの
+ * `15kΩ` ＝2桁。分圧回路の出力電圧が `3.836734694 V` と生値で出ていたのはこれが読めていな
+ * かったためで、プリセット380手順のうち26手順が同じ形。
+ *
+ * **走査そのものには手を入れず、式の文字列を先に書き換える方式にしてある。** 走査側で項ごとの
+ * 値を持ち回ると、フレームごとの最小桁数を組み替える必要が出て（加減算の項は自分の桁数を
+ * 外へ寄与してはいけない——`20g + 180g` は min(2,3)=2桁ではなく `200g` の3桁）、この
+ * ファイルで積み上げた判定の順序を丸ごと触ることになる。畳んでしまえば項は式から消えるので、
+ * その組み替えが要らない。
+ *
+ * **畳むのは次の2つの形だけ。** どちらも `+`/`-` が式の一番外側にあると確定できるので、
+ * 畳んでも演算の優先順位が変わらない:
+ * - 式まるごとが `+`/`-` の並び（`R₁+R₂`）
+ * - 括弧の中身まるごとが `+`/`-` の並び（`Vᵢₙ/(R₁+R₂)`）。括弧は残したまま中身を置き換える。
+ *
+ * `a*b + c` のように括弧が無いまま途中に出てくる加減算は畳まない（`+` が最も緩く結合するので
+ * 部分だけ畳むと別の式になる）。従来どおり `blocked` になる。
+ */
+type AdditiveFoldTerm = { sign: 1 | -1; value: number; decimals: number; unit: string; exact: boolean };
+
+/** その式が「1つの数値リテラル（＋単位サフィックス）」だけで書かれているなら、その中身を返す。 */
+function soleLiteralOf(expression: string): { literal: string; value: number; decimals: number; unit: string } | null {
+  const source = normalizeExpression(expression).trim();
+  const match = NUMBER_TOKEN_PATTERN.exec(source);
+  if (!match || match.index !== 0) return null;
+  const literal = match[0];
+  let end = literal.length;
+  let unit = "";
+  if (isUnitStart(source[end])) {
+    const unitEnd = unitSuffixEnd(source, end);
+    unit = source.slice(end, unitEnd);
+    end = unitEnd;
+  }
+  if (end !== source.length) return null;
+  const value = Number(literal);
+  if (!Number.isFinite(value)) return null;
+  // 位は仮数の小数部の桁数で数える。指数表記（1.5e3）は位が読めないので畳まない。
+  if (/[eE]/.test(literal)) return null;
+  const dot = literal.indexOf(".");
+  return { literal, value, decimals: dot < 0 ? 0 : literal.length - dot - 1, unit };
+}
+
+/**
+ * `1/R` の形の項を、逆数を取った1つのリテラルとして読む（合成抵抗の `1/R₁+1/R₂`、
+ * レンズの式 `1/a+1/b` のような形のため）。
+ *
+ * **逆数は有効数字の桁数をそのまま保つ**（`100Ω` が3桁なら `0.0100 Ω⁻¹` も3桁）ので、
+ * 桁数から位を組み立て直せる: 位 = 桁数 − 逆数の整数部の桁数。ここだけは「文字面から位を読む」
+ * ではなく「桁数から位を導く」形になるが、逆数という演算が桁数を保つことは確かなので
+ * 不確かさを持ち回る話には広がらない。
+ *
+ * 単位は `Ω^-1` の形にする（`parseUnit` が受ける。`1/Ω` は受けない）。**元の単位が複合
+ * （`m/s` のように `/` や `^` を含む）なら諦める**——`m/s^-1` は別物になってしまう。
+ */
+function reciprocalLiteralOf(term: string, resolve: (symbol: string) => { expression: string; exact?: boolean } | undefined, seen: readonly string[]) {
+  const match = /^1\s*\/\s*\(?\s*([^()]+?)\s*\)?$/.exec(term.trim());
+  if (!match) return null;
+  const inner = match[1].trim();
+  const direct = soleLiteralOf(inner);
+  let base = direct;
+  let exact = false;
+  if (!base) {
+    const identifier = IDENTIFIER_PATTERN.exec(inner);
+    if (!identifier || identifier.index !== 0 || identifier[0].length !== inner.length) return null;
+    if (seen.includes(inner)) return null;
+    const referenced = resolve(inner);
+    if (!referenced) return null;
+    base = soleLiteralOf(referenced.expression);
+    exact = referenced.exact === true;
+  }
+  if (!base || base.value === 0) return null;
+  if (base.unit.includes("/") || base.unit.includes("^")) return null;
+  const digits = significantDigitsOfLiteral(base.literal);
+  if (digits === null) return null;
+  const value = 1 / base.value;
+  // 整数部の桁数（0.01 なら -1、15 なら 2）。位はこれを桁数から引いたもの。
+  const integerDigits = Math.floor(Math.log10(Math.abs(value))) + 1;
+  const decimals = digits - integerDigits;
+  if (!Number.isFinite(decimals) || decimals < 0) return null;
+  return { value, decimals, unit: base.unit ? `${base.unit}^-1` : "", exact };
+}
+
+/** `+`/`-` で区切った項を、それぞれ「同じ単位の単一リテラル」として読めるなら返す。 */
+function additiveFoldTerms(group: string, options: InferOptions): AdditiveFoldTerm[] | null {
+  const { resolveIdentifier, seen = [] } = options;
+  const terms: AdditiveFoldTerm[] = [];
+  let sign: 1 | -1 = 1;
+  let start = 0;
+  let depth = 0;
+  const pushTerm = (text: string, termSign: 1 | -1) => {
+    const trimmed = text.trim();
+    if (!trimmed) return false;
+    const direct = soleLiteralOf(trimmed);
+    if (direct) {
+      terms.push({ sign: termSign, ...direct, exact: false });
+      return true;
+    }
+    // 識別子1つだけの項は、その定数の式が単一リテラルなら畳める（`R₁` → `10kΩ`）。
+    const identifier = IDENTIFIER_PATTERN.exec(trimmed);
+    if (identifier && identifier.index === 0 && identifier[0].length === trimmed.length) {
+      if (seen.includes(trimmed)) return false;
+      const referenced = resolveIdentifier?.(trimmed);
+      if (!referenced) return false;
+      const literal = soleLiteralOf(referenced.expression);
+      if (!literal) return false;
+      terms.push({ sign: termSign, ...literal, exact: referenced.exact === true });
+      return true;
+    }
+    // `1/R` の形（合成抵抗・レンズの式）。逆数は桁数を保つので位を組み立て直せる。
+    const reciprocal = resolveIdentifier ? reciprocalLiteralOf(trimmed, resolveIdentifier, seen) : null;
+    if (!reciprocal) return false;
+    terms.push({ sign: termSign, ...reciprocal });
+    return true;
+  };
+  for (let index = 0; index < group.length; index += 1) {
+    const character = group[index];
+    if (character === "(") depth += 1;
+    else if (character === ")") depth -= 1;
+    else if (depth === 0 && (character === "+" || character === "-")) {
+      // 先頭の符号（`-5m+3m` の `-`）と指数の符号（このモジュールは畳まないが念のため）は区切りにしない。
+      const previous = group.slice(0, index).trim();
+      if (!previous) continue;
+      if (!pushTerm(group.slice(start, index), sign)) return null;
+      sign = character === "+" ? 1 : -1;
+      start = index + 1;
+    }
+  }
+  if (!pushTerm(group.slice(start), sign)) return null;
+  if (terms.length < 2) return null;
+  if (terms.some((term) => term.unit !== terms[0].unit)) return null;
+  // **全部が厳密値なら畳まない。** 従来から塞がない扱い（`60mm-20mm` は厳密に `40mm`）なので、
+  // 畳んで測定値のリテラルに変えると、そこから桁が生まれて結果の丸めが変わってしまう。
+  if (terms.every((term) => term.exact)) return null;
+  return terms;
+}
+
+/**
+ * 畳んだ結果のリテラル。位の規則で丸めた表記をそのまま返すので、**桁数は文字列から読める**
+ * （`significantDigitsOfLiteral` がこのあと数える）。
+ *
+ * **単位は付けない。** 付けると `Ω^-1` のような逆数の単位を `unitSuffixEnd` が読み戻せず
+ * （単位サフィックスの本体パターンにASCIIの `-` が無い）、`-` が引き算と解釈されて
+ * かえって塞がる。桁を数えるのに単位は要らないので落とす。**ただし2つ手当てが必要**:
+ * - オフセットを持つ単位（°C・°F）の加減算は畳まない。単位を落とすと、換算で位が変わる
+ *   ことを見ている既存の判定をすり抜けてしまう（`20°C` を K で出す経路と同じ穴）。
+ * - 位が0でも小数点を残す（`300` ではなく `300.`）。単位の付かない整数は「数式の係数」として
+ *   数えない規則があるので、そのままでは畳んだ桁が消える。
+ */
+function foldAdditiveGroup(group: string, options: InferOptions): string | null {
+  const terms = additiveFoldTerms(group, options);
+  if (!terms) return null;
+  if (hasOffsetUnit(terms[0].unit)) return null;
+  // **位は測定値の項だけで決める。** 厳密値は精度の上限を作らない（`8mm`(厳密) + `1.25mm` は
+  // 0.01の位まで読める）。全部厳密なケースは上で弾いてあるので、ここは必ず1件以上ある。
+  const decimals = Math.min(...terms.filter((term) => !term.exact).map((term) => term.decimals));
+  const sum = terms.reduce((total, term) => total + term.sign * term.value, 0);
+  const rounded = Number(sum.toFixed(decimals));
+  // 打ち消し合って0になる場合は畳まない（0に有効数字は無く、桁を主張できない）。
+  if (rounded === 0) return null;
+  const text = rounded.toFixed(decimals);
+  return decimals > 0 ? text : `${text}.`;
+}
+
+/** 上の2つの形（式まるごと・括弧の中身まるごと）を、畳めるところまで畳んだ式を返す。 */
+function foldSameUnitAdditions(source: string, options: InferOptions): string {
+  // 式まるごとが加減算の並びなら、それを畳んだ1つのリテラルで置き換える。
+  const whole = foldAdditiveGroup(source, options);
+  if (whole !== null) return whole;
+  // 括弧の中身は内側から畳む。畳むと外側が畳めるようになる場合があるので、変化が無くなるまで回す
+  // （入れ子の深さぶんで必ず止まるが、万一のために上限を置く）。
+  let folded = source;
+  for (let round = 0; round < 8; round += 1) {
+    let changed = false;
+    // 内側の括弧（中に括弧を含まないもの）だけを見る。
+    const pattern = /\(([^()]*)\)/g;
+    let next = "";
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(folded)) !== null) {
+      const replacement = foldAdditiveGroup(match[1], options);
+      if (replacement === null) continue;
+      next += folded.slice(lastIndex, match.index) + `(${replacement})`;
+      lastIndex = match.index + match[0].length;
+      changed = true;
+    }
+    if (!changed) break;
+    folded = next + folded.slice(lastIndex);
+  }
+  return folded;
+}
+
 function scanSignificantDigits(expression: string, options: InferOptions): ScanResult {
   const { resolveIdentifier, seen = [] } = options;
-  const source = normalizeExpression(expression);
+  // 同じ単位どうしの加減算は、走査に入る前に1つのリテラルへ畳んでおく（foldSameUnitAdditions の項）。
+  const source = foldSameUnitAdditions(normalizeExpression(expression), options);
   // **式の中に現れる単位なしの整数は、数式の係数として扱う**（測定値に数えない）。
   // `I = bh³/12` の 12・`J = πd⁴/32` の 32・`100*d/D` の 100 は書き方であって測った数ではない。
   // ここを測定値として数えると、図面の呼び寸法だけで決まる断面二次モーメントが
