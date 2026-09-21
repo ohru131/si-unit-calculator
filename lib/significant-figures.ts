@@ -46,6 +46,27 @@ export type SignificantDecimal = {
 // 同じ値なのに切り替えるたびに末尾が増減して見える）。
 const MAX_MANTISSA_DIGITS = 10;
 
+/**
+ * 丸めに使う最小の桁数。**有効1桁では丸めない。**
+ *
+ * 規則としては `t=2h` も「有効1桁の測定値」だが、実際には数える量・設定値としての 2 がほとんどで、
+ * そこまで丸めると理科の速さのノートが `210 km → 200 km`・`3.5 h → 4 h` になる（プリセット365手順の
+ * うち196手順がこの1桁だった）。**厳密さより自然に読めることを優先する**という判断で、
+ * 式の文字面から「その 2 が数えた数か測った値か」は区別できない以上、外れたときの痛みが小さい側に倒す。
+ *
+ * 判定をここ（表示側）に置くのは、`inferSignificantDigits` は「式から読める桁数」をそのまま返す
+ * 関数のままにしておきたいのと、**丸めの入口を2つとも塞げば呼び出し側が忘れようがない**ため。
+ */
+const MIN_ROUNDING_DIGITS = 2;
+
+/** 表示で実際に使う桁数。丸めない場合は null（＝そのままの値を出す）。 */
+function roundingDigits(requested: number | null | undefined): number | null {
+  if (requested === null || requested === undefined) return null;
+  const digits = Math.round(requested);
+  if (digits < MIN_ROUNDING_DIGITS) return null;
+  return Math.min(digits, MAX_MANTISSA_DIGITS);
+}
+
 const SUPERSCRIPT_DIGITS: Record<string, string> = {
   "-": "⁻", "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴", "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹",
 };
@@ -300,8 +321,7 @@ export function toScientificNotation(
   options: { significantDigits?: number | null; locale?: string } = {},
 ): ScientificNotation | null {
   if (!Number.isFinite(value) || value === 0) return null;
-  const requested = options.significantDigits ?? null;
-  const digits = requested === null ? null : Math.min(Math.max(Math.round(requested), 1), MAX_MANTISSA_DIGITS);
+  const digits = roundingDigits(options.significantDigits);
   const exponential = digits === null ? trimmed(value) : value.toExponential(digits - 1);
   const parsed = /^(-?)(\d(?:\.\d+)?)e([+-]\d+)$/.exec(exponential);
   if (!parsed) return null;
@@ -345,9 +365,8 @@ export function toSignificantDecimal(
   value: number,
   options: { significantDigits?: number | null; locale?: string } = {},
 ): SignificantDecimal | null {
-  const requested = options.significantDigits ?? null;
-  if (requested === null || !Number.isFinite(value) || value === 0) return null;
-  const digits = Math.min(Math.max(Math.round(requested), 1), MAX_MANTISSA_DIGITS);
+  const digits = roundingDigits(options.significantDigits);
+  if (digits === null || !Number.isFinite(value) || value === 0) return null;
   // 丸めたあとの指数で小数点以下の桁数を決める（999.9 を1桁で丸めると 1000 で指数が繰り上がる。
   // Math.log10 を先に取ると、その繰り上がりを取りこぼして桁数が1つずれる）。
   const exponential = value.toExponential(digits - 1);

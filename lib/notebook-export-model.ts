@@ -108,7 +108,7 @@ export function resolveNotebookStepDisplay(
   // 上の見栄え差し替えを通っていることがある。文字列を分割し直すのではなく、同じ整形関数で
   // 作った数値の文字列を接頭辞として照合して置き換えれば、ラベルをそのまま保てる。
   const rounded = roundedValueFor(result, value, effectiveUnit, significantDigits, locale);
-  if (rounded) return { value: rounded.value, rawValue: value, significantDigits: rounded.significantDigits, error, isError: false };
+  if (rounded) return { value: rounded.value, rawValue: rounded.rawValue, significantDigits: rounded.significantDigits, error, isError: false };
   return { value, error, isError: Boolean(error) && !value };
 }
 
@@ -125,7 +125,7 @@ export function roundedValueFor(
   effectiveUnit: string,
   significantDigits: number | null | undefined,
   locale: string | undefined,
-): { value: string; significantDigits: number } | null {
+): { value: string; significantDigits: number; rawValue?: string } | null {
   if (!value || !result.quantity || significantDigits === undefined || significantDigits === null) return null;
   // どの数値が画面に出ているかを value と同じ経路で求める。換算に失敗していればSI値。
   let numeric = result.quantity.siValue;
@@ -145,7 +145,13 @@ export function roundedValueFor(
   if (!decimal) return null;
   const plain = formatNumberForLocale(numeric, locale);
   if (!value.startsWith(plain)) return null;
-  return { value: `${decimal.text}${value.slice(plain.length)}`, significantDigits: decimal.significantDigits };
+  // **丸める前の値は、実際に桁が落ちたときだけ返す。** `2 mol` を2桁で読んだ `2.0 mol` のように
+  // 末尾の0が増えただけのときに「2 mol」を併記すると、何も失われていないのに失われたように見える。
+  return {
+    value: `${decimal.text}${value.slice(plain.length)}`,
+    significantDigits: decimal.significantDigits,
+    rawValue: decimal.roundedFrom === null ? undefined : value,
+  };
 }
 
 export type BuildNotebookExportModelOptions = {

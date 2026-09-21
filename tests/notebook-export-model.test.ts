@@ -85,16 +85,16 @@ describe("buildNotebookExportModel", () => {
     expect(model.constants).toEqual([{ text: "d=140km" }, { text: "t=2h" }, { text: "t₂=3h" }, { text: "d₃=245km" }]);
     // resultSymbol「v」が付いた手順は「v=d/t」という等式の形でexpressionに出る
     // （結果欄を「d/t」ではなく「v = d/t」と等式で読めるようにする、というCLAUDE.mdの設計どおり）。
-    // 140km / 2h は割り切れて 70 km/h。丸めても小数表示と同じ文字列なので併記は出ない。
+    // 140km / 2h は割り切れて 70 km/h。
     expect(model.steps[0]).toEqual({ title: "Speed v", expression: "v=d/t", resultText: "70 km/h", rawResultText: undefined, isError: false });
     // 後続の手順は s1 ではなく v を参照する（resultSymbolを補うときに参照側も書き換える不変条件）。
-    // 有効数字はノートの既定。桁は手順の式（`v*t₂`）ではなく参照している定数まで辿って数えるので、
-    // `t=2h`・`t₂=3h` の1桁が効いて 210 km → 200 km になり、丸める前の値が併記される。
+    // 有効数字はノートの既定だが、**桁が1のときは丸めない**（MIN_ROUNDING_DIGITS）。ここは
+    // `t=2h`・`t₂=3h` が1桁なので、210 km がそのまま出る。
     expect(model.steps[1]).toEqual({
       title: "Distance covered in time t₂",
       expression: "d₂=v*t₂",
-      resultText: "≈ 200 km",
-      rawResultText: "210 km",
+      resultText: "210 km",
+      rawResultText: undefined,
       isError: false,
     });
   });

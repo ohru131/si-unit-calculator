@@ -771,10 +771,10 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                       {/* 丸めたときは丸める前の値と桁数を小さく併記する（電卓の結果カードと同じ）。
                           主表示だけだと「なぜこの桁なのか」が分からず、精度を落として見せている
                           ことにも気付けない。 */}
-                      {displayRawValue ? (
+                      {displayDigits !== undefined ? (
                         <Text style={styles.resultRawValue}>
-                          {displayRawValue}
-                          {displayDigits !== undefined ? ` · ${copy.significantDigits.replace("{count}", String(displayDigits))}` : ""}
+                          {displayRawValue ? `${displayRawValue} · ` : ""}
+                          {copy.significantDigits.replace("{count}", String(displayDigits))}
                         </Text>
                       ) : null}
                       {displayError ? <Text style={styles.resultWarning}>{displayError}</Text> : null}

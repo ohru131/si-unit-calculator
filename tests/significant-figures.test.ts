@@ -134,7 +134,16 @@ describe("科学表記の組み立て", () => {
 
   it("負の指数と負の値", () => {
     expect(toScientificNotation(0.0023, { significantDigits: 2, locale: "en-US" })?.text).toBe("2.3×10⁻³");
-    expect(toScientificNotation(-19.6, { significantDigits: 1, locale: "en-US" })?.mantissa).toBe("-2");
+    expect(toScientificNotation(-19.62, { significantDigits: 2, locale: "en-US" })?.mantissa).toBe("-2.0");
+  });
+
+  // 有効1桁では丸めない（MIN_ROUNDING_DIGITS）。桁を指定しなかったときと同じ扱いで、
+  // 仮数はそのまま出る。
+  it("有効1桁のときは丸めずにそのまま出す", () => {
+    const result = toScientificNotation(19.6, { significantDigits: 1, locale: "en-US" });
+    expect(result?.text).toBe("1.96×10¹");
+    expect(result?.significantDigits).toBeNull();
+    expect(result?.roundedFrom).toBeNull();
   });
 
   // 表示はKaTeXではなくUnicodeの上付き数字。小数表示と同じ Text で描くための形。
@@ -160,12 +169,16 @@ describe("実際の式を通した値（エンジン込み）", () => {
     expect(result?.roundedFrom).toBe("0.002553191489");
   });
 
-  it("重量は1桁に落ちる（掛け算の最小桁数がそのまま出る）", () => {
+  // 式からは1桁と読めるが、**1桁では丸めない**ので表示は元の値のまま
+  // （`t=2h` のような数える量まで1桁として丸めると読めない値になるため。MIN_ROUNDING_DIGITS）。
+  it("1桁と読める式は丸めずに出す", () => {
     const expression = "2kg × 9.8m/s²";
+    expect(inferSignificantDigits(expression)).toBe(1);
     const value = evaluateExpression(expression, []).siValue;
     const result = toScientificNotation(value, { significantDigits: inferSignificantDigits(expression), locale: "en-US" });
-    expect(result?.text).toBe("≈ 2×10¹");
-    expect(result?.roundedFrom).toBe("19.6");
+    expect(result?.text).toBe("1.96×10¹");
+    expect(result?.roundedFrom).toBeNull();
+    expect(toSignificantDecimal(value, { significantDigits: inferSignificantDigits(expression), locale: "en-US" })).toBeNull();
   });
 
   it("科学表記で入れた式は桁が保たれる", () => {
@@ -255,7 +268,11 @@ describe("有効数字付きの小数", () => {
   // 10のべきへは直さない（科学表記との違い）。0.0023 は 2.3×10⁻³ ではなく 0.0023 のまま。
   it("小数点の位置は動かさない", () => {
     expect(toSignificantDecimal(0.0023456, { significantDigits: 2, locale: "en-US" })?.text).toBe("≈ 0.0023");
-    expect(toSignificantDecimal(19.6, { significantDigits: 1, locale: "en-US" })?.text).toBe("≈ 20");
+    expect(toSignificantDecimal(19.62, { significantDigits: 2, locale: "en-US" })?.text).toBe("≈ 20");
+  });
+
+  it("有効1桁では丸めない", () => {
+    expect(toSignificantDecimal(19.6, { significantDigits: 1, locale: "en-US" })).toBeNull();
   });
 
   it("丸めた結果が小数表示と同じ文字列なら出さない（押しても何も変わらないチップを作らない）", () => {
