@@ -402,6 +402,18 @@ describe("厳密値（図面の呼び寸法・個数）は桁に数えない", (
     expect(inferSignificantDigits("1/R₁+1/R₂", { resolveIdentifier: parallel })).toBe(3);
   });
 
+  it("単位の付かない整数どうしの加減算は数式の係数として扱う", () => {
+    // 走査側は単位の付かない整数を「数式の係数」として桁に数えない（`bh³/12` の 12）。
+    // 畳むときも同じ扱いにしないと、`s1/(12+20)` が `s1/(32.)` になった時点で 12・20 が
+    // **2桁の測定値として結果の桁を制限する**（畳む前と後で扱いが食い違う）。
+    const prior = (symbol: string) => (symbol === "s1" ? { expression: "100m" } : undefined);
+    expect(inferSignificantDigits("s1/(12+20)", { resolveIdentifier: prior })).toBe(3);
+    // 係数だけで組まれた式は従来どおり桁を主張しない。
+    expect(inferSignificantDigits("100/(12+20)")).toBeNull();
+    // 係数と測定値が混ざるときは、位を測定値の側で決める（厳密値と同じ扱い）。
+    expect(inferSignificantDigits("(12+1.50)*2.0m")).toBe(2);
+  });
+
   it("畳めない加減算は従来どおり塞ぐ", () => {
     // **単位が違う加減算は文字面から位が読めない。** `12.5cm + 3.0mm` を「最小の2桁」で
     // 丸めると 13cm になり、利用者が打った 0.1cm の桁を消してしまう。

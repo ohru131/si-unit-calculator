@@ -292,7 +292,8 @@ function reciprocalLiteralOf(term: string, resolve: (symbol: string) => { expres
   const inner = match[1].trim();
   const direct = soleLiteralOf(inner);
   let base = direct;
-  let exact = false;
+  // 逆数の中身が単位なしの整数（`1/12`）なら、上と同じ理由で係数として扱う。
+  let exact = direct !== null && direct.unit === "" && /^\d+$/.test(direct.literal);
   if (!base) {
     const identifier = IDENTIFIER_PATTERN.exec(inner);
     if (!identifier || identifier.index !== 0 || identifier[0].length !== inner.length) return null;
@@ -326,7 +327,13 @@ function additiveFoldTerms(group: string, options: InferOptions): AdditiveFoldTe
     if (!trimmed) return false;
     const direct = soleLiteralOf(trimmed);
     if (direct) {
-      terms.push({ sign: termSign, ...direct, exact: false });
+      // **単位の付かない整数は数式の係数**（走査側の isFormulaCoefficient と同じ規則）。
+      // 桁を生まない側＝厳密値として扱う。これが無いと `s1/(12+20)` が `s1/(32.)` に畳まれ、
+      // 係数だったはずの 12・20 が**2桁の測定値として結果の桁を制限する**（走査側では
+      // 係数として数えていないので、畳む前と後で扱いが食い違う。CodeRabbitが#78で検出）。
+      // 全部が係数なら「全部厳密」の判定で畳まないので、従来どおりの結果になる。
+      const isCoefficient = direct.unit === "" && /^\d+$/.test(direct.literal);
+      terms.push({ sign: termSign, ...direct, exact: isCoefficient });
       return true;
     }
     // 識別子1つだけの項は、その定数の式が単一リテラルなら畳める（`R₁` → `10kΩ`）。
