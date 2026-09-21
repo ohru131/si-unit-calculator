@@ -64,10 +64,14 @@ describe("関連度順の並べ替え", () => {
     // docs/target-users-by-locale-2026-09.md 第1節の主ターゲットが、実際に一覧の先頭に出ることを固定する。
     // 独=Ausbildung Elektroniker と Klausur、仏=lycée の physique-chimie（化学＝実験レポート）、
     // 日=電験・電工。ここが崩れると「並べ替えている意味」が無くなる。
-    expect(orderSampleCategoriesForLanguage(SAMPLE_CATEGORIES, "de")[0].id).toBe("exam");
-    expect(orderSampleCategoriesForLanguage(SAMPLE_CATEGORIES, "de")[1].id).toBe("electric");
-    expect(orderSampleCategoriesForLanguage(SAMPLE_CATEGORIES, "fr")[0].id).toBe("lab");
-    expect(orderSampleCategoriesForLanguage(SAMPLE_CATEGORIES, "ja")[1].id).toBe("electric");
+    // サンプルのカテゴリは **basic を全言語で先頭に固定**してあるので、ターゲットは2番目以降に出る。
+    for (const language of APP_LANGUAGES) {
+      expect(orderSampleCategoriesForLanguage(SAMPLE_CATEGORIES, language)[0].id, language).toBe("basic");
+    }
+    expect(orderSampleCategoriesForLanguage(SAMPLE_CATEGORIES, "de")[1].id).toBe("exam");
+    expect(orderSampleCategoriesForLanguage(SAMPLE_CATEGORIES, "de")[2].id).toBe("electric");
+    expect(orderSampleCategoriesForLanguage(SAMPLE_CATEGORIES, "fr")[1].id).toBe("lab");
+    expect(orderSampleCategoriesForLanguage(SAMPLE_CATEGORIES, "ja")[2].id).toBe("electric");
 
     const topLevel = PRESET_NOTEBOOK_CATEGORIES.filter((category) => !category.parentId);
     expect(orderNotebookCategoriesForLanguage(topLevel, "ja")[0].id).toBe("electricity-energy");

@@ -1821,9 +1821,61 @@ export default function CalculatorScreen() {
   // たびにサンプル一覧・履歴一覧・数学キーの要素が作り直されていた。中身は式に依存しないので、
   // キーパッドと同じようにメモ化する。**`{showX && ...}` で潰さないこと**——閉じるときのスライド
   // アニメーションの最中に中身が消えて、空のシートが滑り落ちる。
+  /**
+   * サンプルのシート。**カテゴリのチップは一覧の「下」に置く**（2026-09-21。利用者の指示）。
+   *
+   * シートの高さは中身で決まる（`compactSheet` は maxHeight だけ）ので、カテゴリによって
+   * サンプルの件数が違うと**シート全体の高さが変わり、上に置いたチップ行が上下に動く**。
+   * 続けて別のカテゴリを見るときに毎回チップを探し直すことになるので、
+   * 「位置が変わってはいけないものは画面の下端から積む」（式キーボードのツール行と同じ規則）に
+   * 合わせて一覧の下へ移した。下端からの距離はシートの paddingBottom だけなので常に一定になる。
+   *
+   * 一覧（縦スクロール）だけが伸び縮みするよう、**チップ行は `flexShrink: 0`・一覧は `flexShrink: 1`**
+   * を明示する（RNの既定は `flexShrink: 0` なので、書かないと件数の多いカテゴリで
+   * 横スクロールのチップ行が潰れてチップが半分に切れる）。
+   */
   const samplesSheet = useMemo(
     () => (
-        <View style={styles.modalBackdrop}><View style={sheetStyle}><View style={styles.sheetHeader}><Text style={styles.sheetTitle}>{copy.samples}</Text><Pressable accessibilityLabel={copy.close} onPress={() => setShowSamples(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRail}>{visibleSampleCategories.map((category) => <Pressable key={category.id} onPress={() => setSampleCategory(category.id)} style={({ pressed }) => [styles.categoryChip, activeSampleCategory === category.id && styles.categoryChipActive, pressed && styles.pressed]}><Text style={[styles.categoryChipText, activeSampleCategory === category.id && styles.categoryChipTextActive]}>{localizedText(category.label, language)}</Text></Pressable>)}</ScrollView><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalList}>{visibleSamples.map((sample) => <Pressable key={sample.id} onPress={() => stableSelectSample(sample)} style={({ pressed }) => [styles.sampleRow, pressed && styles.cardPressed]}><View style={styles.sampleCopy}><Text style={styles.sampleTitle}>{localizedText(sample.title, language)}</Text><Text style={styles.sampleDescription}>{localizedText(sample.description, language)}</Text></View><View style={styles.sampleExpressionWrap}><Text numberOfLines={1} style={styles.sampleExpression}>{sample.expression}</Text><Text style={styles.sampleTarget}>→ {targetUnitForSample(sample)}</Text></View></Pressable>)}</ScrollView></View></View>
+      <View style={styles.modalBackdrop}>
+        <View style={sheetStyle}>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>{copy.samples}</Text>
+            <Pressable accessibilityLabel={copy.close} onPress={() => setShowSamples(false)} style={styles.closeHelp}>
+              <IconSymbol name="xmark" size={20} color={colors.muted} />
+            </Pressable>
+          </View>
+          {/* key にカテゴリIDを渡して、切り替えのたびに ScrollView を作り直す。Androidの ScrollView は
+              内容が縮んでも contentOffset をクランプしないので、件数の多いカテゴリ（電気は8件）で
+              下までスクロールしたあと少ないカテゴリ（割合は1件）へ移ると、範囲外に残ったオフセットの
+              せいで**一覧が空に見える**（単位レールの railScrollKey と同じ事象）。 */}
+          <ScrollView key={activeSampleCategory} showsVerticalScrollIndicator={false} style={styles.sampleList} contentContainerStyle={styles.sampleListContent}>
+            {visibleSamples.map((sample) => (
+              <Pressable key={sample.id} onPress={() => stableSelectSample(sample)} style={({ pressed }) => [styles.sampleRow, pressed && styles.cardPressed]}>
+                <View style={styles.sampleCopy}>
+                  <Text style={styles.sampleTitle}>{localizedText(sample.title, language)}</Text>
+                  <Text style={styles.sampleDescription}>{localizedText(sample.description, language)}</Text>
+                </View>
+                <View style={styles.sampleExpressionWrap}>
+                  <Text numberOfLines={1} style={styles.sampleExpression}>{sample.expression}</Text>
+                  <Text style={styles.sampleTarget}>→ {targetUnitForSample(sample)}</Text>
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={styles.sampleCategoryRail} contentContainerStyle={styles.categoryRail}>
+            {visibleSampleCategories.map((category) => (
+              <Pressable
+                accessibilityState={{ selected: activeSampleCategory === category.id }}
+                key={category.id}
+                onPress={() => setSampleCategory(category.id)}
+                style={({ pressed }) => [styles.categoryChip, activeSampleCategory === category.id && styles.categoryChipActive, pressed && styles.pressed]}
+              >
+                <Text style={[styles.categoryChipText, activeSampleCategory === category.id && styles.categoryChipTextActive]}>{localizedText(category.label, language)}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
     ),
     [activeSampleCategory, colors, copy, language, sheetStyle, stableSelectSample, styles, targetUnitForSample, visibleSampleCategories, visibleSamples],
   );
@@ -2622,6 +2674,10 @@ const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => St
   unitSearchWrap: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderColor: colors.border, borderRadius: 12, borderWidth: 1, flexDirection: "row", marginTop: 4, minHeight: 45, paddingHorizontal: 12 },
   unitSearchInput: { color: colors.foreground, flex: 1, fontSize: 14, marginLeft: 8, paddingVertical: 9 },
   categoryRail: { gap: 7, paddingBottom: 2, paddingTop: 10 },
+  // サンプルのシート用。一覧だけが伸び縮みし、チップ行はシートの下端に貼り付いたまま動かない。
+  sampleList: { flexShrink: 1 },
+  sampleListContent: { gap: 8, paddingBottom: 6, paddingTop: 2 },
+  sampleCategoryRail: { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth, flexGrow: 0, flexShrink: 0 },
   categoryChip: { backgroundColor: colors.surfaceSecondary, borderRadius: 15, paddingHorizontal: 12, paddingVertical: 7 },
   categoryChipActive: { backgroundColor: colors.primaryFill },
   categoryChipText: { color: colors.muted, fontSize: 12, fontWeight: "700" },

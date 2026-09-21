@@ -40,21 +40,33 @@ export function orderByRelevance<T>(items: readonly T[], idOf: (item: T) => stri
  * exam に入れるのは「試験のための計算」そのものだけなので、各国の試験に出る一般物理（km/h→m/s・重力場・
  * クーロンの法則）は motion / mechanics にある。それを拾わせたい言語では、この表でそのタブを上位に置く。
  */
+/**
+ * **`basic` は全言語で先頭に固定する**（2026-09-21。利用者の指示）。以前は言語ごとの
+ * ターゲットを先頭にして `basic` を最後に置いていたが、**「基本」なのにタブの途中に出るのが
+ * 分かりにくい**——このアプリで最初に見せたいのは「数字に単位を付けて計算できる」ことそのもので、
+ * それが並びの端に埋まると入口として機能しない。言語ごとの並べ替えは**2番目以降**に効く
+ * （日なら 基本 → 試験対策 → 電気、独なら Grundlagen → Klausur → Elektrizität）。
+ *
+ * **これはシートを開いたときの既定タブも変える**（既定は並べ替え後の先頭なので `basic` になる）。
+ * 既定を言語ごとのターゲットに戻したい場合は、チップの並びと既定タブを別々に決める必要がある
+ * ——ただしそうすると、開いた瞬間に**左端ではないチップが点灯**して見えるので、その違和感と
+ * 引き換えになる。
+ */
 export const SAMPLE_CATEGORY_RELEVANCE: Record<AppLanguage, readonly string[]> = {
-  // 電験三種・電工二種は電気の計算そのものなので electric を2番目に置く。
-  ja: ["exam", "electric", "lab", "energy", "mechanics", "motion", "basic"],
+  // 電験三種・電工二種は電気の計算そのものなので electric を基本のすぐ後に置く。
+  ja: ["basic", "exam", "electric", "lab", "energy", "mechanics", "motion"],
   // FE試験は力学・熱・電気を横断し、学部の実験レポートが副ターゲット。
-  en: ["exam", "lab", "mechanics", "energy", "electric", "motion", "basic"],
+  en: ["basic", "exam", "lab", "mechanics", "energy", "electric", "motion"],
   // Ausbildung Elektroniker。Zehnerpotenzen と電気の実務計算が最優先。km/h→m/s は Klausur の定番だが
   // exam ではなく motion にあるので（lib/sample-calculations.ts のコメント参照）motion を lab より上に置く。
-  de: ["exam", "electric", "energy", "motion", "lab", "mechanics", "basic"],
-  // lycée の physique-chimie。化学（濃度・mL→L）が入口なので lab を先頭に。
+  de: ["basic", "exam", "electric", "energy", "motion", "lab", "mechanics"],
+  // lycée の physique-chimie。化学（濃度・mL→L）が入口なので lab を基本の次に。
   // 力学（重力場・クーロンの法則）は motion のすぐ後で拾わせる。
-  fr: ["lab", "exam", "motion", "mechanics", "energy", "electric", "basic"],
-  // EBAU の física は力学・場が中心。重力場とクーロンの法則は mechanics にあるので2番目に置く。
-  es: ["exam", "mechanics", "motion", "lab", "energy", "electric", "basic"],
+  fr: ["basic", "lab", "exam", "motion", "mechanics", "energy", "electric"],
+  // EBAU の física は力学・場が中心。重力場とクーロンの法則は mechanics にあるので exam の次に置く。
+  es: ["basic", "exam", "mechanics", "motion", "lab", "energy", "electric"],
   // ENEM は運動・力学の文章題が定番で、消費電力量（kWh）は exam に残っている。
-  "pt-BR": ["exam", "motion", "mechanics", "energy", "electric", "lab", "basic"],
+  "pt-BR": ["basic", "exam", "motion", "mechanics", "energy", "electric", "lab"],
 };
 
 /**
