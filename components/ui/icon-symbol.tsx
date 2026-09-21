@@ -59,6 +59,8 @@ const MAPPING = {
   // 電卓の編集キー行の「OSのキーボードを出す」キー。SF Symbolのkeyboardは iOS 13 からあるので、
   // 古いOSでアイコンだけ空白になる心配はない。
   "keyboard": "keyboard",
+  // 設定の「表示する桁数」の見出し。SF Symbolの textformat.size は iOS 13 からある。
+  "textformat.size": "format-size",
 } satisfies IconMapping;
 
 /**

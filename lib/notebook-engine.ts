@@ -172,6 +172,8 @@ export function evaluateNotebookSteps(
   language: AppLanguage,
   customFunctions: CustomFunctionDefinition[] = [],
   locale?: string,
+  /** 表示する有効数字の上限（設定タブの `resultDigits`）。渡さなければ従来どおり10桁。 */
+  maxDigits?: number,
 ): NotebookStepResult[] {
   const messages = ENGINE_MESSAGES[language];
   const availableConstants = [...pool];
@@ -182,11 +184,11 @@ export function evaluateNotebookSteps(
     try {
       const quantity = evaluateExpression(expression, availableConstants, customFunctions);
       availableConstants.push({ symbol, expression, quantity, createdAt: "" });
-      const siFallback = formatQuantity(quantity, undefined, locale);
+      const siFallback = formatQuantity(quantity, undefined, locale, maxDigits);
       const targetUnit = step.targetUnit.trim();
       if (!targetUnit) return { step, symbol, quantity, formatted: siFallback, siFallback };
       try {
-        return { step, symbol, quantity, formatted: formatQuantity(quantity, targetUnit, locale), siFallback };
+        return { step, symbol, quantity, formatted: formatQuantity(quantity, targetUnit, locale, maxDigits), siFallback };
       } catch {
         return { step, symbol, quantity, formatted: siFallback, siFallback, error: messages.targetUnitFallback(targetUnit) };
       }

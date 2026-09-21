@@ -116,7 +116,7 @@ export default function ConstantsScreen() {
   const { notebookExpression, notebookUnit } = useLocalSearchParams<{ notebookExpression?: string | string[]; notebookUnit?: string | string[] }>();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { language, locale, unitSystem } = useGlobalSettings();
+  const { language, locale, resultDigits, unitSystem } = useGlobalSettings();
   const {
     constants,
     customUnits,
@@ -355,6 +355,7 @@ export default function ConstantsScreen() {
           language={language}
           locale={locale}
           unitSystem={unitSystem}
+          resultDigits={resultDigits}
           categoryLabel=""
           notebooks={notebookSearchResults}
           globalConstants={constants}
@@ -372,6 +373,7 @@ export default function ConstantsScreen() {
           language={language}
           locale={locale}
           unitSystem={unitSystem}
+          resultDigits={resultDigits}
           categoryLabel={categoryLabel(selectedCategoryId)}
           notebooks={notebooksInCategory}
           globalConstants={constants}
@@ -415,7 +417,7 @@ export default function ConstantsScreen() {
             <View key={item.symbol} style={styles.libraryCard}>
               <Pressable onPress={() => openConstantEditor(item)} style={({ pressed }) => [styles.libraryMain, pressed && styles.cardPressed]}>
                 <Text style={styles.libraryTitle}>{item.symbol} = {item.expression}</Text>
-                <Text style={styles.libraryExpression}>{formatQuantity(item.quantity)}</Text>
+                <Text style={styles.libraryExpression}>{formatQuantity(item.quantity, undefined, locale, resultDigits)}</Text>
               </Pressable>
               <Pressable accessibilityLabel={copy.delete} onPress={() => setPendingDeleteConstant(item.symbol)} style={({ pressed }) => [styles.deleteButton, pressed && styles.iconPressed]}>
                 <IconSymbol name="trash" size={20} color={colors.error} />

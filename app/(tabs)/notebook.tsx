@@ -68,7 +68,7 @@ export default function NotebookScreen() {
   const router = useRouter();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { language, locale, measuringStandard, unitSystem } = useGlobalSettings();
+  const { language, locale, measuringStandard, resultDigits, unitSystem } = useGlobalSettings();
   const { isPro } = usePro();
   const {
     constants,
@@ -140,6 +140,9 @@ export default function NotebookScreen() {
         locale,
         unitSystem,
         measuringStandard,
+        // **表示桁数の上限も渡すこと。** 渡さないとPDFだけ10桁のまま出て、画面（6桁）と
+        // 値が食い違う（resolveNotebookStepDisplay を画面とPDFで共有している理由と同じ）。
+        maxDigits: resultDigits,
         unitOverrides,
       });
       setNotice(copy.notebookExported);
@@ -180,6 +183,7 @@ export default function NotebookScreen() {
           locale={locale}
           unitSystem={unitSystem}
           measuringStandard={measuringStandard}
+          resultDigits={resultDigits}
           notebook={activeNotebook}
           globalConstants={constants}
           onEdit={() => openEditNotebook(activeNotebook)}

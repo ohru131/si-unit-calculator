@@ -18,6 +18,8 @@ export type UnitComparisonOptions = {
   hints: (string | undefined)[];
   activeUnit?: string;
   locale?: string;
+  /** 表示する有効数字の上限（設定タブの resultDigits）。渡さなければ従来どおり10桁。 */
+  maxDigits?: number;
   limit?: number;
 };
 
@@ -39,7 +41,7 @@ export function buildUnitComparisonRows(quantity: Quantity | undefined, options:
     try {
       const converted = convertQuantity(quantity, symbol, options.locale);
       seen.add(symbol);
-      rows.push({ symbol, label, value: formatNumberForLocale(converted.value, options.locale), isActive: symbol === activeUnit });
+      rows.push({ symbol, label, value: formatNumberForLocale(converted.value, options.locale, options.maxDigits), isActive: symbol === activeUnit });
     } catch {
       // compatibleUnitOptions のフォールバック経路は式中の表記をそのまま候補にするため、
       // 次元が合わない・解釈できない表記が混ざりうる。そのような候補は行に出さない。

@@ -595,7 +595,7 @@ export default function CalculatorScreen() {
   const { quick, presetExpression, presetUnit } = useLocalSearchParams<{ quick?: string | string[]; presetExpression?: string | string[]; presetUnit?: string | string[] }>();
   const { constants, history, favoriteUnits, upsertConstant, addHistoryEntry, clearHistory, isLoading: isHistoryLoading } = useCalculatorStore();
   const { isPro } = usePro();
-  const { completeOnboarding, hasSeenOnboarding, isReady, language, locale, measuringStandard, t, unitGroupLabel, unitSystem } = useGlobalSettings();
+  const { completeOnboarding, hasSeenOnboarding, isReady, language, locale, measuringStandard, resultDigits, t, unitGroupLabel, unitSystem } = useGlobalSettings();
   const [onboardingStep, setOnboardingStep] = useState(0);
   // 起動時の初期式は「固定のサンプル」ではなく「最後に計算した式」にしてほしいという要望に対応する
   // ため、ここでは空欄で始め、履歴の読み込みが終わった時点で下のuseEffectがhistory[0]を反映する
@@ -890,7 +890,7 @@ export default function CalculatorScreen() {
     // numeric/unitLabel は「いま画面に出している値」を数値と単位に分けたもの。分数・π表示
     // （lib/exact-value.ts）はこの数値の方だけを言い換えるので、valueの文字列から数値を
     // 切り出し直すことはしない（ロケールの桁区切り・指数表記を再パースする羽目になるため）。
-    const si = formatQuantity(result, undefined, locale);
+    const si = formatQuantity(result, undefined, locale, resultDigits);
     const siUnitLabel = isDimensionless(result.dimension) ? "" : formatDimension(result.dimension, locale);
     try {
       if (!displayUnit) {
@@ -898,7 +898,7 @@ export default function CalculatorScreen() {
       }
       const converted = convertQuantity(result, displayUnit, locale);
       return {
-        value: `${formatNumberForLocale(converted.value, locale)} ${converted.unit}`,
+        value: `${formatNumberForLocale(converted.value, locale, resultDigits)} ${converted.unit}`,
         numeric: converted.value,
         unitLabel: converted.unit,
         si,
@@ -927,7 +927,7 @@ export default function CalculatorScreen() {
       };
     }
     // measuringStandardが変わるとcup/tbsp/tspの換算値が変わるため、依存配列に含めて表示単位を再計算させる（値自体は使わない）。
-  }, [copy, displayUnit, language, locale, measuringStandard, result]);
+  }, [copy, displayUnit, language, locale, measuringStandard, result, resultDigits]);
 
   // SIチップの点灯条件。表示単位が未指定のときに加えて、次元が合わずSI表記へフォールバック
   // しているときも点灯させる（そのとき実際に表示している値はSI表記そのものなので）。
@@ -941,8 +941,9 @@ export default function CalculatorScreen() {
       hints: [displayUnit, expression, display?.si],
       activeUnit: displayUnit,
       locale,
+      maxDigits: resultDigits,
     });
-  }, [display, displayUnit, expression, locale, measuringStandard, result, unitSystem]);
+  }, [display, displayUnit, expression, locale, measuringStandard, result, resultDigits, unitSystem]);
 
   // 進数入力モード中の変換結果。expressionには接頭辞を含まない生の桁だけが入っている
   // （接頭辞は表示のときだけ足す）ので、パースにも接頭辞なしの生の桁をそのまま渡す。
@@ -1093,10 +1094,10 @@ export default function CalculatorScreen() {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       // 表示単位が結果に合わないときは、行き止まりにせずSI標準へ戻す。
       let usedTargetUnit = selectedTargetUnit.trim();
-      let output = formatQuantity(quantity, undefined, locale);
+      let output = formatQuantity(quantity, undefined, locale, resultDigits);
       if (usedTargetUnit) {
         try {
-          output = formatQuantity(quantity, usedTargetUnit, locale);
+          output = formatQuantity(quantity, usedTargetUnit, locale, resultDigits);
         } catch {
           usedTargetUnit = "";
           setTargetUnit("");
@@ -1108,7 +1109,7 @@ export default function CalculatorScreen() {
           UnitCalculatorWidget.updateSnapshot({
             expression: input,
             result: output,
-            siResult: formatQuantity(quantity, undefined, locale),
+            siResult: formatQuantity(quantity, undefined, locale, resultDigits),
             // ネイティブのホーム画面ウィジェットはen/jaの文言しか持っていない（i18n.tsのAppLanguage拡張とは別スコープ）ため、
             // 新しく追加した言語はウィジェット側の既定言語（英語）にフォールバックする。
             locale: language,
@@ -2154,10 +2155,36 @@ export default function CalculatorScreen() {
                     // 組んでいて、チップを押した瞬間に字体と大きさが変わって見えた（実機で指摘された）。
                     // 分数・根号（厳密値）は文字の並びで表せないので、そちらだけKaTeXのまま。
                     <>
-                      <Animated.Text numberOfLines={2} adjustsFontSizeToFit style={[styles.resultValue, resultAnimatedStyle]}>
-                        {roundedValue.text}
-                        {display.unitLabel ? ` ${display.unitLabel}` : ""}
-                      </Animated.Text>
+                      {/* **上付き数字（`⁻⁵`）を1つのTextに混ぜないこと。** 等幅フォント（Menlo /
+                          monospace）は U+207B・U+2070-2079 を持たないので、プラットフォームの
+                          フォールバックが等倍で描き、`2.5×10 − 5` と読める絵になる（実機で
+                          「小数表示と高さが変わる」と報告された。Webのスクショでも再現した）。
+                          指数だけ別のTextにして、小さい字で上へ寄せる。**コピーは従来どおり
+                          `text`（Unicode表記）を渡す**ので、貼り付け先では `2.5×10⁻⁵` のまま。 */}
+                      {valueForm === "scientific" && scientificValue ? (
+                        // **`adjustsFontSizeToFit` と `numberOfLines` は付けないこと。** パートごとに
+                        // 別の Text なので縮小率がばらばらになり、仮数と単位で字の大きさが食い違う。
+                        // 長い値は行を折り返して受ける（小数表示が2行になるのと同じ）。
+                        <View style={styles.scientificRow}>
+                          <Animated.Text style={[styles.resultValue, styles.scientificPart, resultAnimatedStyle]}>
+                            {`${scientificValue.mantissa}×10`}
+                          </Animated.Text>
+                          <Animated.Text style={[styles.resultExponent, resultAnimatedStyle]}>
+                            {/* マイナスは U+2212（数式用）。ハイフンだと字幅が細くて指数に見えない。 */}
+                            {scientificValue.exponent < 0 ? `−${Math.abs(scientificValue.exponent)}` : String(scientificValue.exponent)}
+                          </Animated.Text>
+                          {display.unitLabel ? (
+                            <Animated.Text style={[styles.resultValue, styles.scientificPart, resultAnimatedStyle]}>
+                              {` ${display.unitLabel}`}
+                            </Animated.Text>
+                          ) : null}
+                        </View>
+                      ) : (
+                        <Animated.Text numberOfLines={2} adjustsFontSizeToFit style={[styles.resultValue, resultAnimatedStyle]}>
+                          {roundedValue.text}
+                          {display.unitLabel ? ` ${display.unitLabel}` : ""}
+                        </Animated.Text>
+                      )}
                       {/* 丸める前の値と桁数を小さく併記する。桁が落ちていなくても桁数だけは出す
                           （`0.90` の末尾の0が「2桁である」という主張だと分かるようにするため）。 */}
                       {roundedValue.roundedFrom || roundedValue.significantDigits !== null ? (
@@ -2637,6 +2664,21 @@ const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => St
   exactValueUnitStacked: { fontSize: STACKED_RESULT_UNIT_FONT_SIZE },
   // 丸める前の値の併記。結果の値より明らかに小さく・淡くして、主役が丸めた値であることを保つ。
   roundedFromText: { color: colors.muted, fontFamily: mono, fontSize: 12, fontWeight: "600", marginTop: -2 },
+  // 科学表記は「仮数×10」と「指数」を別のTextで並べる（上の注記）。行の高さは小数表示と同じに
+  // したいので、`resultValue` の minHeight をそのまま効かせ、指数側には高さを持たせない。
+  scientificRow: { alignItems: "flex-start", flexDirection: "row", flexWrap: "wrap", minHeight: layout.inputRowHeight },
+  scientificPart: { minHeight: undefined },
+  // 指数は本文の約55%。`lineHeight` を本文の文字サイズの半分にすることで、上端が本文の
+  // 上端にそろう（=上付きの位置になる）。**`lineHeight` を明示しないと行ボックスが
+  // フォント任せになり、プラットフォームによって上下する。**
+  resultExponent: {
+    color: colors.primaryStrong,
+    fontFamily: mono,
+    fontSize: Math.round(RESULT_VALUE_FONT_SIZE * 0.55),
+    fontWeight: "700",
+    lineHeight: Math.round(RESULT_VALUE_FONT_SIZE * 0.55),
+    marginTop: 2,
+  },
   valueFormChip: { backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 9, borderWidth: 1, justifyContent: "center", minHeight: 30, paddingHorizontal: 10 },
   valueFormChipActive: { backgroundColor: colors.primarySurface, borderColor: colors.primary },
   valueFormChipText: { color: colors.muted, fontSize: 12, fontWeight: "800" },
