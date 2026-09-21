@@ -1,4 +1,4 @@
-import { UNCATEGORIZED_CATEGORY_ID, type CalculationNotebook, type NotebookCategory } from "@/lib/calculator-store";
+import { UNCATEGORIZED_CATEGORY_ID, type CalculationNotebook, type NotebookCategory, type NotebookLocalConstant } from "@/lib/calculator-store";
 import { parseCustomUnitsField, type CustomUnit } from "@/lib/custom-units";
 import { type AppLanguage } from "@/lib/i18n";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
@@ -56,7 +56,24 @@ export const NOTEBOOKS_BACKUP_FORMAT = "si-unit-calculator.notebooks";
 export const NOTEBOOKS_BACKUP_VERSION = 1;
 
 export type ImportedNotebookFormula = { explanation: string; latex: string };
-export type ImportedNotebookConstant = { symbol: string; expression: string };
+export type ImportedNotebookConstant = {
+  symbol: string;
+  expression: string;
+  /**
+   * 「測定値でない」の印は、**利用者が自分で決めたときだけ**持ち運ぶ（`exactEdited` 付き）。
+   * シードが付けた印は復元後に `applyPresetExactConstants` が貼り直すので書き出す必要がなく、
+   * 書き出すとシードを直したときに古いファイルが古い印を持ち込む。トグルを触っていない人の
+   * ファイルは1バイトも変わらない（`presetOverrides`・`customUnits` を空なら省くのと同じ方針）。
+   * `version` は 1 のまま据え置く——古いアプリはこの2フィールドを無視するだけで読める。
+   */
+  exact?: boolean;
+  exactEdited?: boolean;
+};
+
+// 上のとおり、所有権の印が付いている定数だけ書き出す。
+function exportedExactFields(constant: NotebookLocalConstant): Pick<ImportedNotebookConstant, "exact" | "exactEdited"> {
+  return constant.exactEdited ? { exact: constant.exact === true, exactEdited: true } : {};
+}
 export type ImportedNotebookStep = { title: string; expression: string; targetUnit: string; formulaLatex?: string; resultSymbol?: string };
 
 export type ImportedNotebook = {
@@ -117,7 +134,9 @@ function isImportedNotebookFormula(value: unknown): value is ImportedNotebookFor
 function isImportedNotebookConstant(value: unknown): value is ImportedNotebookConstant {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<ImportedNotebookConstant>;
-  return typeof candidate.symbol === "string" && typeof candidate.expression === "string";
+  return typeof candidate.symbol === "string" && typeof candidate.expression === "string"
+    && (candidate.exact === undefined || typeof candidate.exact === "boolean")
+    && (candidate.exactEdited === undefined || typeof candidate.exactEdited === "boolean");
 }
 
 function isImportedNotebookStep(value: unknown): value is ImportedNotebookStep {
@@ -176,7 +195,7 @@ export function buildPresetNotebookOverrides(notebooks: CalculationNotebook[]): 
       title: notebook.title,
       description: notebook.description,
       formulas: notebook.formulas.map(({ explanation, latex }) => ({ explanation, latex })),
-      localConstants: notebook.localConstants.map(({ symbol, expression }) => ({ symbol, expression })),
+      localConstants: notebook.localConstants.map((constant) => ({ symbol: constant.symbol, expression: constant.expression, ...exportedExactFields(constant) })),
       steps: notebook.steps.map(({ title, expression, targetUnit, formulaLatex, resultSymbol }) => ({ title, expression, targetUnit, formulaLatex, resultSymbol })),
     }));
 }
@@ -213,7 +232,7 @@ export function applyPresetNotebookOverrides(
       // 生成した決定的なidを上書きしてしまう。id同士が衝突すると、編集画面が別の行を書き換える。
       // 検証済みの既知フィールドだけを取り出して組み直す。
       formulas: override.formulas.map(({ explanation, latex }, index) => ({ id: `${notebook.id}-override-formula-${index}`, explanation, latex })),
-      localConstants: override.localConstants.map(({ symbol, expression }, index) => ({ id: `${notebook.id}-override-constant-${index}`, symbol, expression })),
+      localConstants: override.localConstants.map(({ symbol, expression, exact, exactEdited }, index) => ({ id: `${notebook.id}-override-constant-${index}`, symbol, expression, ...(exactEdited ? { exact: exact === true, exactEdited: true } : {}) })),
       steps: override.steps.map(({ title, expression, targetUnit, formulaLatex, resultSymbol }, index) => ({ id: `${notebook.id}-override-step-${index}`, title, expression, targetUnit, formulaLatex, resultSymbol })),
       updatedAt: now,
     };
@@ -232,7 +251,7 @@ export function createNotebooksBackup(notebooks: CalculationNotebook[], categori
       description: notebook.description,
       ...resolveExportedCategory(notebook, categories),
       formulas: notebook.formulas.map(({ explanation, latex }) => ({ explanation, latex })),
-      localConstants: notebook.localConstants.map(({ symbol, expression }) => ({ symbol, expression })),
+      localConstants: notebook.localConstants.map((constant) => ({ symbol: constant.symbol, expression: constant.expression, ...exportedExactFields(constant) })),
       steps: notebook.steps.map(({ title, expression, targetUnit, formulaLatex, resultSymbol }) => ({ title, expression, targetUnit, formulaLatex, resultSymbol })),
     })),
     // 空配列をわざわざ書き出さない（従来どおりプリセット編集・自作単位が無いバックアップは

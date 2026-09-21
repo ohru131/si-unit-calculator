@@ -83,6 +83,54 @@ describe("厳密値の印（exact）の投入と貼り直し", () => {
     expect(applyPresetExactConstants([own]).changed).toBe(false);
   });
 
+  it("利用者が切り替えた印はシードへ貼り直さない", () => {
+    // 編集シートのトグルは exact と一緒に exactEdited を立てる。これが無いと、消した印が
+    // 次の読み込みでシードから復活する（＝利用者が触れないのと同じになる）。
+    const stored = seeded().map((notebook) => (notebook.id === holeNotebook(seeded()).id
+      ? {
+        ...notebook,
+        localConstants: notebook.localConstants.map((constant) => {
+          // 寸法 t の印を外し、係数 Kₜ に印を付ける。どちらもシードと逆向き。
+          if (constant.symbol === "t") return { ...constant, exact: false, exactEdited: true };
+          if (constant.symbol === "Kₜ") return { ...constant, exact: true, exactEdited: true };
+          return constant;
+        }),
+      }
+      : notebook));
+    const applied = applyPresetExactConstants(stored);
+    expect(applied.changed).toBe(false);
+    const constants = holeNotebook(applied.notebooks).localConstants;
+    expect(constants.find((constant) => constant.symbol === "t")?.exact).toBe(false);
+    expect(constants.find((constant) => constant.symbol === "Kₜ")?.exact).toBe(true);
+    // 触っていない定数は従来どおりシードへ揃える。
+    expect(constants.filter((constant) => constant.exact).map((constant) => constant.symbol)).toEqual(["w", "d", "Kₜ"]);
+  });
+
+  it("バックアップは利用者が決めた印だけを持ち運ぶ", () => {
+    // シードが付けた印を書き出さないのは、復元後に貼り直しが当たるうえ、書き出すと
+    // シードを直したときに古いファイルが古い印を持ち込むため。
+    const edited = seeded().map((notebook) => (notebook.id === holeNotebook(seeded()).id
+      ? {
+        ...notebook,
+        localConstants: notebook.localConstants.map((constant) => (constant.symbol === "t" ? { ...constant, exact: false, exactEdited: true } : constant)),
+        updatedAt: "2026-02-01T00:00:00.000Z",
+      }
+      : notebook));
+    const overrides = buildPresetNotebookOverrides(edited);
+    expect(overrides).toHaveLength(1);
+    const exported = overrides[0].localConstants;
+    // w・d はシードの印なので書き出さない。t だけが所有権付きで乗る。
+    expect(exported.filter((constant) => constant.exactEdited).map((constant) => constant.symbol)).toEqual(["t"]);
+    expect(exported.find((constant) => constant.symbol === "w")?.exact).toBeUndefined();
+
+    const restored = applyPresetNotebookOverrides(seeded(), overrides, NOW);
+    const restamped = applyPresetExactConstants(restored.notebooks);
+    const constants = holeNotebook(restamped.notebooks).localConstants;
+    // 復元しても利用者の判断（t は測定値）が残り、残りはシードへ揃う。
+    expect(constants.find((constant) => constant.symbol === "t")?.exact).toBe(false);
+    expect(constants.filter((constant) => constant.exact).map((constant) => constant.symbol)).toEqual(["w", "d"]);
+  });
+
   it("バックアップから復元したプリセットにも印が戻る", () => {
     // バックアップのJSONは定数を { symbol, expression } だけで持ち運ぶので印は必ず落ちる。
     // さらに applyPresetNotebookOverrides が定数のidを組み直すため、idで突き合わせていると
