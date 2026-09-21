@@ -11,7 +11,7 @@ import type { NotebookSeedConstant } from "@/lib/notebook-formulas/types";
 import { pushNotebookHistoryEntry, removeNotebookHistoryEntry, type NotebookHistoryEntry } from "@/lib/notebook-history";
 import { isPresetRegionalDefaultKind, PresetRegionalDefaults, type PresetRegionalDefaultKind, resolvePresetRegionalDefaults } from "@/lib/preset-regional-defaults";
 import { presetRegionalDefaultPatch, releaseEditedRegionalDefaults } from "@/lib/preset-regional-sync";
-import { applyPresetNotebookOverrides, type ImportedNotebook, type PresetNotebookOverride } from "@/lib/notebooks-backup";
+import { applyPresetNotebookOverrides, importedExactFields, type ImportedNotebook, type PresetNotebookOverride } from "@/lib/notebooks-backup";
 import { parseConstantDefinition, Quantity, SavedConstant, setCustomUnits as setCustomUnitsRegistry, type CustomUnitRegistration } from "@/lib/units";
 
 const CONSTANTS_STORAGE_KEY = "si-unit-calculator.constants.v1";
@@ -131,6 +131,15 @@ export type NotebookLocalConstant = {
    * 読み込みのたびにシードから貼り直す（lib/calculator-store.tsx の applyPresetExactConstants）。
    */
   exact?: boolean;
+  /**
+   * **上の `exact` を利用者が自分で決めたことの記録**（こちらは所有権の記録）。
+   * 付いている定数は `applyPresetExactConstants` の貼り直しから除外するので、プリセットでも
+   * 利用者の判断が残る。**印そのものを所有権にしなかった理由**は、`exact` が無い状態には
+   * 「シードが付けていない」と「利用者が外した」の2つの意味があり、値の形からは区別できない
+   * ため（`regionalDefault` の付け直しを1回きりに縛らなければならなかったのと同じ穴）。
+   * 別のフィールドで「利用者が触った」を明示すれば、貼り直しは毎回走ったままでよい。
+   */
+  exactEdited?: boolean;
 };
 
 /** 「説明文＋数式」のペア。計算手順（steps）とは独立に、複数個並べて解説できる。 */
@@ -513,6 +522,9 @@ export function applyPresetResultSymbols(notebooks: CalculationNotebook[]): { no
  *
  * 投入はカテゴリ単位で1回きりなので、これが無いと既存インストールでは結果が
  * `46.875 MPa` のまま（板厚 `8mm` を1桁の測定値として数え続ける）。
+ *
+ * **例外は `exactEdited` が付いた定数だけ**（編集シートで利用者が印を切り替えたもの）。
+ * そこはシードではなく利用者が決めた欄なので、毎回の貼り直しから除外する。
  */
 export function applyPresetExactConstants(notebooks: CalculationNotebook[]): { notebooks: CalculationNotebook[]; changed: boolean } {
   let changed = false;
@@ -538,6 +550,9 @@ export function applyPresetExactConstants(notebooks: CalculationNotebook[]): { n
 
     let notebookChanged = false;
     const nextLocalConstants = notebook.localConstants.map((constant) => {
+      // 利用者が自分で決めた印には触らない（シードの都合で上書きすると、編集シートで
+      // 消したはずの印が次の起動で復活する）。
+      if (constant.exactEdited) return constant;
       const shouldBeExact = exactSymbols.has(constant.symbol);
       if (shouldBeExact === (constant.exact === true)) return constant;
       notebookChanged = true;
@@ -1133,7 +1148,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
       // applyPresetNotebookOverridesと同じ理由で、取り込んだ要素をスプレッドせず既知の
       // フィールドだけを取り出して組み直す（ファイル側のidで生成idを上書きさせない）。
       formulas: entry.formulas.map(({ explanation, latex }, formulaIndex) => ({ id: `import-${importedAt}-${index}-formula-${formulaIndex}`, explanation, latex })),
-      localConstants: entry.localConstants.map(({ symbol, expression }, constantIndex) => ({ id: `import-${importedAt}-${index}-constant-${constantIndex}`, symbol, expression })),
+      localConstants: entry.localConstants.map((constant, constantIndex) => ({ id: `import-${importedAt}-${index}-constant-${constantIndex}`, symbol: constant.symbol, expression: constant.expression, ...importedExactFields(constant) })),
       steps: entry.steps.map(({ title, expression, targetUnit, formulaLatex, resultSymbol }, stepIndex) => ({ id: `import-${importedAt}-${index}-step-${stepIndex}`, title, expression, targetUnit, formulaLatex, resultSymbol })),
       pinned: false,
       isPreset: false,
@@ -1153,7 +1168,14 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         else nextUserNotebooks.push(incoming);
       }
     }
-    const { notebooks: nextPresetNotebooks, appliedCount: presetOverrideCount } = applyPresetNotebookOverrides(presetNotebooks, presetOverrides, now);
+    const { notebooks: overriddenPresetNotebooks, appliedCount: presetOverrideCount } = applyPresetNotebookOverrides(presetNotebooks, presetOverrides, now);
+    // **上書きを当てた直後にシードの印を貼り直す。** バックアップは利用者が決めた印しか
+    // 持ち運ばないので、上書きを当てた時点でそれ以外の定数からは `exact` が落ちている。
+    // 読み込み時のeffectに任せると、**取り込んだ直後だけ丸めが消えたノートを見せてしまう**
+    // （穴まわりの応力集中が `≈ 47 MPa` ではなく `46.875 MPa` になり、次の起動で直る。
+    // CodeRabbitが#77で🟠として検出）。`exactEdited` が付いた定数は除外されるので、
+    // ここで貼り直しても利用者の判断は上書きしない。
+    const { notebooks: nextPresetNotebooks } = applyPresetExactConstants(overriddenPresetNotebooks);
     const nextAllNotebooks = [...nextPresetNotebooks, ...nextUserNotebooks].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
     // ノートより先にカテゴリを書き込む。逆にすると、カテゴリ書き込みが失敗した場合に
     // 存在しないcategoryIdを参照するノートが残ってしまい、カテゴリ一覧からも辿れなくなる。
