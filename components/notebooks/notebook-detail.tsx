@@ -13,7 +13,7 @@ import { type CalculationNotebook, type CalculationNoteStep, type NotebookLocalC
 import { type AppLanguage } from "@/lib/i18n";
 import { getLocalConstantFieldSuggestions, getStepFieldSuggestions, mapCombinedSelectionToExpressionRange } from "@/lib/notebook-constant-suggestions";
 import { evaluateNotebookSteps, formatNameValue, normalizeStepForSave, parseNameValue, resolveNotebookLocalConstants, trimResultSymbol } from "@/lib/notebook-engine";
-import { resolveNotebookStepDisplay } from "@/lib/notebook-export-model";
+import { notebookStepSignificantDigits, resolveNotebookStepDisplay } from "@/lib/notebook-export-model";
 import { resolveCalculatorLayout } from "@/lib/calculator-layout";
 import { toHalfWidthAscii } from "@/lib/fullwidth-input";
 import { backspaceInField, insertKeypadText, moveCaretInField } from "@/lib/notebook-keypad";
@@ -34,7 +34,7 @@ const EN_COPY = {
   invalidStepName: "Enter each step as name=expression (e.g. v=v0+a*t), or remove the \"=\" to leave it unnamed.",
   saveFailed: "Could not save. Please try again.",
   noStepsError: "This notebook needs at least one step.",
-  insertConstant: "Insert", insertUnit: "Insert unit",
+  insertConstant: "Insert", insertUnit: "Insert unit", significantDigits: "{count} s.f.",
   back: "Back",
   switchTitle: "Unsaved changes",
   switchMessage: "This notebook has values you haven't saved. Switching notebooks discards them.",
@@ -54,7 +54,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     invalidStepName: "手順は「名前＝式」の形式（例：v=v0+a*t）で入力するか、「＝」を外して名前なしにしてください。",
     saveFailed: "保存できませんでした。もう一度お試しください。",
     noStepsError: "手順が最低1つ必要です。",
-    insertConstant: "挿入", insertUnit: "単位を挿入",
+    insertConstant: "挿入", insertUnit: "単位を挿入", significantDigits: "有効{count}桁",
     back: "戻る",
     switchTitle: "保存していない変更があります",
     switchMessage: "このノートには保存していない値があります。ノートを切り替えると破棄されます。",
@@ -72,7 +72,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     invalidStepName: "Escribe cada paso como nombre=expresión (por ejemplo, v=v0+a*t), o quita el \"=\" para dejarlo sin nombre.",
     saveFailed: "No se pudo guardar. Inténtalo de nuevo.",
     noStepsError: "Este cuaderno necesita al menos un paso.",
-    insertConstant: "Insertar", insertUnit: "Insertar unidad",
+    insertConstant: "Insertar", insertUnit: "Insertar unidad", significantDigits: "{count} c.s.",
     back: "Atrás",
     switchTitle: "Cambios sin guardar",
     switchMessage: "Este cuaderno tiene valores que no has guardado. Al cambiar de cuaderno se descartan.",
@@ -90,7 +90,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     invalidStepName: "Digite cada etapa como nome=expressão (por exemplo, v=v0+a*t), ou remova o \"=\" para deixar sem nome.",
     saveFailed: "Não foi possível salvar. Tente novamente.",
     noStepsError: "Este caderno precisa de pelo menos uma etapa.",
-    insertConstant: "Inserir", insertUnit: "Inserir unidade",
+    insertConstant: "Inserir", insertUnit: "Inserir unidade", significantDigits: "{count} a.s.",
     back: "Voltar",
     switchTitle: "Alterações não salvas",
     switchMessage: "Este caderno tem valores que você não salvou. Trocar de caderno descarta essas alterações.",
@@ -108,7 +108,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     invalidStepName: "Gib jeden Schritt als Name=Ausdruck ein (z. B. v=v0+a*t), oder entferne das \"=\", um ihn unbenannt zu lassen.",
     saveFailed: "Speichern fehlgeschlagen. Bitte erneut versuchen.",
     noStepsError: "Dieses Rechenheft braucht mindestens einen Schritt.",
-    insertConstant: "Einfügen", insertUnit: "Einheit einfügen",
+    insertConstant: "Einfügen", insertUnit: "Einheit einfügen", significantDigits: "{count} sign. Stellen",
     back: "Zurück",
     switchTitle: "Nicht gespeicherte Änderungen",
     switchMessage: "Dieses Rechenheft hat Werte, die du nicht gespeichert hast. Beim Wechseln gehen sie verloren.",
@@ -126,7 +126,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     invalidStepName: "Saisissez chaque étape sous la forme nom=expression (par exemple v=v0+a*t), ou retirez le \"=\" pour la laisser sans nom.",
     saveFailed: "Impossible d'enregistrer. Veuillez réessayer.",
     noStepsError: "Ce carnet nécessite au moins une étape.",
-    insertConstant: "Insérer", insertUnit: "Insérer une unité",
+    insertConstant: "Insérer", insertUnit: "Insérer une unité", significantDigits: "{count} chiffres sig.",
     back: "Retour",
     switchTitle: "Modifications non enregistrées",
     switchMessage: "Ce carnet contient des valeurs non enregistrées. Changer de carnet les abandonne.",
@@ -716,7 +716,11 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
               // 表示単位の上書き・次元不一致時のSI表記へのフォールバック・単位ラベルの見栄え差し替えは
               // lib/notebook-export-model.ts の resolveNotebookStepDisplay に一本化してある
               // （PDFエクスポートと画面がこの判断を別々に実装すると表示がズレるため）。
-              const { value: displayValue, error: displayError } = resolveNotebookStepDisplay(result, overrideUnit, unitSystem, locale);
+              // 有効数字はノートの既定（利用者からの要望）。桁は手順の式ではなくローカル定数まで
+              // 辿って数える——手順の式は `V*I*cos(φ)` のように識別子だけで、リテラルが1つも無い。
+              const stepDigits = notebookStepSignificantDigits(result.step, editableConstants, stepResults.slice(0, index));
+              const { value: displayValue, rawValue: displayRawValue, significantDigits: displayDigits, error: displayError } =
+                resolveNotebookStepDisplay(result, overrideUnit, unitSystem, locale, stepDigits);
               const stepRailKey = stepFieldKey(result.step.id);
               return (
                 <View key={result.step.id} style={[styles.resultCard, isFinalStep && result.quantity ? styles.resultCardFinal : null]}>
@@ -764,6 +768,15 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                   ) : (
                     <>
                       <Text numberOfLines={2} adjustsFontSizeToFit style={styles.resultValue}>{displayValue}</Text>
+                      {/* 丸めたときは丸める前の値と桁数を小さく併記する（電卓の結果カードと同じ）。
+                          主表示だけだと「なぜこの桁なのか」が分からず、精度を落として見せている
+                          ことにも気付けない。 */}
+                      {displayRawValue ? (
+                        <Text style={styles.resultRawValue}>
+                          {displayRawValue}
+                          {displayDigits !== undefined ? ` · ${copy.significantDigits.replace("{count}", String(displayDigits))}` : ""}
+                        </Text>
+                      ) : null}
                       {displayError ? <Text style={styles.resultWarning}>{displayError}</Text> : null}
                     </>
                   )}
@@ -879,6 +892,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   resultTitle: { color: colors.foreground, fontSize: 13, fontWeight: "800" },
   copyButton: { alignItems: "center", height: 26, justifyContent: "center", width: 30 },
   resultValue: { color: colors.primaryStrong, fontFamily: mono, fontSize: 24, fontWeight: "700", marginTop: 4 },
+  resultRawValue: { color: colors.muted, fontFamily: mono, fontSize: 11, fontWeight: "600", marginTop: 1 },
   // 手順の式欄。以前は12pxの文字に下線だけで、入力欄と分からないうえ**当たり判定も文字の高さ
   // （約20px）しか無く**、行の余白をタップしても何も起きなかった（実機で「薄い文字を狙って押すと
   // やっと入力できた」と報告された）。定数欄と同じ枠付き・高さ42の箱にして、行全体を押せる欄にする。

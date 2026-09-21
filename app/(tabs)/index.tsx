@@ -32,7 +32,7 @@ import { PREFIX_KEYS, type KeyboardTool } from "@/lib/expression-keyboard";
 import { toHalfWidthAscii } from "@/lib/fullwidth-input";
 import { buildCaretPreview, normalizeSelection } from "@/lib/expression-caret";
 import { findExactValue, isTerminatingDecimalFraction } from "@/lib/exact-value";
-import { inferSignificantDigits, significantDigitsAfterConversion, toScientificNotation } from "@/lib/significant-figures";
+import { inferSignificantDigits, significantDigitsAfterConversion, toScientificNotation, toSignificantDecimal } from "@/lib/significant-figures";
 import { useCalculatorStore } from "@/lib/calculator-store";
 import { diagnoseCalculatorInput, evaluateCalculatorInput, isDiagnosableInputError } from "@/lib/calculator-input";
 import { resolveDisplayUnit } from "@/lib/display-unit";
@@ -85,7 +85,9 @@ import { convertQuantity, formatDimension, formatNumberForLocale, formatQuantity
 // カーソルは数字キーの外の別クラスタなので、ここへ入れて5段に戻す方が不自然になる。
 // 結果の見せ方。小数を先頭にする（分数・π や科学表記で出せる値の方が少ないため、既定は常に小数）。
 // exact・scientific は出せるときだけチップを並べる（押しても何も変わらないボタンを作らない）。
-const VALUE_FORMS = ["decimal", "exact", "scientific"] as const;
+// 結果の値の読み方。significant（有効数字で丸めた小数）は decimal と別物で、`0.9` に対して
+// `0.90` のように**末尾の0を保った**桁を出す。scientific は 10のべきへ直した形。
+const VALUE_FORMS = ["decimal", "significant", "exact", "scientific"] as const;
 type ValueForm = (typeof VALUE_FORMS)[number];
 // 科学表記のチップは記号そのものを出す（10ⁿ は言語に依らず読める表記で、独語の
 // "Wissenschaftlich" のような長い語だとチップ列が1行に収まらない）。読み上げ用のラベルだけ
@@ -303,7 +305,7 @@ const EN_COPY = {
   compareUnits: "Compare units",
   compareUnitsHint: "Tap a row to show the result in that unit.",
   baseInput: "Base input",
-  decimalForm: "Decimal", exactForm: "Exact", scientificForm: "Scientific notation",
+  decimalForm: "Decimal", significantForm: "Significant figures", significantFormShort: "Sig. fig.", exactForm: "Exact", scientificForm: "Scientific notation",
   significantDigits: (count: number) => `${count} s.f.`,
   sampleConfirmTitle: "Load an example?",
   sampleConfirmMessage: "The expression you have typed will be replaced.",
@@ -344,7 +346,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     compareUnits: "単位を比較",
     compareUnitsHint: "行をタップするとその単位で表示します。",
     baseInput: "進数入力",
-    decimalForm: "小数", exactForm: "分数・π", scientificForm: "科学表記",
+    decimalForm: "小数", significantForm: "有効数字", significantFormShort: "有効数字", exactForm: "分数・π", scientificForm: "科学表記",
     significantDigits: (count: number) => `有効${count}桁`,
     sampleConfirmTitle: "サンプルを読み込みますか？",
     sampleConfirmMessage: "入力中の式は置き換えられます。",
@@ -383,7 +385,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     compareUnits: "Comparar unidades",
     compareUnitsHint: "Toca una fila para mostrar el resultado en esa unidad.",
     baseInput: "Introducir en otra base",
-    decimalForm: "Decimal", exactForm: "Exacto", scientificForm: "Notación científica",
+    decimalForm: "Decimal", significantForm: "Cifras significativas", significantFormShort: "Cifras sig.", exactForm: "Exacto", scientificForm: "Notación científica",
     significantDigits: (count: number) => `${count} c.s.`,
     sampleConfirmTitle: "¿Cargar un ejemplo?",
     sampleConfirmMessage: "Se reemplazará la expresión que has escrito.",
@@ -422,7 +424,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     compareUnits: "Comparar unidades",
     compareUnitsHint: "Toque em uma linha para exibir o resultado nessa unidade.",
     baseInput: "Inserir em outra base",
-    decimalForm: "Decimal", exactForm: "Exato", scientificForm: "Notação científica",
+    decimalForm: "Decimal", significantForm: "Algarismos significativos", significantFormShort: "Alg. sig.", exactForm: "Exato", scientificForm: "Notação científica",
     significantDigits: (count: number) => `${count} a.s.`,
     sampleConfirmTitle: "Carregar um exemplo?",
     sampleConfirmMessage: "A expressão que você digitou será substituída.",
@@ -461,7 +463,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     compareUnits: "Einheiten vergleichen",
     compareUnitsHint: "Tippe auf eine Zeile, um das Ergebnis in dieser Einheit anzuzeigen.",
     baseInput: "Eingabe im Zahlensystem",
-    decimalForm: "Dezimal", exactForm: "Exakt", scientificForm: "Wissenschaftliche Notation",
+    decimalForm: "Dezimal", significantForm: "Signifikante Stellen", significantFormShort: "Sig. Stellen", exactForm: "Exakt", scientificForm: "Wissenschaftliche Notation",
     significantDigits: (count: number) => `${count} gelt. Ziffern`,
     sampleConfirmTitle: "Beispiel laden?",
     sampleConfirmMessage: "Der eingegebene Ausdruck wird ersetzt.",
@@ -500,7 +502,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     compareUnits: "Comparer les unités",
     compareUnitsHint: "Touchez une ligne pour afficher le résultat dans cette unité.",
     baseInput: "Saisie dans une base",
-    decimalForm: "Décimal", exactForm: "Exact", scientificForm: "Notation scientifique",
+    decimalForm: "Décimal", significantForm: "Chiffres significatifs", significantFormShort: "Chiffres sig.", exactForm: "Exact", scientificForm: "Notation scientifique",
     significantDigits: (count: number) => `${count} c.s.`,
     sampleConfirmTitle: "Charger un exemple ?",
     sampleConfirmMessage: "L'expression que vous avez saisie sera remplacée.",
@@ -988,34 +990,54 @@ export default function CalculatorScreen() {
   // (2) 桁が大きい・小さいとき（10³以上か10⁻³未満）。5.1 のような値に小数と同じ表記の
   // 選択肢を並べても読み替えになっていない（指数0では倍率の因子を書かないので、
   // 丸めが起きていなければ小数と一字一句同じものが出る）。
+  // 表示単位へ換算したあとにまだ主張してよい桁数。オフセットを持つ単位（°C・°F）への換算を
+  // 挟むと桁では追えなくなるので null に落ちる（significantDigitsAfterConversion）。
+  // SI表記へフォールバックしているときは換算が挟まらないので空文字を渡す。
+  const displaySignificantDigits = useMemo(
+    () => (display ? significantDigitsAfterConversion(inferredSignificantDigits, display.isFallback ? "" : displayUnit) : null),
+    [display, displayUnit, inferredSignificantDigits],
+  );
+
+  // 有効数字で丸めた小数（`0.90`）。10のべきへは直さないので、小数表示から切り替えても
+  // 桁の位置がそのまま読める。何も変わらない（丸めても同じ文字列）ときは null が返る。
+  const significantValue = useMemo(
+    () => (display && baseInputMode === null ? toSignificantDecimal(display.numeric, { significantDigits: displaySignificantDigits, locale }) : null),
+    [baseInputMode, display, displaySignificantDigits, locale],
+  );
+
   const scientificValue = useMemo(() => {
     if (!display || baseInputMode !== null) return null;
-    // display.numeric は表示単位へ換算済みの値。オフセットを持つ単位（°C・°F）への換算を
-    // 挟んだ場合は有効数字を持ち越せないので桁数を落とす（significantDigitsAfterConversion）。
-    // SI表記へフォールバックしているときは換算が挟まらないので空文字を渡す。
-    const significantDigits = significantDigitsAfterConversion(inferredSignificantDigits, display.isFallback ? "" : displayUnit);
-    const notation = toScientificNotation(display.numeric, { significantDigits, locale });
+    const notation = toScientificNotation(display.numeric, { significantDigits: displaySignificantDigits, locale });
     if (!notation) return null;
-    const worthShowing = notation.roundedFrom !== null || notation.exponent >= 3 || notation.exponent <= -3;
-    return worthShowing ? notation : null;
-  }, [baseInputMode, display, displayUnit, inferredSignificantDigits, locale]);
+    // **指数が0なら出さない。** そのとき科学表記は倍率の因子を書かないので、有効数字の
+    // チップ（上）や小数と一字一句同じものになり、押しても何も変わらないチップが並ぶ。
+    return notation.exponent === 0 ? null : notation;
+  }, [baseInputMode, display, displaySignificantDigits, locale]);
 
   // 並べるチップ。小数は常に、それ以外はその形で出せるときだけ。stateが出せない形を
   // 指していても表示側で小数へ戻る（exactValueと同じ扱い）ので、stateは消しに行かない。
   const availableValueForms = useMemo(
-    () => VALUE_FORMS.filter((form) => form === "decimal" || (form === "exact" ? Boolean(exactValue) : Boolean(scientificValue))),
-    [exactValue, scientificValue],
+    () => VALUE_FORMS.filter((form) => form === "decimal"
+      || (form === "significant" ? Boolean(significantValue) : form === "exact" ? Boolean(exactValue) : Boolean(scientificValue))),
+    [exactValue, scientificValue, significantValue],
   );
 
   // コピーには画面に出ているものと同じ表記を渡す。厳密値に切り替えているのに小数がコピーされると、
   // 画面と手元のメモが食い違う。
+  // 丸めた形（有効数字・科学表記）は text / significantDigits / roundedFrom の3つを同じ意味で
+  // 持つので、描画をひとまとめにする。厳密値（分数・√）だけはKaTeXが要るので別。
+  const roundedValue: { text: string; significantDigits: number | null; roundedFrom: string | null } | null =
+    valueForm === "scientific" ? scientificValue : valueForm === "significant" ? significantValue : null;
+
   const shownValueText = !display
     ? ""
     : valueForm === "exact" && exactValue
       ? `${exactValue.text}${display.unitLabel ? ` ${display.unitLabel}` : ""}`
       : valueForm === "scientific" && scientificValue
         ? `${scientificValue.text}${display.unitLabel ? ` ${display.unitLabel}` : ""}`
-        : display.value;
+        : valueForm === "significant" && significantValue
+          ? `${significantValue.text}${display.unitLabel ? ` ${display.unitLabel}` : ""}`
+          : display.value;
 
   const rememberUnit = (symbol: string) => {
     const trimmed = symbol.trim();
@@ -1210,7 +1232,11 @@ export default function CalculatorScreen() {
   // トグルにしない（英字パネルで `mm` と打つ2文字目が取り消しになる、という事故を防ぐ）。
   const pressKey = (key: string, literal = false) => {
     markUserInteraction();
-    if (key === "=") {
+    // **`literal` のときの `=` は計算ではなく文字の挿入。** `ABC` パネルの `=` は
+    // 定数の定義（`W = 3cm`）を書くためのキーで、押すと確定してしまっては使いようが無い
+    // （実機で指摘された）。キーパッド本体に `=` は無く、確定は入力欄の右のボタンと
+    // OSキーボードの改行（submitCalculation）が担う。
+    if (key === "=" && !literal) {
       submitCalculation();
       return;
     }
@@ -1651,7 +1677,7 @@ export default function CalculatorScreen() {
   // 押しても何も変わらないボタンが並ぶことになる）。進数チップと同じ位置に置くが、色は
   // 単位まわりと同じprimary系にして「値そのものの読み替え」と「桁の読み替え」を見分けられる
   // ようにしている。
-  const valueFormLabel = (form: ValueForm) => (form === "decimal" ? copy.decimalForm : form === "exact" ? copy.exactForm : copy.scientificForm);
+  const valueFormLabel = (form: ValueForm) => (form === "decimal" ? copy.decimalForm : form === "significant" ? copy.significantForm : form === "exact" ? copy.exactForm : copy.scientificForm);
   const valueFormRow = availableValueForms.length > 1 ? (
     <View style={styles.baseChipRow}>
       {availableValueForms.map((form) => (
@@ -1662,7 +1688,7 @@ export default function CalculatorScreen() {
           style={({ pressed }) => [styles.valueFormChip, valueForm === form && styles.valueFormChipActive, pressed && styles.pressed]}
         >
           <Text style={[styles.valueFormChipText, valueForm === form && styles.valueFormChipTextActive]}>
-            {form === "scientific" ? SCIENTIFIC_FORM_LABEL : valueFormLabel(form)}
+            {form === "scientific" ? SCIENTIFIC_FORM_LABEL : form === "significant" ? copy.significantFormShort : valueFormLabel(form)}
           </Text>
         </Pressable>
       ))}
@@ -2049,29 +2075,23 @@ export default function CalculatorScreen() {
                         <Text style={[styles.exactValueUnit, isStackedExactValue ? styles.exactValueUnitStacked : null]}>{display.unitLabel}</Text>
                       ) : null}
                     </View>
-                  ) : valueForm === "scientific" && scientificValue ? (
-                    // 科学表記も厳密値と同じくKaTeXで描く（10ⁿ の指数を上付きで組み、丸めた
-                    // ときは先頭に ≈ が付く。どちらも文字の並びでは表現しきれない）。
+                  ) : roundedValue ? (
+                    // **有効数字・科学表記はKaTeXで描かない。** 上付き数字はUnicodeにあるので
+                    // 小数表示とまったく同じ Text（等幅700・36px）で出せる。以前はLaTeXで
+                    // 組んでいて、チップを押した瞬間に字体と大きさが変わって見えた（実機で指摘された）。
+                    // 分数・根号（厳密値）は文字の並びで表せないので、そちらだけKaTeXのまま。
                     <>
-                      <View style={styles.exactValueRow}>
-                        <LatexView
-                          latex={resultLatex(scientificValue.latex)}
-                          color={colors.primaryStrong}
-                          fontSize={RESULT_VALUE_FONT_SIZE / KATEX_EM_SCALE}
-                          displayMode={false}
-                          fitContent
-                          mathsfFontFamily={mono}
-                          mathsfFontWeight={700}
-                        />
-                        {display.unitLabel ? <Text style={styles.exactValueUnit}>{display.unitLabel}</Text> : null}
-                      </View>
-                      {scientificValue.roundedFrom ? (
-                        // 丸めたことが分かるように、丸める前の値を小さく併記する。桁数も添えて
-                        // 「なぜその桁で丸まったか」（式の中でいちばん桁の少ないリテラル）まで読めるようにする。
+                      <Animated.Text numberOfLines={2} adjustsFontSizeToFit style={[styles.resultValue, resultAnimatedStyle]}>
+                        {roundedValue.text}
+                        {display.unitLabel ? ` ${display.unitLabel}` : ""}
+                      </Animated.Text>
+                      {/* 丸める前の値と桁数を小さく併記する。桁が落ちていなくても桁数だけは出す
+                          （`0.90` の末尾の0が「2桁である」という主張だと分かるようにするため）。 */}
+                      {roundedValue.roundedFrom || roundedValue.significantDigits !== null ? (
                         <Text style={styles.roundedFromText}>
-                          {scientificValue.roundedFrom}
-                          {display.unitLabel ? ` ${display.unitLabel}` : ""}
-                          {scientificValue.significantDigits !== null ? ` · ${copy.significantDigits(scientificValue.significantDigits)}` : ""}
+                          {roundedValue.roundedFrom ? `${roundedValue.roundedFrom}${display.unitLabel ? ` ${display.unitLabel}` : ""}` : ""}
+                          {roundedValue.roundedFrom && roundedValue.significantDigits !== null ? " · " : ""}
+                          {roundedValue.significantDigits !== null ? copy.significantDigits(roundedValue.significantDigits) : ""}
                         </Text>
                       ) : null}
                     </>

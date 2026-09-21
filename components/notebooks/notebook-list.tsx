@@ -8,6 +8,7 @@ import { useColors } from "@/hooks/use-colors";
 import { type CalculationNotebook } from "@/lib/calculator-store";
 import { type AppLanguage } from "@/lib/i18n";
 import { evaluateNotebookSteps, resolveNotebookLocalConstants } from "@/lib/notebook-engine";
+import { notebookStepSignificantDigits, roundedValueFor } from "@/lib/notebook-export-model";
 import { formatQuantity, type SavedConstant } from "@/lib/units";
 
 type Props = {
@@ -91,8 +92,18 @@ export function NotebookList({ language, locale, categoryLabel, notebooks, globa
       const { resolved } = resolveNotebookLocalConstants(notebook.localConstants, globalConstants, language);
       const pool = [...globalConstants, ...resolved];
       const results = evaluateNotebookSteps(notebook.steps, pool, language, [], locale);
-      const finalResult = [...results].reverse().find((result) => result.quantity);
-      map.set(notebook.id, finalResult?.quantity ? (finalResult.formatted ?? formatQuantity(finalResult.quantity, undefined, locale)) : "");
+      const finalIndex = results.map((result) => Boolean(result.quantity)).lastIndexOf(true);
+      const finalResult = finalIndex < 0 ? undefined : results[finalIndex];
+      if (!finalResult?.quantity) {
+        map.set(notebook.id, "");
+        return;
+      }
+      const value = finalResult.formatted ?? formatQuantity(finalResult.quantity, undefined, locale);
+      // ノートの結果は有効数字で丸めたものが既定（詳細画面・PDFと同じ判断を通す）。
+      // ここだけ素の値を出すと、カードで 3.5 h・開くと ≈ 4 h という食い違いになる。
+      const digits = notebookStepSignificantDigits(finalResult.step, notebook.localConstants, results.slice(0, finalIndex));
+      const rounded = roundedValueFor(finalResult, value, finalResult.step.targetUnit.trim(), digits, locale);
+      map.set(notebook.id, rounded?.value ?? value);
     });
     return map;
   }, [globalConstants, language, locale, notebooks]);

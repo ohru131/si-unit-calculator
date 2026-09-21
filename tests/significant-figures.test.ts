@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { inferSignificantDigits, significantDigitsAfterConversion, significantDigitsOfLiteral, toScientificNotation } from "../lib/significant-figures";
+import { inferSignificantDigits, significantDigitsAfterConversion, significantDigitsOfLiteral, toScientificNotation, toSignificantDecimal } from "../lib/significant-figures";
 import { convertQuantity, evaluateExpression } from "../lib/units";
 
 const digitsOf = (expression: string) => inferSignificantDigits(expression);
@@ -118,33 +118,30 @@ describe("科学表記の組み立て", () => {
     expect(result?.text.startsWith("≈")).toBe(false);
   });
 
-  // `× 10⁰` は表記として誰も書かない。表示単位の自動選択が値を1〜1000に収めるので
+  // `×10⁰` は表記として誰も書かない。表示単位の自動選択が値を1〜1000に収めるので
   // 単位付きの結果では指数0が最も多く、そのたびに付くと丸めた値を読む邪魔になる。
   it("指数が0のときは倍率の因子を書かない", () => {
     const result = toScientificNotation(2.5531914893617023, { significantDigits: 2, locale: "en-US" });
     expect(result?.exponent).toBe(0);
     expect(result?.text).toBe("≈ 2.6");
-    expect(result?.latex).toBe("\\approx 2.6");
   });
 
   it("指数が0以外のときは従来どおり倍率を書く", () => {
     const result = toScientificNotation(2500, { significantDigits: 2, locale: "en-US" });
     expect(result?.exponent).toBe(3);
-    expect(result?.text).toBe("2.5 × 10³");
-    expect(result?.latex).toBe("2.5 \\times 10^{3}");
+    expect(result?.text).toBe("2.5×10³");
   });
 
   it("負の指数と負の値", () => {
-    expect(toScientificNotation(0.0023, { significantDigits: 2, locale: "en-US" })?.text).toBe("2.3 × 10⁻³");
+    expect(toScientificNotation(0.0023, { significantDigits: 2, locale: "en-US" })?.text).toBe("2.3×10⁻³");
     expect(toScientificNotation(-19.6, { significantDigits: 1, locale: "en-US" })?.mantissa).toBe("-2");
   });
 
-  // 小数点がカンマのロケールでは、LaTeXの数式モードで `,` の後に空白が入って
-  // 「2, 6」に見えるため括弧で括る。
-  it("小数点がカンマのロケールではLaTeX側で括る", () => {
+  // 表示はKaTeXではなくUnicodeの上付き数字。小数表示と同じ Text で描くための形。
+  it("小数点がカンマのロケールでもそのまま出す", () => {
     const result = toScientificNotation(2.6, { significantDigits: 2, locale: "de-DE" });
     expect(result?.mantissa).toBe("2,6");
-    expect(result?.latex).toBe("2{,}6");
+    expect(result?.text).toBe("2,6");
   });
 
   it("0と非有限値は表記しない", () => {
@@ -159,7 +156,7 @@ describe("実際の式を通した値（エンジン込み）", () => {
     const expression = "12V / 4.7kΩ";
     const value = evaluateExpression(expression, []).siValue;
     const result = toScientificNotation(value, { significantDigits: inferSignificantDigits(expression), locale: "en-US" });
-    expect(result?.text).toBe("≈ 2.6 × 10⁻³");
+    expect(result?.text).toBe("≈ 2.6×10⁻³");
     expect(result?.roundedFrom).toBe("0.002553191489");
   });
 
@@ -167,7 +164,7 @@ describe("実際の式を通した値（エンジン込み）", () => {
     const expression = "2kg × 9.8m/s²";
     const value = evaluateExpression(expression, []).siValue;
     const result = toScientificNotation(value, { significantDigits: inferSignificantDigits(expression), locale: "en-US" });
-    expect(result?.text).toBe("≈ 2 × 10¹");
+    expect(result?.text).toBe("≈ 2×10¹");
     expect(result?.roundedFrom).toBe("19.6");
   });
 
@@ -176,7 +173,7 @@ describe("実際の式を通した値（エンジン込み）", () => {
     const value = evaluateExpression(expression, []).siValue;
     expect(value).toBe(6e8);
     const result = toScientificNotation(value, { significantDigits: inferSignificantDigits(expression), locale: "en-US" });
-    expect(result?.text).toBe("6 × 10⁸");
+    expect(result?.text).toBe("6×10⁸");
     expect(result?.roundedFrom).toBeNull();
   });
 });
@@ -238,5 +235,75 @@ describe("階乗の桁", () => {
     expect(inferSignificantDigits("(2.5)!*1.75")).toBe(3);
     // 階乗ではない括弧の中は従来どおり数える。
     expect(inferSignificantDigits("(4.70)*1.2345")).toBe(3);
+  });
+});
+
+describe("有効数字付きの小数", () => {
+  it("末尾の0を保つ（0.9 を2桁で読むと 0.90）", () => {
+    const result = toSignificantDecimal(0.9, { significantDigits: 2, locale: "en-US" });
+    expect(result?.text).toBe("0.90");
+    // 値そのものは変わっていないので近似記号も併記も出さない。
+    expect(result?.roundedFrom).toBeNull();
+  });
+
+  it("桁が落ちるときは近似記号と丸める前の値を付ける", () => {
+    const result = toSignificantDecimal(2.5531914893617023, { significantDigits: 2, locale: "en-US" });
+    expect(result?.text).toBe("≈ 2.6");
+    expect(result?.roundedFrom).toBe("2.553191489");
+  });
+
+  // 10のべきへは直さない（科学表記との違い）。0.0023 は 2.3×10⁻³ ではなく 0.0023 のまま。
+  it("小数点の位置は動かさない", () => {
+    expect(toSignificantDecimal(0.0023456, { significantDigits: 2, locale: "en-US" })?.text).toBe("≈ 0.0023");
+    expect(toSignificantDecimal(19.6, { significantDigits: 1, locale: "en-US" })?.text).toBe("≈ 20");
+  });
+
+  it("丸めた結果が小数表示と同じ文字列なら出さない（押しても何も変わらないチップを作らない）", () => {
+    expect(toSignificantDecimal(2.5, { significantDigits: 2, locale: "en-US" })).toBeNull();
+  });
+
+  it("桁数が読めないとき・0・非有限値は出さない", () => {
+    expect(toSignificantDecimal(1.23, { locale: "en-US" })).toBeNull();
+    expect(toSignificantDecimal(0, { significantDigits: 2, locale: "en-US" })).toBeNull();
+    expect(toSignificantDecimal(Number.NaN, { significantDigits: 2, locale: "en-US" })).toBeNull();
+  });
+
+  it("丸めで桁が繰り上がっても小数点以下の桁数がずれない", () => {
+    // 999.9 を3桁 → 1000。指数が2から3へ繰り上がるので、小数点以下は0桁になる。
+    expect(toSignificantDecimal(999.9, { significantDigits: 3, locale: "en-US" })?.text).toBe("≈ 1000");
+  });
+
+  it("ロケールの小数点に従う", () => {
+    expect(toSignificantDecimal(0.9, { significantDigits: 2, locale: "de-DE" })?.text).toBe("0,90");
+  });
+});
+
+describe("参照している定数まで辿って桁を数える（計算ノート用）", () => {
+  const sources: Record<string, string> = { V: "100V", I: "5A", "φ": "acos(0.8)", P: "V*I*cos(φ)" };
+  const resolveIdentifier = (symbol: string) => sources[symbol];
+
+  it("リテラルが1つも無い式でも、参照先の定数から桁が読める", () => {
+    // 手順の式は識別子だけ。辿らなければ null にしかならない。
+    expect(inferSignificantDigits("V*I*cos(φ)")).toBeNull();
+    expect(inferSignificantDigits("V*I*cos(φ)", { resolveIdentifier })).toBe(1);
+  });
+
+  it("先行手順の記号を辿って元の入力値の桁に行き着く", () => {
+    expect(inferSignificantDigits("P/2", { resolveIdentifier })).toBe(1);
+  });
+
+  it("関数名や解決できない名前は数えない", () => {
+    expect(inferSignificantDigits("cos(0.80)", { resolveIdentifier })).toBe(2);
+    expect(inferSignificantDigits("unknown*1.25", { resolveIdentifier })).toBe(3);
+  });
+
+  it("参照先が加減算の混ざる式なら、この式でも桁を主張しない", () => {
+    const mixed = (symbol: string) => (symbol === "x" ? "1.5m + 20cm" : undefined);
+    expect(inferSignificantDigits("x*2.5", { resolveIdentifier: mixed })).toBeNull();
+  });
+
+  it("循環参照でも止まる", () => {
+    const loop = (symbol: string) => (symbol === "a" ? "b*1.25" : symbol === "b" ? "a*2.5" : undefined);
+    expect(inferSignificantDigits("a", { resolveIdentifier: loop })).toBe(2);
   });
 });
