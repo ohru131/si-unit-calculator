@@ -4,7 +4,7 @@
 各PRは `## [Unreleased]` に1行足す。リリース時にその塊を `## [x.y.z] - YYYY-MM-DD` に改名し、同じコミットに `vx.y.z` の注釈付きタグを打つ。
 Play の「このバージョンの新機能」はここから写す。
 
-## [Unreleased]
+## [1.5.0] - 2026-09-22
 
 ### 変更
 - **アプリを更新したときに、プリセットの計算ノートの修正が届くようにした。** 利用者が書き換えた値はそのまま残り、書き換えていない値だけが新しい内容に差し替わる（これまでは「プリセットを初期状態に戻す」しか手が無く、その操作は編集を全部捨てていた）。あわせて、投入済みのノートに残っていた `Ohm` の綴りを `Ω` へ揃えた（同じ単位の別綴りなので値は変わらない）。
@@ -74,7 +74,10 @@ Play の「このバージョンの新機能」はここから写す。
 
 Google Play クローズドテストに提出した最初のビルド（Shipaton 2026）。
 
-[Unreleased]: https://github.com/ohru131/si-unit-calculator/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/ohru131/si-unit-calculator/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/ohru131/si-unit-calculator/compare/v1.4.0...v1.5.0
+[1.4.0]: https://github.com/ohru131/si-unit-calculator/compare/v1.3.0...v1.4.0
+[1.3.0]: https://github.com/ohru131/si-unit-calculator/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/ohru131/si-unit-calculator/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/ohru131/si-unit-calculator/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/ohru131/si-unit-calculator/releases/tag/v1.0.0
