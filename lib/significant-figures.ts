@@ -331,9 +331,14 @@ export function toScientificNotation(
   const mantissa = `${sign}${separator === "." ? rawMantissa : rawMantissa.replace(".", separator)}`;
   // 併記する「丸める前の値」は小数モードに出るものと同じ整形を通す（別の整形にすると、
   // 切り替えたときに末尾の桁が食い違って「どちらが本当の値か」が分からなくなる）。
-  // 丸めたかどうかは「丸めた値が元の値と一致するか」で見る。桁数を指定していても
-  // 2.5 を2桁で出すような場合は何も失われていないので、併記も ≈ も出さない。
-  const roundedFrom = digits !== null && Number(exponential) !== value ? formatNumberForLocale(value, options.locale) : null;
+  // 丸めたかどうかは**表示される値どうし**で見る（`toSignificantDecimal` と同じ理由）。
+  // ここを素の `value` と比べると倍精度の誤差だけで真になり、`0.8000000000000002` を
+  // 2桁で出したときに「元の値 0.8」という何も失われていない併記が付く。2.5 を2桁で
+  // 出すような「そもそも桁が落ちない」場合に出さないのは従来どおり。
+  const roundedFrom =
+    digits !== null && Number(value.toPrecision(MAX_MANTISSA_DIGITS)) !== Number(exponential)
+      ? formatNumberForLocale(value, options.locale)
+      : null;
   const approximate = roundedFrom !== null;
   // **指数が0のときは `×10⁰` を書かない。** 表記として誰も書かない形なうえ、表示単位の
   // 自動選択が値を1〜1000に収めるので単位付きの結果では指数0が最も多い。
@@ -386,7 +391,13 @@ export function toSignificantDecimal(
   // 1文字も変わらない。数値だけを比べると「≈ 70（元の値 70）」という無意味な併記になる
   // （プリセットの「速さ v」で実際に出た）。
   if (localized === plain) return null;
-  const changed = rounded !== value;
+  // **「桁が落ちたか」も表示される値どうしで比べる。** ここを `rounded !== value` にすると、
+  // 倍精度の誤差だけで真になる（`40g ÷ 50cm³` は 0.8000000000000002 に落ちるので、2桁の
+  // `0.80` に対して「元の値 0.8」という**何も失われていない併記**が出ていた）。小数表示は
+  // 有効10桁で頭打ちなので、その桁まで丸めた値と突き合わせれば「画面で読める範囲で変わったか」
+  // が分かる。上の localized === plain は文字列が1文字も変わらない場合、こちらは
+  // 末尾に0が増えただけの場合を弾く。
+  const changed = Number(value.toPrecision(MAX_MANTISSA_DIGITS)) !== rounded;
   return { text: `${changed ? "≈ " : ""}${localized}`, significantDigits: digits, roundedFrom: changed ? plain : null };
 }
 

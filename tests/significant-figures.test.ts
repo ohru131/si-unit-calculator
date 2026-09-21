@@ -106,6 +106,17 @@ describe("科学表記の組み立て", () => {
     expect(result?.roundedFrom).toBeNull();
   });
 
+  it("末尾に0が増えただけなら ≈ も元の値も付けない（倍精度の誤差で桁が落ちたことにしない）", () => {
+    // 小数表示（toSignificantDecimal）と同じ穴。素の値と比べると 0.8000000000000002 が
+    // 「2桁の 0.80 とは違う値」に見え、何も失われていないのに併記が出る。
+    expect(toScientificNotation(0.8000000000000002, { significantDigits: 2, locale: "en-US" })?.roundedFrom).toBeNull();
+    expect(toScientificNotation(0.8000000000000002, { significantDigits: 2, locale: "en-US" })?.text).toBe("8.0×10⁻¹");
+    // 実際に桁が落ちるときは従来どおり ≈ と元の値を出す。
+    const rounded = toScientificNotation(25.2, { significantDigits: 2, locale: "en-US" });
+    expect(rounded?.text).toBe("≈ 2.5×10¹");
+    expect(rounded?.roundedFrom).toBe("25.2");
+  });
+
   // 末尾の0は有効数字の情報そのものなので落とさない（2.50×10³ は3桁を意味する）。
   it("有効数字ぶんの末尾の0を保つ", () => {
     expect(toScientificNotation(2500, { significantDigits: 3, locale: "en-US" })?.mantissa).toBe("2.50");
@@ -252,6 +263,17 @@ describe("階乗の桁", () => {
 });
 
 describe("有効数字付きの小数", () => {
+  it("末尾に0が増えただけなら ≈ も元の値も付けない（倍精度の誤差で桁が落ちたことにしない）", () => {
+    // `40g ÷ 50cm³` は倍精度で 0.8000000000000002 に落ちる。数値そのままで比べると
+    // 「2桁に丸めた 0.80」と「元の値 0.8」が別物に見え、何も失われていないのに
+    // `≈ 0.80（元の値 0.8）` という併記が出ていた（プリセットの密度ノートで実際に出た）。
+    expect(toSignificantDecimal(0.8000000000000002, { significantDigits: 2, locale: "en-US" }))
+      .toEqual({ text: "0.80", significantDigits: 2, roundedFrom: null });
+    // 実際に桁が落ちるときは従来どおり ≈ と元の値を出す。
+    expect(toSignificantDecimal(25.2, { significantDigits: 2, locale: "en-US" }))
+      .toEqual({ text: "≈ 25", significantDigits: 2, roundedFrom: "25.2" });
+  });
+
   it("末尾の0を保つ（0.9 を2桁で読むと 0.90）", () => {
     const result = toSignificantDecimal(0.9, { significantDigits: 2, locale: "en-US" });
     expect(result?.text).toBe("0.90");

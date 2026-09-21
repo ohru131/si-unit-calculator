@@ -84,6 +84,8 @@ export const ENG_STRESS_SEEDS: NotebookSeed[] = [
       { symbol: "A", expression: "pi*d^2/4" },
     ],
     steps: [
+      // 断面積Aは τ の式に出てくるのに、定数の中でしか定義されていなかった。
+      { title: { en: "Pin cross-section A", ja: "ピンの断面積 A", es: "Sección del pasador A", "pt-BR": "Seção do pino A", de: "Querschnittsfläche des Bolzens A", fr: "Section de l'axe A" }, expression: "A", targetUnit: "mm^2", formulaLatex: "A = \\dfrac{\\pi d^2}{4}" },
       { title: { en: "Shear stress in double shear τ", ja: "二面せん断のせん断応力 τ", es: "Esfuerzo cortante a doble cortadura τ", "pt-BR": "Tensão de cisalhamento em corte duplo τ", de: "Schubspannung bei zweischnittiger Scherung τ", fr: "Contrainte de cisaillement en double cisaillement τ" }, expression: "F/(2*A)", targetUnit: "MPa", formulaLatex: "\\tau = \\dfrac{F}{2A}" },
       { title: { en: "Bearing stress σ_b", ja: "支圧応力 σ_b", es: "Esfuerzo de aplastamiento σ_b", "pt-BR": "Tensão de esmagamento σ_b", de: "Lochleibungsspannung σ_b", fr: "Pression diamétrale σ_b" }, expression: "F/(d*t)", targetUnit: "MPa", formulaLatex: "\\sigma_b = \\dfrac{F}{dt}" },
     ],
@@ -92,17 +94,21 @@ export const ENG_STRESS_SEEDS: NotebookSeed[] = [
     title: { en: "Principal stresses & maximum shear (Mohr's circle)", ja: "主応力と最大せん断応力（モールの円）", es: "Esfuerzos principales y cortante máximo (círculo de Mohr)", "pt-BR": "Tensões principais e cisalhamento máximo (círculo de Mohr)", de: "Hauptspannungen und maximale Schubspannung (Mohrscher Spannungskreis)", fr: "Contraintes principales et cisaillement maximal (cercle de Mohr)" },
     description: { en: "A point under σx = 120 MPa, σy = 40 MPa and τxy = 30 MPa. Mohr's circle is centred at the average of the two normal stresses with radius R; the principal stresses are the two ends of that circle, and R itself is the maximum shear stress. Rotate the element by the principal-plane angle θ_p = 18.43° and the shear disappears — 130 MPa and 30 MPa are all that is left.", ja: "σx=120MPa、σy=40MPa、τxy=30MPaが働く点を考えます。モールの円は2つの垂直応力の平均を中心とし、半径がRです。主応力はこの円の両端で、半径Rそのものが最大せん断応力になります。主応力面の角度 θ_p = 18.43° まで要素を回転させるとせん断応力が消え、130MPaと30MPaだけが残ります。", es: "Un punto sometido a σx = 120 MPa, σy = 40 MPa y τxy = 30 MPa. El círculo de Mohr está centrado en el promedio de los dos esfuerzos normales y tiene radio R; los esfuerzos principales son los dos extremos de ese círculo, y el propio R es el esfuerzo cortante máximo. Al girar el elemento el ángulo del plano principal θ_p = 18,43°, el cortante desaparece: solo quedan 130 MPa y 30 MPa.", "pt-BR": "Um ponto submetido a σx = 120 MPa, σy = 40 MPa e τxy = 30 MPa. O círculo de Mohr tem centro na média das duas tensões normais e raio R; as tensões principais são as duas extremidades desse círculo, e o próprio R é a tensão de cisalhamento máxima. Girando o elemento pelo ângulo do plano principal θ_p = 18,43°, o cisalhamento desaparece: sobram apenas 130 MPa e 30 MPa.", de: "Ein Punkt unter σx = 120 MPa, σy = 40 MPa und τxy = 30 MPa. Der Mohrsche Spannungskreis hat seinen Mittelpunkt im Mittelwert der beiden Normalspannungen und den Radius R; die Hauptspannungen sind die beiden Enden dieses Kreises, und R selbst ist die maximale Schubspannung. Dreht man das Element um den Winkel der Hauptspannungsebene θ_p = 18,43°, verschwindet die Schubspannung – es bleiben nur 130 MPa und 30 MPa übrig.", fr: "Un point soumis à σx = 120 MPa, σy = 40 MPa et τxy = 30 MPa. Le cercle de Mohr est centré sur la moyenne des deux contraintes normales et a pour rayon R ; les contraintes principales sont les deux extrémités de ce cercle, et R lui-même est la contrainte de cisaillement maximale. En tournant l'élément de l'angle du plan principal θ_p = 18,43°, le cisaillement disparaît : il ne reste que 130 MPa et 30 MPa." },
     localConstants: [
-      { symbol: "σₓ", expression: "120MPa" },
+      { symbol: "σ_x", expression: "120MPa" },
       { symbol: "σ_y", expression: "40MPa" },
       { symbol: "τ_xy", expression: "30MPa" },
-      { symbol: "R", expression: "sqrt(((σₓ-σ_y)/2)^2+τ_xy^2)" },
+      { symbol: "R", expression: "sqrt(((σ_x-σ_y)/2)^2+τ_xy^2)" },
     ],
     steps: [
-      { title: { en: "Major principal stress σ₁", ja: "第1主応力 σ₁", es: "Esfuerzo principal mayor σ₁", "pt-BR": "Tensão principal maior σ₁", de: "Größte Hauptspannung σ₁", fr: "Contrainte principale majeure σ₁" }, expression: "(σₓ+σ_y)/2+R", targetUnit: "MPa", formulaLatex: "\\sigma_1 = \\dfrac{\\sigma_x+\\sigma_y}{2} + R" },
-      { title: { en: "Minor principal stress σ₂", ja: "第2主応力 σ₂", es: "Esfuerzo principal menor σ₂", "pt-BR": "Tensão principal menor σ₂", de: "Kleinste Hauptspannung σ₂", fr: "Contrainte principale mineure σ₂" }, expression: "(σₓ+σ_y)/2-R", targetUnit: "MPa", formulaLatex: "\\sigma_2 = \\dfrac{\\sigma_x+\\sigma_y}{2} - R" },
+      // Rは σ₁・σ₂・τ_max の全部に出てくるのに、定数の中でしか定義されていなかった
+      // （数式カードにRの式が1行も無く、どこから来た値なのか読めない）。最初の手順として出す。
+      // 式は定数をそのまま参照するだけ（計算を二重に書かない。solid shaft の J と同じ形）。
+      { title: { en: "Mohr's circle radius R", ja: "モールの円の半径 R", es: "Radio del círculo de Mohr R", "pt-BR": "Raio do círculo de Mohr R", de: "Radius des Mohrschen Kreises R", fr: "Rayon du cercle de Mohr R" }, expression: "R", targetUnit: "MPa", formulaLatex: "R = \\sqrt{\\left(\\dfrac{\\sigma_x-\\sigma_y}{2}\\right)^2 + \\tau_{xy}^2}" },
+      { title: { en: "Major principal stress σ₁", ja: "第1主応力 σ₁", es: "Esfuerzo principal mayor σ₁", "pt-BR": "Tensão principal maior σ₁", de: "Größte Hauptspannung σ₁", fr: "Contrainte principale majeure σ₁" }, expression: "(σ_x+σ_y)/2+R", targetUnit: "MPa", formulaLatex: "\\sigma_1 = \\dfrac{\\sigma_x+\\sigma_y}{2} + R" },
+      { title: { en: "Minor principal stress σ₂", ja: "第2主応力 σ₂", es: "Esfuerzo principal menor σ₂", "pt-BR": "Tensão principal menor σ₂", de: "Kleinste Hauptspannung σ₂", fr: "Contrainte principale mineure σ₂" }, expression: "(σ_x+σ_y)/2-R", targetUnit: "MPa", formulaLatex: "\\sigma_2 = \\dfrac{\\sigma_x+\\sigma_y}{2} - R" },
       { title: { en: "Maximum shear stress τ_max", ja: "最大せん断応力 τ_max", es: "Esfuerzo cortante máximo τ_max", "pt-BR": "Tensão de cisalhamento máxima τ_max", de: "Maximale Schubspannung τ_max", fr: "Contrainte de cisaillement maximale τ_max" }, expression: "R", targetUnit: "MPa", formulaLatex: "\\tau_{max} = R" },
       // 説明文が言う「この角度」。円の半径までは代数だけで出るが、主応力面の向きは逆正接が要る。
-      { title: { en: "Principal-plane angle θ_p", ja: "主応力面の角度 θ_p", es: "Ángulo del plano principal θ_p", "pt-BR": "Ângulo do plano principal θ_p", de: "Winkel der Hauptspannungsebene θ_p", fr: "Angle du plan principal θ_p" }, expression: "atan(2*τ_xy/(σₓ-σ_y))/2", targetUnit: "deg", formulaLatex: "\\theta_p = \\dfrac{1}{2}\\arctan\\dfrac{2\\tau_{xy}}{\\sigma_x-\\sigma_y}" },
+      { title: { en: "Principal-plane angle θ_p", ja: "主応力面の角度 θ_p", es: "Ángulo del plano principal θ_p", "pt-BR": "Ângulo do plano principal θ_p", de: "Winkel der Hauptspannungsebene θ_p", fr: "Angle du plan principal θ_p" }, expression: "atan(2*τ_xy/(σ_x-σ_y))/2", targetUnit: "deg", formulaLatex: "\\theta_p = \\dfrac{1}{2}\\arctan\\dfrac{2\\tau_{xy}}{\\sigma_x-\\sigma_y}" },
     ],
   },
   {
