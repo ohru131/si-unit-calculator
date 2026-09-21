@@ -12,7 +12,7 @@ import { pushNotebookHistoryEntry, removeNotebookHistoryEntry, type NotebookHist
 import { isPresetRegionalDefaultKind, PresetRegionalDefaults, type PresetRegionalDefaultKind, resolvePresetRegionalDefaults } from "@/lib/preset-regional-defaults";
 import { presetRegionalDefaultPatch, releaseEditedRegionalDefaults } from "@/lib/preset-regional-sync";
 import { applyPresetNotebookOverrides, importedExactFields, type ImportedNotebook, type PresetNotebookOverride } from "@/lib/notebooks-backup";
-import { parseConstantDefinition, Quantity, SavedConstant, setCustomUnits as setCustomUnitsRegistry, type CustomUnitRegistration } from "@/lib/units";
+import { IDENTIFIER_PATTERN, isUnitStart, NUMBER_TOKEN_PATTERN, parseConstantDefinition, Quantity, SavedConstant, setCustomUnits as setCustomUnitsRegistry, unitSuffixEnd, type CustomUnitRegistration } from "@/lib/units";
 
 const CONSTANTS_STORAGE_KEY = "si-unit-calculator.constants.v1";
 const HISTORY_STORAGE_KEY = "si-unit-calculator.history.v1";
@@ -295,9 +295,35 @@ function isNotebookHistoryEntry(value: unknown): value is NotebookHistoryEntry {
  */
 export function sanitizeStoredLocalConstants(localConstants: NotebookLocalConstant[]): NotebookLocalConstant[] {
   return localConstants.map((constant) => {
-    if (constant.regionalDefault === undefined || isPresetRegionalDefaultKind(constant.regionalDefault)) return constant;
-    const { regionalDefault: _unknown, ...rest } = constant;
-    return rest;
+    let next = constant;
+    // 投入時のスナップショットが文字列でない保存データ（手編集されたJSON・別バージョンの書式）を
+    // ここで落とす。残すと起動時の綴り揃え（withFixedUnitSpellings）が .split で例外を投げ、
+    // **読み込み全体の catch が空のデータで state を置き換える**＝ノートが全部消えたように見える。
+    if (next.seededExpression !== undefined && typeof next.seededExpression !== "string") {
+      const { seededExpression: _invalid, ...rest } = next;
+      next = rest;
+    }
+    if (next.regionalDefault !== undefined && !isPresetRegionalDefaultKind(next.regionalDefault)) {
+      const { regionalDefault: _unknown, ...rest } = next;
+      next = rest;
+    }
+    return next;
+  });
+}
+
+/** 手順側の投入時スナップショットも同じ理由で型を確認する（sanitizeStoredLocalConstants と対）。 */
+export function sanitizeStoredSteps(steps: CalculationNoteStep[]): CalculationNoteStep[] {
+  return steps.map((step) => {
+    let next = step;
+    if (next.seededExpression !== undefined && typeof next.seededExpression !== "string") {
+      const { seededExpression: _invalid, ...rest } = next;
+      next = rest;
+    }
+    if (next.seededTargetUnit !== undefined && typeof next.seededTargetUnit !== "string") {
+      const { seededTargetUnit: _invalid, ...rest } = next;
+      next = rest;
+    }
+    return next;
   });
 }
 
@@ -613,6 +639,12 @@ export function applyPresetExactConstants(notebooks: CalculationNotebook[]): { n
  * タイトル・説明文・手順名は `localizePresetNotebooks` が言語切替のたびにシードから引き直すので
  * ここでは扱わない。手順そのものの増減も扱わない（idの対応が崩れるため。必要になったら別途）。
  */
+// 手順の同一性の手掛かり。lib/notebook-engine.ts の trimResultSymbol と同じ扱い方だが、
+// あちらはこのファイルを import する側なので（循環になる）ここで同じ規則を持つ。
+function seedStepSymbol(step: { resultSymbol?: string }): string {
+  return typeof step.resultSymbol === "string" ? step.resultSymbol.trim() : "";
+}
+
 export function applyPresetSeedUpdates(notebooks: CalculationNotebook[]): { notebooks: CalculationNotebook[]; changed: boolean } {
   let changed = false;
 
@@ -627,7 +659,14 @@ export function applyPresetSeedUpdates(notebooks: CalculationNotebook[]): { note
      // スラグと添字から決まるので端末をまたいで安定している）。記号で引く `exact` と違い、
     // こちらは**式そのものを書き換える**ので、並べ替えで別の定数に当たると値が入れ替わる。
     const seedConstants = new Map(seed.localConstants.map((constant, index) => [presetConstantId(notebook.categoryId, seedId, index), constant]));
-    const seedSteps = new Map(seed.steps.map((step, index) => [presetStepId(notebook.categoryId, seedId, index), step]));
+    // **手順のidは添字から決まる**（`presetStepId`）ので、シードに手順を1つ挿入・削除・並べ替え
+    // しただけで、保存済みのidが**別の計算の手順**に当たる。そこへ式と表示単位だけを書き込むと、
+    // 数式（`formulaLatex`）と結果記号は前の手順のまま残った混ざりものになる（実際に踏んだ穴：
+    // 木造床根太に手順を1つ足したとき `sN` 参照がずれた件と同じ構造）。
+    // 手順数が違えば同期そのものを見送り、同数でも結果記号が一致する手順だけを対象にする
+    // （並べ替えは記号が食い違うので弾ける）。
+    const stepCountMatches = notebook.steps.length === seed.steps.length;
+    const seedSteps = new Map(stepCountMatches ? seed.steps.map((step, index) => [presetStepId(notebook.categoryId, seedId, index), step]) : []);
 
     let notebookChanged = false;
     const nextLocalConstants = notebook.localConstants.map((constant) => {
@@ -653,6 +692,7 @@ export function applyPresetSeedUpdates(notebooks: CalculationNotebook[]): { note
     const nextSteps = notebook.steps.map((step) => {
       const seedStep = seedSteps.get(step.id);
       if (!seedStep) return step;
+      if (seedStepSymbol(seedStep) !== seedStepSymbol(step)) return step;
       let nextStep = step;
       // 定数と同じ規則（上の注記）。記録が無い旧データはシードと一致しているときだけ記録を付ける。
       if (step.seededExpression === undefined) {
@@ -690,8 +730,52 @@ export function applyPresetSeedUpdates(notebooks: CalculationNotebook[]): { note
  */
 const PRESET_UNIT_SPELLING_FIXES: readonly { from: string; to: string }[] = [{ from: "Ohm", to: "Ω" }];
 
+function replaceUnitSpellings(unitText: string): string {
+  return PRESET_UNIT_SPELLING_FIXES.reduce((current, fix) => current.split(fix.from).join(fix.to), unitText);
+}
+
+/**
+ * 式の中の**単位サフィックスの範囲だけ**を書き換える。
+ *
+ * **素朴な `split("Ohm").join("Ω")` にしないこと。** `Ω` は識別子に使えない文字なので
+ * （`UNICODE_IDENTIFIER_EXTRA_CHARS` が単位専用として除外している）、`OhmicLoss` のような
+ * 定数名まで書き換えると `ΩicLoss` になって**二度と解決できない式**になる。しかもエラーは
+ * 起動時ではなくそのノートを開いたときに出るので、原因が追いにくい。
+ *
+ * 範囲の決め方は評価器と同じ `unitSuffixEnd`（数値の直後から `*` `/` を跨いで貪欲に読む）。
+ * 識別子トークンは丸ごと読み飛ばす——裸の `Ohm` は識別子として単位へフォールバックする経路で
+ * 解決されていて（`2*Ohm`）、値も表示も `Ω` と変わらないため書き換える必要がない。
+ */
 function withFixedUnitSpellings(text: string): string {
-  return PRESET_UNIT_SPELLING_FIXES.reduce((current, fix) => current.split(fix.from).join(fix.to), text);
+  let result = "";
+  let index = 0;
+  while (index < text.length) {
+    const rest = text.slice(index);
+    const number = NUMBER_TOKEN_PATTERN.exec(rest);
+    if (number) {
+      let after = index + number[0].length;
+      // 評価器は数値と単位の間の空白を許す（`10 kOhm`）。同じように跨ぐ。
+      while (/\s/.test(text[after] ?? "")) after += 1;
+      if (isUnitStart(text[after])) {
+        const end = unitSuffixEnd(text, after);
+        result += text.slice(index, after) + replaceUnitSpellings(text.slice(after, end));
+        index = end;
+        continue;
+      }
+      result += number[0];
+      index += number[0].length;
+      continue;
+    }
+    const identifier = IDENTIFIER_PATTERN.exec(rest);
+    if (identifier) {
+      result += identifier[0];
+      index += identifier[0].length;
+      continue;
+    }
+    result += text[index];
+    index += 1;
+  }
+  return result;
 }
 
 export function normalizePresetUnitSpellings(notebooks: CalculationNotebook[]): { notebooks: CalculationNotebook[]; changed: boolean } {
@@ -702,6 +786,11 @@ export function normalizePresetUnitSpellings(notebooks: CalculationNotebook[]): 
     let notebookChanged = false;
     const fix = (value: string) => {
       const next = withFixedUnitSpellings(value);
+      if (next !== value) notebookChanged = true;
+      return next;
+    };
+    const fixUnitText = (value: string) => {
+      const next = replaceUnitSpellings(value);
       if (next !== value) notebookChanged = true;
       return next;
     };
@@ -717,14 +806,15 @@ export function normalizePresetUnitSpellings(notebooks: CalculationNotebook[]): 
     });
     const nextSteps = notebook.steps.map((step) => {
       const expression = fix(step.expression);
-      const targetUnit = fix(step.targetUnit);
+      // 表示単位は式ではなく単位記号そのもの（`kOhm`）なので、走査せず丸ごと置き換える。
+      const targetUnit = fixUnitText(step.targetUnit);
       if (expression === step.expression && targetUnit === step.targetUnit) return step;
       return {
         ...step,
         expression,
         targetUnit,
         ...(step.seededExpression === undefined ? {} : { seededExpression: withFixedUnitSpellings(step.seededExpression) }),
-        ...(step.seededTargetUnit === undefined ? {} : { seededTargetUnit: withFixedUnitSpellings(step.seededTargetUnit) }),
+        ...(step.seededTargetUnit === undefined ? {} : { seededTargetUnit: replaceUnitSpellings(step.seededTargetUnit) }),
       };
     });
     if (!notebookChanged) return notebook;
@@ -965,7 +1055,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           AsyncStorage.getItem(ACTIVE_NOTEBOOK_STORAGE_KEY),
         ]);
 
-        let nextNotebooks = parseStoredArray(notebooksRaw).filter(isCalculationNotebook).map((item) => ({ ...item, formulas: item.formulas ?? [], pinned: item.pinned === true, isPreset: item.isPreset === true, localConstants: sanitizeStoredLocalConstants(item.localConstants) }));
+        let nextNotebooks = parseStoredArray(notebooksRaw).filter(isCalculationNotebook).map((item) => ({ ...item, formulas: item.formulas ?? [], pinned: item.pinned === true, isPreset: item.isPreset === true, localConstants: sanitizeStoredLocalConstants(item.localConstants), steps: sanitizeStoredSteps(item.steps) }));
         let seededPresetIds = parseStoredArray(seededPresetsRaw).filter((id): id is string => typeof id === "string");
         let notebooksDirty = false;
         let markMigrated = false;
