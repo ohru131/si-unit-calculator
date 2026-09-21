@@ -29,7 +29,7 @@ export const ENG_POWER_SEEDS: NotebookSeed[] = [
     description: { en: "Compute the polar second moment of area of a solid round shaft and the torsional shear stress at its surface, where the stress is highest.", ja: "中実丸軸の断面二次極モーメントと、応力が最大になる外表面でのねじり応力を求めます。", es: "Calcula el momento polar de inercia de área de un eje macizo de sección circular y el esfuerzo cortante por torsión en su superficie, donde el esfuerzo es máximo.", "pt-BR": "Calcule o momento polar de inércia de área de um eixo maciço de seção circular e a tensão de cisalhamento por torção na sua superfície, onde a tensão é máxima.", de: "Berechnet das polare Flächenträgheitsmoment einer runden Vollwelle und die Torsionsspannung an ihrer Oberfläche, wo die Spannung am größten ist.", fr: "Calculer le moment quadratique polaire d'un arbre plein de section circulaire et la contrainte de torsion à sa surface, là où la contrainte est maximale." },
     localConstants: [
       { symbol: "T", expression: "250N*m" },
-      { symbol: "d", expression: "30mm" },
+      { symbol: "d", expression: "30mm", exact: true },
       { symbol: "J", expression: "pi*d^4/32" },
     ],
     steps: [
@@ -42,9 +42,9 @@ export const ENG_POWER_SEEDS: NotebookSeed[] = [
     description: { en: "Compute how far one end of a shaft twists relative to the other under torque. The same expression is shown in radians and in degrees, since the answer is easier to judge in degrees.", ja: "トルクを受けた軸の一端が、他端に対してどれだけねじれるかを求めます。同じ式をラジアンと度の両方で表示しています（大きさの見当をつけるには度の方が読みやすいため）。", es: "Calcula cuánto gira un extremo del eje respecto del otro cuando se le aplica un par de torsión. La misma expresión se muestra en radianes y en grados, porque el resultado es más fácil de valorar en grados.", "pt-BR": "Calcule quanto uma extremidade do eixo gira em relação à outra sob a ação de um torque. A mesma expressão é mostrada em radianos e em graus, porque o resultado é mais fácil de avaliar em graus.", de: "Berechnet, wie weit sich ein Wellenende unter Drehmoment gegenüber dem anderen verdreht. Derselbe Ausdruck wird in Radiant und in Grad angezeigt, weil sich das Ergebnis in Grad leichter einschätzen lässt.", fr: "Calculer de combien une extrémité de l'arbre tourne par rapport à l'autre sous l'effet d'un couple. La même expression est affichée en radians et en degrés, car le résultat est plus facile à apprécier en degrés." },
     localConstants: [
       { symbol: "T", expression: "250N*m" },
-      { symbol: "L", expression: "1m" },
+      { symbol: "L", expression: "1m", exact: true },
       { symbol: "G", expression: "79GPa" },
-      { symbol: "d", expression: "30mm" },
+      { symbol: "d", expression: "30mm", exact: true },
       { symbol: "J", expression: "pi*d^4/32" },
     ],
     steps: [
@@ -59,8 +59,8 @@ export const ENG_POWER_SEEDS: NotebookSeed[] = [
     title: { en: "Hollow shaft: polar moment and shear stress", ja: "中空軸の断面二次極モーメントとねじり応力", es: "Eje hueco: momento polar de inercia de área y esfuerzo cortante", "pt-BR": "Eixo oco: momento polar de inércia de área e tensão de cisalhamento", de: "Hohlwelle: polares Flächenträgheitsmoment und Schubspannung", fr: "Arbre creux : moment quadratique polaire et contrainte de cisaillement" },
     description: { en: "Compute the polar second moment of area and the surface shear stress of a hollow shaft. Carrying the same 250 N·m, a Ø40/Ø30 tube sees about 29.10 MPa against 47.16 MPa for the solid Ø30 shaft: the material near the axis barely contributes to torsional strength, so removing it buys weight savings cheaply.", ja: "中空軸の断面二次極モーメントと、外表面のせん断応力を求めます。同じ250N·mを伝えるとき、Ø40/Ø30の中空軸は約29.10MPaで、中実Ø30軸の47.16MPaより低くなります。軸心の近くの材料はねじり強度にほとんど寄与しないため、そこを抜くと軽量化の効率が良いことがわかります。", es: "Calcula el momento polar de inercia de área y el esfuerzo cortante en la superficie de un eje hueco. Transmitiendo los mismos 250 N·m, un tubo Ø40/Ø30 alcanza unos 29,10 MPa frente a los 47,16 MPa del eje macizo Ø30: el material cercano al eje apenas contribuye a la resistencia a la torsión, así que quitarlo permite aligerar a bajo costo.", "pt-BR": "Calcule o momento polar de inércia de área e a tensão de cisalhamento na superfície de um eixo oco. Transmitindo os mesmos 250 N·m, um tubo Ø40/Ø30 chega a cerca de 29,10 MPa contra 47,16 MPa do eixo maciço Ø30: o material próximo ao eixo quase não contribui para a resistência à torção, então removê-lo permite reduzir peso a baixo custo.", de: "Berechnet das polare Flächenträgheitsmoment und die Schubspannung an der Oberfläche einer Hohlwelle. Bei denselben 250 N·m erreicht ein Rohr Ø40/Ø30 etwa 29,10 MPa gegenüber 47,16 MPa bei der Vollwelle Ø30: Der Werkstoff nahe der Achse trägt kaum zur Torsionsfestigkeit bei, sein Weglassen spart also günstig Gewicht.", fr: "Calculer le moment quadratique polaire et la contrainte de cisaillement en surface d'un arbre creux. Pour le même couple de 250 N·m, un tube Ø40/Ø30 atteint environ 29,10 MPa contre 47,16 MPa pour l'arbre plein Ø30 : la matière proche de l'axe ne contribue presque pas à la résistance à la torsion, la retirer permet donc d'alléger à peu de frais." },
     localConstants: [
-      { symbol: "D", expression: "40mm" },
-      { symbol: "d", expression: "30mm" },
+      { symbol: "D", expression: "40mm", exact: true },
+      { symbol: "d", expression: "30mm", exact: true },
       { symbol: "T", expression: "250N*m" },
       { symbol: "J", expression: "pi*(D^4-d^4)/32" },
     ],
@@ -73,8 +73,8 @@ export const ENG_POWER_SEEDS: NotebookSeed[] = [
     title: { en: "Gear ratio, output speed and torque", ja: "歯車比・出力回転数・出力トルク", es: "Relación de transmisión, velocidad de salida y par de salida", "pt-BR": "Relação de transmissão, rotação de saída e torque de saída", de: "Übersetzungsverhältnis, Abtriebsdrehzahl und Abtriebsdrehmoment", fr: "Rapport de réduction, vitesse de sortie et couple de sortie" },
     description: { en: "Compute the ratio of a single reduction stage from the tooth counts, then the output speed and the output torque, the latter reduced by the mesh efficiency.", ja: "歯数から1段減速の歯車比を求め、続けて出力回転数と、かみあい効率を見込んだ出力トルクを計算します。", es: "Calcula la relación de transmisión de una etapa de reducción a partir del número de dientes y, a continuación, la velocidad de salida y el par de salida, este último reducido por el rendimiento del engrane.", "pt-BR": "Calcule a relação de transmissão de um estágio de redução a partir do número de dentes e, em seguida, a rotação de saída e o torque de saída, este último reduzido pelo rendimento do engrenamento.", de: "Berechnet aus den Zähnezahlen das Übersetzungsverhältnis einer einstufigen Untersetzung und daraus die Abtriebsdrehzahl sowie das Abtriebsdrehmoment, letzteres vermindert um den Verzahnungswirkungsgrad.", fr: "Calculer le rapport de réduction d'un étage à partir des nombres de dents, puis la vitesse de sortie et le couple de sortie, ce dernier diminué par le rendement de l'engrènement." },
     localConstants: [
-      { symbol: "z₁", expression: "20" },
-      { symbol: "z₂", expression: "60" },
+      { symbol: "z₁", expression: "20", exact: true },
+      { symbol: "z₂", expression: "60", exact: true },
       { symbol: "n₁", expression: "1450rpm" },
       { symbol: "T₁", expression: "36N*m" },
       { symbol: "η", expression: "0.97" },
@@ -89,8 +89,8 @@ export const ENG_POWER_SEEDS: NotebookSeed[] = [
     title: { en: "Belt drive: belt speed and driven pulley speed", ja: "ベルト伝動のベルト速度と従動プーリ回転数", es: "Transmisión por correa: velocidad de la correa y de la polea conducida", "pt-BR": "Transmissão por correia: velocidade da correia e rotação da polia movida", de: "Riementrieb: Riemengeschwindigkeit und Drehzahl der getriebenen Riemenscheibe", fr: "Transmission par courroie : vitesse de la courroie et vitesse de la poulie menée" },
     description: { en: "Compute the linear speed of the belt at the driving pulley and the speed of the driven pulley from the two pulley diameters.", ja: "駆動プーリでのベルト速度と、2つのプーリ径から決まる従動プーリの回転数を求めます。", es: "Calcula la velocidad lineal de la correa en la polea motriz y la velocidad de giro de la polea conducida a partir de los diámetros de las dos poleas.", "pt-BR": "Calcule a velocidade linear da correia na polia motora e a rotação da polia movida a partir dos diâmetros das duas polias.", de: "Berechnet die Umfangsgeschwindigkeit des Riemens an der treibenden Riemenscheibe und die Drehzahl der getriebenen Riemenscheibe aus den beiden Scheibendurchmessern.", fr: "Calculer la vitesse linéaire de la courroie au niveau de la poulie menante et la vitesse de rotation de la poulie menée à partir des diamètres des deux poulies." },
     localConstants: [
-      { symbol: "D₁", expression: "100mm" },
-      { symbol: "D₂", expression: "250mm" },
+      { symbol: "D₁", expression: "100mm", exact: true },
+      { symbol: "D₂", expression: "250mm", exact: true },
       { symbol: "n₁", expression: "1450rpm" },
     ],
     steps: [
@@ -127,7 +127,7 @@ export const ENG_ELEMENTS_SEEDS: NotebookSeed[] = [
     description: { en: "Convert between the tightening torque of a bolt and the preload it produces, using the nut factor K (about 0.2 for a plain, lightly oiled steel bolt).", ja: "ナットファクタK（無処理で軽く油を塗った鋼ボルトなら約0.2）を使って、ボルトの締付けトルクと、それによって生じる軸力を相互に換算します。", es: "Convierte entre el par de apriete de un perno y la precarga que genera, usando el factor K (unos 0,2 para un perno de acero sin recubrimiento y ligeramente aceitado).", "pt-BR": "Converta entre o torque de aperto de um parafuso e a pré-carga que ele gera, usando o fator K (cerca de 0,2 para um parafuso de aço sem revestimento e levemente lubrificado).", de: "Rechnet das Anziehdrehmoment einer Schraube und die dadurch erzeugte Vorspannkraft ineinander um, und zwar mit dem K-Faktor (etwa 0,2 für eine blanke, leicht geölte Stahlschraube).", fr: "Convertir entre le couple de serrage d'un boulon et la précontrainte qu'il produit, à l'aide du coefficient de couple K (environ 0,2 pour un boulon en acier brut légèrement huilé)." },
     localConstants: [
       { symbol: "K", expression: "0.2" },
-      { symbol: "d", expression: "12mm" },
+      { symbol: "d", expression: "12mm", exact: true },
       { symbol: "F", expression: "25kN" },
       { symbol: "T", expression: "60N*m" },
     ],
@@ -141,7 +141,7 @@ export const ENG_ELEMENTS_SEEDS: NotebookSeed[] = [
     description: { en: "Compute the tensile stress in a bolt from the preload and the tensile stress area, and how much of the proof stress that uses up. For an M12 bolt of property class 8.8 the tensile stress area is 84.3 mm² and the proof stress is 640 MPa.", ja: "軸力とボルトの有効断面積から引張応力を求め、それが保証応力の何パーセントにあたるかを計算します。強度区分8.8のM12ボルトでは、有効断面積は84.3mm²、保証応力は640MPaです。", es: "Calcula el esfuerzo de tracción en un perno a partir de la precarga y del área resistente a tracción, y qué parte del esfuerzo de prueba consume. En un perno M12 de clase de resistencia 8.8, el área resistente a tracción es de 84,3 mm² y el esfuerzo de prueba es de 640 MPa.", "pt-BR": "Calcule a tensão de tração em um parafuso a partir da pré-carga e da área resistente e quanto isso consome da tensão de prova. Em um parafuso M12 de classe de resistência 8.8, a área resistente é de 84,3 mm² e a tensão de prova é de 640 MPa.", de: "Berechnet die Zugspannung in einer Schraube aus der Vorspannkraft und dem Spannungsquerschnitt sowie den Anteil der Prüfspannung, der damit ausgeschöpft wird. Bei einer Schraube M12 der Festigkeitsklasse 8.8 beträgt der Spannungsquerschnitt 84,3 mm² und die Prüfspannung 640 MPa.", fr: "Calculer la contrainte de traction dans un boulon à partir de la précontrainte et de la section résistante, ainsi que la part de la contrainte d'épreuve que cela consomme. Pour un boulon M12 de classe de qualité 8.8, la section résistante vaut 84,3 mm² et la contrainte d'épreuve 640 MPa." },
     localConstants: [
       { symbol: "F", expression: "25kN" },
-      { symbol: "A_s", expression: "84.3mm^2" },
+      { symbol: "A_s", expression: "84.3mm^2", exact: true },
       { symbol: "σ_p", expression: "640MPa" },
     ],
     steps: [
@@ -153,8 +153,8 @@ export const ENG_ELEMENTS_SEEDS: NotebookSeed[] = [
     title: { en: "Fillet weld throat and shear stress", ja: "すみ肉溶接ののど厚とせん断応力", es: "Espesor de garganta y esfuerzo cortante de una soldadura en ángulo", "pt-BR": "Espessura da garganta e tensão de cisalhamento de uma solda de filete", de: "Nahtdicke und Schubspannung einer Kehlnaht", fr: "Épaisseur de gorge et contrainte de cisaillement d'une soudure d'angle" },
     description: { en: "Compute the design throat thickness of a fillet weld from its leg length, then the average shear stress carried by the throat area.", ja: "すみ肉溶接の脚長からのど厚を求め、のど断面が受け持つ平均せん断応力を計算します。", es: "Calcula el espesor de garganta de cálculo de una soldadura en ángulo a partir de la longitud del cateto y, después, el esfuerzo cortante medio que soporta la sección de garganta.", "pt-BR": "Calcule a espessura de garganta de cálculo de uma solda de filete a partir do comprimento do cateto e, em seguida, a tensão de cisalhamento média suportada pela seção da garganta.", de: "Berechnet die rechnerische Nahtdicke (a-Maß) einer Kehlnaht aus der Schenkellänge und anschließend die mittlere Schubspannung im Nahtquerschnitt.", fr: "Calculer l'épaisseur de gorge de calcul d'une soudure d'angle à partir de la longueur du côté, puis la contrainte de cisaillement moyenne reprise par la section de gorge." },
     localConstants: [
-      { symbol: "z", expression: "5mm" },
-      { symbol: "L_w", expression: "400mm" },
+      { symbol: "z", expression: "5mm", exact: true },
+      { symbol: "L_w", expression: "400mm", exact: true },
       { symbol: "F", expression: "40kN" },
       { symbol: "a", expression: "0.7*z" },
     ],
@@ -168,9 +168,9 @@ export const ENG_ELEMENTS_SEEDS: NotebookSeed[] = [
     description: { en: "Compute the rate of a helical compression spring from the wire diameter, the mean coil diameter and the number of active coils, then the deflection under a load and the torsional shear stress in the wire. The stress here is the uncorrected value: it does not include the Wahl curvature factor, which raises the peak stress at the inner surface of the coil by roughly 18% at the spring index D/d = 8 used here.", ja: "線径・コイル平均径・有効巻数から圧縮コイルばねのばね定数を求め、荷重によるたわみと、素線に生じるねじり応力を計算します。ここでの応力は修正前の値で、ワールの応力修正係数は掛けていません。この例のばね指数 D/d = 8 では、コイル内側の最大応力は修正後で約18%高くなります。", es: "Calcula la rigidez de un resorte helicoidal de compresión a partir del diámetro del alambre, el diámetro medio de la espira y el número de espiras activas y, después, la flecha bajo una carga y el esfuerzo cortante por torsión en el alambre. El esfuerzo que se muestra aquí es el valor sin corregir: no incluye el factor de curvatura de Wahl, que con el índice del resorte D/d = 8 usado aquí eleva el esfuerzo máximo en la cara interior de la espira alrededor de un 18%.", "pt-BR": "Calcule a rigidez de uma mola helicoidal de compressão a partir do diâmetro do arame, do diâmetro médio da espira e do número de espiras ativas e, em seguida, a deflexão sob uma carga e a tensão de cisalhamento por torção no arame. A tensão mostrada aqui é o valor não corrigido: não inclui o fator de curvatura de Wahl, que com o índice de mola D/d = 8 usado aqui eleva a tensão máxima na face interna da espira em cerca de 18%.", de: "Berechnet die Federrate einer Schraubendruckfeder aus Drahtdurchmesser, mittlerem Windungsdurchmesser und Anzahl der federnden Windungen und daraus den Federweg unter einer Last sowie die Torsionsspannung im Draht. Die hier angegebene Spannung ist der unkorrigierte Wert: Der Wahl-Spannungsbeiwert ist nicht enthalten, der beim hier verwendeten Wickelverhältnis D/d = 8 die Höchstspannung an der Windungsinnenseite um rund 18% erhöht.", fr: "Calculer la raideur d'un ressort hélicoïdal de compression à partir du diamètre du fil, du diamètre moyen d'enroulement et du nombre de spires actives, puis la flèche sous une charge et la contrainte de torsion dans le fil. La contrainte indiquée ici est la valeur non corrigée : elle n'inclut pas le facteur de courbure de Wahl, qui augmente d'environ 18% la contrainte maximale sur la face intérieure de la spire pour l'indice de ressort D/d = 8 utilisé ici." },
     localConstants: [
       { symbol: "G", expression: "79.3GPa" },
-      { symbol: "d", expression: "2mm" },
-      { symbol: "D", expression: "16mm" },
-      { symbol: "N", expression: "8" },
+      { symbol: "d", expression: "2mm", exact: true },
+      { symbol: "D", expression: "16mm", exact: true },
+      { symbol: "N", expression: "8", exact: true },
       { symbol: "F", expression: "50N" },
       { symbol: "k", expression: "G*d^4/(8*D^3*N)" },
     ],
@@ -185,8 +185,8 @@ export const ENG_ELEMENTS_SEEDS: NotebookSeed[] = [
     description: { en: "Compute the hoop and longitudinal stresses in a thin-walled cylinder under internal pressure, and the minimum wall thickness that keeps the hoop stress within an allowable value.", ja: "内圧を受ける薄肉円筒に生じる円周応力・軸方向応力と、円周応力を許容応力以内に収めるための最小板厚を求めます。", es: "Calcula los esfuerzos circunferencial y longitudinal en un cilindro de pared delgada sometido a presión interna, y el espesor mínimo de pared que mantiene el esfuerzo circunferencial dentro del valor admisible.", "pt-BR": "Calcule as tensões circunferencial e longitudinal em um cilindro de parede fina sob pressão interna e a espessura mínima de parede que mantém a tensão circunferencial dentro do valor admissível.", de: "Berechnet die Umfangsspannung und die Längsspannung in einem dünnwandigen Zylinder unter Innendruck sowie die Mindestwanddicke, mit der die Umfangsspannung innerhalb der zulässigen Spannung bleibt.", fr: "Calculer les contraintes circonférentielle et longitudinale dans un cylindre à paroi mince soumis à une pression interne, ainsi que l'épaisseur minimale de paroi qui maintient la contrainte circonférentielle sous la valeur admissible." },
     localConstants: [
       { symbol: "p", expression: "1.6MPa" },
-      { symbol: "D", expression: "500mm" },
-      { symbol: "t", expression: "6mm" },
+      { symbol: "D", expression: "500mm", exact: true },
+      { symbol: "t", expression: "6mm", exact: true },
       { symbol: "σ_a", expression: "120MPa" },
     ],
     steps: [
@@ -213,9 +213,9 @@ export const ENG_ELEMENTS_SEEDS: NotebookSeed[] = [
     description: { en: "Compute the tangential force a parallel key transmits at the shaft surface, and the average shear stress on its shear plane.", ja: "平行キーが軸表面で伝える接線力と、せん断面に生じる平均せん断応力を求めます。", es: "Calcula la fuerza tangencial que transmite una chaveta paralela en la superficie del eje y el esfuerzo cortante medio en su plano de corte.", "pt-BR": "Calcule a força tangencial que uma chaveta paralela transmite na superfície do eixo e a tensão de cisalhamento média no seu plano de corte.", de: "Berechnet die Umfangskraft, die eine Passfeder an der Wellenoberfläche überträgt, und die mittlere Schubspannung in ihrer Scherfläche.", fr: "Calculer l'effort tangentiel qu'une clavette parallèle transmet à la surface de l'arbre et la contrainte de cisaillement moyenne dans son plan de cisaillement." },
     localConstants: [
       { symbol: "T", expression: "250N*m" },
-      { symbol: "d", expression: "30mm" },
-      { symbol: "b", expression: "8mm" },
-      { symbol: "L_k", expression: "40mm" },
+      { symbol: "d", expression: "30mm", exact: true },
+      { symbol: "b", expression: "8mm", exact: true },
+      { symbol: "L_k", expression: "40mm", exact: true },
     ],
     steps: [
       { title: { en: "Tangential force F at the shaft surface", ja: "軸表面の接線力 F", es: "Fuerza tangencial F en la superficie del eje", "pt-BR": "Força tangencial F na superfície do eixo", de: "Umfangskraft F an der Wellenoberfläche", fr: "Effort tangentiel F à la surface de l'arbre" }, expression: "2*T/d", targetUnit: "kN", formulaLatex: "F = \\dfrac{2T}{d}" },

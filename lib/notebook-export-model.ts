@@ -4,7 +4,7 @@ import { evaluateNotebookSteps, formatNameValue, type NotebookStepResult, resolv
 import { notebookFormulaRows } from "@/lib/notebook-formula-rows";
 import { stepDisplayTitle } from "@/lib/notebook-step-title";
 import { compatibleUnitOptionsFromHints } from "@/lib/unit-options";
-import { inferSignificantDigits, significantDigitsAfterConversion, toSignificantDecimal } from "@/lib/significant-figures";
+import { inferSignificantDigits, significantDigitsAfterConversion, toSignificantDecimal, type ResolvedIdentifier } from "@/lib/significant-figures";
 import { convertQuantity, formatNumberForLocale, formatQuantity, type MeasuringStandard, type SavedConstant, type UnitSystem } from "@/lib/units";
 
 export type NotebookExportFormulaRow = { explanation: string; latex: string };
@@ -44,16 +44,20 @@ export type NotebookStepDisplay = {
  */
 export function notebookStepSignificantDigits(
   step: CalculationNoteStep,
-  localConstants: readonly { symbol: string; expression: string }[],
+  localConstants: readonly { symbol: string; expression: string; exact?: boolean }[],
   priorResults: readonly NotebookStepResult[],
 ): number | null {
-  const sources = new Map<string, string>();
+  const sources = new Map<string, ResolvedIdentifier>();
   localConstants.forEach((item) => {
     const symbol = item.symbol.trim();
-    if (symbol) sources.set(symbol, item.expression);
+    // 厳密値の印（図面の呼び寸法・個数）はそのまま渡す。桁に数えないだけでなく、
+    // 厳密値どうしの加減算が式を塞がなくなる（lib/significant-figures.ts の exact の項）。
+    if (symbol) sources.set(symbol, { expression: item.expression, exact: item.exact === true });
   });
   priorResults.forEach((entry) => {
-    if (entry.symbol) sources.set(entry.symbol, entry.step.expression);
+    // 先行手順は厳密値の印を持たない。その手順が厳密値だけで組まれていれば、辿った先で
+    // 「測定値が無い」と分かるので印は要らない（scanSignificantDigits が digits: null で返す）。
+    if (entry.symbol) sources.set(entry.symbol, { expression: entry.step.expression });
   });
   return inferSignificantDigits(step.expression, { resolveIdentifier: (symbol) => sources.get(symbol) });
 }

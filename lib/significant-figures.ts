@@ -92,15 +92,78 @@ export function significantDigitsOfLiteral(literal: string): number | null {
 
 type ScanToken = { kind: "value" | "operator" | "open"; value?: string };
 
+/**
+ * 識別子の解決結果。**`exact` は「この数は測定値ではない」という宣言**で、図面の呼び寸法・
+ * 個数・規格で決まる値に付ける（lib/notebook-formulas/types.ts の `NotebookSeedConstant.exact`）。
+ *
+ * 付けると2つ効く: (1) 桁に数えない（`8mm` の板厚で結果が1桁に落ちない）、
+ * (2) **その値だけで組まれた加減算は式を塞がない**（`60mm-20mm` は厳密に `40mm` なので
+ * 精度を失っていない）。どちらも「測定していない数から精度の話は生まれない」という同じ理由。
+ */
+export type ResolvedIdentifier = {
+  expression: string;
+  exact?: boolean;
+};
+
 export type InferOptions = {
   /**
-   * 識別子（定数名・先行手順の記号）を、その中身の式へ解決する。返した式の桁も数えに入れる。
+   * 識別子（定数名・先行手順の記号）を、その中身へ解決する。返した式の桁も数えに入れる。
    * 関数名（cos・sqrt…）や解決できない名前には undefined を返すこと。
    */
-  resolveIdentifier?: (symbol: string) => string | undefined;
+  resolveIdentifier?: (symbol: string) => ResolvedIdentifier | undefined;
   /** 循環参照よけ。再帰の途中で辿った名前は二度と解決しない。 */
   seen?: readonly string[];
 };
+
+/**
+ * 走査の結果。**「桁が読めなかった」と「読む対象が無かった」を分ける**のが要点。
+ *
+ * どちらも公開APIでは null に潰れるが、途中では区別が要る: 厳密値だけで組まれた手順
+ * （`A = πd²/4` の d が呼び寸法）は `digits: null, blocked: false` で、これを参照する
+ * 後続手順は**自分の測定値の桁で丸め続けてよい**。ここを一緒くたに null で扱うと、
+ * 厳密値だけの手順を1つ挟んだ瞬間に下流の丸めが全部止まる。
+ */
+type ScanResult = {
+  /** 測定値から読めた最小の桁数。測定値が1つも無ければ null。 */
+  digits: number | null;
+  /** 桁を主張してはいけない式（測定値の加減算・オフセット単位）。 */
+  blocked: boolean;
+};
+
+/**
+ * 括弧の深さごとに「加減算が起きたか」「測定値が現れたか」を持つ。
+ *
+ * 加減算を**その場で即 null にせず**深さ単位で持ち越すのは、`F/((w-d)*t)` のような式で
+ * 「`w-d` は厳密値どうしなので無害／`F` は測定値だが加減算には関わっていない」を区別するため。
+ * 判定は括弧を閉じたときに行い、**その括弧の中に測定値が1つでもあれば塞ぐ**（保守側に倒す。
+ * `(厳密+厳密)*測定` は通し、`厳密*(測定+測定)` は塞ぐ）。
+ */
+type AdditiveFrame = { hasAdditive: boolean; hasMeasured: boolean };
+
+/**
+ * その数値の直後が `× 10 ^` / `÷ 10 ^`（科学表記の倍率）か。空白は読み飛ばす——
+ * `normalizeExpression` は空白を1つに詰めるだけで消さず、評価器も数値と演算子の間の空白を
+ * 許すため（底の `10` を数えない判定と同じ事情。lib/significant-figures.ts の科学表記の項）。
+ *
+ * **割り算も見ること。** `/ 10^n` は `× 10^-n` と同じ十進のスケーリングなので、片方だけ
+ * 仮数として扱うと `123 × 10^2` が3桁・`123 / 10^2` が桁なし（＝丸めない）と、
+ * **同一の計算が書き方で食い違う**（底の `10` を掛け算・割り算のどちらでも数えない、という
+ * #60 で決めた規則の裏返し。CodeRabbitが#75で検出）。
+ */
+function isScientificMantissa(source: string, from: number): boolean {
+  let index = from;
+  const skipSpaces = () => {
+    while (source[index] === " ") index += 1;
+  };
+  skipSpaces();
+  if (source[index] !== "*" && source[index] !== "/") return false;
+  index += 1;
+  skipSpaces();
+  if (source.slice(index, index + 2) !== "10") return false;
+  index += 2;
+  skipSpaces();
+  return source[index] === "^";
+}
 
 /** 直前に確定したトークンが `^` か（＝これから読む数値が指数の位置にあるか）。 */
 function isExponentPosition(tokens: readonly ScanToken[]): boolean {
@@ -159,11 +222,30 @@ function isFactorialParen(source: string, openIndex: number): boolean {
  * - 階乗の対象（`5!` の 5、`(5)!` や `3*(4)!` の括弧の中も同じ）。厳密な整数の指定で、結果も厳密。
  */
 export function inferSignificantDigits(expression: string, options: InferOptions = {}): number | null {
+  const result = scanSignificantDigits(expression, options);
+  return result.blocked ? null : result.digits;
+}
+
+function scanSignificantDigits(expression: string, options: InferOptions): ScanResult {
   const { resolveIdentifier, seen = [] } = options;
   const source = normalizeExpression(expression);
+  // **式の中に現れる単位なしの整数は、数式の係数として扱う**（測定値に数えない）。
+  // `I = bh³/12` の 12・`J = πd⁴/32` の 32・`100*d/D` の 100 は書き方であって測った数ではない。
+  // ここを測定値として数えると、図面の呼び寸法だけで決まる断面二次モーメントが
+  // `341333.3333 mm⁴ → 340000 mm⁴` と、実在する桁を落とす方向に丸まる。
+  //
+  // **式まるごとが裸の整数のとき（`N = 200`・`T = 25`）だけは値として扱う。** そちらは
+  // 定数の中身＝利用者が編集する数で、測定値でありうる（巻数のように厳密なものは
+  // シード側で `exact` を付ける）。「係数か値か」を式の形だけで見分けられるのはこの一点。
+  const isBareIntegerExpression = /^[-+]?\d+$/.test(source.trim());
   const tokens: ScanToken[] = [];
   // 開いている括弧が階乗の対象かどうか。`)` で pop するので入れ子でも対応が保てる。
   const parenIsFactorial: boolean[] = [];
+  // 先頭は括弧の外（深さ0）ぶんの枠。`(` で push・`)` で pop するので parenIsFactorial と同じ動き。
+  const frames: AdditiveFrame[] = [{ hasAdditive: false, hasMeasured: false }];
+  const markMeasured = () => {
+    frames[frames.length - 1].hasMeasured = true;
+  };
   let minimum: number | null = null;
   let index = 0;
 
@@ -186,7 +268,7 @@ export function inferSignificantDigits(expression: string, options: InferOptions
         // `20°C` は 293.15K で、2桁のまま丸めると 290 K になるが、元の精度は1℃なので
         // 正しくは 293 K。換算先を見る significantDigitsAfterConversion と同じ理由だが、
         // あちらは**表示単位**しか見ないので、°C で入力して K で表示する経路は素通りしていた。
-        if (hasOffsetUnit(source.slice(next, unitEnd))) return null;
+        if (hasOffsetUnit(source.slice(next, unitEnd))) return { digits: null, blocked: true };
         next = unitEnd;
       }
       // 科学表記の底の判定は**空白を読み飛ばしてから**行う。`normalizeExpression` は空白を
@@ -201,9 +283,19 @@ export function inferSignificantDigits(expression: string, options: InferOptions
       // 答えも厳密な整数。ここを1桁と数えると `5!` が `≈ 1×10²` に丸まり、正しい 120 を出せない。
       // 指数の位置と科学表記の底を数えないのと同じ理由。
       const isFactorialTarget = source[beforeCaret] === "!" || parenIsFactorial.some(Boolean);
-      if (!isExponentPosition(tokens) && !isScientificBase && !isFactorialTarget) {
+      // 単位の付かない整数が式の一部として現れたら数式の係数（上の isBareIntegerExpression の項）。
+      // **ただし科学表記の仮数は測定値。** `123 × 10^8` の 123 は 1.23e10 を3桁で書いたもので、
+      // 係数として読み飛ばすと入力した精度がそのまま消える（底の 10 を数えないのと対になる判定）。
+      const isFormulaCoefficient =
+        !isBareIntegerExpression && next === index + literal.length && /^\d+$/.test(literal) && !isScientificMantissa(source, next);
+      if (!isExponentPosition(tokens) && !isScientificBase && !isFactorialTarget && !isFormulaCoefficient) {
         const digits = significantDigitsOfLiteral(literal);
-        if (digits !== null) minimum = minimum === null ? digits : Math.min(minimum, digits);
+        if (digits !== null) {
+          minimum = minimum === null ? digits : Math.min(minimum, digits);
+          // 桁を数えたリテラル＝測定値。加減算に巻き込まれていたら括弧を閉じるときに塞ぐ。
+          // 数えなかったもの（指数の位置・科学表記の底・階乗の対象）は測定値ではないので印を付けない。
+          markMeasured();
+        }
       }
       tokens.push({ kind: "value" });
       index = next;
@@ -211,8 +303,10 @@ export function inferSignificantDigits(expression: string, options: InferOptions
     }
 
     if (character === "+" || character === "-") {
-      // 直前が値なら二項の加減算。桁の決まり方が乗除と違うので、この式では丸めない。
-      if (tokens[tokens.length - 1]?.kind === "value") return null;
+      // 直前が値なら二項の加減算。桁の決まり方が乗除と違うので、**測定値が絡んでいれば**丸めない。
+      // ここで即 null にせず枠へ記録するのは、`F/((w-d)*t)` の `w-d` のように
+      // 厳密値どうしの引き算（＝精度を失わない）を通すため。判定は `)` と走査の最後で行う。
+      if (tokens[tokens.length - 1]?.kind === "value") frames[frames.length - 1].hasAdditive = true;
       tokens.push({ kind: "operator", value: character });
       index += 1;
       continue;
@@ -234,7 +328,10 @@ export function inferSignificantDigits(expression: string, options: InferOptions
     // カンマは関数の引数の区切り。値として扱うと直後の符号が二項の引き算に見え、
     // atan2(2.0, -3.00) のような式で桁を読めなくなる（丸めが効かない）。
     if (character === "(" || character === ",") {
-      if (character === "(") parenIsFactorial.push(isFactorialParen(source, index));
+      if (character === "(") {
+        parenIsFactorial.push(isFactorialParen(source, index));
+        frames.push({ hasAdditive: false, hasMeasured: false });
+      }
       tokens.push({ kind: "open" });
       index += 1;
       continue;
@@ -242,6 +339,14 @@ export function inferSignificantDigits(expression: string, options: InferOptions
 
     if (character === ")") {
       parenIsFactorial.pop();
+      // 括弧を閉じた時点でその中の加減算の可否が確定する。測定値が混じっていたら塞ぐ。
+      // hasAdditive は持ち上げない（中で決着が付いているので外側の判定には関わらない）が、
+      // hasMeasured は持ち上げる（`(1.5m+2m)*3` の外側の加減算からは中身も測定値に見える）。
+      const closed = frames.length > 1 ? frames.pop() : undefined;
+      if (closed) {
+        if (closed.hasAdditive && closed.hasMeasured) return { digits: null, blocked: true };
+        if (closed.hasMeasured) markMeasured();
+      }
       tokens.push({ kind: "value" });
       index += 1;
       continue;
@@ -259,11 +364,18 @@ export function inferSignificantDigits(expression: string, options: InferOptions
       // 辿らないと有効数字を一度も出せない。**電卓では渡さない**——あちらの識別子は保存済みの
       // 定数と履歴参照で、保存された値の精度は利用者がその式で意図した桁とは限らないため。
       const referenced = resolveIdentifier && !seen.includes(name) ? resolveIdentifier(name) : undefined;
-      if (referenced !== undefined) {
-        const digits = inferSignificantDigits(referenced, { resolveIdentifier, seen: [...seen, name] });
-        // 参照先が読めない（加減算が混ざる・リテラルが無い）なら、この式でも桁を主張しない。
-        if (digits === null) return null;
-        minimum = minimum === null ? digits : Math.min(minimum, digits);
+      // **厳密値（図面の呼び寸法・個数）は辿らない。** 桁にも数えず測定値の印も付けないので、
+      // `t=8mm` が結果を1桁に落とすことも、`w-d` が式を塞ぐこともなくなる。
+      if (referenced !== undefined && !referenced.exact) {
+        const sub = scanSignificantDigits(referenced.expression, { resolveIdentifier, seen: [...seen, name] });
+        // 参照先が「読めない」なら、この式でも桁を主張しない（測定値の加減算が混ざっている）。
+        if (sub.blocked) return { digits: null, blocked: true };
+        // 参照先に測定値が1つも無い（＝厳密値だけで組まれた手順）ときは何も足さない。
+        // ここを null で塞ぐと、厳密値だけの手順を1つ挟むだけで下流の丸めが止まる。
+        if (sub.digits !== null) {
+          minimum = minimum === null ? sub.digits : Math.min(minimum, sub.digits);
+          markMeasured();
+        }
       }
       tokens.push({ kind: "value" });
       index += name.length;
@@ -275,7 +387,9 @@ export function inferSignificantDigits(expression: string, options: InferOptions
     index += 1;
   }
 
-  return minimum;
+  // 閉じ括弧が足りない式（書きかけ）でも取りこぼさないよう、残った枠を全部見る。
+  if (frames.some((frame) => frame.hasAdditive && frame.hasMeasured)) return { digits: null, blocked: true };
+  return { digits: minimum, blocked: false };
 }
 
 /**

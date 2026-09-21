@@ -67,6 +67,16 @@ describe("入力式から読む有効数字", () => {
     expect(digitsOf("123×10^8")).toBe(3);
   });
 
+  // 式の中の単位なし整数は数式の係数として読み飛ばすが、科学表記の仮数だけは測定値。
+  // **掛け算と割り算で食い違わせないこと**——`/ 10^n` は `× 10^-n` と同じ十進のスケーリングで、
+  // 片方だけ係数として落とすと同じ計算が書き方で違う桁になる（CodeRabbitが#75で検出）。
+  it("科学表記の仮数は掛け算でも割り算でも測定値として数える", () => {
+    expect(digitsOf("123 × 10^2")).toBe(3);
+    expect(digitsOf("123/10^2")).toBe(3);
+    expect(digitsOf("123 / 10 ^ 2")).toBe(3);
+    expect(digitsOf("123×10^-2")).toBe(3);
+  });
+
   it("単位サフィックスの中の指数は桁に数えない", () => {
     // m² の 2 を桁として数えていると 1 になる。
     expect(digitsOf("100N / 0.25m²")).toBe(2);
@@ -319,7 +329,7 @@ describe("有効数字付きの小数", () => {
 
 describe("参照している定数まで辿って桁を数える（計算ノート用）", () => {
   const sources: Record<string, string> = { V: "100V", I: "5A", "φ": "acos(0.8)", P: "V*I*cos(φ)" };
-  const resolveIdentifier = (symbol: string) => sources[symbol];
+  const resolveIdentifier = (symbol: string) => (sources[symbol] === undefined ? undefined : { expression: sources[symbol] });
 
   it("リテラルが1つも無い式でも、参照先の定数から桁が読める", () => {
     // 手順の式は識別子だけ。辿らなければ null にしかならない。
@@ -337,12 +347,72 @@ describe("参照している定数まで辿って桁を数える（計算ノー�
   });
 
   it("参照先が加減算の混ざる式なら、この式でも桁を主張しない", () => {
-    const mixed = (symbol: string) => (symbol === "x" ? "1.5m + 20cm" : undefined);
+    const mixed = (symbol: string) => (symbol === "x" ? { expression: "1.5m + 20cm" } : undefined);
     expect(inferSignificantDigits("x*2.5", { resolveIdentifier: mixed })).toBeNull();
   });
 
   it("循環参照でも止まる", () => {
-    const loop = (symbol: string) => (symbol === "a" ? "b*1.25" : symbol === "b" ? "a*2.5" : undefined);
+    const loop = (symbol: string) => (symbol === "a" ? { expression: "b*1.25" } : symbol === "b" ? { expression: "a*2.5" } : undefined);
     expect(inferSignificantDigits("a", { resolveIdentifier: loop })).toBe(2);
+  });
+});
+
+describe("厳密値（図面の呼び寸法・個数）は桁に数えない", () => {
+  // 穴まわりの応力集中。板幅・穴径・板厚は図面の呼び寸法（＝測定値ではない）で、
+  // 測っているのは荷重 15kN と応力集中係数 2.4 だけ。
+  const hole: Record<string, { expression: string; exact?: boolean }> = {
+    F: { expression: "15kN" },
+    w: { expression: "60mm", exact: true },
+    d: { expression: "20mm", exact: true },
+    t: { expression: "8mm", exact: true },
+    "Kₜ": { expression: "2.4" },
+  };
+  const resolveHole = (symbol: string) => hole[symbol];
+
+  it("厳密値だけで組まれた引き算は式を塞がない", () => {
+    // 印が無いと: `(w-d)` の加減算で null になり、仮にそこを通しても `t=8mm` が1桁。
+    // 印を付けると測定値は 15kN と 2.4 だけになり、どちらも2桁。
+    expect(inferSignificantDigits("F/((w-d)*t)", { resolveIdentifier: resolveHole })).toBe(2);
+    expect(inferSignificantDigits("Kₜ*F/((w-d)*t)", { resolveIdentifier: resolveHole })).toBe(2);
+  });
+
+  it("測定値が絡む加減算は従来どおり塞ぐ", () => {
+    // 同じ括弧の中に測定値が1つでもあれば、加減算は精度を失う。
+    const mixed = (symbol: string) => (symbol === "a" ? { expression: "60mm", exact: true } : symbol === "b" ? { expression: "1.5mm" } : undefined);
+    expect(inferSignificantDigits("(a-b)*2.25", { resolveIdentifier: mixed })).toBeNull();
+    expect(inferSignificantDigits("a-b", { resolveIdentifier: mixed })).toBeNull();
+  });
+
+  it("厳密値は桁の最小値を引き下げない", () => {
+    // `8mm` を測定値として数えると1桁に落ち、MIN_ROUNDING_DIGITS で丸めごと止まる。
+    // 除数の識別子は括弧で囲む（囲まないと `kN/t` が「キロニュートン毎トン」の複合単位として
+    // 貪欲に読まれ、`t` が識別子にならない。CLAUDE.md の単位サフィックスの項と同じ罠）。
+    const thickness = (symbol: string) => (symbol === "t" ? { expression: "8mm", exact: true } : undefined);
+    expect(inferSignificantDigits("1.25kN/(t)", { resolveIdentifier: thickness })).toBe(3);
+    const measured = (symbol: string) => (symbol === "t" ? { expression: "8mm" } : undefined);
+    expect(inferSignificantDigits("1.25kN/(t)", { resolveIdentifier: measured })).toBe(1);
+  });
+
+  it("厳密値だけの手順は桁を主張しないが、下流の丸めも止めない", () => {
+    // 正味断面 `A = (w-d)*t` は厳密値だけなので、この手順自体は丸めない（null）。
+    // ただし A を参照する手順は**自分の測定値の桁で丸め続けられる**こと。ここを「読めない」と
+    // 同じ扱いにすると、厳密値だけの手順を1つ挟むだけで下流の丸めが全部止まる。
+    const net: Record<string, { expression: string; exact?: boolean }> = {
+      w: { expression: "60mm", exact: true },
+      d: { expression: "20mm", exact: true },
+      t: { expression: "8mm", exact: true },
+      A: { expression: "(w-d)*t" },
+      F: { expression: "15kN" },
+    };
+    const resolveNet = (symbol: string) => net[symbol];
+    expect(inferSignificantDigits("(w-d)*t", { resolveIdentifier: resolveNet })).toBeNull();
+    expect(inferSignificantDigits("F/(A)", { resolveIdentifier: resolveNet })).toBe(2);
+  });
+
+  it("括弧の外の測定値は、括弧の中の厳密値どうしの加減算を塞がない", () => {
+    // 深さごとに判定する理由そのもの。`(厳密+厳密)*測定` は通し、`厳密*(測定+測定)` は塞ぐ。
+    const box = (symbol: string) => (symbol === "a" ? { expression: "60mm", exact: true } : symbol === "b" ? { expression: "20mm", exact: true } : undefined);
+    expect(inferSignificantDigits("(a-b)*1.25", { resolveIdentifier: box })).toBe(3);
+    expect(inferSignificantDigits("a*(1.25m+2.5m)", { resolveIdentifier: box })).toBeNull();
   });
 });

@@ -263,7 +263,7 @@ export const PHYSICS_WAVES_SEEDS: NotebookSeed[] = [
     title: { en: "Law of refraction (Snell's law)", ja: "屈折の法則（スネルの法則）", es: "Ley de la refracción (ley de Snell)", "pt-BR": "Lei da refração (lei de Snell)", de: "Brechungsgesetz (Snelliussches Gesetz)", fr: "Loi de la réfraction (loi de Snell-Descartes)" },
     description: { en: "Compute the refraction angle from the angle of incidence and the refractive indices.", ja: "入射角と屈折率から、屈折角を求めます。", es: "Calcula el ángulo de refracción a partir del ángulo de incidencia y los índices de refracción.", "pt-BR": "Calcule o ângulo de refração a partir do ângulo de incidência e dos índices de refração.", de: "Berechnet den Brechungswinkel aus dem Einfallswinkel und den Brechzahlen.", fr: "Calculer l'angle de réfraction à partir de l'angle d'incidence et des indices de réfraction." },
     localConstants: [
-      { symbol: "n₁", expression: "1" },
+      { symbol: "n₁", expression: "1", exact: true },
       { symbol: "n₂", expression: "1.5" },
       { symbol: "θ₁", expression: "30deg" },
     ],
@@ -318,7 +318,7 @@ export const PHYSICS_ELECTRICITY_SEEDS: NotebookSeed[] = [
     title: { en: "Electromagnetic induction (induced EMF)", ja: "電磁誘導（誘導起電力）", es: "Inducción electromagnética (fem inducida)", "pt-BR": "Indução eletromagnética (fem induzida)", de: "Elektromagnetische Induktion (induzierte Spannung)", fr: "Induction électromagnétique (f.é.m. induite)" },
     description: { en: "Compute the induced EMF of a coil from the number of turns and the rate of change of magnetic flux.", ja: "コイルの巻数と磁束の変化から、誘導起電力を求めます。", es: "Calcula la fem inducida en una bobina a partir del número de espiras y la variación del flujo magnético.", "pt-BR": "Calcule a fem induzida em uma bobina a partir do número de espiras e da variação do fluxo magnético.", de: "Berechnet die in einer Spule induzierte Spannung aus der Windungszahl und der Änderung des magnetischen Flusses.", fr: "Calculer la f.é.m. induite dans une bobine à partir du nombre de spires et de la variation du flux magnétique." },
     localConstants: [
-      { symbol: "N", expression: "200" },
+      { symbol: "N", expression: "200", exact: true },
       { symbol: "ΔΦ", expression: "0.02Wb" },
       { symbol: "Δt", expression: "0.1s" },
     ],
@@ -372,7 +372,7 @@ export const PHYSICS_ATOMIC_SEEDS: NotebookSeed[] = [
     title: { en: "Radioactive decay (half-life)", ja: "放射性崩壊（半減期）", es: "Desintegración radiactiva (semivida)", "pt-BR": "Decaimento radioativo (meia-vida)", de: "Radioaktiver Zerfall (Halbwertszeit)", fr: "Désintégration radioactive (demi-vie)" },
     description: { en: "Compute the remaining number of atoms from the half-life, elapsed time, and initial atom count.", ja: "半減期・経過時間・初期の原子数から、残っている原子数を求めます。", es: "Calcula el número de átomos restantes a partir de la semivida, el tiempo transcurrido y el número inicial de átomos.", "pt-BR": "Calcule o número de átomos restantes a partir da meia-vida, do tempo decorrido e do número inicial de átomos.", de: "Berechnet die verbleibende Anzahl an Atomen aus der Halbwertszeit, der verstrichenen Zeit und der anfänglichen Atomanzahl.", fr: "Calculer le nombre d'atomes restants à partir de la demi-vie, du temps écoulé et du nombre initial d'atomes." },
     localConstants: [
-      { symbol: "N₀", expression: "1000000" },
+      { symbol: "N₀", expression: "1000000", exact: true },
       { symbol: "T", expression: "5.3yr" },
       { symbol: "t", expression: "10.6yr" },
     ],
@@ -381,7 +381,7 @@ export const PHYSICS_ATOMIC_SEEDS: NotebookSeed[] = [
   {
     title: { en: "Bohr model (hydrogen energy levels)", ja: "ボーアモデル（水素原子のエネルギー準位）", es: "Modelo de Bohr (niveles de energía del átomo de hidrógeno)", "pt-BR": "Modelo de Bohr (níveis de energia do átomo de hidrogênio)", de: "Bohrsches Atommodell (Energieniveaus des Wasserstoffatoms)", fr: "Modèle de Bohr (niveaux d'énergie de l'atome d'hydrogène)" },
     description: { en: "Compute the energy level of a hydrogen atom from its quantum number using the Bohr model.", ja: "量子数から、水素原子のエネルギー準位を求めます。", es: "Calcula el nivel de energía de un átomo de hidrógeno a partir de su número cuántico mediante el modelo de Bohr.", "pt-BR": "Calcule o nível de energia de um átomo de hidrogênio a partir de seu número quântico usando o modelo de Bohr.", de: "Berechnet das Energieniveau eines Wasserstoffatoms aus seiner Quantenzahl mithilfe des bohrschen Atommodells.", fr: "Calculer le niveau d'énergie d'un atome d'hydrogène à partir de son nombre quantique à l'aide du modèle de Bohr." },
-    localConstants: [{ symbol: "n", expression: "2" }],
+    localConstants: [{ symbol: "n", expression: "2", exact: true }],
     steps: [{ title: { en: "Energy level En", ja: "エネルギー準位 En", es: "Nivel de energía En", "pt-BR": "Nível de energia En", de: "Energieniveau En", fr: "Niveau d'énergie En" }, expression: "-13.6eV/(n^2)", targetUnit: "eV", formulaLatex: "E_n = -\\dfrac{13.6\\text{eV}}{n^2}" }],
   },
 ];

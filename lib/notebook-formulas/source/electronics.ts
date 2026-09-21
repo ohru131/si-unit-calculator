@@ -158,7 +158,7 @@ export const SOLAR_SEEDS: NotebookSeed[] = [
     description: { en: "Compute the battery bank capacity needed from the daily energy demand, how many days you want to run without sun, the depth of discharge you allow, and the discharge efficiency.", ja: "1日の消費電力量・日照が無くても動かしたい日数・許容する放電深度・放電効率から、必要な蓄電池の容量を求めます。", es: "Calcula la capacidad necesaria del banco de baterías a partir del consumo diario de energía, los días que quieres funcionar sin sol, la profundidad de descarga (DoD) que admites y el rendimiento de descarga.", "pt-BR": "Calcule a capacidade necessária do banco de baterias a partir do consumo diário de energia, de quantos dias você quer funcionar sem sol, da profundidade de descarga (DoD) admitida e do rendimento de descarga.", de: "Berechnet die benötigte Kapazität der Batteriebank aus dem Tagesenergiebedarf, der Anzahl der Tage, die ohne Sonne überbrückt werden sollen, der zugelassenen Entladetiefe (DoD) und dem Entladewirkungsgrad.", fr: "Calculer la capacité nécessaire du parc de batteries à partir de la consommation journalière d'énergie, du nombre de jours à tenir sans soleil, de la profondeur de décharge (DoD) admise et du rendement de décharge." },
     localConstants: [
       { symbol: "E", expression: "2000Wh" },
-      { symbol: "D", expression: "2" },
+      { symbol: "D", expression: "2", exact: true },
       { symbol: "DoD", expression: "0.5" },
       { symbol: "η", expression: "0.9" },
       { symbol: "V", expression: "24V" },

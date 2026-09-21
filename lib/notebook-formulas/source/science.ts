@@ -51,7 +51,7 @@ export const SCIENCE_MOTION_SEEDS: NotebookSeed[] = [
     title: { en: "Speed of an interval from a ticker-tape timer", ja: "記録タイマーで区間の速さを求める", es: "Velocidad de un intervalo con un temporizador de cinta de puntos", "pt-BR": "Velocidade de um intervalo com um temporizador de fita de pontos", de: "Geschwindigkeit eines Abschnitts mit dem Zeitmarkengeber", fr: "Vitesse d'un intervalle avec un chronomètre à bande marquant des points" },
     description: { en: "A ticker-tape timer makes a dot every 0.02s. Compute the speed over a 5-dot interval spanning 4.5cm.", ja: "1打点0.02秒の記録タイマーで、5打点分の区間（4.5cm）の速さを求めます。", es: "Un temporizador de cinta de puntos marca un punto cada 0,02s. Calcula la velocidad en un intervalo de 5 puntos que abarca 4,5cm.", "pt-BR": "Um temporizador de fita marca um ponto a cada 0,02s. Calcule a velocidade em um intervalo de 5 pontos que abrange 4,5cm.", de: "Ein Zeitmarkengeber setzt alle 0,02s einen Punkt. Berechne die Geschwindigkeit über einen Abschnitt von 5 Punkten mit einer Länge von 4,5cm.", fr: "Un chronomètre à bande marque un point toutes les 0,02s. Calcule la vitesse sur un intervalle de 5 points s'étendant sur 4,5cm." },
     localConstants: [
-      { symbol: "n", expression: "5" },
+      { symbol: "n", expression: "5", exact: true },
       { symbol: "interval", expression: "0.02s" },
       { symbol: "d", expression: "4.5cm" },
     ],

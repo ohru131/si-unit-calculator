@@ -91,7 +91,7 @@ export const BREWING_SEEDS: NotebookSeed[] = [
     },
     localConstants: [
       { symbol: "Vₒ", expression: "100mL" },
-      { symbol: "n", expression: "3" },
+      { symbol: "n", expression: "3", exact: true },
     ],
     steps: [
       {

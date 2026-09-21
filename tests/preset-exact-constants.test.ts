@@ -1,0 +1,84 @@
+import { describe, expect, it, vi } from "vitest";
+
+import { applyPresetExactConstants, buildPresetNotebooksFromSeeds, isCalculationNotebook, sanitizeStoredLocalConstants, type CalculationNotebook } from "../lib/calculator-store";
+import { resolvePresetRegionalDefaults } from "../lib/preset-regional-defaults";
+
+// calculator-store は global-settings 経由で React Native を芋づる式に読み込む（Flow構文の
+// .js が混ざり vitest が解析できない）。tests/preset-regional-sync.test.ts と同じ形で切る。
+vi.mock("@/lib/global-settings", () => ({ useGlobalSettings: () => ({ language: "en", currencyCode: null, regionCode: null }) }));
+
+const NOW = "2026-01-01T00:00:00.000Z";
+const DEFAULTS = resolvePresetRegionalDefaults(null, "JP", "ja");
+
+function seeded(): CalculationNotebook[] {
+  return buildPresetNotebooksFromSeeds(["eng-stress"], "ja", DEFAULTS, NOW);
+}
+
+function holeNotebook(notebooks: CalculationNotebook[]): CalculationNotebook {
+  const found = notebooks.find((notebook) => notebook.title === "穴まわりの応力集中");
+  if (!found) throw new Error("穴まわりの応力集中 が投入されていない");
+  return found;
+}
+
+describe("厳密値の印（exact）の投入と貼り直し", () => {
+  it("投入時にシードの印が保存データへ写る", () => {
+    const notebook = holeNotebook(seeded());
+    const marked = notebook.localConstants.filter((constant) => constant.exact).map((constant) => constant.symbol);
+    // 図面の呼び寸法だけに付き、荷重 F と応力集中係数 Kₜ（＝測定値）には付かない。
+    expect(marked).toEqual(["w", "d", "t"]);
+  });
+
+  it("印が落ちた保存データへシードから貼り直す", () => {
+    // 投入はカテゴリ単位で1回きりなので、既存インストールにはこの経路でしか届かない。
+    const stored = seeded().map((notebook) => ({
+      ...notebook,
+      localConstants: notebook.localConstants.map(({ exact: _dropped, ...rest }) => rest),
+    }));
+    const applied = applyPresetExactConstants(stored);
+    expect(applied.changed).toBe(true);
+    expect(holeNotebook(applied.notebooks).localConstants.filter((constant) => constant.exact).map((constant) => constant.symbol)).toEqual(["w", "d", "t"]);
+  });
+
+  it("2回目は何も変えない（毎回呼んでよい＝自己修復する）", () => {
+    // regionalDefault の付け直しと違い所有権の記録ではないので、1回きりに縛る必要がない。
+    const once = applyPresetExactConstants(seeded());
+    expect(once.changed).toBe(false);
+    expect(applyPresetExactConstants(once.notebooks).changed).toBe(false);
+  });
+
+  it("利用者が値を書き換えても印は外れない", () => {
+    // 「この欄は図面の寸法である」はノートの構造の話で、いま入っている値が誰のものか
+    // （regionalDefault が表す所有権）とは別。板厚を 8mm→10mm に直しても寸法は寸法。
+    const stored = seeded().map((notebook) => ({
+      ...notebook,
+      localConstants: notebook.localConstants.map((constant) => (constant.symbol === "t" ? { ...constant, expression: "10mm" } : constant)),
+    }));
+    const applied = applyPresetExactConstants(stored);
+    const thickness = holeNotebook(applied.notebooks).localConstants.find((constant) => constant.symbol === "t");
+    expect(thickness?.expression).toBe("10mm");
+    expect(thickness?.exact).toBe(true);
+  });
+
+  it("シードから印が外れたら保存データからも外す", () => {
+    const stored = seeded().map((notebook) => ({
+      ...notebook,
+      localConstants: notebook.localConstants.map((constant) => ({ ...constant, exact: true })),
+    }));
+    const applied = applyPresetExactConstants(stored);
+    expect(applied.changed).toBe(true);
+    expect(holeNotebook(applied.notebooks).localConstants.find((constant) => constant.symbol === "F")?.exact).toBeUndefined();
+  });
+
+  it("印が付いていてもノートの検証・sanitizeで捨てられない", () => {
+    // 未知の目印でノートを丸ごと捨てると、利用者の手順ごと消えて二度と復活しない
+    // （投入済みカテゴリは seededPresetIds に残るため）。exact も同じ轍を踏まないこと。
+    const notebook = holeNotebook(seeded());
+    expect(isCalculationNotebook(notebook)).toBe(true);
+    expect(sanitizeStoredLocalConstants(notebook.localConstants).filter((constant) => constant.exact)).toHaveLength(3);
+  });
+
+  it("利用者が作ったノートには触らない", () => {
+    const own: CalculationNotebook = { ...holeNotebook(seeded()), id: "own", isPreset: false };
+    expect(applyPresetExactConstants([own]).changed).toBe(false);
+  });
+});

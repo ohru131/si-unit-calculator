@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { type CalculationNotebook, type CalculationNoteStep, type NotebookLocalConstant } from "../lib/calculator-store";
 import { localizedText } from "../lib/i18n";
-import { evaluateNotebookSteps } from "../lib/notebook-engine";
+import { evaluateNotebookSteps, resolveNotebookLocalConstants } from "../lib/notebook-engine";
 import { PRESET_NOTEBOOK_SEEDS } from "../lib/notebook-formulas";
-import { buildNotebookExportModel, resolveNotebookStepDisplay, notebookWithDraftValues } from "../lib/notebook-export-model";
+import { buildNotebookExportModel, notebookStepSignificantDigits, resolveNotebookStepDisplay, notebookWithDraftValues } from "../lib/notebook-export-model";
 
 const NOW = "2026-01-01T00:00:00.000Z";
 
@@ -18,6 +18,8 @@ function notebookFromSeed(categoryId: string, seedIndex: number, language: "en" 
     id: `${categoryId}-${seedIndex}-c${index}`,
     symbol: constant.symbol,
     expression: constant.expression,
+    // 厳密値の印（図面の呼び寸法・個数）まで写さないと、ここだけ本番と桁数が変わる。
+    ...(constant.exact ? { exact: true as const } : {}),
   }));
   const steps: CalculationNoteStep[] = seed.steps.map((step, index) => ({
     id: `${categoryId}-${seedIndex}-s${index}`,
@@ -61,6 +63,11 @@ function notebook(overrides: Partial<CalculationNotebook>): CalculationNotebook 
     updatedAt: NOW,
     ...overrides,
   };
+}
+
+/** ローカル定数を評価器に渡せる形へ解決する（アプリ本体と同じ経路）。 */
+function resolvedConstants(notebook: CalculationNotebook) {
+  return resolveNotebookLocalConstants(notebook.localConstants, [], "ja").resolved;
 }
 
 describe("buildNotebookExportModel", () => {
@@ -311,5 +318,32 @@ describe("notebookWithDraftValues", () => {
     expect(draft.title).toBe("残る名前");
     expect(draft.description).toBe("残る説明");
     expect(draft.isPreset).toBe(true);
+  });
+});
+
+describe("厳密値の印が付いたプリセット（穴まわりの応力集中）", () => {
+  // 実機で「46.875 MPa は出しすぎ、47 くらいでは」と指摘された件の回帰テスト。
+  // 板幅60mm・穴径Ø20mm・板厚8mm は図面の呼び寸法（exact）で、測定値は荷重15kNと
+  // 応力集中係数2.4だけ。どちらも2桁なので結果も2桁になる。
+  //
+  // 印が外れると **エラーにならないまま** 桁だけが戻る（`(w-d)` の加減算で桁が読めなくなり、
+  // 仮にそこを通しても `t=8mm` が1桁）ので、型でもlintでも拾えない。ここで固定する。
+  const seedIndex = PRESET_NOTEBOOK_SEEDS["eng-stress"].findIndex((seed) => seed.title.en === "Stress concentration at a hole");
+
+  it("正味断面の公称応力を有効2桁で丸め、丸める前の値を併記する", () => {
+    const notebook = notebookFromSeed("eng-stress", seedIndex, "ja");
+    const results = evaluateNotebookSteps(notebook.steps, resolvedConstants(notebook), "ja");
+    const digits = notebookStepSignificantDigits(results[0].step, notebook.localConstants, []);
+    expect(digits).toBe(2);
+    const display = resolveNotebookStepDisplay(results[0], undefined, "metric", "ja-JP", digits);
+    expect(display.value).toBe("≈ 47 MPa");
+    expect(display.rawValue).toBe("46.875 MPa");
+  });
+
+  it("印を外すと桁が読めなくなる（この印が効いていることの裏取り）", () => {
+    const notebook = notebookFromSeed("eng-stress", seedIndex, "ja");
+    const withoutExact = notebook.localConstants.map(({ exact: _dropped, ...rest }) => rest);
+    const results = evaluateNotebookSteps(notebook.steps, resolvedConstants(notebook), "ja");
+    expect(notebookStepSignificantDigits(results[0].step, withoutExact, [])).toBeNull();
   });
 });
