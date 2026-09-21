@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -18,6 +16,7 @@ import { NotebookEditorSheet } from "@/components/notebooks/notebook-editor-shee
 import { NotebookList } from "@/components/notebooks/notebook-list";
 import { ScreenContainer } from "@/components/screen-container";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ConstantEditorSheet } from "@/components/ui/constant-editor-sheet";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
@@ -41,10 +40,9 @@ const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "mon
 // 英語のキー集合を正にして、言語を足したときにキー漏れがその言語のブロックで型エラーになるようにする。
 const EN_COPY = {
   notebooksTab: "Notebooks", constantsTab: "Global constants",
-  close: "Close", save: "Save", saving: "Saving…", delete: "Delete", cancel: "Cancel",
-  constantEmpty: "No constants yet", constantEmptyHint: "Store a reusable value such as W = 3cm.",
-  titleLabel: "Name", descriptionLabel: "Description", expressionLabel: "Expression", symbolLabel: "Symbol",
-  constantEditor: "Constant", constantNew: "New constant",
+  delete: "Delete", cancel: "Cancel",
+  constantEmpty: "No constants yet", constantEmptyHint: "Store a reusable value such as W1 = 3cm.",
+  constantNew: "New constant",
   deleteConfirm: "Delete this item? This cannot be undone.", validation: "Please fill in the required fields.",
   notebookNew: "New notebook", uncategorized: "Uncategorized",
   notebookSearch: "Search all notebooks", searchClear: "Clear search",
@@ -56,10 +54,9 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   en: EN_COPY,
   ja: {
       notebooksTab: "計算ノート", constantsTab: "グローバル定数",
-    close: "閉じる", save: "保存", saving: "保存中…", delete: "削除", cancel: "キャンセル",
-    constantEmpty: "定数はまだありません", constantEmptyHint: "例：W = 3cm のように、よく使う値を保存できます。",
-    titleLabel: "名前", descriptionLabel: "説明", expressionLabel: "式", symbolLabel: "記号",
-    constantEditor: "定数", constantNew: "新しい定数",
+    delete: "削除", cancel: "キャンセル",
+    constantEmpty: "定数はまだありません", constantEmptyHint: "例：W1 = 3cm のように、よく使う値を保存できます。",
+    constantNew: "新しい定数",
     deleteConfirm: "この項目を削除しますか？元に戻せません。", validation: "必須項目を入力してください。",
     notebookNew: "新しい計算ノート", uncategorized: "未分類",
     notebookSearch: "すべての計算ノートを検索", searchClear: "検索をクリア",
@@ -67,10 +64,9 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   },
   es: {
       notebooksTab: "Cuadernos", constantsTab: "Constantes globales",
-    close: "Cerrar", save: "Guardar", saving: "Guardando…", delete: "Eliminar", cancel: "Cancelar",
-    constantEmpty: "Aún no hay constantes", constantEmptyHint: "Guarda un valor reutilizable, por ejemplo W = 3cm.",
-    titleLabel: "Nombre", descriptionLabel: "Descripción", expressionLabel: "Expresión", symbolLabel: "Símbolo",
-    constantEditor: "Constante", constantNew: "Nueva constante",
+    delete: "Eliminar", cancel: "Cancelar",
+    constantEmpty: "Aún no hay constantes", constantEmptyHint: "Guarda un valor reutilizable, por ejemplo W1 = 3cm.",
+    constantNew: "Nueva constante",
     deleteConfirm: "¿Eliminar este elemento? Esta acción no se puede deshacer.", validation: "Completa los campos obligatorios.",
     notebookNew: "Nuevo cuaderno", uncategorized: "Sin categoría",
     notebookSearch: "Buscar en todos los cuadernos", searchClear: "Borrar la búsqueda",
@@ -78,10 +74,9 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   },
   "pt-BR": {
       notebooksTab: "Cadernos", constantsTab: "Constantes globais",
-    close: "Fechar", save: "Salvar", saving: "Salvando…", delete: "Excluir", cancel: "Cancelar",
-    constantEmpty: "Ainda não há constantes", constantEmptyHint: "Salve um valor reutilizável, por exemplo W = 3cm.",
-    titleLabel: "Nome", descriptionLabel: "Descrição", expressionLabel: "Expressão", symbolLabel: "Símbolo",
-    constantEditor: "Constante", constantNew: "Nova constante",
+    delete: "Excluir", cancel: "Cancelar",
+    constantEmpty: "Ainda não há constantes", constantEmptyHint: "Salve um valor reutilizável, por exemplo W1 = 3cm.",
+    constantNew: "Nova constante",
     deleteConfirm: "Excluir este item? Isso não pode ser desfeito.", validation: "Preencha os campos obrigatórios.",
     notebookNew: "Novo caderno", uncategorized: "Sem categoria",
     notebookSearch: "Buscar em todos os cadernos", searchClear: "Limpar a busca",
@@ -89,10 +84,9 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   },
   de: {
       notebooksTab: "Rechenhefte", constantsTab: "Globale Konstanten",
-    close: "Schließen", save: "Speichern", saving: "Speichert…", delete: "Löschen", cancel: "Abbrechen",
-    constantEmpty: "Noch keine Konstanten", constantEmptyHint: "Speichere einen wiederverwendbaren Wert, zum Beispiel W = 3cm.",
-    titleLabel: "Name", descriptionLabel: "Beschreibung", expressionLabel: "Ausdruck", symbolLabel: "Symbol",
-    constantEditor: "Konstante", constantNew: "Neue Konstante",
+    delete: "Löschen", cancel: "Abbrechen",
+    constantEmpty: "Noch keine Konstanten", constantEmptyHint: "Speichere einen wiederverwendbaren Wert, zum Beispiel W1 = 3cm.",
+    constantNew: "Neue Konstante",
     deleteConfirm: "Diesen Eintrag löschen? Das kann nicht rückgängig gemacht werden.", validation: "Bitte fülle die Pflichtfelder aus.",
     notebookNew: "Neues Rechenheft", uncategorized: "Ohne Kategorie",
     notebookSearch: "Alle Rechenhefte durchsuchen", searchClear: "Suche löschen",
@@ -100,10 +94,9 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   },
   fr: {
       notebooksTab: "Carnets", constantsTab: "Constantes globales",
-    close: "Fermer", save: "Enregistrer", saving: "Enregistrement…", delete: "Supprimer", cancel: "Annuler",
-    constantEmpty: "Aucune constante pour le moment", constantEmptyHint: "Enregistrez une valeur réutilisable, par exemple W = 3cm.",
-    titleLabel: "Nom", descriptionLabel: "Description", expressionLabel: "Expression", symbolLabel: "Symbole",
-    constantEditor: "Constante", constantNew: "Nouvelle constante",
+    delete: "Supprimer", cancel: "Annuler",
+    constantEmpty: "Aucune constante pour le moment", constantEmptyHint: "Enregistrez une valeur réutilisable, par exemple W1 = 3cm.",
+    constantNew: "Nouvelle constante",
     deleteConfirm: "Supprimer cet élément ? Cette action est irréversible.", validation: "Veuillez remplir les champs obligatoires.",
     notebookNew: "Nouveau carnet", uncategorized: "Sans catégorie",
     notebookSearch: "Rechercher dans tous les carnets", searchClear: "Effacer la recherche",
@@ -142,13 +135,17 @@ export default function ConstantsScreen() {
   // 階層へそのまま戻る（検索のたびに階層を巻き戻すと、目当てが無かったときに辿り直しになる）。
   const [notebookSearchQuery, setNotebookSearchQuery] = useState("");
 
-  // グローバル定数の編集シート。
-  const [constantEditorVisible, setConstantEditorVisible] = useState(false);
-  const [editingConstantSymbol, setEditingConstantSymbol] = useState<string | undefined>();
-  const [constantSymbolInput, setConstantSymbolInput] = useState("");
-  const [constantExpressionInput, setConstantExpressionInput] = useState("");
-  const [constantError, setConstantError] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
+  // グローバル定数の編集シート。**実体は電卓タブと共用の ConstantEditorSheet**——以前はこの画面
+  // だけが自前のフォームを持っていて、OS のキーボードしか入力手段が無く（単位記号を打てない）、
+  // しかも Modal は Android の adjustResize の外なのでキーボードが入力欄に重なっていた。
+  //
+  // 開閉・編集対象・セッション番号を分けて持つのは NotebookEditorSheet と同じ形で、
+  // **セッション番号をシートの `key` にすると、開くたびにフォームが作り直されて前回の入力が
+  // 残らない**。閉じるときは対象を消さない（消すとスライドアウトの最中に空のフォームが滑り落ちる）。
+  const [constantSheetVisible, setConstantSheetVisible] = useState(false);
+  const [constantSheetSymbol, setConstantSheetSymbol] = useState<string | null>(null);
+  const [constantSheetSession, setConstantSheetSession] = useState(0);
+  const editingConstant = constantSheetSymbol ? constants.find((item) => item.symbol === constantSheetSymbol) : undefined;
   const [pendingDeleteConstant, setPendingDeleteConstant] = useState<string | null>(null);
 
   // 計算ノートの編集シート（実体は components/notebooks/notebook-editor-sheet.tsx の
@@ -223,30 +220,17 @@ export default function ConstantsScreen() {
     return searchNotebooks(entries, notebookSearchQuery).map((entry) => entry.notebook);
   }, [categorySearchLabelById, isSearchingNotebooks, notebookSearchQuery, notebooks]);
 
-  const resetConstantEditor = () => {
-    setEditingConstantSymbol(undefined); setConstantSymbolInput(""); setConstantExpressionInput(""); setConstantError("");
-  };
-
   const openConstantEditor = (item?: SavedConstant) => {
-    resetConstantEditor();
-    setConstantEditorVisible(true);
-    if (!item) return;
-    setEditingConstantSymbol(item.symbol); setConstantSymbolInput(item.symbol); setConstantExpressionInput(item.expression);
+    setConstantSheetSymbol(item?.symbol ?? null);
+    setConstantSheetSession((current) => current + 1);
+    setConstantSheetVisible(true);
   };
 
-  const closeConstantEditor = () => { if (!isSaving) setConstantEditorVisible(false); };
-
-  const saveConstant = async () => {
-    setConstantError(""); setIsSaving(true);
-    try {
-      const symbol = constantSymbolInput.trim();
-      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(symbol) || !constantExpressionInput.trim()) throw new Error(copy.validation);
-      if (editingConstantSymbol && editingConstantSymbol !== symbol) await removeConstant(editingConstantSymbol);
-      await upsertConstant(symbol, constantExpressionInput.trim());
-      setConstantEditorVisible(false);
-    } catch (cause) {
-      setConstantError(engineErrorMessage(cause));
-    } finally { setIsSaving(false); }
+  // 名前を変えた編集は「新しい名前で保存してから古い名前を消す」。**先に消さないこと**——
+  // 先に消すと、保存が名前の検証（単位記号との衝突など）で弾かれたときに元の定数まで失われる。
+  const saveConstant = async (symbol: string, expression: string) => {
+    await upsertConstant(symbol, expression);
+    if (constantSheetSymbol && constantSheetSymbol !== symbol) await removeConstant(constantSheetSymbol);
   };
 
   // カテゴリカードのエクスポートボタン用にカテゴリIDからラベルを引く。categoryLabel（上のcategoryOptions）は
@@ -484,20 +468,26 @@ export default function ConstantsScreen() {
 
     {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /></View> : renderContent()}
 
-    <Modal visible={constantEditorVisible} transparent animationType="slide" onRequestClose={closeConstantEditor}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalBackdrop}>
-        <View style={styles.sheet}><View style={styles.sheetHandle} /><View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>{copy.constantEditor}</Text></View><Pressable accessibilityLabel={copy.close} onPress={closeConstantEditor} style={({ pressed }) => [styles.closeButton, pressed && styles.iconPressed]}><IconSymbol name="xmark" size={21} color={colors.muted} /></Pressable></View>
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            <Text style={styles.fieldLabel}>{copy.symbolLabel}</Text>
-            <TextInput value={constantSymbolInput} onChangeText={setConstantSymbolInput} placeholder="W" placeholderTextColor={colors.placeholder} autoCapitalize="characters" autoCorrect={false} style={styles.input} />
-            <Text style={styles.fieldLabel}>{copy.expressionLabel}</Text>
-            <TextInput value={constantExpressionInput} onChangeText={setConstantExpressionInput} placeholder="3cm" placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.input} />
-            {constantError ? <Text style={styles.error}>{constantError}</Text> : null}
-            <Pressable disabled={isSaving} onPress={() => void saveConstant()} style={({ pressed }) => [styles.saveButton, (pressed || isSaving) && styles.buttonPressed]}><Text style={styles.saveText}>{isSaving ? copy.saving : copy.save}</Text></Pressable>
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+    {/* 定数の編集フォームは電卓タブと共用（components/ui/constant-editor-sheet.tsx）。
+        アプリ内キーパッド・単位レール・OSキーボード避けはそちらが持つ。
+        一度も開いていない間はマウントしない（閉じた Modal でも中身は親のレンダーで評価される）。 */}
+    {constantSheetSession > 0 ? (
+      <ConstantEditorSheet
+        key={constantSheetSession}
+        visible={constantSheetVisible}
+        language={language}
+        locale={locale}
+        unitSystem={unitSystem}
+        resultDigits={resultDigits}
+        constant={editingConstant}
+        constants={constants}
+        onSave={saveConstant}
+        // 確認はシート側が出すので、ここは消すだけ（カードのゴミ箱は従来どおりこの画面の
+        // ConfirmDialog を通す）。
+        onDelete={async (symbol) => { await removeConstant(symbol); setConstantSheetVisible(false); }}
+        onClose={() => setConstantSheetVisible(false)}
+      />
+    ) : null}
 
     <NotebookEditorSheet
       key={notebookEditorSession}
@@ -547,6 +537,4 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   loading: { alignItems: "center", flex: 1, justifyContent: "center" }, list: { gap: 10, paddingBottom: 30 }, emptyList: { flexGrow: 1, justifyContent: "center", paddingBottom: 96 }, emptyCard: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 20, borderWidth: 1, paddingHorizontal: 30, paddingVertical: 32 }, emptyTitle: { color: colors.foreground, fontSize: 17, fontWeight: "700", marginTop: 12 }, emptyText: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 7, textAlign: "center" },
   libraryCard: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 16, borderWidth: 1, flexDirection: "row", minHeight: 82, paddingHorizontal: 13, paddingVertical: 12 }, libraryMain: { flex: 1 }, libraryTitle: { color: colors.foreground, fontSize: 15, fontWeight: "800" }, libraryExpression: { color: colors.primary, fontFamily: mono, fontSize: 12, fontWeight: "700", marginTop: 5 }, deleteButton: { alignItems: "center", height: 38, justifyContent: "center", width: 38 },
   buttonPressed: { opacity: 0.72, transform: [{ scale: 0.97 }] }, cardPressed: { opacity: 0.74 }, iconPressed: { opacity: 0.55 },
-  modalBackdrop: { backgroundColor: colors.overlay, flex: 1, justifyContent: "flex-end" }, sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 26, borderTopRightRadius: 26, maxHeight: "92%", paddingBottom: 36, paddingHorizontal: 22, paddingTop: 10 }, sheetHandle: { alignSelf: "center", backgroundColor: colors.border, borderRadius: 3, height: 5, width: 42 }, sheetHeader: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between", paddingBottom: 16, paddingTop: 17 }, sheetTitle: { color: colors.foreground, fontSize: 21, fontWeight: "700" }, closeButton: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderRadius: 18, height: 36, justifyContent: "center", width: 36 },
-  fieldLabel: { color: colors.foreground, fontSize: 13, fontWeight: "700", marginBottom: 7, marginTop: 12 }, input: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 12, borderWidth: 1, color: colors.foreground, fontFamily: mono, fontSize: 16, minHeight: 48, paddingHorizontal: 14 }, error: { color: colors.error, fontSize: 13, lineHeight: 19, marginTop: 11 }, saveButton: { alignItems: "center", backgroundColor: colors.primaryFill, borderRadius: 13, marginTop: 22, minHeight: 52, justifyContent: "center" }, saveText: { color: colors.onPrimary, fontSize: 16, fontWeight: "700" },
 });

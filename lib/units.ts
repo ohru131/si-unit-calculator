@@ -662,6 +662,17 @@ export function isBuiltInUnitSymbol(symbol: string): boolean {
   return resolveBuiltInUnitSymbol(symbol) !== undefined;
 }
 
+// その記号が「今この端末で単位として解決される」か。組み込み（接頭辞分解を含む）に加えて
+// ユーザー定義単位も見る。**グローバル定数の名前が単位記号と衝突していないか**を判定するための
+// もので、衝突を許すと同じ `W` が「裸で書けばその定数・数値の直後ならワット」という、式の
+// 見た目からは区別できない2つの意味を持つ（識別子の解決が単位より先なので、エラーにもならない）。
+//
+// **計算ノートのローカル定数はこれで弾かないこと。** あちらは1つのノートの中だけで効く名前で、
+// 数式の記号（キャパシタンスの `C`・巻数の `N`）をそのまま使えることが設計上の要点になっている。
+export function isResolvableUnitSymbol(symbol: string): boolean {
+  return resolveBuiltInUnitSymbol(symbol) !== undefined || customUnits[symbol] !== undefined;
+}
+
 function resolveUnitSymbol(symbol: string): UnitDefinition {
   const builtIn = resolveBuiltInUnitSymbol(symbol);
   if (builtIn) return builtIn;

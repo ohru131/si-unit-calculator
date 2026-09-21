@@ -12,7 +12,7 @@ import { pushNotebookHistoryEntry, removeNotebookHistoryEntry, type NotebookHist
 import { isPresetRegionalDefaultKind, PresetRegionalDefaults, type PresetRegionalDefaultKind, resolvePresetRegionalDefaults } from "@/lib/preset-regional-defaults";
 import { presetRegionalDefaultPatch, releaseEditedRegionalDefaults } from "@/lib/preset-regional-sync";
 import { applyPresetNotebookOverrides, importedExactFields, type ImportedNotebook, type PresetNotebookOverride } from "@/lib/notebooks-backup";
-import { IDENTIFIER_PATTERN, isUnitStart, NUMBER_TOKEN_PATTERN, parseConstantDefinition, Quantity, SavedConstant, setCustomUnits as setCustomUnitsRegistry, unitSuffixEnd, type CustomUnitRegistration } from "@/lib/units";
+import { IDENTIFIER_PATTERN, isResolvableUnitSymbol, isUnitStart, NUMBER_TOKEN_PATTERN, parseConstantDefinition, Quantity, SavedConstant, setCustomUnits as setCustomUnitsRegistry, unitSuffixEnd, type CustomUnitRegistration } from "@/lib/units";
 
 const CONSTANTS_STORAGE_KEY = "si-unit-calculator.constants.v1";
 const HISTORY_STORAGE_KEY = "si-unit-calculator.history.v1";
@@ -48,6 +48,7 @@ export const UNCATEGORIZED_CATEGORY_ID = "uncategorized";
 // 英語のキー集合を正にして、言語を足したときにキー漏れがその言語のブロックで型エラーになるようにする。
 const EN_STORE_MESSAGES = {
   reservedAutoConstantSymbol: "a1, a2, and so on are reserved for automatic history constants.",
+  unitSymbolConstant: (symbol: string) => `"${symbol}" is already a unit symbol. Pick a different name, such as ${symbol}1.`,
   constantsImportFailed: (symbols: string) => `Could not load constants: ${symbols}. Check what they reference and their expressions.`,
   categoryNameRequired: "Enter a category name.",
 };
@@ -55,26 +56,31 @@ const STORE_MESSAGES: Record<AppLanguage, typeof EN_STORE_MESSAGES> = {
   en: EN_STORE_MESSAGES,
   ja: {
     reservedAutoConstantSymbol: "a1、a2…は計算履歴の自動定数として予約されています。",
+    unitSymbolConstant: (symbol: string) => `「${symbol}」は単位の記号です。${symbol}1 のように別の名前にしてください。`,
     constantsImportFailed: (symbols: string) => `定数を読み込めませんでした：${symbols}。参照先と式を確認してください。`,
     categoryNameRequired: "カテゴリ名を入力してください。",
   },
   es: {
     reservedAutoConstantSymbol: "a1, a2, etc. están reservados para las constantes automáticas del historial.",
+    unitSymbolConstant: (symbol: string) => `«${symbol}» ya es un símbolo de unidad. Elige otro nombre, por ejemplo ${symbol}1.`,
     constantsImportFailed: (symbols: string) => `No se pudieron cargar estas constantes: ${symbols}. Revisa a qué hacen referencia y sus expresiones.`,
     categoryNameRequired: "Introduce un nombre de categoría.",
   },
   "pt-BR": {
     reservedAutoConstantSymbol: "a1, a2 etc. são reservados para as constantes automáticas do histórico.",
+    unitSymbolConstant: (symbol: string) => `"${symbol}" já é um símbolo de unidade. Escolha outro nome, por exemplo ${symbol}1.`,
     constantsImportFailed: (symbols: string) => `Não foi possível carregar estas constantes: ${symbols}. Verifique a que elas se referem e suas expressões.`,
     categoryNameRequired: "Informe um nome de categoria.",
   },
   de: {
     reservedAutoConstantSymbol: "a1, a2 usw. sind für die automatischen Verlaufskonstanten reserviert.",
+    unitSymbolConstant: (symbol: string) => `„${symbol}“ ist bereits ein Einheitenzeichen. Wähle einen anderen Namen, zum Beispiel ${symbol}1.`,
     constantsImportFailed: (symbols: string) => `Diese Konstanten konnten nicht geladen werden: ${symbols}. Prüfe, worauf sie sich beziehen, und ihre Ausdrücke.`,
     categoryNameRequired: "Gib einen Kategorienamen ein.",
   },
   fr: {
     reservedAutoConstantSymbol: "a1, a2, etc. sont réservés aux constantes automatiques de l'historique.",
+    unitSymbolConstant: (symbol: string) => `« ${symbol} » est déjà un symbole d’unité. Choisissez un autre nom, par exemple ${symbol}1.`,
     constantsImportFailed: (symbols: string) => `Impossible de charger ces constantes : ${symbols}. Vérifiez leurs références et leurs expressions.`,
     categoryNameRequired: "Saisissez un nom de catégorie.",
   },
@@ -1321,6 +1327,18 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
       const symbol = symbolInput.trim();
       const expression = expressionInput.trim();
       if (/^a[1-9]\d*$/i.test(symbol)) throw new Error(STORE_MESSAGES[language].reservedAutoConstantSymbol);
+      // 単位記号をグローバル定数の名前にさせない。識別子の解決は単位より先なので、`W = 3cm` を
+      // 許すと裸の `W` は 3cm・数値の直後の `W`（`5W`）はワットになり、**エラーにならないまま
+      // 同じ文字が2つの意味を持つ**（実機で指摘された）。接頭辞で分解できる記号（`ms`・`km`）も
+      // 式では単位として読まれるので同じ扱いにする。判定は評価器と同じ resolveUnitSymbol 系の
+      // 関数（isResolvableUnitSymbol）に任せ、「登録できたのに解決されない／解決が入れ替わる」
+      // 記号が生まれないようにする。
+      //
+      // **弾くのはグローバル定数だけ。** 計算ノートのローカル定数は1つのノートの中で閉じていて、
+      // 数式の記号そのもの（キャパシタンスの `C`・巻数の `N`）を名前にできることが設計上の要点。
+      // **取り込み（importConstants）も通さない**——復元は利用者が自分の値を明示的に写す操作で、
+      // 別の端末で保存済みの名前を黙って落とす方が驚きが大きい。
+      if (isResolvableUnitSymbol(symbol)) throw new Error(STORE_MESSAGES[language].unitSymbolConstant(symbol));
       const existing = constants.find((item) => item.symbol === symbol);
       const others = constants.filter((item) => item.symbol !== symbol);
       const parsed = parseConstantDefinition(`${symbol} = ${expression}`, others);

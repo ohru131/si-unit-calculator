@@ -21,12 +21,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CalculatorBannerAd } from "@/components/ads/calculator-banner-ad";
 import { ScreenContainer } from "@/components/screen-container";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ConstantEditorSheet } from "@/components/ui/constant-editor-sheet";
 import { LatexView } from "@/components/ui/latex-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { ExpressionKeyboard } from "@/components/ui/expression-keyboard";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { isSampleCategoryVisible, isUnitGroupVisible, isUnitVisible, visibleUnits } from "@/lib/advanced-display";
+import { resolveSheetKeyboardLayout, SHEET_PADDING_BOTTOM } from "@/lib/sheet-layout";
 import { resolveCalculatorLayout, scaleFontSizes, type CalculatorLayout } from "@/lib/calculator-layout";
 import { PREFIX_KEYS, type KeyboardTool } from "@/lib/expression-keyboard";
 import { toHalfWidthAscii } from "@/lib/fullwidth-input";
@@ -115,7 +117,7 @@ const QUICK_START: { id: string; expression: string; hintKey: "quickStartOhmsLaw
   { id: "ohms_law", expression: "1kΩ × 1mA", hintKey: "quickStartOhmsLaw" },
   { id: "current", expression: "12V / 4.7kΩ", hintKey: "quickStartCurrent" },
   { id: "distance", expression: "60km/h × 90min", hintKey: "quickStartDistance" },
-  { id: "define", expression: "W = 3cm", hintKey: "quickStartDefine" },
+  { id: "define", expression: "W1 = 3cm", hintKey: "quickStartDefine" },
 ];
 // 進数入力モード中に押せてはいけないキー（演算子・小数点・括弧）。16進の桁のまま演算に入ると
 // 評価器が解釈できないため、まず = で10進へ確定させてから通常の式に組み込む運用にする。
@@ -162,15 +164,6 @@ const resultLatex = (latex: string) => `\\displaystyle \\mathsf{${latex}}`;
 // LatexViewへ渡す値をこの倍率で割っておく必要がある。
 const KATEX_EM_SCALE = 1.21;
 
-// 結果の数字の大きさ。小数表示（styles.resultValue）と同じ36px。
-// 下から出るシートの下端の余白。ナビゲーションバー（safe area の下端）はこれに加算する。
-const SHEET_PADDING_BOTTOM = 28;
-// シートの高さの上限（画面に対する比）。styles.compactSheet の maxHeight: "86%" と必ず同じ値にすること
-// ——キーボードが出ている間だけ、この比から実際のキーボードの高さを引いた数値で上書きする。
-const SHEET_MAX_HEIGHT_RATIO = 0.86;
-// キーボードを避けたあとに残す最低限の高さ。これを割るくらい狭い端末では、見出しと検索欄だけでも
-// 出したうえで中身をスクロールさせる（何も見えないより良い）。
-const SHEET_MIN_HEIGHT_WITH_KEYBOARD = 220;
 // 式の入力欄（トークン列）の文字。**6つのトークン種別で必ず同じ値にすること**——1つでもずれると
 // 同じ行の中で数値と単位のベースラインが食い違い、キャレットの高さも合わなくなる。
 // 19px では小さいという実機の指摘で21pxへ上げた。行の高さは字送りに合わせて26px。
@@ -315,7 +308,7 @@ const EN_COPY = {
   quickStartOhmsLaw: "Ohm's law — the answer comes back in V",
   quickStartCurrent: "Ohm's law — the answer comes back in mA",
   quickStartDistance: "Speed × time, shown in km",
-  quickStartDefine: "Define a constant — then use W × H later",
+  quickStartDefine: "Define a constant — then use W1 × H1 later",
 };
 const COPY: Record<AppLanguage, typeof EN_COPY> = {
   en: EN_COPY,
@@ -356,7 +349,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     quickStartOhmsLaw: "オームの法則 — 答えは 1 V で返る",
     quickStartCurrent: "オームの法則 — 答えは mA で返る",
     quickStartDistance: "速さ × 時間を km で表示",
-    quickStartDefine: "定数を定義 — あとで W × H のように使える",
+    quickStartDefine: "定数を定義 — あとで W1 × H1 のように使える",
   },
   es: {
     calculate: "=", siBase: "Base SI", emptyResult: "Escribe una expresión para ver el resultado. Toca = para guardarlo en el historial.", pickUnit: "Elige una unidad registrada", speedTitle: "Distancia, tiempo y velocidad", speedFormula: "Velocidad = distancia ÷ tiempo     Distancia = velocidad × tiempo", findSpeed: "Calcular velocidad", findDistance: "Calcular distancia", findTime: "Calcular tiempo", savedHistory: "Cálculos guardados", historyHint: "Los últimos resultados están disponibles como a1, a2, etc.", clear: "Borrar", unitSearch: "Buscar unidades, nombres o categorías", copied: "Cálculo copiado", copy: "Copiar", unitDetails: "Detalles de la unidad", siConversion: "Conversión SI", commonUse: "Uso común", close: "Cerrar", advancedMath: "Matemáticas avanzadas", insertUnitTitle: "Buscar una unidad para insertar", saveTemplate: "Guardar", samples: "Ejemplos", keyboardKey: "Teclado", outputUnit: "Unidad mostrada", registered: "Registrada", supported: "Compatible, sin listar", unknown: "Unidad no válida", unknownHint: "Revisa el símbolo o elige un candidato abajo.", history: "Historial", use: "Usar", noUnit: "Base SI", compatible: "Compatible con este resultado", allCandidates: "Candidatos más cercanos", hintComplete: "Completar", more: "Más", showAs: "Mostrar como", fixTap: "Toca la unidad en rojo para corregirla.", aliasNote: "igual a", noSearchResults: "Ninguna unidad coincide con esta búsqueda.", noSearchResultsHint: "Prueba otro símbolo, nombre o categoría.", noHistory: "Aún no hay cálculos guardados.", noHistoryHint: "Cada resultado que calculas se guarda aquí automáticamente.",
@@ -395,7 +388,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     quickStartOhmsLaw: "Ley de Ohm: la respuesta sale en V",
     quickStartCurrent: "Ley de Ohm: la respuesta sale en mA",
     quickStartDistance: "Velocidad × tiempo, mostrado en km",
-    quickStartDefine: "Define una constante: después la usas como W × H",
+    quickStartDefine: "Define una constante: después la usas como W1 × H1",
   },
   "pt-BR": {
     calculate: "=", siBase: "Base SI", emptyResult: "Digite uma expressão para ver o resultado. Toque em = para salvá-lo no histórico.", pickUnit: "Escolha uma unidade registrada", speedTitle: "Distância, tempo e velocidade", speedFormula: "Velocidade = distância ÷ tempo     Distância = velocidade × tempo", findSpeed: "Calcular velocidade", findDistance: "Calcular distância", findTime: "Calcular tempo", savedHistory: "Cálculos salvos", historyHint: "Os últimos resultados ficam disponíveis como a1, a2 etc.", clear: "Limpar", unitSearch: "Buscar unidades, nomes ou categorias", copied: "Cálculo copiado", copy: "Copiar", unitDetails: "Detalhes da unidade", siConversion: "Conversão SI", commonUse: "Uso comum", close: "Fechar", advancedMath: "Matemática avançada", insertUnitTitle: "Buscar uma unidade para inserir", saveTemplate: "Salvar", samples: "Exemplos", keyboardKey: "Teclado", outputUnit: "Unidade de exibição", registered: "Registrada", supported: "Compatível, não listada", unknown: "Unidade inválida", unknownHint: "Verifique o símbolo ou escolha um candidato abaixo.", history: "Histórico", use: "Usar", noUnit: "Base SI", compatible: "Compatível com este resultado", allCandidates: "Candidatos mais próximos", hintComplete: "Concluir", more: "Mais", showAs: "Exibir como", fixTap: "Toque na unidade em vermelho para corrigi-la.", aliasNote: "igual a", noSearchResults: "Nenhuma unidade corresponde a esta busca.", noSearchResultsHint: "Tente outro símbolo, nome ou categoria.", noHistory: "Ainda não há cálculos salvos.", noHistoryHint: "Cada resultado calculado é salvo aqui automaticamente.",
@@ -434,7 +427,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     quickStartOhmsLaw: "Lei de Ohm: a resposta sai em V",
     quickStartCurrent: "Lei de Ohm: a resposta sai em mA",
     quickStartDistance: "Velocidade × tempo, exibido em km",
-    quickStartDefine: "Defina uma constante: depois é só usar como W × H",
+    quickStartDefine: "Defina uma constante: depois é só usar como W1 × H1",
   },
   de: {
     calculate: "=", siBase: "SI-Basis", emptyResult: "Gib einen Ausdruck ein, um das Ergebnis zu sehen. Tippe auf =, um es im Verlauf zu speichern.", pickUnit: "Registrierte Einheit wählen", speedTitle: "Strecke, Zeit & Geschwindigkeit", speedFormula: "Geschwindigkeit = Strecke ÷ Zeit     Strecke = Geschwindigkeit × Zeit", findSpeed: "Geschwindigkeit berechnen", findDistance: "Strecke berechnen", findTime: "Zeit berechnen", savedHistory: "Gespeicherte Berechnungen", historyHint: "Die letzten Ergebnisse stehen als a1, a2 usw. zur Verfügung.", clear: "Löschen", unitSearch: "Einheiten, Namen oder Kategorien suchen", copied: "Berechnung kopiert", copy: "Kopieren", unitDetails: "Details zur Einheit", siConversion: "SI-Umrechnung", commonUse: "Typische Verwendung", close: "Schließen", advancedMath: "Erweiterte Mathematik", insertUnitTitle: "Einheit suchen und einfügen", saveTemplate: "Speichern", samples: "Beispiele", keyboardKey: "Tastatur", outputUnit: "Anzeigeeinheit", registered: "Registriert", supported: "Unterstützt, nicht gelistet", unknown: "Keine gültige Einheit", unknownHint: "Prüfe das Symbol oder wähle unten einen Vorschlag.", history: "Verlauf", use: "Verwenden", noUnit: "SI-Basis", compatible: "Passt zu diesem Ergebnis", allCandidates: "Nächste Vorschläge", hintComplete: "Fertig", more: "Mehr", showAs: "Anzeigen als", fixTap: "Tippe auf die rote Einheit, um sie zu korrigieren.", aliasNote: "entspricht", noSearchResults: "Keine Einheit passt zu dieser Suche.", noSearchResultsHint: "Versuche ein anderes Symbol, einen anderen Namen oder eine andere Kategorie.", noHistory: "Noch keine gespeicherten Berechnungen.", noHistoryHint: "Jedes berechnete Ergebnis wird hier automatisch gespeichert.",
@@ -473,7 +466,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     quickStartOhmsLaw: "Ohmsches Gesetz – die Antwort kommt in V",
     quickStartCurrent: "Ohmsches Gesetz – die Antwort kommt in mA",
     quickStartDistance: "Geschwindigkeit × Zeit, angezeigt in km",
-    quickStartDefine: "Konstante definieren – danach kannst du sie als W × H nutzen",
+    quickStartDefine: "Konstante definieren – danach kannst du sie als W1 × H1 nutzen",
   },
   fr: {
     calculate: "=", siBase: "Base SI", emptyResult: "Saisissez une expression pour voir le résultat. Appuyez sur = pour l'enregistrer dans l'historique.", pickUnit: "Choisir une unité enregistrée", speedTitle: "Distance, temps et vitesse", speedFormula: "Vitesse = distance ÷ temps     Distance = vitesse × temps", findSpeed: "Calculer la vitesse", findDistance: "Calculer la distance", findTime: "Calculer le temps", savedHistory: "Calculs enregistrés", historyHint: "Les derniers résultats sont disponibles sous la forme a1, a2, etc.", clear: "Effacer", unitSearch: "Rechercher des unités, des noms ou des catégories", copied: "Calcul copié", copy: "Copier", unitDetails: "Détails de l'unité", siConversion: "Conversion SI", commonUse: "Usage courant", close: "Fermer", advancedMath: "Mathématiques avancées", insertUnitTitle: "Rechercher une unité à insérer", saveTemplate: "Enregistrer", samples: "Exemples", keyboardKey: "Clavier", outputUnit: "Unité affichée", registered: "Enregistrée", supported: "Prise en charge, non listée", unknown: "Unité non valide", unknownHint: "Vérifiez le symbole ou choisissez un candidat ci-dessous.", history: "Historique", use: "Utiliser", noUnit: "Base SI", compatible: "Compatible avec ce résultat", allCandidates: "Candidats les plus proches", hintComplete: "Terminer", more: "Plus", showAs: "Afficher en", fixTap: "Touchez l'unité en rouge pour la corriger.", aliasNote: "identique à", noSearchResults: "Aucune unité ne correspond à cette recherche.", noSearchResultsHint: "Essayez un autre symbole, nom ou catégorie.", noHistory: "Aucun calcul enregistré pour le moment.", noHistoryHint: "Chaque résultat calculé est enregistré ici automatiquement.",
@@ -512,7 +505,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     quickStartOhmsLaw: "Loi d'Ohm : la réponse s'affiche en V",
     quickStartCurrent: "Loi d'Ohm : la réponse s'affiche en mA",
     quickStartDistance: "Vitesse × temps, affiché en km",
-    quickStartDefine: "Définissez une constante : ensuite utilisez-la comme W × H",
+    quickStartDefine: "Définissez une constante : ensuite utilisez-la comme W1 × H1",
   },
 };
 
@@ -566,34 +559,16 @@ export default function CalculatorScreen() {
   const insets = useSafeAreaInsets();
   // **シートは OS のキーボードからも自分で逃げる。** Modal は Android の adjustResize が効く
   // ウィンドウの外に出るので、キーボードが出てもシートは下端に貼り付いたままで、単位ピッカーの
-  // 検索欄がキーボードの裏に隠れる（実機で報告）。実測した高さぶん持ち上げ、**上限の高さも同時に
-  // 縮める**——marginBottom だけ足すと、86% のままのシートが上へはみ出して見出しと検索欄が
-  // 画面の外に出る。キーボードが出ている間は insets.bottom を足さない（キーボードの高さに
-  // ナビゲーションバーのぶんが既に入っている）。
-  //
-  // **下限（SHEET_MIN_HEIGHT_WITH_KEYBOARD）は残りの画面高で頭打ちにすること。** 無条件に
-  // 当てると `marginBottom + maxHeight` が画面の高さを超え、今度は**上**へはみ出して見出しと
-  // 検索欄が画面の外に出る（画面高600・キーボード400なら 400+220=620）。これでは隠れる先が
-  // キーボードから画面の上端に変わるだけ。CodeRabbitが#72で検出。
+  // 検索欄がキーボードの裏に隠れる（実機で報告）。寸法の決め方は lib/sheet-layout.ts の純関数
+  // （resolveSheetKeyboardLayout）に置いてあり、**定数の編集シートも同じものを通す**——画面ごとに
+  // 書くと必ずどこかが旧いままになる。理由と過去に踏んだ穴はそちらのコメントにまとめてある。
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const sheetStyle = useMemo(
-    () => [
-      styles.compactSheet,
-      keyboardHeight > 0
-        ? {
-            marginBottom: keyboardHeight,
-            maxHeight: Math.min(
-              Math.max(0, windowHeight - keyboardHeight),
-              Math.max(SHEET_MIN_HEIGHT_WITH_KEYBOARD, windowHeight * SHEET_MAX_HEIGHT_RATIO - keyboardHeight),
-            ),
-            paddingBottom: SHEET_PADDING_BOTTOM,
-          }
-        : { paddingBottom: SHEET_PADDING_BOTTOM + insets.bottom },
-    ],
+    () => [styles.compactSheet, resolveSheetKeyboardLayout(keyboardHeight, windowHeight, insets.bottom)],
     [insets.bottom, keyboardHeight, styles.compactSheet, windowHeight],
   );
   const { quick, presetExpression, presetUnit } = useLocalSearchParams<{ quick?: string | string[]; presetExpression?: string | string[]; presetUnit?: string | string[] }>();
-  const { constants, history, favoriteUnits, upsertConstant, addHistoryEntry, clearHistory, isLoading: isHistoryLoading } = useCalculatorStore();
+  const { constants, history, favoriteUnits, upsertConstant, removeConstant, addHistoryEntry, clearHistory, isLoading: isHistoryLoading } = useCalculatorStore();
   const { isPro } = usePro();
   const { completeOnboarding, hasSeenOnboarding, isReady, language, locale, measuringStandard, resultDigits, t, unitGroupLabel, unitSystem } = useGlobalSettings();
   const [onboardingStep, setOnboardingStep] = useState(0);
@@ -756,6 +731,37 @@ export default function CalculatorScreen() {
   // 履歴参照（a1・a2…）も一度は並べたが、数件だけ出しても中途半端で（全部出すとボタンが
   // 数十個に膨らむ）、履歴は入力欄の下の履歴バーから開く方が早い。
   const keyboardConstants = useMemo(() => constants.map((entry) => ({ symbol: entry.symbol, hint: entry.expression })), [constants]);
+  // 「定数」パネルからそのまま定数を足す・直す。**以前は定数の編集口がライブラリタブの中にしか
+  // 無く**、「電卓で使うものなのにどこで編集するのか分からない」と報告された。定数の名前が
+  // 並んでいるまさにこの場所が直したいと思う場所なので、鉛筆チップで編集モードへ切り替える。
+  const [isEditingConstants, setEditingConstants] = useState(false);
+  // 編集シート。開閉・編集対象・セッション番号を分けて持つのは NotebookEditorSheet と同じ形で、
+  // **セッション番号をシートの `key` にすると、開くたびにフォームが作り直されて前回の入力が
+  // 残らない**（effect で props を state へ写す形にしなくて済む）。閉じるときは対象を消さない
+  // ——消すとスライドアウトの最中に空のフォームが滑り落ちる。
+  const [constantSheetVisible, setConstantSheetVisible] = useState(false);
+  const [constantSheetSymbol, setConstantSheetSymbol] = useState<string | null>(null);
+  const [constantSheetSession, setConstantSheetSession] = useState(0);
+  const openConstantSheet = useCallback((symbol: string | null) => {
+    setConstantSheetSymbol(symbol);
+    setConstantSheetSession((current) => current + 1);
+    setConstantSheetVisible(true);
+  }, [setConstantSheetSymbol, setConstantSheetSession, setConstantSheetVisible]);
+  const editingConstant = constantSheetSymbol ? constants.find((entry) => entry.symbol === constantSheetSymbol) : undefined;
+  // **useMemo で包むこと。** ExpressionKeyboard は memo してあるので、毎レンダー新しい
+  // オブジェクトを渡すとキーパッドのメモ化が丸ごと効かなくなる（打鍵ごとに20キーを作り直す）。
+  const constantActions = useMemo(
+    () => ({
+      isEditing: isEditingConstants,
+      onToggleEditing: () => setEditingConstants((current) => !current),
+      onEdit: (symbol: string) => openConstantSheet(symbol),
+      onCreate: () => openConstantSheet(null),
+    }),
+    // setState の関数は安定なので依存に入れても評価回数は変わらないが、**書かないと
+    // React Compiler が「推論した依存と食い違う」としてこのコンポーネントの最適化を丸ごと
+    // 飛ばす**（react-hooks/preserve-manual-memoization）。
+    [isEditingConstants, openConstantSheet, setEditingConstants],
+  );
   const autoConstants = useMemo(() => historyToAutoConstants(history), [history]);
   const availableConstants = useMemo(() => [...constants, ...autoConstants], [autoConstants, constants]);
   // = を押す前でも計算できる入力ならその場で結果を出す。計算できない入力は「なぜ計算できないか」
@@ -1241,7 +1247,7 @@ export default function CalculatorScreen() {
   const pressKey = (key: string, literal = false) => {
     markUserInteraction();
     // **`literal` のときの `=` は計算ではなく文字の挿入。** `ABC` パネルの `=` は
-    // 定数の定義（`W = 3cm`）を書くためのキーで、押すと確定してしまっては使いようが無い
+    // 定数の定義（`W1 = 3cm`）を書くためのキーで、押すと確定してしまっては使いようが無い
     // （実機で指摘された）。キーパッド本体に `=` は無く、確定は入力欄の右のボタンと
     // OSキーボードの改行（submitCalculation）が担う。
     if (key === "=" && !literal) {
@@ -2008,7 +2014,7 @@ export default function CalculatorScreen() {
                 )}
               </View>
             </Pressable>
-            {/* OSのキーボードの受け口。キーパッドには英字が無く、定数名（W = 3cm）や単位名は
+            {/* OSのキーボードの受け口。キーパッドには英字が無く、定数名（W1 = 3cm）や単位名は
                 OSのキーボードでしか打てないので、入力欄そのものは消さずに1×1の透明な要素として
                 残す（showSoftInputOnFocus={false} で塞ぐと、その打ち込みができなくなる）。
                 値・選択範囲・改行での確定は従来どおりこの TextInput が持ち、見た目だけを
@@ -2368,6 +2374,7 @@ export default function CalculatorScreen() {
           panelsDisabled={baseInputMode !== null}
           unitPanel={isRailNearInput ? null : renderUnitRail(true)}
           constants={keyboardConstants}
+          constantActions={constantActions}
           aboveKeypad={baseInputMode === 16 ? (
             // 16進の入力モード中だけ、キーパッド本体の配置は変えずに直上へA〜Fの行を足す。
             <View style={styles.hexKeyRow}>
@@ -2524,6 +2531,32 @@ export default function CalculatorScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* グローバル定数の編集シート。**ライブラリタブと同じ部品**（フォームを2つ持つと、
+          片方にだけ入る改良が必ず生まれる）。削除はシートの中から。
+
+          **一度も開いていない間はマウントしない。** 閉じている Modal でも JSX の中身は親の
+          レンダーで評価されるので、置きっぱなしにすると式を1文字打つたびにシートの単位レールと
+          キーパッドの要素まで作り直すことになる（閉じた Modal の中身を useMemo で括っているのと
+          同じ事情）。一度開いたあとは残すので、閉じるときのスライドアウトはそのまま出る。 */}
+      {constantSheetSession > 0 ? (
+        <ConstantEditorSheet
+          key={constantSheetSession}
+          visible={constantSheetVisible}
+          language={language}
+          locale={locale}
+          unitSystem={unitSystem}
+          resultDigits={resultDigits}
+          constant={editingConstant}
+          constants={constants}
+          onSave={(symbol, value) => upsertConstant(symbol, value)}
+          onDelete={async (symbol) => {
+            await removeConstant(symbol);
+            setConstantSheetVisible(false);
+          }}
+          onClose={() => setConstantSheetVisible(false)}
+        />
+      ) : null}
 
       <ConfirmDialog
         visible={pendingSample !== null}

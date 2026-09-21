@@ -2,6 +2,7 @@ import {
   evaluateExpression,
   IDENTIFIER_BODY_CHAR_CLASS,
   IDENTIFIER_START_CHAR_CLASS,
+  isResolvableUnitSymbol,
   parseConstantDefinition,
   type Quantity,
   type SavedConstant,
@@ -30,6 +31,18 @@ export function evaluateCalculatorInput(input: string, constants: SavedConstant[
     return { quantity: evaluateExpression(trimmed, constants), definition: null };
   }
   const { symbol, expression, quantity } = parseConstantDefinition(trimmed, constants);
+  // 単位記号をグローバル定数の名前にさせない。識別子の解決は単位より先なので、`W = 3cm` を
+  // 許すと裸の `W` は 3cm・数値の直後の `W`（`5W`）はワットになり、**エラーにならないまま同じ
+  // 文字が2つの意味を持つ**（実機で指摘された）。
+  //
+  // **判定をここに置く理由**: この関数はリアルタイム表示と `=` の確定計算の両方が通る唯一の
+  // 入口なので、打っている最中から結果カードの中で説明できる（`=` を押した人にしか見えない
+  // 検査は、このアプリの方針では存在しないのと同じ）。ストア側（upsertConstant）にも同じ
+  // 判定があるが、あちらはライブラリ画面からの保存も含めて塞ぐ最後の砦。
+  //
+  // **弾くのはグローバル定数だけ。** 計算ノートのローカル定数はこの関数を通らず、数式の記号
+  // そのもの（キャパシタンスの `C`・巻数の `N`）を名前にできることが設計上の要点になっている。
+  if (isResolvableUnitSymbol(symbol)) throw new UnitError("constantSymbolIsUnit", { symbol });
   return { quantity, definition: { symbol, expression } };
 }
 

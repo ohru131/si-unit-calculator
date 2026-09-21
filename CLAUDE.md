@@ -79,6 +79,11 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - **`targetUnit: "°"` は `atan` の結果（無次元）を正しく度に直す**（`atan(0.5)` → 26.565°）。`°` は scale が π/180 の無次元単位なので、式の中で `/1°` する必要は無い。
   - **`sqrt` は次元の指数が全て偶数でないと通らず、`m^0.5` は構文エラー。** MPa·√m（破壊靭性）はこのエンジンでは表現できないので、その手のノートは作れない。
   - ローカル定数名はunit記号と同名でも安全にシャドーイングされる（識別子解決が単位解決より先）。例えば `C`（本来はクーロン）をキャパシタンスの定数名に、`N`（本来はニュートン）をコイルの巻数の定数名に使っても、その式の中では定数の値が優先される。
+  - **その代わり、グローバル定数だけは単位記号と同名にできない**（2026-09-21。`isResolvableUnitSymbol`）。ノートのローカル定数は1つのノートの中で閉じているので上のシャドーイングが価値になるが、グローバル定数は**電卓で打つ全ての式に効く**ので、`W = 3cm` を許すと裸の `W` は 3cm・数値の直後の `W`（`5W`）はワット、と**エラーにならないまま同じ文字が2つの意味を持つ**（実機で指摘された）。接頭辞で分解できる記号（`ms`・`km`）も式では単位として読まれるので同じ扱い。
+    - **判定は評価器と同じ解決順（`resolveBuiltInUnitSymbol` ＋ ユーザー定義単位）に任せる**こと。自前で記号の一覧を持つと「登録できたのに解決されない」記号が生まれる（`isUsableCustomUnitSymbol` が `isBuiltInUnitSymbol` に一本化してあるのと同じ理由）。
+    - **弾く場所は2つ**: `lib/calculator-input.ts` の `evaluateCalculatorInput`（リアルタイム診断と `=` の両方が通る唯一の入口なので、打っている最中から結果カードで説明できる）と、`lib/calculator-store.tsx` の `upsertConstant`（ライブラリ画面からの保存も含めて塞ぐ最後の砦）。**片方だけにすると `=` を押した人にしか見えない検査になる。**
+    - **取り込み（`importConstants`）は通さない。** 復元は利用者が自分の値を明示的に写す操作で、別の端末で保存済みの名前を黙って落とす方が驚きが大きい（バックアップが `regionalDefault` の目印を持ち運ばないのと同じ判断）。
+    - **例に使う記号は `W1 = 3cm`。** 旧来の `W = 3cm` はこの変更で**保存できない例**になったので、UI文言・エラー文言・クイックスタート・掲載文を全部差し替えた。**`W = 3cm` に戻さないこと。**
   - `Ohm`（大文字！）が正式なBASE_UNITSキー。`ohm`小文字はエイリアス未登録なので式中では使えない。
   - 新規追加した単位: `cal`/`kcal`, `bpm`/`rpm`（周波数扱い）, `cup`/`tbsp`/`tsp`（体積）, `au`/`ly`/`yr`, `eV`, `mol`/`mmol`。
   - 識別子（定数名）はASCIIの英数字・`_`に加え、下付き文字（`₀-₉`・`ₐ-ₜ`・`ᵢ-ᵪ`・`ⱼ`）とギリシャ文字（`Α-Ψ`・`α-ω`）も使える（`UNICODE_IDENTIFIER_EXTRA_CHARS`・`IDENTIFIER_START_CHAR_CLASS`・`IDENTIFIER_BODY_CHAR_CLASS`としてexport）。数式表示（LaTeX）の変数とそのまま同じ記号を定数名にできるようにするための拡張。`Ω`（オーム、U+03A9）と`µ`（マイクロ記号、U+00B5）は単位専用なので明示的に除外している。ギリシャ小文字の`μ`（mu、U+03BC）はマイクロ記号とは別コードポイントなので定数名として安全（数値直後は単位解決が先に評価されるため、`2μm`は引き続き単位として解釈される）。同じ文字集合を`lib/notebook-engine.ts`の`NAME_VALUE_PATTERN`と`lib/unit-input.ts`の`WORD_START_PATTERN`/`WORD_BODY_PATTERN`/`DEFINITION_PATTERN`でも使っており、ルールがずれないようにしている。
@@ -312,6 +317,21 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - **`exactValueRow` に上下の余白を入れないこと。** 小数（`resultValue`）は `marginTop: 2` の直下から文字が始まるので、`paddingVertical: 4` があるとその分だけ数字のベースラインが下がる（実測: 余白ありで5px下、余白なしで1px下）。ただし**分数のときだけは余白を戻す**（`exactValueRowStacked`）。分子・分母が行ボックスの外へはみ出すので、余白が無いと下のチップ列に接触する。1段の形（√・π・10ⁿ）ははみ出さない。
   - 埋め込み済みのKaTeXフォントには `KaTeX_SansSerif` の**700（太字）の実フェイスもある**ので、`.mathsf{font-weight:700}` で合成太字にもできる——が、**現在は等幅（Menlo / monospace）の700にしてあり、KaTeX_SansSerif は使っていない**。数字だけが太くなって分数の横棒・根号・π が細いまま残るのは同じで、これは**記号がKaTeXの字体を保っている証拠**なので直さない。
   - **却下案: 小数表示もKaTeXで描いて全部そろえる。** ネイティブはWebViewの初回ロードが要り、`fitContent` の幅は実測を待つ非同期なので、**1文字打つたびに主表示がちらつく**。小数はRNの `Text` のままにして、KaTeX側をそこへ寄せる。
+- `components/ui/constant-editor-sheet.tsx` + `lib/constant-editor.ts` — **グローバル定数の編集シート。電卓タブとライブラリタブが同じものを使う**（2026-09-21）。
+  - **きっかけ**: 定数を足す・直す口が**ライブラリタブの中にしか無く**、「電卓で使うものなのにどこで編集するのか分からない」と報告された。電卓のキーボードの `定数` パネル（定数の名前が並んでいるまさにその場所）から開けるようにしたが、2つの画面が別々のフォームを持つと**片方にだけ入る改良が必ず生まれる**ので、フォームはこのファイル1つに閉じた。
+  - **入口は `定数` パネルの鉛筆チップ**（`ExpressionKeyboard` の `constantActions`）。押すとそのパネルが編集モードになり、定数のチップを押すと挿入ではなく編集シートが開く（`＋` で新規）。**常時ボタンを出さずトグルにする**のは、普段の用途は挿入で、チップ1つ1つに鉛筆を添えると名前が読めなくなるため。π・e は保存された定数ではないので編集モードでも従来どおり挿入する。
+  - **`constantActions` は呼び出し側で `useMemo` すること。** `ExpressionKeyboard` は memo してあるので、毎レンダー新しいオブジェクトを渡すとキーパッドのメモ化が丸ごと効かなくなる。**依存配列に setState の関数も書く**——安定なので評価回数は変わらないが、書かないと React Compiler が「推論した依存と食い違う」としてこの画面の最適化を丸ごと飛ばす（`react-hooks/preserve-manual-memoization`）。
+  - **値の欄はアプリ内キーパッド**（電卓と共用の `ExpressionKeyboard` ＋ `UnitRail`）。旧シートは OS のキーボードが唯一の入力手段で、`Ω`・`µ`・`²` を打てなかった。名前の欄だけは英字が主なので OS のキーボードに任せ、**そのときはキーパッドを畳む**（キーボードの直上にキーまで積むと入力欄が残らない）。
+  - **検証は `evaluateConstantDraft`（`lib/constant-editor.ts`）が `${symbol} = ${expression}` に組み直して `evaluateCalculatorInput` へ流す。** シート専用の検証を別に書くと**打って定義する道と欄で定義する道で通る／通らないが食い違う**（旧シートは名前を `/^[A-Za-z_][A-Za-z0-9_]*$/` のASCII限定で見ていて、電卓からは定義できる `α`・`mₒ` をシートからは保存できなかった）。名前の形式だけは先に見る——通さずに組み立てると `1x = 3cm` が「代入ではない式」として評価され、名前の誤りが構文エラーとして説明される。
+  - **まだ何も書いていない欄では赤字を出さない**（開いた瞬間に間違いを指摘されることになる）。保存に失敗したときのメッセージは下書きの診断より優先して出す（押した操作の結果だから）。
+  - **初期値は effect で props から写さず、呼び出し側が開くたびに `key` を変えて作り直す**（`NotebookEditorSheet` と同じ形）。effect にすると `react-hooks/set-state-in-effect` に当たるうえ、「開いている最中に props が変わったら入力中の値が巻き戻る」という別の穴が開く。
+  - **一度も開いていない間はマウントしない**（`constantSheetSession > 0`）。閉じている Modal でも**JSX の中身は親のレンダーで評価される**ので、置きっぱなしにすると式を1文字打つたびにシートの単位レールとキーパッドの要素まで作り直す。一度開いたあとは残すので、閉じるときのスライドアウトはそのまま出る。
+  - **削除の確認はシートの中に置く**（どの画面から開いても同じ操作になる。以前はライブラリ画面だけが確認を出し、電卓から消すと一発で消えていた）。`ConfirmDialog` はシートの Modal の**兄弟**として並べる（入れ子にすると iOS で表示が不安定）。
+- `lib/sheet-layout.ts` + `hooks/use-keyboard-height.ts` — **下から出るシートが OS のキーボードを自分で避けるための寸法**（2026-09-21に電卓画面から切り出した）。`Modal` は Android の `adjustResize` が効くウィンドウの外に出るので、キーボードが上がってもシートは下端に貼り付いたまま中の入力欄が裏に入る。`KeyboardAvoidingView` の `behavior="padding"` も iOS でしか効かない。
+  - 通す場所は**電卓のシート（サンプル・履歴・単位ピッカー）・定数の編集シート・計算ノートの編集シート**の3系統と、中央に出るカテゴリ名のダイアログ（`notebook-category-grid.tsx`。こちらは `marginBottom` だけ足して「残りの高さの中で中央」にする）。**画面ごとに書くと必ずどこかが旧いままになる。**
+  - **`marginBottom` だけ足さないこと・下限は残りの画面高で頭打ちにすること**の2つが過去に踏んだ穴。どちらも「隠れる先がキーボードから画面の上端に変わるだけ」になる（理由と実測は `lib/sheet-layout.ts` のコメントと `tests/sheet-layout.test.ts`）。
+  - 比（`maxHeightRatio`）と下余白は**スタイル側の値をそのまま渡す**こと（計算ノートの編集シートは 92% / 36）。食い違うとキーボードが出た瞬間だけシートの高さが飛ぶ。
+  - **設定画面の自作単位の入力欄は対象外**（Modal ではなく通常の ScrollView の中なので `adjustResize` が効く）。
 - `lib/calculator-store.tsx` — アプリの状態管理本体。`CalculationNotebook`（`categoryId`, `localConstants`, `steps`, `pinned`, `isPreset`）。プリセットは`isPreset: true`で削除不可（UI・store両方でガード）。プリセットの投入はカテゴリID単位で冪等（新カテゴリを追加しても既存データは壊れない）。
 - `components/notebooks/notebook-category-grid.tsx` + `app/(tabs)/constants.tsx` — カテゴリグリッドは2階層ナビゲーション対応（大分類→サブカテゴリ→ノート一覧）。`parentCategoryId` propで表示階層を切替。ユーザー作成カテゴリ（`NotebookCategory`）は今のところ親子階層に非対応（あくまでプリセットの高校物理のみ階層化。スコープを広げすぎないための判断）。
 - `components/ui/latex-view.tsx` / `.web.tsx` — KaTeXによる本物のLaTeX描画。ネイティブはWebView（`react-native-webview`）+ `postMessage`で高さ・幅の自動調整、Webは`katex.renderToString`を直接DOMに挿入。フォント込みのKaTeXアセットは `scripts/generate-katex-assets.mjs` で `lib/katex-assets.generated.ts` に事前生成・コミット済み（`pnpm katex:generate`で再生成可能。中身は自動生成なので手編集しない）。
@@ -790,6 +810,14 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - **`npx expo lint` は `.expo/cache/eslint/` にキャッシュを持つ。** 構文エラーのあるファイルを直した直後も「Parse errors in imported module」が残って件数が1つ多く出ることがある。`rm -rf .expo/cache/eslint` してから再実行する（`npx eslint --no-cache <file>` で切り分けられる）。
 - `npx expo lint` → **2エラー・0警告**（`app/(tabs)/index.tsx` の既存分のまま）。
 - `npx expo export --platform web` が通る。Playwright（ja・light）で `=` の下端／タブバー上端が 360×640＝546.5／608、360×780＝686.5／748（変更前と同値）。360×640 の `middle` は 101px → 126px、`12V / 4.7kΩ` の `mA` が完全に見える。チップのタップでカテゴリ行が開き、「長さ」で閉じてレールが長さの単位に、`÷` で「候補」へ戻ることを確認済み。独語のチップ（Vorschläge / Ersetzen）も 96px に収まる。
+
+### 現在の基準値（2026-09-21時点、定数の編集を電卓タブへ出した後）
+
+- `npx tsc --noEmit` → **`app/_layout.tsx` の `@/global.css` で1件のみ**（従来どおりの環境依存）。
+- `npx vitest run` → **1155 passed / 2 failed**。失敗2件は従来どおり `tests/revenuecat.credentials.test.ts`（環境依存）。新規: `tests/sheet-layout.test.ts`（5件）・`tests/constant-editor.test.ts`（7件）、`tests/calculator-input.test.ts` に定数名と単位記号の衝突4件。
+- `npx expo lint` → **2エラー・0警告**（`app/(tabs)/index.tsx` の既存分のまま）。
+- `npx expo export --platform web` が通る（**初回は `react-native-css-interop/.cache/web.css` のSHA-1で落ちることがあり、同じコマンドをもう一度走らせると通る**）。Playwright（400×800・ja）で確認済み: `W = 3cm` が `=` を押す前に赤字で弾かれる／`定数` パネルの鉛筆で編集モードに入り `＋` から新規作成できる／名前を OS のキーボード・値をアプリ内キーパッドと接頭語キー＋単位レール（`4.7` → `k` → `kΩ`）で打って保存できる／保存した `R1` がパネルのチップに出る／名前を `V` にすると保存ボタンが無効のまま理由が出る／既存の定数を開いて削除の確認が出る／ライブラリタブの定数カードからも同じシートが開く。
+- **未検証（この環境では Web しか動かせない）**: 名前の欄をタップして OS のキーボードが上がったときにシートが持ち上がるか（`keyboardDidShow` は Web では発火しない）、値の欄の ⌨ キーで OS のキーボードが出るか。**Android実機で確認すること。**
 
 ## 次にやりそうなこと（ユーザーから明示的な指示待ち）
 
