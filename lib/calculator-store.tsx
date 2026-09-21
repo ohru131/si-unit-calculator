@@ -645,6 +645,30 @@ function seedStepSymbol(step: { resultSymbol?: string }): string {
   return typeof step.resultSymbol === "string" ? step.resultSymbol.trim() : "";
 }
 
+/**
+ * 手順の同一性の手掛かりとして使える記号（**空でない・その配列の中で一意**）を集める。
+ *
+ * **記号を持つことを当てにしてはいけない。** `withDerivedResultSymbols` は数式の左辺が
+ * 既存の記号と衝突する手順に記号を補わないので、記号の無い手順が1つのノートに2つ以上
+ * あり得る（実測: 376手順のうち44件が記号なし、**2件以上持つノートが8件**）。空文字どうしを
+ * 一致と見なすと並べ替えをすり抜け、式と表示単位だけが別の手順へ書き込まれてタイトル・
+ * 数式が前の手順のまま残る（CodeRabbitが#80で🟠として検出）。明示的な記号の重複も
+ * 弾かれないので、同じ規則で一意性まで見る。
+ */
+function identifiableStepSymbols(steps: { resultSymbol?: string }[]): Set<string> {
+  const counts = new Map<string, number>();
+  steps.forEach((step) => {
+    const symbol = seedStepSymbol(step);
+    if (!symbol) return;
+    counts.set(symbol, (counts.get(symbol) ?? 0) + 1);
+  });
+  const identifiable = new Set<string>();
+  counts.forEach((count, symbol) => {
+    if (count === 1) identifiable.add(symbol);
+  });
+  return identifiable;
+}
+
 export function applyPresetSeedUpdates(notebooks: CalculationNotebook[]): { notebooks: CalculationNotebook[]; changed: boolean } {
   let changed = false;
 
@@ -663,10 +687,13 @@ export function applyPresetSeedUpdates(notebooks: CalculationNotebook[]): { note
     // しただけで、保存済みのidが**別の計算の手順**に当たる。そこへ式と表示単位だけを書き込むと、
     // 数式（`formulaLatex`）と結果記号は前の手順のまま残った混ざりものになる（実際に踏んだ穴：
     // 木造床根太に手順を1つ足したとき `sN` 参照がずれた件と同じ構造）。
-    // 手順数が違えば同期そのものを見送り、同数でも結果記号が一致する手順だけを対象にする
-    // （並べ替えは記号が食い違うので弾ける）。
+    // 手順数が違えば同期そのものを見送り、同数でも**同一性の手掛かりになる結果記号**
+    // （空でない・両側で一意）が一致する手順だけを対象にする（並べ替えは記号が食い違うので
+    // 弾ける）。記号を持たない44手順は同期の対象外になるが、別の手順へ書き込むより安全。
     const stepCountMatches = notebook.steps.length === seed.steps.length;
     const seedSteps = new Map(stepCountMatches ? seed.steps.map((step, index) => [presetStepId(notebook.categoryId, seedId, index), step]) : []);
+    const seedStepSymbols = identifiableStepSymbols(seed.steps);
+    const storedStepSymbols = identifiableStepSymbols(notebook.steps);
 
     let notebookChanged = false;
     const nextLocalConstants = notebook.localConstants.map((constant) => {
@@ -692,7 +719,9 @@ export function applyPresetSeedUpdates(notebooks: CalculationNotebook[]): { note
     const nextSteps = notebook.steps.map((step) => {
       const seedStep = seedSteps.get(step.id);
       if (!seedStep) return step;
-      if (seedStepSymbol(seedStep) !== seedStepSymbol(step)) return step;
+      const symbol = seedStepSymbol(step);
+      if (!symbol || !storedStepSymbols.has(symbol) || !seedStepSymbols.has(symbol)) return step;
+      if (seedStepSymbol(seedStep) !== symbol) return step;
       let nextStep = step;
       // 定数と同じ規則（上の注記）。記録が無い旧データはシードと一致しているときだけ記録を付ける。
       if (step.seededExpression === undefined) {
@@ -784,37 +813,33 @@ export function normalizePresetUnitSpellings(notebooks: CalculationNotebook[]): 
   const nextNotebooks = notebooks.map((notebook) => {
     if (!notebook.isPreset) return notebook;
     let notebookChanged = false;
-    const fix = (value: string) => {
-      const next = withFixedUnitSpellings(value);
-      if (next !== value) notebookChanged = true;
-      return next;
-    };
-    const fixUnitText = (value: string) => {
-      const next = replaceUnitSpellings(value);
-      if (next !== value) notebookChanged = true;
-      return next;
-    };
+    // **投入時の値（`seededExpression` / `seededTargetUnit`）も、保存値が既に `Ω` でも直すこと。**
+    // 保存値だけを見て早期returnすると、`expression: "10kΩ"` と `seededExpression: "10kOhm"` の
+    // 食い違いが残り、`applyPresetSeedUpdates` がそれを利用者の編集と読んで**以後のシードの
+    // 修正が永久に届かなくなる**（利用者が同じ値を `Ω` で打ち直しただけの端末がこの形になる。
+    // CodeRabbitが#80で🟠として検出）。綴りを揃えるだけで値は変わらないので、揃えて構わない。
     const nextLocalConstants = notebook.localConstants.map((constant) => {
-      const expression = fix(constant.expression);
-      if (expression === constant.expression) return constant;
-      // 投入時の値も一緒に直す。直さないと「編集済み」に見えてシードの更新が届かなくなる。
-      return {
-        ...constant,
-        expression,
-        ...(constant.seededExpression === undefined ? {} : { seededExpression: withFixedUnitSpellings(constant.seededExpression) }),
-      };
+      const expression = withFixedUnitSpellings(constant.expression);
+      const seededExpression = constant.seededExpression === undefined ? undefined : withFixedUnitSpellings(constant.seededExpression);
+      if (expression === constant.expression && seededExpression === constant.seededExpression) return constant;
+      notebookChanged = true;
+      return { ...constant, expression, ...(seededExpression === undefined ? {} : { seededExpression }) };
     });
     const nextSteps = notebook.steps.map((step) => {
-      const expression = fix(step.expression);
+      const expression = withFixedUnitSpellings(step.expression);
       // 表示単位は式ではなく単位記号そのもの（`kOhm`）なので、走査せず丸ごと置き換える。
-      const targetUnit = fixUnitText(step.targetUnit);
-      if (expression === step.expression && targetUnit === step.targetUnit) return step;
+      const targetUnit = replaceUnitSpellings(step.targetUnit);
+      const seededExpression = step.seededExpression === undefined ? undefined : withFixedUnitSpellings(step.seededExpression);
+      const seededTargetUnit = step.seededTargetUnit === undefined ? undefined : replaceUnitSpellings(step.seededTargetUnit);
+      if (expression === step.expression && targetUnit === step.targetUnit
+        && seededExpression === step.seededExpression && seededTargetUnit === step.seededTargetUnit) return step;
+      notebookChanged = true;
       return {
         ...step,
         expression,
         targetUnit,
-        ...(step.seededExpression === undefined ? {} : { seededExpression: withFixedUnitSpellings(step.seededExpression) }),
-        ...(step.seededTargetUnit === undefined ? {} : { seededTargetUnit: replaceUnitSpellings(step.seededTargetUnit) }),
+        ...(seededExpression === undefined ? {} : { seededExpression }),
+        ...(seededTargetUnit === undefined ? {} : { seededTargetUnit }),
       };
     });
     if (!notebookChanged) return notebook;

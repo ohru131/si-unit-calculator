@@ -152,6 +152,31 @@ describe("シードの修正を既存インストールへ届ける", () => {
     expect(dividerNotebook(applied.notebooks).steps[0].expression).toBe("1");
   });
 
+  it("結果記号を持たない手順どうしは同期しない（空文字を一致と見なさない）", () => {
+    // 「大気圧の単位換算」はシードの2手順とも結果記号を持たない（`withDerivedResultSymbols` は
+    // 左辺が衝突する手順に記号を補わないため。実測でそういうノートが8件）。空文字を手掛かりに
+    // すると並べ替えをすり抜け、式だけが別の手順へ書き込まれてタイトルと数式が食い違う。
+    const pressure = (notebooks: CalculationNotebook[]) => {
+      const found = notebooks.find((notebook) => notebook.title === "大気圧の単位換算（hPa・Pa・atm）");
+      if (!found) throw new Error("大気圧の単位換算 が投入されていない");
+      return found;
+    };
+    const target = pressure(seeded("science-pressure"));
+    expect(target.steps.every((step) => !step.resultSymbol)).toBe(true);
+    // idはそのままで中身だけ入れ替える（シード内で手順が並べ替えられた状態の再現）。
+    const swapped = [
+      { ...target.steps[1], id: target.steps[0].id },
+      { ...target.steps[0], id: target.steps[1].id },
+    ];
+    const stored = seeded("science-pressure").map((notebook) => (notebook.id === target.id ? { ...notebook, steps: swapped } : notebook));
+    const applied = applyPresetSeedUpdates(stored);
+    const steps = pressure(applied.notebooks).steps;
+    // 入れ替わったままであること＝どちらの手順にも書き込んでいない（この2手順は式が同じ `P` で
+    // 表示単位だけが違うので、食い違いは `targetUnit` に出る）。
+    expect(steps.map((step) => step.targetUnit)).toEqual([target.steps[1].targetUnit, target.steps[0].targetUnit]);
+    expect(applied.changed).toBe(false);
+  });
+
   it("投入時の値が文字列でない保存データは印ごと落とす", () => {
     // 残すと綴り揃えの .split が起動時に例外を投げ、読み込みのcatchが空のデータで置き換える。
     const broken = [{ id: "c1", symbol: "R", expression: "10kΩ", seededExpression: 10 as unknown as string }];
@@ -229,6 +254,26 @@ describe("単位記号の綴りをそろえる（Ohm → Ω）", () => {
     expect(notebook.steps[0].expression).toBe("OhmicLoss/R");
     // 表示単位は単位記号そのものなので丸ごと置き換える。
     expect(notebook.steps[0].targetUnit).toBe("kΩ");
+  });
+
+  it("保存値が既に Ω でも投入時の値の綴りを揃える", () => {
+    // 揃えないと `expression: "10kΩ"` と `seededExpression: "10kOhm"` の食い違いが残り、
+    // シードの更新が「利用者の編集」と読まれて永久に届かなくなる（同じ値を Ω で打ち直した端末）。
+    const target = dividerNotebook(seeded("electronics"));
+    const stored = seeded("electronics").map((notebook) => (notebook.id === target.id
+      ? {
+        ...notebook,
+        localConstants: notebook.localConstants.map((constant) => (constant.symbol === "R₁"
+          ? { ...constant, seededExpression: "1kOhm" }
+          : constant)),
+        steps: notebook.steps.map((step, index) => (index === 0 ? { ...step, seededTargetUnit: "kOhm" } : step)),
+      }
+      : notebook));
+    const fixed = normalizePresetUnitSpellings(stored);
+    expect(fixed.changed).toBe(true);
+    const notebook = dividerNotebook(fixed.notebooks);
+    expect(notebook.localConstants.find((constant) => constant.symbol === "R₁")?.seededExpression).toBe("1kΩ");
+    expect(notebook.steps[0].seededTargetUnit).toBe("kΩ");
   });
 
   it("Ω を含むプリセット14件すべてで、Ohm から元の綴りへ戻る", () => {
