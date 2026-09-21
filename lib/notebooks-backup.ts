@@ -74,6 +74,27 @@ export type ImportedNotebookConstant = {
 function exportedExactFields(constant: NotebookLocalConstant): Pick<ImportedNotebookConstant, "exact" | "exactEdited"> {
   return constant.exactEdited ? { exact: constant.exact === true, exactEdited: true } : {};
 }
+
+/**
+ * 取り込み側。**`exactEdited` と `exact` が揃っていなければ所有権として認めない。**
+ * 手で編集したファイルに `exactEdited` だけが書かれていると、`exact: false` として引き継いだ
+ * うえに `applyPresetExactConstants` が「利用者が決めた欄」として貼り直しを飛ばすので、
+ * **シードが図面の寸法と言っている定数が黙って測定値になる**（CodeRabbitが#77で検出）。
+ * 揃っていない場合は印ごと無視して、シードからの貼り直しに任せる。
+ *
+ * **検証（`isImportedNotebookConstant`）を厳しくする方向では直さない**——あちらでfalseを返すと
+ * `backup.notebooks.every(isImportedNotebook)` が落ちて**ファイル全体が読めなくなる**（壊れた
+ * 要素でファイルごと無効にしないのがこのモジュールの既定。`isPresetNotebookOverride` の
+ * コメントと同じ方針）。
+ *
+ * 書き出し側と対になるので、**この判定を呼び出し側で作り直さないこと**（取り込みの経路は
+ * プリセットへの上書き適用とユーザーノートの取り込みの2つある）。
+ */
+export function importedExactFields(constant: ImportedNotebookConstant): Pick<NotebookLocalConstant, "exact" | "exactEdited"> {
+  return constant.exactEdited === true && typeof constant.exact === "boolean"
+    ? { exact: constant.exact, exactEdited: true }
+    : {};
+}
 export type ImportedNotebookStep = { title: string; expression: string; targetUnit: string; formulaLatex?: string; resultSymbol?: string };
 
 export type ImportedNotebook = {
@@ -232,7 +253,7 @@ export function applyPresetNotebookOverrides(
       // 生成した決定的なidを上書きしてしまう。id同士が衝突すると、編集画面が別の行を書き換える。
       // 検証済みの既知フィールドだけを取り出して組み直す。
       formulas: override.formulas.map(({ explanation, latex }, index) => ({ id: `${notebook.id}-override-formula-${index}`, explanation, latex })),
-      localConstants: override.localConstants.map(({ symbol, expression, exact, exactEdited }, index) => ({ id: `${notebook.id}-override-constant-${index}`, symbol, expression, ...(exactEdited ? { exact: exact === true, exactEdited: true } : {}) })),
+      localConstants: override.localConstants.map((constant, index) => ({ id: `${notebook.id}-override-constant-${index}`, symbol: constant.symbol, expression: constant.expression, ...importedExactFields(constant) })),
       steps: override.steps.map(({ title, expression, targetUnit, formulaLatex, resultSymbol }, index) => ({ id: `${notebook.id}-override-step-${index}`, title, expression, targetUnit, formulaLatex, resultSymbol })),
       updatedAt: now,
     };

@@ -11,7 +11,7 @@ import type { NotebookSeedConstant } from "@/lib/notebook-formulas/types";
 import { pushNotebookHistoryEntry, removeNotebookHistoryEntry, type NotebookHistoryEntry } from "@/lib/notebook-history";
 import { isPresetRegionalDefaultKind, PresetRegionalDefaults, type PresetRegionalDefaultKind, resolvePresetRegionalDefaults } from "@/lib/preset-regional-defaults";
 import { presetRegionalDefaultPatch, releaseEditedRegionalDefaults } from "@/lib/preset-regional-sync";
-import { applyPresetNotebookOverrides, type ImportedNotebook, type PresetNotebookOverride } from "@/lib/notebooks-backup";
+import { applyPresetNotebookOverrides, importedExactFields, type ImportedNotebook, type PresetNotebookOverride } from "@/lib/notebooks-backup";
 import { parseConstantDefinition, Quantity, SavedConstant, setCustomUnits as setCustomUnitsRegistry, type CustomUnitRegistration } from "@/lib/units";
 
 const CONSTANTS_STORAGE_KEY = "si-unit-calculator.constants.v1";
@@ -1148,7 +1148,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
       // applyPresetNotebookOverridesと同じ理由で、取り込んだ要素をスプレッドせず既知の
       // フィールドだけを取り出して組み直す（ファイル側のidで生成idを上書きさせない）。
       formulas: entry.formulas.map(({ explanation, latex }, formulaIndex) => ({ id: `import-${importedAt}-${index}-formula-${formulaIndex}`, explanation, latex })),
-      localConstants: entry.localConstants.map(({ symbol, expression, exact, exactEdited }, constantIndex) => ({ id: `import-${importedAt}-${index}-constant-${constantIndex}`, symbol, expression, ...(exactEdited ? { exact: exact === true, exactEdited: true } : {}) })),
+      localConstants: entry.localConstants.map((constant, constantIndex) => ({ id: `import-${importedAt}-${index}-constant-${constantIndex}`, symbol: constant.symbol, expression: constant.expression, ...importedExactFields(constant) })),
       steps: entry.steps.map(({ title, expression, targetUnit, formulaLatex, resultSymbol }, stepIndex) => ({ id: `import-${importedAt}-${index}-step-${stepIndex}`, title, expression, targetUnit, formulaLatex, resultSymbol })),
       pinned: false,
       isPreset: false,
@@ -1168,7 +1168,14 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         else nextUserNotebooks.push(incoming);
       }
     }
-    const { notebooks: nextPresetNotebooks, appliedCount: presetOverrideCount } = applyPresetNotebookOverrides(presetNotebooks, presetOverrides, now);
+    const { notebooks: overriddenPresetNotebooks, appliedCount: presetOverrideCount } = applyPresetNotebookOverrides(presetNotebooks, presetOverrides, now);
+    // **上書きを当てた直後にシードの印を貼り直す。** バックアップは利用者が決めた印しか
+    // 持ち運ばないので、上書きを当てた時点でそれ以外の定数からは `exact` が落ちている。
+    // 読み込み時のeffectに任せると、**取り込んだ直後だけ丸めが消えたノートを見せてしまう**
+    // （穴まわりの応力集中が `≈ 47 MPa` ではなく `46.875 MPa` になり、次の起動で直る。
+    // CodeRabbitが#77で🟠として検出）。`exactEdited` が付いた定数は除外されるので、
+    // ここで貼り直しても利用者の判断は上書きしない。
+    const { notebooks: nextPresetNotebooks } = applyPresetExactConstants(overriddenPresetNotebooks);
     const nextAllNotebooks = [...nextPresetNotebooks, ...nextUserNotebooks].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
     // ノートより先にカテゴリを書き込む。逆にすると、カテゴリ書き込みが失敗した場合に
     // 存在しないcategoryIdを参照するノートが残ってしまい、カテゴリ一覧からも辿れなくなる。

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { applyPresetExactConstants, buildPresetNotebooksFromSeeds, isCalculationNotebook, sanitizeStoredLocalConstants, type CalculationNotebook } from "../lib/calculator-store";
-import { applyPresetNotebookOverrides, buildPresetNotebookOverrides } from "../lib/notebooks-backup";
+import { applyPresetNotebookOverrides, buildPresetNotebookOverrides, importedExactFields } from "../lib/notebooks-backup";
 import { resolvePresetRegionalDefaults } from "../lib/preset-regional-defaults";
 
 // calculator-store は global-settings 経由で React Native を芋づる式に読み込む（Flow構文の
@@ -129,6 +129,23 @@ describe("厳密値の印（exact）の投入と貼り直し", () => {
     // 復元しても利用者の判断（t は測定値）が残り、残りはシードへ揃う。
     expect(constants.find((constant) => constant.symbol === "t")?.exact).toBe(false);
     expect(constants.filter((constant) => constant.exact).map((constant) => constant.symbol)).toEqual(["w", "d"]);
+  });
+
+  it("所有権の片方だけ書かれたファイルは印ごと無視する", () => {
+    // 手で編集したファイルに exactEdited だけがあると、exact: false として引き継いだうえ
+    // 貼り直しも飛ばされ、シードが図面の寸法と言っている定数が黙って測定値になる。
+    expect(importedExactFields({ symbol: "t", expression: "8mm", exactEdited: true })).toEqual({});
+    expect(importedExactFields({ symbol: "t", expression: "8mm", exact: true })).toEqual({});
+    expect(importedExactFields({ symbol: "t", expression: "8mm", exact: false, exactEdited: true })).toEqual({ exact: false, exactEdited: true });
+
+    const broken = buildPresetNotebookOverrides(seeded().map((notebook) => (notebook.id === holeNotebook(seeded()).id
+      ? { ...notebook, updatedAt: "2026-02-01T00:00:00.000Z" }
+      : notebook)));
+    broken[0].localConstants = broken[0].localConstants.map((constant) => (constant.symbol === "t" ? { ...constant, exactEdited: true } : constant));
+    const restored = applyPresetNotebookOverrides(seeded(), broken, NOW);
+    const restamped = applyPresetExactConstants(restored.notebooks);
+    // 印を無視してシードへ揃うので、t は寸法のまま。
+    expect(holeNotebook(restamped.notebooks).localConstants.filter((constant) => constant.exact).map((constant) => constant.symbol)).toEqual(["w", "d", "t"]);
   });
 
   it("バックアップから復元したプリセットにも印が戻る", () => {
