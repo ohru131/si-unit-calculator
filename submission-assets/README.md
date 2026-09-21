@@ -34,7 +34,7 @@
 | `11-exact-pi` | **厳密値表示**: `2*pi*50` → `100π` |
 | `12-exact-sqrt` | **厳密値表示**: `sqrt(8)` → `2√2` |
 | `13-notebook-search` | 計算ノートの検索（検索語は言語ごとに違う。下の表を参照） |
-| `14-exam-samples` | サンプルシートを開き、**その国の試験名になっているタブ**を選んだ状態 |
+| `14-exam-samples` | サンプルシートを開き、**言語ごとのラベルで出る電気のタブ**を選んだ状態（日・独・英は資格・試験の名前入り） |
 | `15-prefix-cancel` | `4.7kΩ × 2mA` → `9.4 V`（k と m が打ち消える） |
 | `16-ohms-law` | `1kΩ × 1mA` → `1 V`（**アイコン・フィーチャーグラフィック・短い説明と同じ式**） |
 | `17-significant-figures` | `12V / 4.7kΩ` で単位チップ `A` を選んでから科学表記に切り替え、`≈ 2.6 × 10⁻³ A` と `0.002553191489 A · 2 s.f.` が並んだ状態 |
@@ -66,16 +66,16 @@
 
 **画像は翻訳ではない。** どのノート・どのサンプルを開くかを言語ごとに変えてあり、その根拠は
 `docs/target-users-by-locale-2026-09.md` 第1節のターゲット設定。情報源は
-`scripts/capture-submission-assets.mjs` の `NOTEBOOK_TARGETS` と `LABELS[].examCategory` / `searchQuery`。
+`scripts/capture-submission-assets.mjs` の `NOTEBOOK_TARGETS` と `LABELS[].electricCategory` / `searchQuery`。
 
 | 言語 | 06・07 で開くノート | 14 のタブ | 13 の検索語 |
 |---|---|---|---|
-| en | Mechanics → Uniformly accelerated motion | Exam prep | solar |
-| ja | 電気の基礎計算 → 電圧降下と必要な電線の太さ | 試験対策（電験・電工） | 太陽光 |
-| de | Praktische Elektrotechnik → Spannungsfall und der nötige Leiterquerschnitt | Klausur & Prüfung | Spannung |
-| es | Electricidad → Campo eléctrico y potencial de una carga puntual | Preparación (EBAU) | campo |
-| pt-BR | Eletricidade → Campo elétrico e potencial de uma carga pontual | Preparação (ENEM) | tensão |
-| fr | Mécanique → Mouvement uniformément accéléré | Révisions (physique-chimie) | masse volumique |
+| en | Mechanics → Uniformly accelerated motion | Electricity & exams | solar |
+| ja | 電気の基礎計算 → 電圧降下と必要な電線の太さ | 電気（電験・電工） | 太陽光 |
+| de | Praktische Elektrotechnik → Spannungsfall und der nötige Leiterquerschnitt | Elektrotechnik & Prüfung | Spannung |
+| es | Electricidad → Campo eléctrico y potencial de una carga puntual | Electricidad | campo |
+| pt-BR | Eletricidade → Campo elétrico e potencial de uma carga pontual | Eletricidade | tensão |
+| fr | Mécanique → Mouvement uniformément accéléré | Électricité | masse volumique |
 
 `05-library-grid` は操作が全言語同じでも、カテゴリカードの並びが `lib/locale-relevance.ts` で
 言語ごとに変わるため違う絵になる（独語なら「Elektrizität & Energie」が先頭）。
@@ -97,7 +97,7 @@ Play のスマートフォン用スクリーンショットは**最大8枚**で�
 考え方: **独語と日本語は「桁を落とす痛み」が言語化されている層**（Zehnerpotenzen / 電験・電工）なので
 接頭語の打ち消しと次元エラーを先に出す。**西語は減点が採点基準に明文化されている**ので次元エラーが最初。
 **英語・仏語・葡語は「何ができるアプリか」が先**で、基本の単位付き計算から入る。
-どの言語でも `14-exam-samples` を上位に入れているのは、**その国の試験名がそのまま写っている1枚**だから。
+どの言語でも `14-exam-samples` を上位に入れているのは、**タブの並びとラベルが言語ごとに違うことがそのまま写っている1枚**だから（日・独・英ではラベルにその国の資格・試験の名前も入る）。
 
 `16-ohms-law` は ja / de / es / pt-BR / fr では**`15-prefix-cancel` の位置にそのまま入れ替えた**。
 アイコンとフィーチャーグラフィックは言語に依らず `1kΩ × 1mA` を出しているので、掲載ページで
@@ -298,7 +298,8 @@ Play Console 側でそのアカウントに権限を付ける。**掲載情報�
 - **スペイン語は2掲載ある。** `es` → `es-ES`（スペイン）と `es-419`（スペイン語圏の中南米）。
   **本文は2箇所だけ差し替えてあり**（EBAU の減点の話と、国別の電源電圧）、
   **画像は es のものを流用する**（`IMAGE_SOURCE`。アプリのスペイン語は1種類なので絵は同じになる）。
-  ただし `14-exam-samples` には「Preparación (EBAU)」が写る（アプリ側のラベルなので掲載文では直せない）。
+  `14-exam-samples` に写る西語のタブは中立な「Electricidad」なので、中南米でも違和感は出ない
+  （2026-09-21に旧 `exam` タブを電気へ統合した際に直した）。
   詳細は `docs/store-listing-copy.md` の「es-419 を別掲載として足した」。
 - **ブラジルは `pt-BR` で最初から対応済み**（ENEM を名指しした本文・専用のスクショ・図版）。
   スペイン語圏の中南米とは別の市場なので、混同しないこと。

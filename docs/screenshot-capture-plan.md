@@ -6,16 +6,16 @@
 
 **画像は翻訳ではなく、言語ごとに写す中身を変える。** どのノート・どのサンプルを開くかは
 `docs/target-users-by-locale-2026-09.md` 第1節のターゲットに合わせてあり、
-`scripts/capture-submission-assets.mjs` の `NOTEBOOK_TARGETS` と `LABELS[].examCategory` / `searchQuery` が情報源:
+`scripts/capture-submission-assets.mjs` の `NOTEBOOK_TARGETS` と `LABELS[].electricCategory` / `searchQuery` が情報源:
 
 | 言語 | ノート系カット（06・07）で開くノート | サンプルのタブ（14） | 検索語（13） |
 |---|---|---|---|
-| en | High school physics → Mechanics → Uniformly accelerated motion | Exam prep | solar |
-| ja | 電気・エネルギー → 電気の基礎計算 → 電圧降下と必要な電線の太さ | 試験対策（電験・電工） | 太陽光 |
-| de | Elektrizität & Energie → Praktische Elektrotechnik → Spannungsfall und der nötige Leiterquerschnitt | Klausur & Prüfung | Spannung |
-| es | Física (bachillerato) → Electricidad → Campo eléctrico y potencial de una carga puntual | Preparación (EBAU) | campo |
-| pt-BR | Física (Ensino Médio) → Eletricidade → Campo elétrico e potencial de uma carga pontual | Preparação (ENEM) | tensão |
-| fr | Physique (lycée) → Mécanique → Mouvement uniformément accéléré | Révisions (physique-chimie) | masse volumique |
+| en | High school physics → Mechanics → Uniformly accelerated motion | Electricity & exams | solar |
+| ja | 電気・エネルギー → 電気の基礎計算 → 電圧降下と必要な電線の太さ | 電気（電験・電工） | 太陽光 |
+| de | Elektrizität & Energie → Praktische Elektrotechnik → Spannungsfall und der nötige Leiterquerschnitt | Elektrotechnik & Prüfung | Spannung |
+| es | Física (bachillerato) → Electricidad → Campo eléctrico y potencial de una carga puntual | Electricidad | campo |
+| pt-BR | Física (Ensino Médio) → Eletricidade → Campo elétrico e potencial de uma carga pontual | Eletricidade | tensão |
+| fr | Physique (lycée) → Mécanique → Mouvement uniformément accéléré | Électricité | masse volumique |
 
 カテゴリカードの並び自体も `lib/locale-relevance.ts` で言語ごとに変わるので、`05-library-grid`（カテゴリグリッド）と
 `14-exam-samples`（サンプル）は**操作が同じでも言語ごとに違う絵になる**（この2つは書き出されるファイル名。
@@ -105,11 +105,11 @@
 - 画面: 「設定」タブ → 「バックアップと復元」セクション
 - 期待する見え方: 計算ノート・グローバル定数のバックアップ書き出し／取り込みのUIが見える状態
 
-### 11. サンプルシート — その国の試験名で出るカテゴリタブ
+### 11. サンプルシート — 言語ごとのラベルで出る電気のタブ
 
 - 画面: 電卓タブ → 「サンプル」（`copy.samples`）
-- 操作: 先頭のタブ（言語ごとに Klausur & Prüfung / Preparación (EBAU) / Preparação (ENEM) / 試験対策（電験・電工） …）を選ぶ
-- 期待する見え方: タブの並びが言語ごとに違い、その国で実際に受ける試験の名前が先頭に出ている状態
+- 操作: 電気のタブ（言語ごとに 電気（電験・電工） / Elektrotechnik & Prüfung / Electricity & exams / Electricidad …）を選ぶ
+- 期待する見え方: タブの並びが言語ごとに違い、電気が基本のすぐ後ろに出ている状態。**ラベルに資格・試験の名前が入るのは日・独・英だけ**で、西・葡・仏は電気の名前だけになる（その3言語の試験は一般物理なので、電気の計算しか入っていないタブにその名前を付ける方が誤りだった）
 - **言語ごとの差が1枚で一番よく伝わるカット。** 掲載時は上位に置くこと
 
 ### 12. 電卓画面 — 接頭語の打ち消し

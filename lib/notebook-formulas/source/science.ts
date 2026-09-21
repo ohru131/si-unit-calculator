@@ -339,7 +339,7 @@ export const SCIENCE_ELECTRICITY_SEEDS: NotebookSeed[] = [
       { symbol: "V₃", expression: "15V" },
     ],
     steps: [
-      { title: { en: "Resistance R", ja: "抵抗 R", es: "Resistencia R", "pt-BR": "Resistência R", de: "Widerstand R", fr: "Résistance R" }, expression: "V/I", targetUnit: "Ohm", formulaLatex: "R = \\dfrac{V}{I}", resultSymbol: "R" },
+      { title: { en: "Resistance R", ja: "抵抗 R", es: "Resistencia R", "pt-BR": "Resistência R", de: "Widerstand R", fr: "Résistance R" }, expression: "V/I", targetUnit: "Ω", formulaLatex: "R = \\dfrac{V}{I}", resultSymbol: "R" },
       { title: { en: "Voltage V2 when the current is I₂", ja: "電流 I₂ のときの電圧 V2", es: "Voltaje V2 cuando la corriente es I₂", "pt-BR": "Tensão V2 quando a corrente é I₂", de: "Spannung V2 bei einer Stromstärke von I₂", fr: "Tension V2 lorsque le courant vaut I₂" }, expression: "I₂*R", targetUnit: "V", formulaLatex: "V_2 = I_2 R" },
       { title: { en: "Current I3 when the voltage is V₃", ja: "電圧 V₃ のときの電流 I3", es: "Corriente I3 cuando el voltaje es V₃", "pt-BR": "Corrente I3 quando a tensão é V₃", de: "Stromstärke I3 bei einer Spannung von V₃", fr: "Courant I3 lorsque la tension vaut V₃" }, expression: "V₃/R", targetUnit: "A", formulaLatex: "I_3 = \\dfrac{V_3}{R}" },
     ],
@@ -348,19 +348,19 @@ export const SCIENCE_ELECTRICITY_SEEDS: NotebookSeed[] = [
     title: { en: "Combined resistance in a series circuit", ja: "直列回路の合成抵抗", es: "Resistencia equivalente en un circuito en serie", "pt-BR": "Resistência equivalente em um circuito em série", de: "Ersatzwiderstand in einer Reihenschaltung", fr: "Résistance équivalente dans un circuit en série" },
     description: { en: "Compute the combined resistance when two resistors are connected in series.", ja: "2つの抵抗を直列につないだときの、合成抵抗を求めます。", es: "Calcula la resistencia equivalente cuando dos resistencias se conectan en serie.", "pt-BR": "Calcule a resistência equivalente quando dois resistores são conectados em série.", de: "Berechne den Ersatzwiderstand, wenn zwei Widerstände in Reihe geschaltet werden.", fr: "Calcule la résistance équivalente lorsque deux résistances sont connectées en série." },
     localConstants: [
-      { symbol: "R₁", expression: "10Ohm" },
-      { symbol: "R₂", expression: "15Ohm" },
+      { symbol: "R₁", expression: "10Ω" },
+      { symbol: "R₂", expression: "15Ω" },
     ],
-    steps: [{ title: { en: "Combined resistance R", ja: "合成抵抗 R", es: "Resistencia equivalente R", "pt-BR": "Resistência equivalente R", de: "Ersatzwiderstand R", fr: "Résistance équivalente R" }, expression: "R₁+R₂", targetUnit: "Ohm", formulaLatex: "R = R_1 + R_2" }],
+    steps: [{ title: { en: "Combined resistance R", ja: "合成抵抗 R", es: "Resistencia equivalente R", "pt-BR": "Resistência equivalente R", de: "Ersatzwiderstand R", fr: "Résistance équivalente R" }, expression: "R₁+R₂", targetUnit: "Ω", formulaLatex: "R = R_1 + R_2" }],
   },
   {
     title: { en: "Combined resistance in a parallel circuit", ja: "並列回路の合成抵抗", es: "Resistencia equivalente en un circuito en paralelo", "pt-BR": "Resistência equivalente em um circuito em paralelo", de: "Ersatzwiderstand in einer Parallelschaltung", fr: "Résistance équivalente dans un circuit en parallèle" },
     description: { en: "Compute the combined resistance when two resistors are connected in parallel.", ja: "2つの抵抗を並列につないだときの、合成抵抗を求めます。", es: "Calcula la resistencia equivalente cuando dos resistencias se conectan en paralelo.", "pt-BR": "Calcule a resistência equivalente quando dois resistores são conectados em paralelo.", de: "Berechne den Ersatzwiderstand, wenn zwei Widerstände parallel geschaltet werden.", fr: "Calcule la résistance équivalente lorsque deux résistances sont connectées en parallèle." },
     localConstants: [
-      { symbol: "R₁", expression: "10Ohm" },
-      { symbol: "R₂", expression: "15Ohm" },
+      { symbol: "R₁", expression: "10Ω" },
+      { symbol: "R₂", expression: "15Ω" },
     ],
-    steps: [{ title: { en: "Combined resistance R", ja: "合成抵抗 R", es: "Resistencia equivalente R", "pt-BR": "Resistência equivalente R", de: "Ersatzwiderstand R", fr: "Résistance équivalente R" }, expression: "(1/R₁+1/R₂)^-1", targetUnit: "Ohm", formulaLatex: "R = \\left(\\dfrac{1}{R_1} + \\dfrac{1}{R_2}\\right)^{-1}" }],
+    steps: [{ title: { en: "Combined resistance R", ja: "合成抵抗 R", es: "Resistencia equivalente R", "pt-BR": "Resistência equivalente R", de: "Ersatzwiderstand R", fr: "Résistance équivalente R" }, expression: "(1/R₁+1/R₂)^-1", targetUnit: "Ω", formulaLatex: "R = \\left(\\dfrac{1}{R_1} + \\dfrac{1}{R_2}\\right)^{-1}" }],
   },
   {
     title: { en: "Electric power P=VI", ja: "電力 P=VI", es: "Potencia eléctrica P=VI", "pt-BR": "Potência elétrica P=VI", de: "Elektrische Leistung P=VI", fr: "Puissance électrique P=VI" },

@@ -35,26 +35,39 @@ export function orderByRelevance<T>(items: readonly T[], idOf: (item: T) => stri
 
 /**
  * サンプルシートのカテゴリタブの順。
- * どの言語でも exam / lab（試験対策・実験レポート）を上位に置いているが、その中身は言語ごとに違う
- * （ラベル自体が Klausur / EBAU / ENEM / TP と現地の呼び名になっている。lib/sample-calculations.ts）。
- * exam に入れるのは「試験のための計算」そのものだけなので、各国の試験に出る一般物理（km/h→m/s・重力場・
- * クーロンの法則）は motion / mechanics にある。それを拾わせたい言語では、この表でそのタブを上位に置く。
+ * ラベルは言語ごとに現地の呼び名になる（electric＝電験・電工 / Elektrotechnik & Prüfung、
+ * lab＝実験レポート / Laborbericht / Compte rendu de TP。lib/sample-calculations.ts）。
+ * **各国の試験に出る一般物理（km/h→m/s・重力場・クーロンの法則）は motion / mechanics にある**ので、
+ * それを拾わせたい言語では、この表でそのタブを上位に置き、SAMPLE_RELEVANCE でタブの中でも先頭に上げる。
+ * 旧 `exam`（試験対策）タブは 2026-09-21 に electric へ統合した（理由は lib/sample-calculations.ts）。
+ */
+/**
+ * **`basic` は全言語で先頭に固定する**（2026-09-21。利用者の指示）。以前は言語ごとの
+ * ターゲットを先頭にして `basic` を最後に置いていたが、**「基本」なのにタブの途中に出るのが
+ * 分かりにくい**——このアプリで最初に見せたいのは「数字に単位を付けて計算できる」ことそのもので、
+ * それが並びの端に埋まると入口として機能しない。言語ごとの並べ替えは**2番目以降**に効く
+ * （日なら 基本 → 電気（電験・電工）、独なら Grundlagen → Elektrotechnik & Prüfung）。
+ *
+ * **これはシートを開いたときの既定タブも変える**（既定は並べ替え後の先頭なので `basic` になる）。
+ * 既定を言語ごとのターゲットに戻したい場合は、チップの並びと既定タブを別々に決める必要がある
+ * ——ただしそうすると、開いた瞬間に**左端ではないチップが点灯**して見えるので、その違和感と
+ * 引き換えになる。
  */
 export const SAMPLE_CATEGORY_RELEVANCE: Record<AppLanguage, readonly string[]> = {
-  // 電験三種・電工二種は電気の計算そのものなので electric を2番目に置く。
-  ja: ["exam", "electric", "lab", "energy", "mechanics", "motion", "basic"],
-  // FE試験は力学・熱・電気を横断し、学部の実験レポートが副ターゲット。
-  en: ["exam", "lab", "mechanics", "energy", "electric", "motion", "basic"],
+  // 電験三種・電工二種は電気の計算そのものなので electric を基本のすぐ後に置く。
+  ja: ["basic", "electric", "lab", "energy", "mechanics", "motion"],
+  // FE試験と英国 C&G。電気を先に出し、学部の実験レポートを次に置く。
+  en: ["basic", "electric", "lab", "mechanics", "energy", "motion"],
   // Ausbildung Elektroniker。Zehnerpotenzen と電気の実務計算が最優先。km/h→m/s は Klausur の定番だが
-  // exam ではなく motion にあるので（lib/sample-calculations.ts のコメント参照）motion を lab より上に置く。
-  de: ["exam", "electric", "energy", "motion", "lab", "mechanics", "basic"],
-  // lycée の physique-chimie。化学（濃度・mL→L）が入口なので lab を先頭に。
+  // motion にあるので（lib/sample-calculations.ts のコメント参照）motion を lab より上に置く。
+  de: ["basic", "electric", "energy", "motion", "lab", "mechanics"],
+  // lycée の physique-chimie。化学（濃度・mL→L・気体）が入口なので lab を基本の次に。
   // 力学（重力場・クーロンの法則）は motion のすぐ後で拾わせる。
-  fr: ["lab", "exam", "motion", "mechanics", "energy", "electric", "basic"],
-  // EBAU の física は力学・場が中心。重力場とクーロンの法則は mechanics にあるので2番目に置く。
-  es: ["exam", "mechanics", "motion", "lab", "energy", "electric", "basic"],
-  // ENEM は運動・力学の文章題が定番で、消費電力量（kWh）は exam に残っている。
-  "pt-BR": ["exam", "motion", "mechanics", "energy", "electric", "lab", "basic"],
+  fr: ["basic", "lab", "motion", "mechanics", "energy", "electric"],
+  // EBAU の física は力学・場が中心。重力場とクーロンの法則は mechanics にあるので基本の次に置く。
+  es: ["basic", "mechanics", "motion", "lab", "energy", "electric"],
+  // ENEM は運動・力学の文章題が定番。消費電力量（kWh）は electric にある。
+  "pt-BR": ["basic", "motion", "mechanics", "energy", "electric", "lab"],
 };
 
 /**
@@ -62,14 +75,14 @@ export const SAMPLE_CATEGORY_RELEVANCE: Record<AppLanguage, readonly string[]> =
  * カテゴリを跨いで1つの列に書いてよい（並べ替えは常に同じカテゴリの中だけで行われるため）。
  */
 export const SAMPLE_RELEVANCE: Record<AppLanguage, readonly string[]> = {
-  ja: ["ohm-law-current", "three-phase-current", "wire-resistance", "joule-heat", "prefix-chain", "three-phase-power", "energy-kwh", "power-minutes", "megohm-microamp", "capacitive-reactance", "millivolt-shunt", "micro-prefix-charge", "voltage-drop", "electric-power"],
+  ja: ["ohm-law-current", "three-phase-current", "wire-resistance", "joule-heat", "prefix-chain", "three-phase-power", "energy-kwh", "megohm-microamp", "capacitive-reactance", "millivolt-shunt", "micro-prefix-charge", "voltage-drop", "electric-power"],
   // 米国・英国のユーザーはヤード・ポンド法の値をSIに直すところから始まる。
   en: ["imperial-to-si", "psi-to-kpa", "prefix-chain", "energy-kwh", "coulomb-force", "gravity-field", "density-si"],
   // PS（メートル馬力）は hp と1.4%違う。独語圏で最初に確かめたい値。
   // gravity-field・coulomb-force は Klausur の定番だが、独語のタブ順では mechanics が最後の方に来る。
   // タブ順は電気を先に出す方針なので動かさず、代わりにこの列でタブの中の先頭へ上げて拾わせる
   // （どちらも説明文が Zehnerpotenzen の桁ミスを名指しした独語向けの書き下ろしなので、埋めてしまうと書いた意味が無い）。
-  de: ["prefix-chain", "megohm-microamp", "ohm-law-current", "wire-resistance", "joule-heat", "voltage-drop", "three-phase-current", "capacitive-reactance", "micro-prefix-charge", "metric-horsepower", "kmh-to-ms", "gravity-field", "coulomb-force", "power-minutes", "energy-kwh", "electric-power"],
+  de: ["prefix-chain", "megohm-microamp", "ohm-law-current", "wire-resistance", "joule-heat", "voltage-drop", "three-phase-current", "capacitive-reactance", "micro-prefix-charge", "energy-kwh", "metric-horsepower", "power-minutes", "kmh-to-ms", "gravity-field", "coulomb-force", "electric-power"],
   fr: ["molar-concentration", "kmh-to-ms", "metric-horsepower", "coulomb-force", "gravity-field", "density-si"],
   es: ["kmh-to-ms", "gravity-field", "coulomb-force", "prefix-chain", "molar-concentration", "density-si"],
   "pt-BR": ["energy-kwh", "kmh-to-ms", "gravity-field", "coulomb-force", "voltage-drop", "electric-power"],

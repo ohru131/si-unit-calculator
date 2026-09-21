@@ -7,8 +7,8 @@ export const ELECTRONICS_SEEDS: NotebookSeed[] = [
     description: { en: "Compute the output voltage of a two-resistor voltage divider from the input voltage and the two resistances, together with the current and power in the divider string.", ja: "入力電圧と2本の抵抗値から、分圧回路の出力電圧と、分圧抵抗に流れる電流・消費電力を求めます。", es: "Calcula el voltaje de salida de un divisor de voltaje de dos resistencias a partir del voltaje de entrada y de los dos valores de resistencia, junto con la corriente y la potencia en la rama del divisor.", "pt-BR": "Calcule a tensão de saída de um divisor de tensão de dois resistores a partir da tensão de entrada e dos dois valores de resistência, junto com a corrente e a potência no ramo do divisor.", de: "Berechnet die Ausgangsspannung eines Spannungsteilers aus zwei Widerständen anhand der Eingangsspannung und der beiden Widerstandswerte sowie den Strom und die Leistung im Teilerzweig.", fr: "Calculer la tension de sortie d'un diviseur de tension à deux résistances à partir de la tension d'entrée et des deux valeurs de résistance, ainsi que le courant et la puissance dans la branche du diviseur." },
     localConstants: [
       { symbol: "Vᵢₙ", expression: "12V" },
-      { symbol: "R₁", expression: "10kOhm" },
-      { symbol: "R₂", expression: "4.7kOhm" },
+      { symbol: "R₁", expression: "10kΩ" },
+      { symbol: "R₂", expression: "4.7kΩ" },
     ],
     steps: [
       { title: { en: "Output voltage Vout", ja: "出力電圧 Vout", es: "Voltaje de salida Vout", "pt-BR": "Tensão de saída Vout", de: "Ausgangsspannung Vout", fr: "Tension de sortie Vout" }, expression: "Vᵢₙ*R₂/(R₁+R₂)", targetUnit: "V", formulaLatex: "V_{out} = V_{in} \\dfrac{R_2}{R_1 + R_2}" },
@@ -20,7 +20,7 @@ export const ELECTRONICS_SEEDS: NotebookSeed[] = [
     title: { en: "RC time constant and charging time", ja: "RC時定数と充電時間", es: "Constante de tiempo RC y tiempo de carga", "pt-BR": "Constante de tempo RC e tempo de carga", de: "RC-Zeitkonstante und Ladezeit", fr: "Constante de temps RC et temps de charge" },
     description: { en: "Compute the time constant of an RC circuit from the resistance and capacitance, and the time it takes the capacitor to charge up to a given voltage.", ja: "抵抗値と静電容量から、RC回路の時定数と、コンデンサが指定の電圧まで充電されるまでの時間を求めます。", es: "Calcula la constante de tiempo de un circuito RC a partir de la resistencia y la capacitancia, y el tiempo que tarda el condensador en cargarse hasta un voltaje dado.", "pt-BR": "Calcule a constante de tempo de um circuito RC a partir da resistência e da capacitância, e o tempo que o capacitor leva para carregar até uma tensão especificada.", de: "Berechnet die Zeitkonstante eines RC-Glieds aus Widerstand und Kapazität sowie die Zeit, bis der Kondensator auf eine vorgegebene elektrische Spannung aufgeladen ist.", fr: "Calculer la constante de temps d'un circuit RC à partir de la résistance et de la capacité, ainsi que le temps nécessaire pour que le condensateur se charge jusqu'à une tension donnée." },
     localConstants: [
-      { symbol: "R", expression: "47kOhm" },
+      { symbol: "R", expression: "47kΩ" },
       { symbol: "C", expression: "100µF" },
       { symbol: "Vₛ", expression: "5V" },
       { symbol: "Vₜ", expression: "3V" },
@@ -35,14 +35,14 @@ export const ELECTRONICS_SEEDS: NotebookSeed[] = [
     title: { en: "Three resistors in series, parallel and mixed", ja: "抵抗3本の直列・並列・混合合成", es: "Tres resistencias en serie, en paralelo y en combinación mixta", "pt-BR": "Três resistores em série, em paralelo e em associação mista", de: "Drei Widerstände in Reihe, parallel und gemischt", fr: "Trois résistances en série, en parallèle et en montage mixte" },
     description: { en: "Compute the combined resistance of three resistors wired in series, wired all in parallel, and wired as two in parallel followed by the third in series.", ja: "3本の抵抗値から、すべて直列にした場合・すべて並列にした場合・2本を並列にして3本目を直列にした場合の合成抵抗をそれぞれ求めます。", es: "Calcula la resistencia equivalente de tres resistencias conectadas todas en serie, todas en paralelo, y con dos en paralelo seguidas de la tercera en serie.", "pt-BR": "Calcule a resistência equivalente de três resistores ligados todos em série, todos em paralelo, e com dois em paralelo seguidos do terceiro em série.", de: "Berechnet den Ersatzwiderstand von drei Widerständen, wenn alle in Reihe geschaltet sind, wenn alle parallel geschaltet sind und wenn zwei parallel geschaltet sind und der dritte dazu in Reihe liegt.", fr: "Calculer la résistance équivalente de trois résistances montées toutes en série, toutes en parallèle, puis deux en parallèle suivies de la troisième en série." },
     localConstants: [
-      { symbol: "R₁", expression: "1kOhm" },
-      { symbol: "R₂", expression: "2.2kOhm" },
-      { symbol: "R₃", expression: "4.7kOhm" },
+      { symbol: "R₁", expression: "1kΩ" },
+      { symbol: "R₂", expression: "2.2kΩ" },
+      { symbol: "R₃", expression: "4.7kΩ" },
     ],
     steps: [
-      { title: { en: "All three in series", ja: "3本すべて直列", es: "Las tres en serie", "pt-BR": "Os três em série", de: "Alle drei in Reihe", fr: "Les trois en série" }, expression: "R₁+R₂+R₃", targetUnit: "kOhm", formulaLatex: "R_{series} = R_1 + R_2 + R_3" },
-      { title: { en: "All three in parallel", ja: "3本すべて並列", es: "Las tres en paralelo", "pt-BR": "Os três em paralelo", de: "Alle drei parallel", fr: "Les trois en parallèle" }, expression: "(1/R₁+1/R₂+1/R₃)^-1", targetUnit: "Ohm", formulaLatex: "R_{parallel} = \\left(\\dfrac{1}{R_1} + \\dfrac{1}{R_2} + \\dfrac{1}{R_3}\\right)^{-1}" },
-      { title: { en: "R1 parallel R2, then R3 in series", ja: "R1・R2を並列にしてR3を直列", es: "R1 en paralelo con R2, y R3 en serie", "pt-BR": "R1 em paralelo com R2, e R3 em série", de: "R1 parallel zu R2, dann R3 in Reihe", fr: "R1 en parallèle avec R2, puis R3 en série" }, expression: "(1/R₁+1/R₂)^-1+R₃", targetUnit: "kOhm", formulaLatex: "R_{mixed} = \\left(\\dfrac{1}{R_1} + \\dfrac{1}{R_2}\\right)^{-1} + R_3" },
+      { title: { en: "All three in series", ja: "3本すべて直列", es: "Las tres en serie", "pt-BR": "Os três em série", de: "Alle drei in Reihe", fr: "Les trois en série" }, expression: "R₁+R₂+R₃", targetUnit: "kΩ", formulaLatex: "R_{series} = R_1 + R_2 + R_3" },
+      { title: { en: "All three in parallel", ja: "3本すべて並列", es: "Las tres en paralelo", "pt-BR": "Os três em paralelo", de: "Alle drei parallel", fr: "Les trois en parallèle" }, expression: "(1/R₁+1/R₂+1/R₃)^-1", targetUnit: "Ω", formulaLatex: "R_{parallel} = \\left(\\dfrac{1}{R_1} + \\dfrac{1}{R_2} + \\dfrac{1}{R_3}\\right)^{-1}" },
+      { title: { en: "R1 parallel R2, then R3 in series", ja: "R1・R2を並列にしてR3を直列", es: "R1 en paralelo con R2, y R3 en serie", "pt-BR": "R1 em paralelo com R2, e R3 em série", de: "R1 parallel zu R2, dann R3 in Reihe", fr: "R1 en parallèle avec R2, puis R3 en série" }, expression: "(1/R₁+1/R₂)^-1+R₃", targetUnit: "kΩ", formulaLatex: "R_{mixed} = \\left(\\dfrac{1}{R_1} + \\dfrac{1}{R_2}\\right)^{-1} + R_3" },
     ],
   },
   {
@@ -84,9 +84,9 @@ export const ELECTRONICS_SEEDS: NotebookSeed[] = [
       { symbol: "L", expression: "10mH" },
     ],
     steps: [
-      { title: { en: "Capacitive reactance XC", ja: "容量リアクタンス XC", es: "Reactancia capacitiva XC", "pt-BR": "Reatância capacitiva XC", de: "Kapazitiver Blindwiderstand XC", fr: "Réactance capacitive XC" }, expression: "1/(2*pi*f*C)", targetUnit: "Ohm", formulaLatex: "X_C = \\dfrac{1}{2\\pi f C}" },
-      { title: { en: "Inductive reactance XL", ja: "誘導リアクタンス XL", es: "Reactancia inductiva XL", "pt-BR": "Reatância indutiva XL", de: "Induktiver Blindwiderstand XL", fr: "Réactance inductive XL" }, expression: "2*pi*f*L", targetUnit: "Ohm", formulaLatex: "X_L = 2\\pi f L" },
-      { title: { en: "Net series reactance X", ja: "直列合成リアクタンス X", es: "Reactancia resultante en serie X", "pt-BR": "Reatância resultante em série X", de: "Resultierender Blindwiderstand in Reihe X", fr: "Réactance résultante en série X" }, expression: "2*pi*f*L-1/(2*pi*f*C)", targetUnit: "Ohm", formulaLatex: "X = 2\\pi f L - \\dfrac{1}{2\\pi f C}" },
+      { title: { en: "Capacitive reactance XC", ja: "容量リアクタンス XC", es: "Reactancia capacitiva XC", "pt-BR": "Reatância capacitiva XC", de: "Kapazitiver Blindwiderstand XC", fr: "Réactance capacitive XC" }, expression: "1/(2*pi*f*C)", targetUnit: "Ω", formulaLatex: "X_C = \\dfrac{1}{2\\pi f C}" },
+      { title: { en: "Inductive reactance XL", ja: "誘導リアクタンス XL", es: "Reactancia inductiva XL", "pt-BR": "Reatância indutiva XL", de: "Induktiver Blindwiderstand XL", fr: "Réactance inductive XL" }, expression: "2*pi*f*L", targetUnit: "Ω", formulaLatex: "X_L = 2\\pi f L" },
+      { title: { en: "Net series reactance X", ja: "直列合成リアクタンス X", es: "Reactancia resultante en serie X", "pt-BR": "Reatância resultante em série X", de: "Resultierender Blindwiderstand in Reihe X", fr: "Réactance résultante en série X" }, expression: "2*pi*f*L-1/(2*pi*f*C)", targetUnit: "Ω", formulaLatex: "X = 2\\pi f L - \\dfrac{1}{2\\pi f C}" },
     ],
   },
   {
@@ -95,11 +95,11 @@ export const ELECTRONICS_SEEDS: NotebookSeed[] = [
     localConstants: [
       { symbol: "L", expression: "100µH" },
       { symbol: "C", expression: "100pF" },
-      { symbol: "R", expression: "5Ohm" },
+      { symbol: "R", expression: "5Ω" },
     ],
     steps: [
       { title: { en: "Resonant frequency f0", ja: "共振周波数 f0", es: "Frecuencia de resonancia f0", "pt-BR": "Frequência de ressonância f0", de: "Resonanzfrequenz f0", fr: "Fréquence de résonance f0" }, expression: "1/(2*pi*sqrt(L*C))", targetUnit: "MHz", formulaLatex: "f_0 = \\dfrac{1}{2\\pi\\sqrt{LC}}" },
-      { title: { en: "Characteristic impedance Z0", ja: "特性インピーダンス Z0", es: "Impedancia característica Z0", "pt-BR": "Impedância característica Z0", de: "Kennwiderstand Z0", fr: "Impédance caractéristique Z0" }, expression: "sqrt(L/C)", targetUnit: "Ohm", formulaLatex: "Z_0 = \\sqrt{\\dfrac{L}{C}}" },
+      { title: { en: "Characteristic impedance Z0", ja: "特性インピーダンス Z0", es: "Impedancia característica Z0", "pt-BR": "Impedância característica Z0", de: "Kennwiderstand Z0", fr: "Impédance caractéristique Z0" }, expression: "sqrt(L/C)", targetUnit: "Ω", formulaLatex: "Z_0 = \\sqrt{\\dfrac{L}{C}}" },
       { title: { en: "Q factor", ja: "Q値", es: "Factor Q", "pt-BR": "Fator Q", de: "Güte (Q-Faktor)", fr: "Facteur de qualité (facteur Q)" }, expression: "sqrt(L/C)/R", targetUnit: "", formulaLatex: "Q = \\dfrac{1}{R}\\sqrt{\\dfrac{L}{C}}" },
     ],
   },
@@ -108,7 +108,7 @@ export const ELECTRONICS_SEEDS: NotebookSeed[] = [
     description: { en: "Compute the power a resistor dissipates from the current through it, how much of its rating that uses, and the largest current allowed if you limit it to a given fraction of the rating (δ = 0.5 means using at most half the rated power).", ja: "抵抗に流れる電流から消費電力を求め、定格に対する使用率と、定格の何割かに抑えて使う場合に流せる最大電流を計算します（δ=0.5なら定格電力の半分までで使う、という意味です）。", es: "Calcula la potencia que disipa una resistencia a partir de la corriente que circula por ella, qué parte de su valor nominal supone eso y la corriente máxima admisible si te limitas a una fracción dada del valor nominal (δ = 0,5 significa usar como mucho la mitad de la potencia nominal).", "pt-BR": "Calcule a potência que um resistor dissipa a partir da corrente que passa por ele, que parcela do valor nominal isso representa e a corrente máxima permitida se você se limitar a uma fração dada do valor nominal (δ = 0,5 significa usar no máximo metade da potência nominal).", de: "Berechnet die Verlustleistung eines Widerstands aus dem Strom durch ihn, welchen Anteil des Nennwerts das ausmacht und den größten zulässigen Strom, wenn man sich auf einen vorgegebenen Anteil des Nennwerts beschränkt (δ = 0,5 bedeutet, höchstens die halbe Nennleistung zu nutzen).", fr: "Calculer la puissance dissipée par une résistance à partir du courant qui la traverse, la part de sa valeur nominale que cela représente et le courant maximal admissible si l'on se limite à une fraction donnée de la valeur nominale (δ = 0,5 signifie n'utiliser au plus que la moitié de la puissance nominale)." },
     localConstants: [
       { symbol: "I", expression: "30mA" },
-      { symbol: "R", expression: "100Ohm" },
+      { symbol: "R", expression: "100Ω" },
       { symbol: "Pₘₐₓ", expression: "0.25W" },
       { symbol: "δ", expression: "0.5" },
     ],
@@ -188,14 +188,14 @@ export const SOLAR_SEEDS: NotebookSeed[] = [
     title: { en: "Voltage drop in a DC cable run", ja: "直流配線の電圧降下", es: "Caída de voltaje en un tramo de cable de corriente continua", "pt-BR": "Queda de tensão em um trecho de cabo de corrente contínua", de: "Spannungsabfall in einer Gleichstromleitung", fr: "Chute de tension dans une ligne en courant continu" },
     description: { en: "Compute the round-trip resistance of a DC cable run from the resistivity, one-way length and conductor cross-section, then the voltage it drops at a given current and what fraction of the system voltage that is.", ja: "導体の抵抗率・片道の配線長・導体断面積から往復の配線抵抗を求め、流れる電流による電圧降下と、それがシステム電圧の何%にあたるかを計算します。", es: "Calcula la resistencia de ida y vuelta de un tramo de cable de corriente continua a partir de la resistividad, la longitud de un solo sentido y la sección del conductor, y después la caída de voltaje con una corriente dada y qué parte del voltaje del sistema representa.", "pt-BR": "Calcule a resistência de ida e volta de um trecho de cabo de corrente contínua a partir da resistividade, do comprimento de ida e da seção do condutor, e depois a queda de tensão com uma corrente dada e que parcela da tensão do sistema ela representa.", de: "Berechnet den Widerstand einer Gleichstromleitung für Hin- und Rückleiter aus dem spezifischen Widerstand, der einfachen Länge und dem Leiterquerschnitt, danach den Spannungsabfall bei einem gegebenen Strom und welchen Anteil der Systemspannung er ausmacht.", fr: "Calculer la résistance aller-retour d'une ligne en courant continu à partir de la résistivité, de la longueur aller et de la section du conducteur, puis la chute de tension pour un courant donné et la part de la tension du système qu'elle représente." },
     localConstants: [
-      { symbol: "ρ", expression: "1.68e-8Ohm*m" },
+      { symbol: "ρ", expression: "1.68e-8Ω*m" },
       { symbol: "L", expression: "8m" },
       { symbol: "A", expression: "10mm^2" },
       { symbol: "I", expression: "20A" },
       { symbol: "V", expression: "12V" },
     ],
     steps: [
-      { title: { en: "Round-trip cable resistance R", ja: "往復の配線抵抗 R", es: "Resistencia de ida y vuelta del cable R", "pt-BR": "Resistência de ida e volta do cabo R", de: "Leitungswiderstand für Hin- und Rückleiter R", fr: "Résistance aller-retour du câble R" }, expression: "2*ρ*L/A", targetUnit: "Ohm", formulaLatex: "R = \\dfrac{2 \\rho L}{A}" },
+      { title: { en: "Round-trip cable resistance R", ja: "往復の配線抵抗 R", es: "Resistencia de ida y vuelta del cable R", "pt-BR": "Resistência de ida e volta do cabo R", de: "Leitungswiderstand für Hin- und Rückleiter R", fr: "Résistance aller-retour du câble R" }, expression: "2*ρ*L/A", targetUnit: "Ω", formulaLatex: "R = \\dfrac{2 \\rho L}{A}" },
       { title: { en: "Voltage drop ΔV", ja: "電圧降下 ΔV", es: "Caída de voltaje ΔV", "pt-BR": "Queda de tensão ΔV", de: "Spannungsabfall ΔV", fr: "Chute de tension ΔV" }, expression: "2*ρ*L*I/A", targetUnit: "V", formulaLatex: "\\Delta V = \\dfrac{2 \\rho L I}{A}" },
       { title: { en: "Drop as a fraction of the system voltage", ja: "システム電圧に対する電圧降下の割合", es: "Caída respecto al voltaje del sistema", "pt-BR": "Queda em relação à tensão do sistema", de: "Anteil des Spannungsabfalls an der Systemspannung", fr: "Chute rapportée à la tension du système" }, expression: "2*ρ*L*I/(A*V)", targetUnit: "%", formulaLatex: "\\text{drop} = \\dfrac{2 \\rho L I}{A V}" },
     ],
