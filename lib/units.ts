@@ -1161,9 +1161,20 @@ export function formatNumber(value: number): string {
   return Number(value.toPrecision(10)).toString();
 }
 
-export function formatNumberForLocale(value: number, locale?: string): string {
-  if (!locale || Math.abs(value) >= 1e7 || (Math.abs(value) < 1e-6 && value !== 0)) return formatNumber(value);
-  return new Intl.NumberFormat(locale, { maximumSignificantDigits: 10, useGrouping: false }).format(Object.is(value, -0) ? 0 : value);
+/**
+ * 表示できる有効数字の上限。**有効数字の推定（lib/significant-figures.ts）とは別の話**で、
+ * こちらは「桁が読めなかったときでも画面に10桁並べない」ための表示上の切り詰め。
+ * 利用者が設定タブで変えられる（既定6桁。`lib/global-settings.tsx` の `resultDigits`）。
+ */
+export const MAX_DISPLAY_DIGITS = 10;
+
+export function formatNumberForLocale(value: number, locale?: string, maxDigits: number = MAX_DISPLAY_DIGITS): string {
+  const digits = Math.max(1, Math.min(MAX_DISPLAY_DIGITS, Math.round(maxDigits)));
+  // ロケールが無い・指数表記になる範囲は Intl を通さないので、桁の上限は自分で掛ける。
+  if (!locale || Math.abs(value) >= 1e7 || (Math.abs(value) < 1e-6 && value !== 0)) {
+    return formatNumber(digits === MAX_DISPLAY_DIGITS ? value : Number(value.toPrecision(digits)));
+  }
+  return new Intl.NumberFormat(locale, { maximumSignificantDigits: digits, useGrouping: false }).format(Object.is(value, -0) ? 0 : value);
 }
 
 // dimension・localeから組み立てる文字列自体は無次元かどうかの判定に使わず、
@@ -1190,13 +1201,13 @@ export function convertQuantity(input: Quantity, targetUnit: string, locale?: st
   return { value: (input.siValue - (parsed.offset ?? 0)) / parsed.scale, unit: targetUnit.trim() || dimensionlessLabel(languageFromLocale(locale)) };
 }
 
-export function formatQuantity(input: Quantity, targetUnit?: string, locale?: string): string {
+export function formatQuantity(input: Quantity, targetUnit?: string, locale?: string, maxDigits?: number): string {
   if (targetUnit?.trim()) {
     const converted = convertQuantity(input, targetUnit, locale);
-    return `${formatNumberForLocale(converted.value, locale)} ${converted.unit}`;
+    return `${formatNumberForLocale(converted.value, locale, maxDigits)} ${converted.unit}`;
   }
-  if (isDimensionless(input.dimension)) return formatNumberForLocale(input.siValue, locale);
-  return `${formatNumberForLocale(input.siValue, locale)} ${formatDimension(input.dimension, locale)}`;
+  if (isDimensionless(input.dimension)) return formatNumberForLocale(input.siValue, locale, maxDigits);
+  return `${formatNumberForLocale(input.siValue, locale, maxDigits)} ${formatDimension(input.dimension, locale)}`;
 }
 
 export function hasSameDimension(left: Quantity, right: Quantity) {

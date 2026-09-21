@@ -13,7 +13,7 @@ import { useAds } from "@/lib/ads-provider";
 import { useCalculatorStore } from "@/lib/calculator-store";
 import { customUnitErrorMessage } from "@/lib/custom-unit-messages";
 import { parseCustomUnit } from "@/lib/custom-units";
-import { useGlobalSettings } from "@/lib/global-settings";
+import { RESULT_DIGITS_OPTIONS, useGlobalSettings } from "@/lib/global-settings";
 import { APP_LANGUAGES, LANGUAGE_META } from "@/lib/i18n";
 import { usePro } from "@/lib/revenuecat-provider";
 import { type ThemePreference, useThemeContext } from "@/lib/theme-provider";
@@ -25,7 +25,7 @@ const PRO_PREVIEW_TAP_THRESHOLD = 7;
 const PRO_PREVIEW_TAP_WINDOW_MS = 2000;
 
 export default function SettingsScreen() {
-  const { language, locale, measuringStandard, setLanguage, setMeasuringStandard, t, unitSystem, setUnitSystem } = useGlobalSettings();
+  const { language, locale, measuringStandard, resultDigits, setLanguage, setMeasuringStandard, setResultDigits, t, unitSystem, setUnitSystem } = useGlobalSettings();
   const { themePreference, setThemePreference } = useThemeContext();
   const { adFree, isAdsPlatformAvailable } = useAds();
   const { resetPresetNotebooks, customUnits, saveCustomUnit, deleteCustomUnit, constants } = useCalculatorStore();
@@ -58,6 +58,9 @@ export default function SettingsScreen() {
   const themeValue = themeOptions.find((option) => option.id === themePreference)?.shortLabel ?? "";
   const systemValue = systems.find((option) => option.id === unitSystem)?.label ?? "";
   const measuringStandardValue = measuringStandards.find((option) => option.id === measuringStandard)?.shortLabel ?? "";
+  // 表示する桁数。10は MAX_DISPLAY_DIGITS と同じ＝従来どおり（実質「上限なし」）。
+  const resultDigitsOptions = RESULT_DIGITS_OPTIONS.map((digits) => ({ digits, label: t("resultDigitsOption").replace("{count}", String(digits)) }));
+  const resultDigitsValue = t("resultDigitsOption").replace("{count}", String(resultDigits));
   // 0件のときは行に値を出さない。customUnitEmptyは「まだ自作の単位はありません。」という
   // 文章で、行の値の位置に置くと狭い端末幅で「まだ自作の単位はあ…」と切れて読めなくなる
   // （仏語は42文字あり確実に切れる）。開けば同じ文章が空状態として出るので、閉じた行は
@@ -141,6 +144,10 @@ export default function SettingsScreen() {
       <SettingsSection title={t("measuringStandard")} icon="cup.and.saucer.fill" value={measuringStandardValue}>
         <Text style={styles.description}>{t("measuringStandardHint")}</Text>
         <View style={styles.systemList}>{measuringStandards.map((option) => <Pressable accessibilityRole="radio" accessibilityState={{ checked: measuringStandard === option.id }} accessibilityLabel={`${t("measuringStandard")}: ${option.label}`} key={option.id} onPress={() => void setMeasuringStandard(option.id)} style={({ pressed }) => [styles.systemRow, measuringStandard === option.id && styles.systemRowActive, pressed && styles.pressed]}><View style={[styles.radio, measuringStandard === option.id && styles.radioActive]}>{measuringStandard === option.id ? <View style={styles.radioInner} /> : null}</View><Text style={styles.systemText}>{option.label}</Text></Pressable>)}</View>
+      </SettingsSection>
+      <SettingsSection title={t("resultDigits")} icon="textformat.size" value={resultDigitsValue}>
+        <Text style={styles.description}>{t("resultDigitsHint")}</Text>
+        <View style={styles.systemList}>{resultDigitsOptions.map((option) => <Pressable accessibilityRole="radio" accessibilityState={{ checked: resultDigits === option.digits }} accessibilityLabel={`${t("resultDigits")}: ${option.label}`} key={option.digits} onPress={() => void setResultDigits(option.digits)} style={({ pressed }) => [styles.systemRow, resultDigits === option.digits && styles.systemRowActive, pressed && styles.pressed]}><View style={[styles.radio, resultDigits === option.digits && styles.radioActive]}>{resultDigits === option.digits ? <View style={styles.radioInner} /> : null}</View><Text style={styles.systemText}>{option.label}</Text></Pressable>)}</View>
       </SettingsSection>
       {isAdsPlatformAvailable ? (
         <View style={styles.card}>

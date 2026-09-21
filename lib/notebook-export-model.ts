@@ -76,6 +76,8 @@ export function resolveNotebookStepDisplay(
   locale: string | undefined,
   /** notebookStepSignificantDigits の結果。渡さなければ従来どおり丸めない。 */
   significantDigits?: number | null,
+  /** 表示する有効数字の上限（設定タブの `resultDigits`）。渡さなければ従来どおり10桁。 */
+  maxDigits?: number,
 ): NotebookStepDisplay {
   const effectiveUnit = overrideUnit ?? result.step.targetUnit.trim();
   // 単位ラベルの見栄え差し替えの手掛かりは「今表示に使っている単位 → 式 → 実際のSI表記」の順に
@@ -91,7 +93,7 @@ export function resolveNotebookStepDisplay(
       error = undefined;
     } else {
       try {
-        value = formatQuantity(result.quantity, overrideUnit, locale);
+        value = formatQuantity(result.quantity, overrideUnit, locale, maxDigits);
         error = undefined;
       } catch (cause) {
         // 上書き先の単位がこの結果の次元に合わないときは、SI表記へフォールバックしつつ
@@ -111,7 +113,7 @@ export function resolveNotebookStepDisplay(
   // **数値の部分だけを差し替える。** value は「数値 + 空白 + 単位ラベル」で、単位ラベルは
   // 上の見栄え差し替えを通っていることがある。文字列を分割し直すのではなく、同じ整形関数で
   // 作った数値の文字列を接頭辞として照合して置き換えれば、ラベルをそのまま保てる。
-  const rounded = roundedValueFor(result, value, effectiveUnit, significantDigits, locale);
+  const rounded = roundedValueFor(result, value, effectiveUnit, significantDigits, locale, maxDigits);
   if (rounded) return { value: rounded.value, rawValue: rounded.rawValue, significantDigits: rounded.significantDigits, error, isError: false };
   return { value, error, isError: Boolean(error) && !value };
 }
@@ -129,6 +131,7 @@ export function roundedValueFor(
   effectiveUnit: string,
   significantDigits: number | null | undefined,
   locale: string | undefined,
+  maxDigits?: number,
 ): { value: string; significantDigits: number; rawValue?: string } | null {
   if (!value || !result.quantity || significantDigits === undefined || significantDigits === null) return null;
   // どの数値が画面に出ているかを value と同じ経路で求める。換算に失敗していればSI値。
@@ -147,7 +150,7 @@ export function roundedValueFor(
   const digits = significantDigitsAfterConversion(significantDigits, convertedUnit);
   const decimal = toSignificantDecimal(numeric, { significantDigits: digits, locale });
   if (!decimal) return null;
-  const plain = formatNumberForLocale(numeric, locale);
+  const plain = formatNumberForLocale(numeric, locale, maxDigits);
   if (!value.startsWith(plain)) return null;
   // **丸める前の値は、実際に桁が落ちたときだけ返す。** `2 mol` を2桁で読んだ `2.0 mol` のように
   // 末尾の0が増えただけのときに「2 mol」を併記すると、何も失われていないのに失われたように見える。
@@ -171,6 +174,8 @@ export type BuildNotebookExportModelOptions = {
   // 「この設定が変われば結果も変わりうる」ことを伝えるため、画面側（notebook-detail.tsxの
   // stepResultsのuseMemo依存配列）と同じくシグネチャに含めておく。
   measuringStandard: MeasuringStandard;
+  /** 結果に出す有効数字の上限（設定タブの resultDigits）。渡さなければ従来どおり10桁。 */
+  maxDigits?: number;
   // 手順ID→表示単位の上書き。画面が保持するunitOverridesとそのまま同じ形。
   unitOverrides: Record<string, string>;
 };
@@ -201,13 +206,13 @@ export function buildNotebookExportModel(options: BuildNotebookExportModelOption
 
   const { resolved } = resolveNotebookLocalConstants(notebook.localConstants, globalConstants, language);
   const pool = [...globalConstants, ...resolved];
-  const stepResults = evaluateNotebookSteps(notebook.steps, pool, language, [], locale);
+  const stepResults = evaluateNotebookSteps(notebook.steps, pool, language, [], locale, options.maxDigits);
 
   const steps: NotebookExportStep[] = stepResults.map((result, index) => {
     // 桁は手順の式ではなくローカル定数まで辿って数える（notebookStepSignificantDigits）。
     // 画面と同じ判断を通すこと——PDFだけ丸めない／丸めすぎると、同じノートで数字が食い違う。
     const digits = notebookStepSignificantDigits(result.step, notebook.localConstants, stepResults.slice(0, index));
-    const display = resolveNotebookStepDisplay(result, unitOverrides[result.step.id], unitSystem, locale, digits);
+    const display = resolveNotebookStepDisplay(result, unitOverrides[result.step.id], unitSystem, locale, digits, options.maxDigits);
     return {
       title: stepDisplayTitle(result.step.title, result.step.expression),
       expression: formatNameValue(result.step.resultSymbol ?? "", result.step.expression),
