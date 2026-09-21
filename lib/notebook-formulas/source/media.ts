@@ -44,6 +44,9 @@ export const PHOTOGRAPHY_SEEDS: NotebookSeed[] = [
       { symbol: "H", expression: "f^2/(N*c)+f" },
     ],
     steps: [
+      // 過焦点距離Hは3つの式すべてに出てくるのに、定数の中でしか定義されていなかった
+      // （数式カードを見ても f・N・c からどう出したのか読めない）。
+      { title: { en: "Hyperfocal distance H", ja: "過焦点距離 H", es: "Distancia hiperfocal H", "pt-BR": "Distância hiperfocal H", de: "Hyperfokale Distanz H", fr: "Distance hyperfocale H" }, expression: "H", targetUnit: "m", formulaLatex: "H = \\dfrac{f^2}{Nc} + f" },
       { title: { en: "Near limit Dn", ja: "手前側の限界 Dn", es: "Límite cercano Dn", "pt-BR": "Limite próximo Dn", de: "Vordere Grenze Dn", fr: "Limite avant Dn" }, expression: "H*s/(H+(s-f))", targetUnit: "m", formulaLatex: "D_n = \\dfrac{Hs}{H + (s - f)}" },
       { title: { en: "Far limit Df", ja: "奥側の限界 Df", es: "Límite lejano Df", "pt-BR": "Limite distante Df", de: "Hintere Grenze Df", fr: "Limite arrière Df" }, expression: "H*s/(H-(s-f))", targetUnit: "m", formulaLatex: "D_f = \\dfrac{Hs}{H - (s - f)}" },
       { title: { en: "Total depth of field", ja: "被写界深度の全体", es: "Profundidad de campo total", "pt-BR": "Profundidade de campo total", de: "Gesamte Schärfentiefe", fr: "Profondeur de champ totale" }, expression: "H*s/(H-(s-f))-H*s/(H+(s-f))", targetUnit: "m", formulaLatex: "\\text{DoF} = D_f - D_n" },

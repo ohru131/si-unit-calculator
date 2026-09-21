@@ -449,12 +449,12 @@ export const SCIENCE_EARTH_SEEDS: NotebookSeed[] = [
     description: { en: "Compute relative humidity from the actual water vapor content and the saturation vapor density at the air temperature, then compute it again using the dew point instead.", ja: "空気1m³中の水蒸気量とその気温での飽和水蒸気量から湿度を求め、露点（別の気温での飽和水蒸気量）からも同じように求めます。", es: "Calcula la humedad relativa a partir del vapor de agua presente y de la cantidad máxima de vapor de agua que puede contener el aire (a la temperatura del aire), y vuelve a calcularla usando en su lugar el punto de rocío.", "pt-BR": "Calcule a umidade relativa a partir do vapor de água presente e da quantidade máxima de vapor de água que o ar pode conter (na temperatura do ar), e calcule-a novamente usando o ponto de orvalho.", de: "Berechne die relative Luftfeuchtigkeit aus dem tatsächlichen Wasserdampfgehalt und der maximal möglichen Wasserdampfmenge der Luft (Sättigungsdampfdichte) bei der Lufttemperatur, und berechne sie anschließend erneut anhand des Taupunkts.", fr: "Calcule l'humidité relative à partir de la quantité de vapeur d'eau présente et de la quantité maximale de vapeur d'eau que l'air peut contenir à cette température, puis recalcule-la à partir du point de rosée." },
     localConstants: [
       { symbol: "a", expression: "18.0g/m³" },
-      { symbol: "aₛₐₜ", expression: "23.1g/m³" },
+      { symbol: "a_sat", expression: "23.1g/m³" },
       { symbol: "a_dew", expression: "17.3g/m³" },
     ],
     steps: [
-      { title: { en: "Humidity from vapor content", ja: "水蒸気量からの湿度", es: "Humedad a partir del vapor de agua", "pt-BR": "Umidade a partir do vapor de água", de: "Luftfeuchtigkeit aus dem Wasserdampfgehalt", fr: "Humidité à partir de la vapeur d'eau" }, expression: "a/aₛₐₜ", targetUnit: "%", formulaLatex: "RH = \\dfrac{a}{a_{sat}} \\times 100\\%" },
-      { title: { en: "Humidity from the dew point", ja: "露点からの湿度", es: "Humedad a partir del punto de rocío", "pt-BR": "Umidade a partir do ponto de orvalho", de: "Luftfeuchtigkeit aus dem Taupunkt", fr: "Humidité à partir du point de rosée" }, expression: "a_dew/aₛₐₜ", targetUnit: "%", formulaLatex: "RH = \\dfrac{a_{dew}}{a_{sat}} \\times 100\\%" },
+      { title: { en: "Humidity from vapor content", ja: "水蒸気量からの湿度", es: "Humedad a partir del vapor de agua", "pt-BR": "Umidade a partir do vapor de água", de: "Luftfeuchtigkeit aus dem Wasserdampfgehalt", fr: "Humidité à partir de la vapeur d'eau" }, expression: "a/a_sat", targetUnit: "%", formulaLatex: "RH = \\dfrac{a}{a_{sat}} \\times 100\\%" },
+      { title: { en: "Humidity from the dew point", ja: "露点からの湿度", es: "Humedad a partir del punto de rocío", "pt-BR": "Umidade a partir do ponto de orvalho", de: "Luftfeuchtigkeit aus dem Taupunkt", fr: "Humidité à partir du point de rosée" }, expression: "a_dew/a_sat", targetUnit: "%", formulaLatex: "RH = \\dfrac{a_{dew}}{a_{sat}} \\times 100\\%" },
     ],
   },
   {

@@ -169,11 +169,20 @@ describe("はり・柱プリセットの数値検証", () => {
     return evaluateNotebookSteps(steps, resolved, "ja", []);
   }
 
+  // **手順は位置ではなくタイトルで引く。** 位置で分解すると、断面二次モーメントのような
+  // 「定数の定義を見せるだけの手順」を先頭に足した瞬間に全部ずれる（実際にずれた）。
+  function step(results: ReturnType<typeof computeSeed>, titlePart: string) {
+    const found = results.find((result) => result.step.title.includes(titlePart));
+    if (!found) throw new Error(`step not found: ${titlePart}`);
+    return found;
+  }
+
   // 既定値は「実在する材料セット × 実在するカタログ断面」で組んである。
   // 検定が通るか落ちるかが分かる値になっていることこそがこのカテゴリの価値なので、
   // 合否の境目（許容たわみとの比）まで含めて固定する。
   it("木造床根太は曲げは持つが、たわみで落ちる", () => {
-    const [moment, stress, deflection, verdict] = computeSeed("木造床根太の検定（C24・45×195）");
+    const results = computeSeed("木造床根太の検定（C24・45×195）");
+    const [moment, stress, deflection, verdict] = [step(results, "最大曲げモーメント"), step(results, "曲げ応力"), step(results, "たわみ δ"), step(results, "たわみの検定")];
     expect(moment.quantity!.siValue / 1000).toBeCloseTo(3.24, 2);
     // C24の曲げ強度24MPaに対して11.4MPaなので曲げは持つ。
     expect(stress.quantity!.siValue / 1e6).toBeCloseTo(11.36, 1);
@@ -184,7 +193,8 @@ describe("はり・柱プリセットの数値検証", () => {
   });
 
   it("鋼製はりIPE 200はたわみ制限L/250をぎりぎり満たす", () => {
-    const [, stress, deflection] = computeSeed("鋼製はり IPE 200（等分布荷重）");
+    const results = computeSeed("鋼製はり IPE 200（等分布荷重）");
+    const [stress, deflection] = [step(results, "曲げ応力"), step(results, "たわみ δ")];
     expect(stress.quantity!.siValue / 1e6).toBeCloseTo(161.08, 1);
     expect(deflection.quantity!.siValue * 1000).toBeCloseTo(19.94, 1);
     // L=5mなのでL/250=20mm。
@@ -192,17 +202,18 @@ describe("はり・柱プリセットの数値検証", () => {
   });
 
   it("片持ちはり・先端集中荷重のたわみは約0.581mm", () => {
-    const [, , deflection] = computeSeed("片持ちはり・先端集中荷重（鋼の平鋼）");
+    const deflection = step(computeSeed("片持ちはり・先端集中荷重（鋼の平鋼）"), "先端のたわみ");
     expect(deflection.quantity!.siValue * 1000).toBeCloseTo(0.581, 2);
   });
 
   it("片持ちはり・等分布荷重のたわみは約5.42mm", () => {
-    const [, , deflection] = computeSeed("片持ちはり・等分布荷重");
+    const deflection = step(computeSeed("片持ちはり・等分布荷重"), "先端のたわみ");
     expect(deflection.quantity!.siValue * 1000).toBeCloseTo(5.42, 1);
   });
 
   it("オイラー座屈は細長比153で、座屈荷重は約75.9kN", () => {
-    const [radius, slenderness, load] = computeSeed("オイラー座屈と細長比（φ60×5 鋼管）");
+    const results = computeSeed("オイラー座屈と細長比（φ60×5 鋼管）");
+    const [radius, slenderness, load] = [step(results, "断面二次半径"), step(results, "細長比"), step(results, "座屈荷重")];
     expect(radius.quantity!.siValue * 1000).toBeCloseTo(19.52, 1);
     // 細長比が大きい（100超）ので、オイラーの式が適用できる領域にある。
     expect(slenderness.quantity!.siValue).toBeCloseTo(153.65, 1);
@@ -216,7 +227,7 @@ describe("はり・柱プリセットの数値検証", () => {
   });
 
   it("矩形断面の最大せん断応力は平均の1.5倍", () => {
-    const [result] = computeSeed("矩形断面はりのせん断応力");
+    const result = step(computeSeed("矩形断面はりのせん断応力"), "最大せん断応力");
     // V=12kN、断面50×150mm。平均F/A=1.6MPaの1.5倍。
     expect(result.quantity!.siValue / 1e6).toBeCloseTo(2.4, 2);
   });

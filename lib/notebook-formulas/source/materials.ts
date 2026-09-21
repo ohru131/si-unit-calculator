@@ -20,10 +20,14 @@ export const MATERIALS_SEEDS: NotebookSeed[] = [
       { symbol: "Z", expression: "b*h^2/6" },
     ],
     steps: [
+      // 断面二次モーメント I と断面係数 Z は σ・δ の式に出てくるのに、定数の中でしか
+      // 定義されていなかった（数式カードを見ても b・h からどう出したのか読めない）。
+      { title: { en: "Second moment of area I", ja: "断面二次モーメント I", es: "Momento de inercia de la sección I", "pt-BR": "Momento de inércia da seção I", de: "Flächenträgheitsmoment I", fr: "Moment quadratique I" }, expression: "I", targetUnit: "mm^4", formulaLatex: "I = \\dfrac{bh^3}{12}" },
+      { title: { en: "Section modulus Z", ja: "断面係数 Z", es: "Módulo resistente Z", "pt-BR": "Módulo de resistência Z", de: "Widerstandsmoment Z", fr: "Module de flexion Z" }, expression: "Z", targetUnit: "mm^3", formulaLatex: "Z = \\dfrac{bh^2}{6}" },
       { title: { en: "Maximum bending moment M", ja: "最大曲げモーメント M", es: "Momento flector máximo M", "pt-BR": "Momento fletor máximo M", de: "Maximales Biegemoment M", fr: "Moment fléchissant maximal M" }, expression: "w*L^2/8", targetUnit: "kN*m", formulaLatex: "M = \\dfrac{wL^2}{8}" },
       { title: { en: "Bending stress σ (vs f_m,k = 24 MPa)", ja: "曲げ応力 σ（f_m,k=24MPaと比較）", es: "Esfuerzo de flexión σ (frente a f_m,k = 24 MPa)", "pt-BR": "Tensão de flexão σ (comparada a f_m,k = 24 MPa)", de: "Biegespannung σ (gegenüber f_m,k = 24 MPa)", fr: "Contrainte de flexion σ (par rapport à f_m,k = 24 MPa)" }, expression: "w*L^2/(8*Z)", targetUnit: "MPa", formulaLatex: "\\sigma = \\dfrac{wL^2}{8Z}" },
       { title: { en: "Midspan deflection δ", ja: "スパン中央のたわみ δ", es: "Flecha en el centro del vano δ", "pt-BR": "Flecha no meio do vão δ", de: "Durchbiegung in Feldmitte δ", fr: "Flèche à mi-portée δ" }, expression: "5*w*L^4/(384*E*I)", targetUnit: "mm", formulaLatex: "\\delta = \\dfrac{5wL^4}{384EI}" },
-      { title: { en: "Deflection check δ ÷ (L/300) — over 1 means fail", ja: "たわみの検定 δ ÷ (L/300)（1を超えたら不合格）", es: "Comprobación de flecha δ ÷ (L/300) — por encima de 1 no cumple", "pt-BR": "Verificação de flecha δ ÷ (L/300) — acima de 1 não atende", de: "Durchbiegungsnachweis δ ÷ (L/300) — über 1 nicht erfüllt", fr: "Vérification de flèche δ ÷ (L/300) — au-dessus de 1, non satisfait" }, expression: "s3/(L/300)", targetUnit: "", formulaLatex: "\\dfrac{\\delta}{L/300}" },
+      { title: { en: "Deflection check δ ÷ (L/300) — over 1 means fail", ja: "たわみの検定 δ ÷ (L/300)（1を超えたら不合格）", es: "Comprobación de flecha δ ÷ (L/300) — por encima de 1 no cumple", "pt-BR": "Verificação de flecha δ ÷ (L/300) — acima de 1 não atende", de: "Durchbiegungsnachweis δ ÷ (L/300) — über 1 nicht erfüllt", fr: "Vérification de flèche δ ÷ (L/300) — au-dessus de 1, non satisfait" }, expression: "s5/(L/300)", targetUnit: "", formulaLatex: "\\dfrac{\\delta}{L/300}" },
     ],
   },
   {
@@ -55,6 +59,10 @@ export const MATERIALS_SEEDS: NotebookSeed[] = [
       { symbol: "Z", expression: "b*h^2/6" },
     ],
     steps: [
+      // 断面二次モーメント I と断面係数 Z は σ・δ の式に出てくるのに、定数の中でしか
+      // 定義されていなかった（数式カードを見ても b・h からどう出したのか読めない）。
+      { title: { en: "Second moment of area I", ja: "断面二次モーメント I", es: "Momento de inercia de la sección I", "pt-BR": "Momento de inércia da seção I", de: "Flächenträgheitsmoment I", fr: "Moment quadratique I" }, expression: "I", targetUnit: "mm^4", formulaLatex: "I = \\dfrac{bh^3}{12}" },
+      { title: { en: "Section modulus Z", ja: "断面係数 Z", es: "Módulo resistente Z", "pt-BR": "Módulo de resistência Z", de: "Widerstandsmoment Z", fr: "Module de flexion Z" }, expression: "Z", targetUnit: "mm^3", formulaLatex: "Z = \\dfrac{bh^2}{6}" },
       { title: { en: "Moment at the fixed end M", ja: "固定端の曲げモーメント M", es: "Momento en el empotramiento M", "pt-BR": "Momento no engastamento M", de: "Biegemoment an der Einspannung M", fr: "Moment à l'encastrement M" }, expression: "P*L", targetUnit: "N*m", formulaLatex: "M = PL" },
       { title: { en: "Bending stress σ", ja: "曲げ応力 σ", es: "Esfuerzo de flexión σ", "pt-BR": "Tensão de flexão σ", de: "Biegespannung σ", fr: "Contrainte de flexion σ" }, expression: "P*L/Z", targetUnit: "MPa", formulaLatex: "\\sigma = \\dfrac{PL}{Z}" },
       { title: { en: "Tip deflection δ", ja: "先端のたわみ δ", es: "Flecha en el extremo δ", "pt-BR": "Flecha na extremidade δ", de: "Durchbiegung am freien Ende δ", fr: "Flèche à l'extrémité δ" }, expression: "P*L^3/(3*E*I)", targetUnit: "mm", formulaLatex: "\\delta = \\dfrac{PL^3}{3EI}" },
@@ -119,6 +127,8 @@ export const MATERIALS_SEEDS: NotebookSeed[] = [
       { symbol: "A", expression: "b*h" },
     ],
     steps: [
+      // 断面積Aは τ_max の式に出てくるのに、定数の中でしか定義されていなかった。
+      { title: { en: "Cross-section A", ja: "断面積 A", es: "Área de la sección A", "pt-BR": "Área da seção A", de: "Querschnittsfläche A", fr: "Aire de la section A" }, expression: "A", targetUnit: "mm^2", formulaLatex: "A = bh" },
       { title: { en: "Maximum shear stress τ_max at the neutral axis", ja: "中立軸の最大せん断応力 τ_max", es: "Esfuerzo cortante máximo τ_max en el eje neutro", "pt-BR": "Tensão de cisalhamento máxima τ_max na linha neutra", de: "Maximale Schubspannung τ_max in der neutralen Faser", fr: "Contrainte de cisaillement maximale τ_max sur l'axe neutre" }, expression: "1.5*V/A", targetUnit: "MPa", formulaLatex: "\\tau_{max} = \\dfrac{3V}{2A}" },
     ],
   },
