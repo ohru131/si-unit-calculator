@@ -524,16 +524,21 @@ export function applyPresetExactConstants(notebooks: CalculationNotebook[]): { n
     const seed = !seeds || seedId === undefined ? undefined : seeds.find((candidate) => seedSlug(candidate) === seedId);
     if (!seed || seedId === undefined) return notebook;
 
-    // 突き合わせは定数のidで行い、**記号も一致させる**（シード内で定数を並べ替えたときに
-    // 別の定数へ印が移らないようにする。stampSeedRegionalDefaults と同じ理由）。
-    const exactByConstantId = new Map<string, string>();
-    seed.localConstants.forEach((constant, constantIndex) => {
-      if (constant.exact) exactByConstantId.set(presetConstantId(notebook.categoryId, seedId, constantIndex), constant.symbol);
+    // **突き合わせは定数のidではなく記号で行う。** `stampSeedRegionalDefaults` は所有権の印を
+    // 付けるので「シード内で定数を並べ替えたときに別の定数へ印が移る」危険を避けるためidで
+    // 引く必要があるが、こちらは値を一切書き換えない静的な属性なので、記号の方が安全に広く効く。
+    // 決め手はバックアップからの復元で、`applyPresetNotebookOverrides` が定数のidを
+    // `<ノートid>-override-constant-N` に組み直すため、**idで引くと復元したプリセットに
+    // 印が二度と戻らない**（穴まわりの応力集中が `≈ 47 MPa` から `46.875 MPa` へ黙って戻る）。
+    // 記号はノートの中で一意（重複すると定数がシャドーし合って成立しない）なので取り違えない。
+    const exactSymbols = new Set<string>();
+    seed.localConstants.forEach((constant) => {
+      if (constant.exact) exactSymbols.add(constant.symbol);
     });
 
     let notebookChanged = false;
     const nextLocalConstants = notebook.localConstants.map((constant) => {
-      const shouldBeExact = exactByConstantId.get(constant.id) === constant.symbol;
+      const shouldBeExact = exactSymbols.has(constant.symbol);
       if (shouldBeExact === (constant.exact === true)) return constant;
       notebookChanged = true;
       if (shouldBeExact) return { ...constant, exact: true };
