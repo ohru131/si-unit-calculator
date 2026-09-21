@@ -141,9 +141,14 @@ type ScanResult = {
 type AdditiveFrame = { hasAdditive: boolean; hasMeasured: boolean };
 
 /**
- * その数値の直後が `× 10 ^`（科学表記の倍率）か。空白は読み飛ばす——`normalizeExpression` は
- * 空白を1つに詰めるだけで消さず、評価器も数値と演算子の間の空白を許すため
- * （底の `10` を数えない判定と同じ事情。lib/significant-figures.ts の科学表記の項）。
+ * その数値の直後が `× 10 ^` / `÷ 10 ^`（科学表記の倍率）か。空白は読み飛ばす——
+ * `normalizeExpression` は空白を1つに詰めるだけで消さず、評価器も数値と演算子の間の空白を
+ * 許すため（底の `10` を数えない判定と同じ事情。lib/significant-figures.ts の科学表記の項）。
+ *
+ * **割り算も見ること。** `/ 10^n` は `× 10^-n` と同じ十進のスケーリングなので、片方だけ
+ * 仮数として扱うと `123 × 10^2` が3桁・`123 / 10^2` が桁なし（＝丸めない）と、
+ * **同一の計算が書き方で食い違う**（底の `10` を掛け算・割り算のどちらでも数えない、という
+ * #60 で決めた規則の裏返し。CodeRabbitが#75で検出）。
  */
 function isScientificMantissa(source: string, from: number): boolean {
   let index = from;
@@ -151,7 +156,7 @@ function isScientificMantissa(source: string, from: number): boolean {
     while (source[index] === " ") index += 1;
   };
   skipSpaces();
-  if (source[index] !== "*") return false;
+  if (source[index] !== "*" && source[index] !== "/") return false;
   index += 1;
   skipSpaces();
   if (source.slice(index, index + 2) !== "10") return false;
