@@ -340,10 +340,15 @@ describe("厳密値の印が付いたプリセット（穴まわりの応力集�
     expect(display.rawValue).toBe("46.875 MPa");
   });
 
-  it("印を外すと桁が読めなくなる（この印が効いていることの裏取り）", () => {
+  it("印を外すと板厚の1桁に落ちて丸めが止まる（この印が効いていることの裏取り）", () => {
+    // 印が無いと板厚 `8mm` が1桁の測定値になり、`MIN_ROUNDING_DIGITS` で丸めごと止まる
+    // （＝表示は `46.875 MPa` の生値に戻る）。印を付けた状態の2桁との対比がこの印の効き目。
     const notebook = notebookFromSeed("eng-stress", seedIndex, "ja");
     const withoutExact = notebook.localConstants.map(({ exact: _dropped, ...rest }) => rest);
     const results = evaluateNotebookSteps(notebook.steps, resolvedConstants(notebook), "ja");
-    expect(notebookStepSignificantDigits(results[0].step, withoutExact, [])).toBeNull();
+    expect(notebookStepSignificantDigits(results[0].step, withoutExact, [])).toBe(1);
+    const display = resolveNotebookStepDisplay(results[0], undefined, "metric", "ja-JP", notebookStepSignificantDigits(results[0].step, withoutExact, []));
+    expect(display.value).toBe("46.875 MPa");
+    expect(display.significantDigits).toBeUndefined();
   });
 });
