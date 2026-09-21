@@ -10,7 +10,7 @@ export const ELECTRICITY_BASICS_SEEDS: NotebookSeed[] = [
       { symbol: "Vf", expression: "2V" },
       { symbol: "I", expression: "15mA" },
     ],
-    steps: [{ title: { en: "Required resistance R", ja: "必要な抵抗値 R", es: "Resistencia necesaria R", "pt-BR": "Resistência necessária R", de: "Erforderlicher Widerstand R", fr: "Résistance nécessaire R" }, expression: "(Vₛ-Vf)/I", targetUnit: "Ohm", formulaLatex: "R = \\dfrac{V_s - V_f}{I}" }],
+    steps: [{ title: { en: "Required resistance R", ja: "必要な抵抗値 R", es: "Resistencia necesaria R", "pt-BR": "Resistência necessária R", de: "Erforderlicher Widerstand R", fr: "Résistance nécessaire R" }, expression: "(Vₛ-Vf)/I", targetUnit: "Ω", formulaLatex: "R = \\dfrac{V_s - V_f}{I}" }],
   },
   {
     title: { en: "Energy consumption and electricity cost", ja: "消費電力量と電気代", es: "Consumo de energía y costo de electricidad", "pt-BR": "Consumo de energia e custo de eletricidade", de: "Energieverbrauch und Stromkosten", fr: "Consommation d'énergie et coût de l'électricité" },
@@ -43,12 +43,12 @@ export const ELECTRICITY_BASICS_SEEDS: NotebookSeed[] = [
     title: { en: "Series and parallel resistor combination", ja: "抵抗の直列・並列合成", es: "Combinación de resistencias en serie y en paralelo", "pt-BR": "Associação de resistores em série e em paralelo", de: "Reihen- und Parallelschaltung von Widerständen", fr: "Association de résistances en série et en parallèle" },
     description: { en: "Compute the combined resistance of two resistors both in series and in parallel.", ja: "2つの抵抗値から、直列合成抵抗と並列合成抵抗をそれぞれ求めます。", es: "Calcula la resistencia equivalente de dos resistencias tanto en serie como en paralelo.", "pt-BR": "Calcule a resistência equivalente de dois resistores, tanto em série quanto em paralelo.", de: "Berechnet den Ersatzwiderstand zweier Widerstände sowohl in Reihen- als auch in Parallelschaltung.", fr: "Calculer la résistance équivalente de deux résistances, en série et en parallèle." },
     localConstants: [
-      { symbol: "R₁", expression: "100Ohm" },
-      { symbol: "R₂", expression: "200Ohm" },
+      { symbol: "R₁", expression: "100Ω" },
+      { symbol: "R₂", expression: "200Ω" },
     ],
     steps: [
-      { title: { en: "Series resistance", ja: "直列合成抵抗", es: "Resistencia en serie", "pt-BR": "Resistência em série", de: "Reihenwiderstand", fr: "Résistance en série" }, expression: "R₁+R₂", targetUnit: "Ohm", formulaLatex: "R_{series} = R_1 + R_2" },
-      { title: { en: "Parallel resistance", ja: "並列合成抵抗", es: "Resistencia en paralelo", "pt-BR": "Resistência em paralelo", de: "Parallelwiderstand", fr: "Résistance en parallèle" }, expression: "(1/R₁+1/R₂)^-1", targetUnit: "Ohm", formulaLatex: "R_{parallel} = \\left(\\dfrac{1}{R_1} + \\dfrac{1}{R_2}\\right)^{-1}" },
+      { title: { en: "Series resistance", ja: "直列合成抵抗", es: "Resistencia en serie", "pt-BR": "Resistência em série", de: "Reihenwiderstand", fr: "Résistance en série" }, expression: "R₁+R₂", targetUnit: "Ω", formulaLatex: "R_{series} = R_1 + R_2" },
+      { title: { en: "Parallel resistance", ja: "並列合成抵抗", es: "Resistencia en paralelo", "pt-BR": "Resistência em paralelo", de: "Parallelwiderstand", fr: "Résistance en parallèle" }, expression: "(1/R₁+1/R₂)^-1", targetUnit: "Ω", formulaLatex: "R_{parallel} = \\left(\\dfrac{1}{R_1} + \\dfrac{1}{R_2}\\right)^{-1}" },
     ],
   },
   {
@@ -76,7 +76,7 @@ export const ELECTRICITY_BASICS_SEEDS: NotebookSeed[] = [
     title: { en: "Voltage drop and the cable cross-section it needs", ja: "電圧降下と必要な電線の太さ", es: "Caída de voltaje y sección de cable necesaria", "pt-BR": "Queda de tensão e a seção de cabo necessária", de: "Spannungsfall und der nötige Leiterquerschnitt", fr: "Chute de tension et section de câble nécessaire" },
     description: { en: "Compute the voltage drop of a single-phase run from the resistivity, one-way length, current and cross-section, express it as a fraction of the supply voltage, then solve for the smallest cross-section that keeps the drop within the permitted fraction f.", ja: "抵抗率・片道の配線長・電流・導体断面積から単相回路の電圧降下を求め、電源電圧に対する割合で表し、許容割合 f に収まる最小の断面積を逆算します。", es: "Calcula la caída de voltaje de una línea monofásica a partir de la resistividad, la longitud de ida, la corriente y la sección; la expresa como fracción del voltaje de alimentación y despeja la sección mínima que mantiene la caída dentro de la fracción admisible f.", "pt-BR": "Calcule a queda de tensão de um circuito monofásico a partir da resistividade, do comprimento de ida, da corrente e da seção; expresse-a como fração da tensão de alimentação e resolva a menor seção que mantém a queda dentro da fração admissível f.", de: "Berechnet den Spannungsfall einer einphasigen Leitung aus dem spezifischen Widerstand, der einfachen Länge, dem Strom und dem Querschnitt, stellt ihn als Anteil der Versorgungsspannung dar und ermittelt den kleinsten Querschnitt, der den zulässigen Anteil f einhält.", fr: "Calculer la chute de tension d'une ligne monophasée à partir de la résistivité, de la longueur aller, du courant et de la section, l'exprimer en fraction de la tension d'alimentation, puis déterminer la section minimale qui respecte la fraction admissible f." },
     localConstants: [
-      { symbol: "ρ", expression: "0.0175Ohm*mm^2/m" },
+      { symbol: "ρ", expression: "0.0175Ω*mm^2/m" },
       { symbol: "L", expression: "25m" },
       { symbol: "I", expression: "16A" },
       { symbol: "A", expression: "2.5mm^2" },

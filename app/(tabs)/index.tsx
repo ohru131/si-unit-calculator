@@ -739,6 +739,13 @@ export default function CalculatorScreen() {
     () => orderSamplesForLanguage(SAMPLE_CALCULATIONS.filter((sample) => sample.category === activeSampleCategory && isSampleCategoryVisible(sample.category, isAdvancedMode)), language),
     [activeSampleCategory, isAdvancedMode, language],
   );
+  // 「いま電卓に入っているのはどのサンプルか」。シートを開いたときに自分がどれを読み込んだのか
+  // 分からなくなるので、式が完全一致するカードだけを光らせる（1文字でも編集したら消える＝
+  // 「サンプルそのもの」であることの印になる）。**useMemo で包まないこと**——32件の文字列比較は
+  // 打鍵ごとに走らせても安いうえ、返る値は id か null の primitive なので、
+  // samplesSheet の依存に入れてもサンプル一覧が作り直されるのは一致が切り替わった瞬間だけで済む。
+  const trimmedExpression = expression.trim();
+  const activeSampleId = trimmedExpression ? (SAMPLE_CALCULATIONS.find((sample) => sample.expression === trimmedExpression)?.id ?? null) : null;
   // 履歴の表示件数はProでも無料でも同じにしている（以前は無料5件で打ち切っていた）。
   // 打ち切りは a1・a2… の自動定数と食い違うのが致命的で、autoConstantsは常に全履歴から作るため、
   // 無料ユーザーは見えない a12 を式から参照できてしまっていた。加えて「計算のたびに履歴が消える」は
@@ -1555,7 +1562,8 @@ export default function CalculatorScreen() {
   // サンプルを「選んだ」瞬間に確認する。閲覧（シートを開いて眺める）は自由にできるべきなので、
   // 確認するのはタップされた時点だけにする。入力が空なら壊すものが無いので即適用でよい。
   const selectSample = (sample: SampleCalculation) => {
-    if (!expression.trim()) {
+    // 既に同じ式が入っているサンプル（一覧で光っている方）は置き換えても失うものが無いので確認しない。
+    if (!expression.trim() || sample.id === activeSampleId) {
       applySample(sample);
       setShowSamples(false);
       return;
@@ -1832,7 +1840,10 @@ export default function CalculatorScreen() {
    *
    * 一覧（縦スクロール）だけが伸び縮みするよう、**チップ行は `flexShrink: 0`・一覧は `flexShrink: 1`**
    * を明示する（RNの既定は `flexShrink: 0` なので、書かないと件数の多いカテゴリで
-   * 横スクロールのチップ行が潰れてチップが半分に切れる）。
+   * チップ行が潰れてチップが半分に切れる）。
+   *
+   * **チップ行は横スクロールにしない**（2026-09-21）。9件あるので端に隠れたタブは存在ごと
+   * 気付かれない（`exam`・`lab` は言語によっては最後尾に来る）。折り返せば2行で全部見える。
    */
   const samplesSheet = useMemo(
     () => (
@@ -1849,35 +1860,45 @@ export default function CalculatorScreen() {
               下までスクロールしたあと少ないカテゴリ（割合は1件）へ移ると、範囲外に残ったオフセットの
               せいで**一覧が空に見える**（単位レールの railScrollKey と同じ事象）。 */}
           <ScrollView key={activeSampleCategory} showsVerticalScrollIndicator={false} style={styles.sampleList} contentContainerStyle={styles.sampleListContent}>
-            {visibleSamples.map((sample) => (
-              <Pressable key={sample.id} onPress={() => stableSelectSample(sample)} style={({ pressed }) => [styles.sampleRow, pressed && styles.cardPressed]}>
-                <View style={styles.sampleCopy}>
-                  <Text style={styles.sampleTitle}>{localizedText(sample.title, language)}</Text>
-                  <Text style={styles.sampleDescription}>{localizedText(sample.description, language)}</Text>
-                </View>
-                <View style={styles.sampleExpressionWrap}>
-                  <Text numberOfLines={1} style={styles.sampleExpression}>{sample.expression}</Text>
-                  <Text style={styles.sampleTarget}>→ {targetUnitForSample(sample)}</Text>
-                </View>
-              </Pressable>
-            ))}
+            {visibleSamples.map((sample) => {
+              const targetUnitLabel = targetUnitForSample(sample);
+              const isActive = sample.id === activeSampleId;
+              return (
+                <Pressable
+                  accessibilityState={{ selected: isActive }}
+                  key={sample.id}
+                  onPress={() => stableSelectSample(sample)}
+                  style={({ pressed }) => [styles.sampleRow, isActive && styles.sampleRowActive, pressed && styles.cardPressed]}
+                >
+                  <View style={styles.sampleHeader}>
+                    <Text numberOfLines={1} style={styles.sampleTitle}>{localizedText(sample.title, language)}</Text>
+                    {isActive ? <IconSymbol name="checkmark" size={13} color={colors.primary} /> : null}
+                    {targetUnitLabel ? <Text style={styles.sampleTarget}>→ {targetUnitLabel}</Text> : null}
+                  </View>
+                  <Text numberOfLines={2} style={styles.sampleDescription}>{localizedText(sample.description, language)}</Text>
+                  <Text style={styles.sampleExpression}>{sample.expression}</Text>
+                </Pressable>
+              );
+            })}
           </ScrollView>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={styles.sampleCategoryRail} contentContainerStyle={styles.categoryRail}>
+          {/* チップは横スクロールではなく折り返して全部見せる（9件あり、端に隠れると何のタブがあるか分からない）。
+              並びは lib/locale-relevance.ts の言語別の関連度順で、「基本」だけは全言語で先頭に固定してある。 */}
+          <View style={styles.sampleCategoryRail}>
             {visibleSampleCategories.map((category) => (
               <Pressable
                 accessibilityState={{ selected: activeSampleCategory === category.id }}
                 key={category.id}
                 onPress={() => setSampleCategory(category.id)}
-                style={({ pressed }) => [styles.categoryChip, activeSampleCategory === category.id && styles.categoryChipActive, pressed && styles.pressed]}
+                style={({ pressed }) => [styles.categoryChip, styles.sampleCategoryChip, activeSampleCategory === category.id && styles.categoryChipActive, pressed && styles.pressed]}
               >
-                <Text style={[styles.categoryChipText, activeSampleCategory === category.id && styles.categoryChipTextActive]}>{localizedText(category.label, language)}</Text>
+                <Text style={[styles.categoryChipText, styles.sampleCategoryChipText, activeSampleCategory === category.id && styles.categoryChipTextActive]}>{localizedText(category.label, language)}</Text>
               </Pressable>
             ))}
-          </ScrollView>
+          </View>
         </View>
       </View>
     ),
-    [activeSampleCategory, colors, copy, language, sheetStyle, stableSelectSample, styles, targetUnitForSample, visibleSampleCategories, visibleSamples],
+    [activeSampleCategory, activeSampleId, colors, copy, language, sheetStyle, stableSelectSample, styles, targetUnitForSample, visibleSampleCategories, visibleSamples],
   );
 
   const historySheet = useMemo(
@@ -2663,13 +2684,15 @@ const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => St
   iconPressed: { opacity: 0.55 },
   cardPressed: { opacity: 0.7 },
 
-  sampleRow: { alignItems: "center", backgroundColor: colors.background, borderColor: colors.border, borderRadius: 11, borderWidth: 1, flexDirection: "row", paddingHorizontal: 11, paddingVertical: 10 },
-  sampleCopy: { flex: 1, marginRight: 10 },
-  sampleTitle: { color: colors.foreground, fontSize: 13, fontWeight: "800" },
-  sampleDescription: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 2 },
-  sampleExpressionWrap: { alignItems: "flex-end", maxWidth: "48%" },
-  sampleExpression: { color: colors.primary, fontFamily: mono, fontSize: 12, fontWeight: "700" },
-  sampleTarget: { color: colors.muted, fontFamily: mono, fontSize: 11, marginTop: 2 },
+  sampleRow: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 11, borderWidth: 1, gap: 3, paddingHorizontal: 11, paddingVertical: 10 },
+  sampleRowActive: { backgroundColor: colors.primarySurface, borderColor: colors.primary },
+  sampleHeader: { alignItems: "center", flexDirection: "row", gap: 6 },
+  sampleTitle: { color: colors.foreground, flex: 1, fontSize: 13, fontWeight: "800" },
+  sampleDescription: { color: colors.muted, fontSize: 11, lineHeight: 16 },
+  // 式は行を独占させる（以前は右半分に押し込んで numberOfLines={1} だったため、
+  // `2 × 25m × 16A × 0.0175Ω*mm²/m ÷ 2.5mm²` のような長い式が途中で切れて何の計算か読めなかった）。
+  sampleExpression: { color: colors.primary, fontFamily: mono, fontSize: 12, fontWeight: "700", marginTop: 1 },
+  sampleTarget: { color: colors.muted, flexShrink: 0, fontFamily: mono, fontSize: 11 },
 
   unitSearchWrap: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderColor: colors.border, borderRadius: 12, borderWidth: 1, flexDirection: "row", marginTop: 4, minHeight: 45, paddingHorizontal: 12 },
   unitSearchInput: { color: colors.foreground, flex: 1, fontSize: 14, marginLeft: 8, paddingVertical: 9 },
@@ -2677,7 +2700,11 @@ const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => St
   // サンプルのシート用。一覧だけが伸び縮みし、チップ行はシートの下端に貼り付いたまま動かない。
   sampleList: { flexShrink: 1 },
   sampleListContent: { gap: 8, paddingBottom: 6, paddingTop: 2 },
-  sampleCategoryRail: { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth, flexGrow: 0, flexShrink: 0 },
+  sampleCategoryRail: { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row", flexGrow: 0, flexShrink: 0, flexWrap: "wrap", gap: 6, paddingBottom: 2, paddingTop: 9 },
+  // 折り返しで9件を全部見せるぶん、チップ自体は単位ピッカーのものより一回り小さくする
+  // （独語のラベルは長く、既定の大きさだと4行になって一覧の見える件数が半分になる）。
+  sampleCategoryChip: { paddingHorizontal: 10, paddingVertical: 6 },
+  sampleCategoryChipText: { fontSize: 11 },
   categoryChip: { backgroundColor: colors.surfaceSecondary, borderRadius: 15, paddingHorizontal: 12, paddingVertical: 7 },
   categoryChipActive: { backgroundColor: colors.primaryFill },
   categoryChipText: { color: colors.muted, fontSize: 12, fontWeight: "700" },
