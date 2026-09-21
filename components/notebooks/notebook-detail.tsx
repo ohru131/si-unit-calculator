@@ -8,17 +8,18 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { LatexView } from "@/components/ui/latex-view";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
+import { useUnitRail } from "@/hooks/use-unit-rail";
 import { type CalculationNotebook, type CalculationNoteStep, type NotebookLocalConstant } from "@/lib/calculator-store";
 import { type AppLanguage } from "@/lib/i18n";
-import { getLocalConstantFieldSuggestions, getStepFieldSuggestions, insertConstantSymbol, mapCombinedSelectionToExpressionRange } from "@/lib/notebook-constant-suggestions";
+import { getLocalConstantFieldSuggestions, getStepFieldSuggestions, mapCombinedSelectionToExpressionRange } from "@/lib/notebook-constant-suggestions";
 import { evaluateNotebookSteps, formatNameValue, normalizeStepForSave, parseNameValue, resolveNotebookLocalConstants, trimResultSymbol } from "@/lib/notebook-engine";
 import { resolveNotebookStepDisplay } from "@/lib/notebook-export-model";
 import { resolveCalculatorLayout } from "@/lib/calculator-layout";
 import { toHalfWidthAscii } from "@/lib/fullwidth-input";
 import { backspaceInField, insertKeypadText, moveCaretInField } from "@/lib/notebook-keypad";
 import { nextStepNamePatch, stepDisplayTitle } from "@/lib/notebook-step-title";
-import { getUnitInsertionRange, replaceExpressionRange } from "@/lib/unit-input";
-import { compatibleUnitOptions, compatibleUnitOptionsFromHints } from "@/lib/unit-options";
+import { analyzeExpression, prefixEntryStillValid, replaceExpressionRange, resolvePrefixKeyPress, shouldResetPaletteForKey, type PrefixEntry } from "@/lib/unit-input";
+import { compatibleUnitOptionsFromHints } from "@/lib/unit-options";
 import { type MeasuringStandard, type SavedConstant, type UnitSystem } from "@/lib/units";
 
 const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" });
@@ -192,6 +193,10 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   // したフィールド」のレールを、別のフィールドにフォーカスが移るまで表示し続ける方式に変える。
   // TextInputのonBlurではもう何もしない（scheduleRailBlurは廃止）。
   const [activeRailKey, setActiveRailKey] = useState<string | null>(null);
+  // 接頭語キーで入れた1文字を「まだ単位を選んでいる途中」として覚える。電卓と同じ扱いで、
+  // これが無いと `m` が単体のメートルとして解決され、レールの候補が長さの単位だけになって
+  // mA・mV・ms が出てこない（lib/unit-input.ts の resolveActivePrefix の注記）。
+  const [prefixEntry, setPrefixEntry] = useState<PrefixEntry | null>(null);
   // 各フィールドの現在のキャレット/選択範囲（onSelectionChangeで更新）。ボタンをタップしたとき
   // 末尾ではなく、この位置に記号を挿し込むために使う。
   const [fieldSelections, setFieldSelections] = useState<Record<string, { start: number; end: number }>>({});
@@ -320,14 +325,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   }, [editableConstants, editableSteps, notebook.localConstants, notebook.steps]);
 
   const { resolved, errors } = useMemo(() => resolveNotebookLocalConstants(editableConstants, globalConstants, language), [editableConstants, globalConstants, language]);
-  const resolvedBySymbol = useMemo(() => new Map(resolved.map((item) => [item.symbol, item])), [resolved]);
   const pool = useMemo(() => [...globalConstants, ...resolved], [globalConstants, resolved]);
-  // ローカル定数の式が他の定数記号を参照しているとき、その記号が単位記号と同じ綴りでも
-  // 単位挿入で誤って上書きしないよう、既知の識別子として明示的に渡す。
-  const constantIdentifiers = useMemo(
-    () => [...globalConstants.map((item) => item.symbol), ...editableConstants.map((item) => item.symbol.trim()).filter(Boolean)],
-    [editableConstants, globalConstants],
-  );
   // measuringStandardはlib/units.tsのモジュール内状態を経由してcup/tbsp/tspの値に反映されるため、
   // 依存配列に含めて設定変更時に再計算させる（値自体は参照するだけで使わない）。
   const stepResults = useMemo(() => {
@@ -383,34 +381,10 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   const constantFieldKey = (id: string) => `constant:${id}`;
   const stepFieldKey = (id: string) => `step:${id}`;
   const combinedCaretEnd = (name: string, expression: string) => formatNameValue(name, expression).length;
-
-  // 記号ボタンをタップしたときに実際にキャレット/選択範囲があった位置へ挿入する。
-  // まだ一度もonSelectionChangeが来ていないフィールド（フォーカス直後など）は末尾へ挿す。
-  const insertSymbolIntoField = (key: string, name: string, expression: string, symbol: string, applyExpression: (next: string) => void) => {
+  // まだ一度も onSelectionChange が来ていない欄（フォーカス直後など）は末尾を指しているとみなす。
+  const selectionFor = (key: string, name: string, expression: string) => {
     const fallback = combinedCaretEnd(name, expression);
-    const selection = fieldSelections[key] ?? { start: fallback, end: fallback };
-    const { expression: nextExpression, combinedCaret } = insertConstantSymbol(name, expression, selection.start, selection.end, symbol);
-    applyExpression(nextExpression);
-    const caretSelection = { start: combinedCaret, end: combinedCaret };
-    setFieldSelections((current) => ({ ...current, [key]: caretSelection }));
-    setForcedSelection({ key, selection: caretSelection });
-  };
-
-  /**
-   * 単位チップも定数チップと同じくキャレット基準で反映する。範囲選択があればそこを置き換え、
-   * 無ければキャレット上の単位を差し替える（数値の直後なら単位付け）。末尾決め打ちにすると、
-   * 式の途中にカーソルを置いても最後の単位が書き換わってしまう。
-   */
-  const insertUnitIntoField = (key: string, name: string, expression: string, symbol: string, applyExpression: (next: string) => void) => {
-    const fallback = combinedCaretEnd(name, expression);
-    const selection = fieldSelections[key] ?? { start: fallback, end: fallback };
-    const selected = mapCombinedSelectionToExpressionRange(name, expression, selection.start, selection.end);
-    const range = selected.start === selected.end ? getUnitInsertionRange(expression, selected.start, constantIdentifiers) : selected;
-    applyExpression(replaceExpressionRange(expression, range.start, range.end, symbol));
-    const combinedCaret = (name ? name.length + 1 : 0) + range.start + symbol.length;
-    const caretSelection = { start: combinedCaret, end: combinedCaret };
-    setFieldSelections((current) => ({ ...current, [key]: caretSelection }));
-    setForcedSelection({ key, selection: caretSelection });
+    return fieldSelections[key] ?? { start: fallback, end: fallback };
   };
 
   // onSelectionChangeが発火した時点で強制キャレットの役目は終わり。ユーザー自身の操作と
@@ -418,6 +392,11 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
   const handleSelectionChange = (key: string, selection: { start: number; end: number }) => {
     setFieldSelections((current) => ({ ...current, [key]: selection }));
     setForcedSelection((current) => (current?.key === key ? null : current));
+    // キャレットが押した直後の位置から離れたら接頭語の記録は無効（電卓の onSelectionChange と同じ）。
+    // 判定に任せず捨てるのは、離れてから戻ったときに古い記録が復活しないようにするため。
+    if (!activeField || key !== activeField.key) { setPrefixEntry(null); return; }
+    const mapped = mapCombinedSelectionToExpressionRange(activeField.name, activeField.expression, selection.start, selection.end);
+    setPrefixEntry((current) => (prefixEntryStillValid(current, activeField.expression, mapped) ? current : null));
   };
 
   // キーパッドが今操作する欄。「最後にフォーカスした欄」（activeRailKey）を id から引き直す。
@@ -436,10 +415,6 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
         expression: item.expression,
         label: item.symbol.trim() || copy.inputs,
         symbols: getLocalConstantFieldSuggestions(editableConstants, globalConstants, index),
-        // フォールバックの手掛かりはこの定数自身の式（例: "8.99e9N*m^2/C^2"）を渡す。
-        // クーロンの法則のkのように次元に対応するグループが無くても、式中の単位から
-        // SI接頭辞違いの候補を組み立てられる。
-        units: compatibleUnitOptions(resolvedBySymbol.get(item.symbol.trim())?.quantity, unitSystem, { expression: item.expression }),
         apply: (next: string) => updateConstant(item.id, { expression: next }),
       };
     }
@@ -452,23 +427,92 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
       expression: step.expression,
       label: stepDisplayTitle(step.title, step.expression) || copy.results,
       symbols: getStepFieldSuggestions(editableConstants, globalConstants, editableSteps, index),
-      // 手順は表示単位が決まっていればそれを、無ければ式自体を手掛かりにする（編集シートと同じ）。
-      units: compatibleUnitOptions(stepResults[index]?.quantity, unitSystem, { expression: step.targetUnit.trim() || step.expression }),
       apply: (next: string) => updateStepField(step.id, { expression: next }),
     };
   })();
 
+  // ---- 単位パレット（電卓タブと共用） ----
+  // hooks/use-unit-rail.ts + components/ui/unit-rail.tsx をそのまま使う。以前ここは
+  // 「この値に合う単位」の平らな一覧だけで、カテゴリも文脈依存の候補も接頭語の補完も無く、
+  // 電卓と挙動が違った（「ノートではいろんな単位が選べない」と報告された）。
+  const railExpression = activeField?.expression ?? "";
+  // 欄の式の中で定数として解決される名前。識別子の解決は単位より先なので、渡さないと
+  // `v` や `t` が単位として解析され、見当違いの差し替え候補が並ぶ。
+  // **useMemo で包まないこと。** activeField は毎レンダー作り直される派生値なので、包んでも
+  // 依存が毎回変わって得が無く、react-hooks/preserve-manual-memoization の警告だけ増える
+  // （CLAUDE.md の「毎回作り直す値は useMemo で包まない」と同じ事情）。欄の式は短く、
+  // この画面は電卓ほど打鍵が速くないので解析し直しても問題にならない。
+  const railIdentifiers = activeField?.symbols ?? [];
+  const railAnalysis = analyzeExpression(railExpression, railIdentifiers);
+  // 欄のキャレットは「名前＝式」の結合文字列上の位置なので、式だけの座標へ直してから渡す。
+  const railCombinedSelection = activeField ? selectionFor(activeField.key, activeField.name, activeField.expression) : null;
+  const railRange = activeField && railCombinedSelection
+    ? mapCombinedSelectionToExpressionRange(activeField.name, activeField.expression, railCombinedSelection.start, railCombinedSelection.end)
+    : { start: 0, end: 0 };
+  const railSelection = { start: railRange.start, end: railRange.end };
+  const unitRail = useUnitRail({
+    analysis: railAnalysis,
+    expression: railExpression,
+    identifiers: railIdentifiers,
+    prefixEntry,
+    selection: railSelection,
+    unitSystem,
+  });
+
   // キーパッドの文字キー。定数チップと同じ挿入規則（キャレット位置・範囲選択の置き換え・
   // 名前側にあるキャレットは式の先頭へ）を通す。
-  const handleKeypadInsert = (text: string) => {
+  const insertIntoActiveField = (text: string, asPrefix = false) => {
     if (!activeField) return;
-    const fallback = combinedCaretEnd(activeField.name, activeField.expression);
-    const selection = fieldSelections[activeField.key] ?? { start: fallback, end: fallback };
+    const selection = selectionFor(activeField.key, activeField.name, activeField.expression);
     const { expression: nextExpression, combinedCaret } = insertKeypadText(activeField.name, activeField.expression, selection.start, selection.end, text);
     activeField.apply(nextExpression);
     const caretSelection = { start: combinedCaret, end: combinedCaret };
     setFieldSelections((current) => ({ ...current, [activeField.key]: caretSelection }));
     setForcedSelection({ key: activeField.key, selection: caretSelection });
+    // 接頭語キーで入れた1文字だけは「まだ単位を選んでいる途中」として覚える（レールが mA・mV・ms
+    // を出せるようにするため）。それ以外の挿入は式が変わった時点で記録を捨てる。
+    const prefixLength = activeField.name ? activeField.name.length + 1 : 0;
+    const start = combinedCaret - prefixLength - text.length;
+    setPrefixEntry(asPrefix && start >= 0 ? { start, end: start + text.length, prefix: text } : null);
+  };
+
+  const handleKeypadInsert = (text: string) => insertIntoActiveField(text);
+
+  /**
+   * 接頭語キー。電卓と同じトグル（同じキーで取り消し・別のキーで差し替え）で、判断は
+   * lib/unit-input.ts の resolvePrefixKeyPress。まだ何も入れていないときは null が返るので、
+   * そのときは素の挿入として入れたうえで記録を残す。
+   */
+  const handleKeypadPrefix = (prefix: string) => {
+    if (!activeField) return;
+    const toggled = resolvePrefixKeyPress({ expression: activeField.expression, selection: railSelection, prefixEntry, key: prefix });
+    if (!toggled) { insertIntoActiveField(prefix, true); return; }
+    activeField.apply(toggled.expression);
+    const combinedCaret = (activeField.name ? activeField.name.length + 1 : 0) + toggled.caret;
+    const caretSelection = { start: combinedCaret, end: combinedCaret };
+    setFieldSelections((current) => ({ ...current, [activeField.key]: caretSelection }));
+    setForcedSelection({ key: activeField.key, selection: caretSelection });
+    setPrefixEntry(toggled.prefixEntry);
+  };
+
+  /**
+   * レールの単位チップ。書き換える範囲の決め方は電卓と同じで、範囲選択があればそれを最優先し
+   * （選択を無視すると `5cm` の cm を選んで km を押したときに `5kmcm` になる）、無ければレールが
+   * 案内している範囲（unitRail.target）をそのまま使う——画面に出ている案内と実際に書き換わる
+   * 場所を必ず一致させるため。
+   */
+  const applyRailUnit = (symbol: string) => {
+    if (!activeField) return;
+    const { expression, name } = activeField;
+    const range = railRange.start === railRange.end
+      ? { start: Math.min(unitRail.target.start, expression.length), end: Math.min(unitRail.target.end, expression.length) }
+      : railRange;
+    activeField.apply(replaceExpressionRange(expression, range.start, range.end, symbol));
+    const combinedCaret = (name ? name.length + 1 : 0) + range.start + symbol.length;
+    const caretSelection = { start: combinedCaret, end: combinedCaret };
+    setFieldSelections((current) => ({ ...current, [activeField.key]: caretSelection }));
+    setForcedSelection({ key: activeField.key, selection: caretSelection });
+    setPrefixEntry(null);
   };
 
   const handleKeypadBackspace = () => {
@@ -478,6 +522,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     const result = backspaceInField(activeField.name, activeField.expression, selection.start, selection.end);
     if (!result) return;
     activeField.apply(result.expression);
+    setPrefixEntry(null);
     const caretSelection = { start: result.combinedCaret, end: result.combinedCaret };
     setFieldSelections((current) => ({ ...current, [activeField.key]: caretSelection }));
     setForcedSelection({ key: activeField.key, selection: caretSelection });
@@ -491,6 +536,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     const next = moveCaretInField(activeField.name, activeField.expression, selection.start, selection.end, delta);
     setFieldSelections((current) => ({ ...current, [activeField.key]: next }));
     setForcedSelection({ key: activeField.key, selection: next });
+    setPrefixEntry(null);
   };
 
   // キーパッド本体の20キー。数字・演算子・括弧は挿入、⌫ は1文字削除、AC は式を空に、
@@ -499,8 +545,13 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     if (!activeField) return;
     if (key === "⌫") { handleKeypadBackspace(); return; }
     if (key === "=") { dismissKeypad(); return; }
+    // 演算子・括弧・関数のキーはカテゴリの選択を「候補」へ戻す（電卓と同じ。項が変われば
+    // さっきまでのカテゴリは当てにならない）。
+    if (shouldResetPaletteForKey(key)) unitRail.reset();
     if (key === "AC") {
       activeField.apply("");
+      setPrefixEntry(null);
+      unitRail.reset();
       const caret = combinedCaretEnd(activeField.name, "");
       setFieldSelections((current) => ({ ...current, [activeField.key]: { start: caret, end: caret } }));
       setForcedSelection({ key: activeField.key, selection: { start: caret, end: caret } });
@@ -755,13 +806,13 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
           layout={keyboardLayout}
           fieldLabel={activeField.label}
           isOsKeyboardActive={osKeyboardKey === activeField.key}
-          labels={{ dismiss: copy.keypadDismiss, insertSymbol: copy.insertConstant, insertUnit: copy.insertUnit }}
+          labels={{ dismiss: copy.keypadDismiss }}
           symbols={activeField.symbols}
-          units={activeField.units}
+          unitRail={unitRail}
           onKey={handleKeypadKey}
           onInsert={handleKeypadInsert}
-          onInsertSymbol={(symbol) => insertSymbolIntoField(activeField.key, activeField.name, activeField.expression, symbol, activeField.apply)}
-          onInsertUnit={(symbol) => insertUnitIntoField(activeField.key, activeField.name, activeField.expression, symbol, activeField.apply)}
+          onPrefix={handleKeypadPrefix}
+          onApplyUnit={applyRailUnit}
           onMoveCaret={handleKeypadMoveCaret}
           onToggleOsKeyboard={toggleOsKeyboard}
           onDismiss={dismissKeypad}
