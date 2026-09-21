@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { applyPresetExactConstants, buildPresetNotebooksFromSeeds, isCalculationNotebook, sanitizeStoredLocalConstants, type CalculationNotebook } from "../lib/calculator-store";
+import { applyPresetNotebookOverrides, buildPresetNotebookOverrides } from "../lib/notebooks-backup";
 import { resolvePresetRegionalDefaults } from "../lib/preset-regional-defaults";
 
 // calculator-store は global-settings 経由で React Native を芋づる式に読み込む（Flow構文の
@@ -80,5 +81,33 @@ describe("厳密値の印（exact）の投入と貼り直し", () => {
   it("利用者が作ったノートには触らない", () => {
     const own: CalculationNotebook = { ...holeNotebook(seeded()), id: "own", isPreset: false };
     expect(applyPresetExactConstants([own]).changed).toBe(false);
+  });
+
+  it("バックアップから復元したプリセットにも印が戻る", () => {
+    // バックアップのJSONは定数を { symbol, expression } だけで持ち運ぶので印は必ず落ちる。
+    // さらに applyPresetNotebookOverrides が定数のidを組み直すため、idで突き合わせていると
+    // 貼り直しも空振りし、復元しただけで表示が `≈ 47 MPa` から `46.875 MPa` へ戻ってしまう。
+    const edited = seeded().map((notebook) => (notebook.id === holeNotebook(seeded()).id
+      ? {
+        ...notebook,
+        localConstants: notebook.localConstants.map((constant) => (constant.symbol === "F" ? { ...constant, expression: "20kN" } : constant)),
+        // upsertNotebook を通ったノート＝「編集済み」の目印（buildPresetNotebookOverrides の判定）。
+        updatedAt: "2026-02-01T00:00:00.000Z",
+      }
+      : notebook));
+    const overrides = buildPresetNotebookOverrides(edited);
+    expect(overrides).toHaveLength(1);
+    expect(JSON.stringify(overrides)).not.toContain("exact");
+
+    const restored = applyPresetNotebookOverrides(seeded(), overrides, NOW);
+    expect(restored.appliedCount).toBe(1);
+    expect(holeNotebook(restored.notebooks).localConstants.filter((constant) => constant.exact)).toHaveLength(0);
+
+    const restamped = applyPresetExactConstants(restored.notebooks);
+    expect(restamped.changed).toBe(true);
+    const marked = holeNotebook(restamped.notebooks).localConstants.filter((constant) => constant.exact).map((constant) => constant.symbol);
+    expect(marked).toEqual(["w", "d", "t"]);
+    // 利用者が書き換えた値はそのまま残る（印は値に触らない）。
+    expect(holeNotebook(restamped.notebooks).localConstants.find((constant) => constant.symbol === "F")?.expression).toBe("20kN");
   });
 });
