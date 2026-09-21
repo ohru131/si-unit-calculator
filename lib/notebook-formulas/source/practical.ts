@@ -97,8 +97,8 @@ export const ELECTRICITY_BASICS_SEEDS: NotebookSeed[] = [
     localConstants: [
       { symbol: "V₁", expression: "100V", regionalDefault: "mainsVoltage" },
       { symbol: "I₁", expression: "0.5A" },
-      { symbol: "N₁", expression: "1000" },
-      { symbol: "N₂", expression: "50" },
+      { symbol: "N₁", expression: "1000", exact: true },
+      { symbol: "N₂", expression: "50", exact: true },
     ],
     steps: [
       { title: { en: "Turns ratio a", ja: "巻数比 a", es: "Relación de transformación a", "pt-BR": "Relação de espiras a", de: "Übersetzungsverhältnis a", fr: "Rapport de transformation a" }, expression: "N₁/N₂", targetUnit: "", formulaLatex: "a = \\dfrac{N_1}{N_2}" },
@@ -214,7 +214,7 @@ export const FITNESS_SEEDS: NotebookSeed[] = [
     title: { en: "Heart rate zone (Karvonen method)", ja: "心拍数ゾーン（カルボーネン法）", es: "Zona de frecuencia cardíaca (método de Karvonen)", "pt-BR": "Zona de frequência cardíaca (método de Karvonen)", de: "Herzfrequenzzone (Karvonen-Methode)", fr: "Zone de fréquence cardiaque (méthode de Karvonen)" },
     description: { en: "Compute the target heart rate from age, resting heart rate, and desired exercise intensity.", ja: "年齢・安静時心拍数・運動強度から、目標心拍数を求めます。", es: "Calcula la frecuencia cardíaca objetivo a partir de la edad, la frecuencia cardíaca en reposo y la intensidad de ejercicio deseada.", "pt-BR": "Calcule a frequência cardíaca alvo a partir da idade, da frequência cardíaca em repouso e da intensidade de exercício desejada.", de: "Berechnet die Ziel-Herzfrequenz aus Alter, Ruheherzfrequenz und gewünschter Trainingsintensität.", fr: "Calculer la fréquence cardiaque cible à partir de l'âge, de la fréquence cardiaque au repos et de l'intensité d'exercice souhaitée." },
     localConstants: [
-      { symbol: "age", expression: "30" },
+      { symbol: "age", expression: "30", exact: true },
       { symbol: "HRᵣₑₛₜ", expression: "60bpm" },
       { symbol: "intensity", expression: "0.7" },
     ],
@@ -237,7 +237,7 @@ export const FITNESS_SEEDS: NotebookSeed[] = [
     description: { en: "Estimate the one-repetition maximum (1RM) from the weight lifted and the number of repetitions performed.", ja: "扱った重量とその回数から、1回だけ挙げられる最大重量（1RM）を推定します。", es: "Estima el máximo de una repetición (1RM) a partir del peso levantado y el número de repeticiones realizadas.", "pt-BR": "Estime a carga máxima de uma repetição (1RM) a partir do peso levantado e do número de repetições realizadas.", de: "Schätzt das Einwiederholungsmaximum (1RM) aus dem gehobenen Gewicht und der Anzahl der ausgeführten Wiederholungen.", fr: "Estimer la charge maximale sur une répétition (1RM) à partir du poids soulevé et du nombre de répétitions effectuées." },
     localConstants: [
       { symbol: "weight", expression: "60kg" },
-      { symbol: "reps", expression: "8" },
+      { symbol: "reps", expression: "8", exact: true },
     ],
     steps: [{ title: { en: "Estimated 1RM", ja: "推定1RM", es: "1RM estimado", "pt-BR": "1RM estimado", de: "Geschätztes 1RM", fr: "1RM estimé" }, expression: "weight*(1+reps/30)", targetUnit: "kg", formulaLatex: "1RM = \\text{weight} \\times \\left(1 + \\dfrac{\\text{reps}}{30}\\right)" }],
   },
@@ -378,8 +378,8 @@ export const COOKING_SEEDS: NotebookSeed[] = [
     description: { en: "Compute the ingredient amount needed for a target number of servings, scaled from the original recipe.", ja: "元のレシピの分量と人数から、目標の人数分に必要な分量を求めます。", es: "Calcula la cantidad de ingrediente necesaria para un número objetivo de porciones, escalada a partir de la receta original.", "pt-BR": "Calcule a quantidade de ingrediente necessária para um número desejado de porções, ajustada a partir da receita original.", de: "Berechnet die benötigte Zutatenmenge für eine gewünschte Portionenzahl, skaliert aus dem Originalrezept.", fr: "Calculer la quantité d'ingrédient nécessaire pour un nombre de portions souhaité, mise à l'échelle à partir de la recette originale." },
     localConstants: [
       { symbol: "mₒ", expression: "200g" },
-      { symbol: "nₒ", expression: "2" },
-      { symbol: "nₜ", expression: "5" },
+      { symbol: "nₒ", expression: "2", exact: true },
+      { symbol: "nₜ", expression: "5", exact: true },
     ],
     steps: [{ title: { en: "Scaled amount", ja: "必要な分量", es: "Cantidad ajustada", "pt-BR": "Quantidade ajustada", de: "Skalierte Menge", fr: "Quantité mise à l'échelle" }, expression: "mₒ*(nₜ/nₒ)", targetUnit: "g", formulaLatex: "m_t = m_o \\times \\dfrac{n_t}{n_o}" }],
   },

@@ -123,6 +123,14 @@ export type NotebookLocalConstant = {
    * 以後アプリは触らない（所有権の記録）。詳しくは lib/preset-regional-sync.ts。
    */
   regionalDefault?: PresetRegionalDefaultKind;
+  /**
+   * **この数は測定値ではない**（有効数字に数えない）。図面の呼び寸法・個数・規格で決まる値。
+   * シードの `NotebookSeedConstant.exact` をそのまま写したもので、`regionalDefault` と違い
+   * **所有権の記録ではない**——利用者が値を書き換えても外れない。「この欄は図面の寸法である」
+   * というノートの構造の話であって、いま入っている値が誰のものかとは別だから。
+   * 読み込みのたびにシードから貼り直す（lib/calculator-store.tsx の applyPresetExactConstants）。
+   */
+  exact?: boolean;
 };
 
 /** 「説明文＋数式」のペア。計算手順（steps）とは独立に、複数個並べて解説できる。 */
@@ -340,6 +348,9 @@ export function buildPresetNotebooksFromSeeds(categoryIds: string[], language: A
           // 解決した文字列だけでなく**種類も保存する**。これが無いと、あとから見て
           // 「アプリが入れた既定値」か「利用者が打った値」かが区別できない。
           ...(constant.regionalDefault ? { regionalDefault: constant.regionalDefault } : {}),
+          // 有効数字に数えない印（図面の呼び寸法・個数）。表示のたびにシードを引かずに済むよう
+          // 保存データへ写す。既存インストールへは applyPresetExactConstants が貼り直す。
+          ...(constant.exact ? { exact: true } : {}),
         })),
         steps: seed.steps.map((step, stepIndex) => ({
           id: presetStepId(categoryId, seedId, stepIndex),
@@ -487,6 +498,52 @@ export function applyPresetResultSymbols(notebooks: CalculationNotebook[]): { no
     if (!nextSteps) return notebook;
     changed = true;
     return { ...notebook, steps: nextSteps };
+  });
+
+  return { notebooks: nextNotebooks, changed };
+}
+
+/**
+ * 保存済みのプリセットノートのローカル定数へ、シード側の「厳密値」の印を貼り直す。
+ *
+ * **`regionalDefault` の付け直し（`stampLegacyPresetRegionalDefaults`）と違い、毎回呼んでよい。**
+ * あちらは所有権の記録で、利用者が編集すると外れる＝「印が無い」状態に意味があるため1回きりに
+ * 縛る必要があった。こちらは**シードが決める静的な属性**（この欄は図面の寸法かどうか）で、
+ * 値を一切書き換えないので、毎回シードへ揃えるのが最も単純で自己修復もする。
+ *
+ * 投入はカテゴリ単位で1回きりなので、これが無いと既存インストールでは結果が
+ * `46.875 MPa` のまま（板厚 `8mm` を1桁の測定値として数え続ける）。
+ */
+export function applyPresetExactConstants(notebooks: CalculationNotebook[]): { notebooks: CalculationNotebook[]; changed: boolean } {
+  let changed = false;
+
+  const nextNotebooks = notebooks.map((notebook) => {
+    if (!notebook.isPreset) return notebook;
+    const seeds = PRESET_NOTEBOOK_SEEDS[notebook.categoryId];
+    const seedId = seedIdFromNotebookId(notebook.id, notebook.categoryId);
+    const seed = !seeds || seedId === undefined ? undefined : seeds.find((candidate) => seedSlug(candidate) === seedId);
+    if (!seed || seedId === undefined) return notebook;
+
+    // 突き合わせは定数のidで行い、**記号も一致させる**（シード内で定数を並べ替えたときに
+    // 別の定数へ印が移らないようにする。stampSeedRegionalDefaults と同じ理由）。
+    const exactByConstantId = new Map<string, string>();
+    seed.localConstants.forEach((constant, constantIndex) => {
+      if (constant.exact) exactByConstantId.set(presetConstantId(notebook.categoryId, seedId, constantIndex), constant.symbol);
+    });
+
+    let notebookChanged = false;
+    const nextLocalConstants = notebook.localConstants.map((constant) => {
+      const shouldBeExact = exactByConstantId.get(constant.id) === constant.symbol;
+      if (shouldBeExact === (constant.exact === true)) return constant;
+      notebookChanged = true;
+      if (shouldBeExact) return { ...constant, exact: true };
+      // シードから印が外れたら保存データからも外す（毎回揃えるので取り残しが出ない）。
+      const { exact: _removed, ...rest } = constant;
+      return rest;
+    });
+    if (!notebookChanged) return notebook;
+    changed = true;
+    return { ...notebook, localConstants: nextLocalConstants };
   });
 
   return { notebooks: nextNotebooks, changed };
@@ -781,6 +838,16 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
           const withResultSymbols = applyPresetResultSymbols(nextNotebooks);
           if (withResultSymbols.changed) {
             nextNotebooks = withResultSymbols.notebooks;
+            notebooksDirty = true;
+          }
+        }
+
+        // 有効数字に数えない定数の印（図面の呼び寸法・個数）も同じ理由でここで貼り直す。
+        // 値は一切変えないので、所有権の話（regionalDefault）と違って毎回当ててよい。
+        {
+          const withExactConstants = applyPresetExactConstants(nextNotebooks);
+          if (withExactConstants.changed) {
+            nextNotebooks = withExactConstants.notebooks;
             notebooksDirty = true;
           }
         }

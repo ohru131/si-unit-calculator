@@ -22,7 +22,7 @@ export const DIY_SEEDS: NotebookSeed[] = [
       // 10〜12m²/L、素地や凹凸下地では6〜7m²/L。
       // 出典: https://www.birlaopus.com/blog/paint-coverage-guide
       { symbol: "c", expression: "11m^2/L" },
-      { symbol: "n", expression: "2" },
+      { symbol: "n", expression: "2", exact: true },
       { symbol: "waste", expression: "10%" },
       { symbol: "V₁", expression: "5L" },
     ],
@@ -94,7 +94,7 @@ export const DIY_SEEDS: NotebookSeed[] = [
       { symbol: "b", expression: "45mm" },
       { symbol: "h", expression: "90mm" },
       { symbol: "L", expression: "3m" },
-      { symbol: "n", expression: "8" },
+      { symbol: "n", expression: "8", exact: true },
       // 気乾（含水率12%前後）の針葉樹の密度。マツ約440・トウヒ約370kg/m³で、
       // 建築用製材はおよそ400〜590kg/m³。オークは700〜770kg/m³。
       // 出典: https://amesweb.info/Materials/Density-of-Wood.aspx
