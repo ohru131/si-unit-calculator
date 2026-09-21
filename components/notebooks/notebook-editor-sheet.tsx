@@ -51,6 +51,7 @@ const EN_COPY = {
   notebookTitlePlaceholder: "Bending stress", notebookDescriptionPlaceholder: "Optional note",
   category: "Category", newCategory: "New category", categoryName: "Category name", uncategorized: "Uncategorized",
   localConstants: "Local constants (inputs)", localConstantsHint: "Enter as name=value, e.g. v0=5m/s. Later rows can reference earlier ones.",
+  notMeasured: "Not measured", notMeasuredHint: "Mark drawing dimensions, counts and standard values as \"not measured\" so they are not counted as significant figures.",
   invalidConstantName: "Enter each constant as name=value (e.g. v0=5m/s).",
   invalidStepName: "Enter each step as name=expression (e.g. v=v0+a*t), or remove the \"=\" to leave it unnamed.",
   addLocalConstant: "Add constant", steps: "Steps (results)", stepsHint: "Enter as name=expression, e.g. v=v0+a*t. Can reference constants and earlier steps.", addStep: "Add step", stepTitlePlaceholder: "v=v0+a*t",
@@ -73,6 +74,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     notebookTitlePlaceholder: "曲げ応力", notebookDescriptionPlaceholder: "任意のメモ",
     category: "カテゴリ", newCategory: "新しいカテゴリ", categoryName: "カテゴリ名", uncategorized: "未分類",
     localConstants: "ローカル定数（入力値）", localConstantsHint: "「名前＝値」の形で入力します。例：v0=5m/s。後の行で前の行を参照できます。",
+    notMeasured: "測定値でない", notMeasuredHint: "図面の呼び寸法・個数・規格で決まる値に「測定値でない」を付けると、有効数字に数えません。",
     invalidConstantName: "定数は「名前＝値」の形式（例：v0=5m/s）で入力してください。",
     invalidStepName: "手順は「名前＝式」の形式（例：v=v0+a*t）で入力するか、「＝」を外して名前なしにしてください。",
     addLocalConstant: "定数を追加", steps: "手順（結果）", stepsHint: "「名前＝式」の形で入力します。例：v=v0+a*t。定数や前の手順を参照できます。", addStep: "手順を追加", stepTitlePlaceholder: "v=v0+a*t",
@@ -93,6 +95,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     notebookTitlePlaceholder: "Esfuerzo de flexión", notebookDescriptionPlaceholder: "Nota opcional",
     category: "Categoría", newCategory: "Nueva categoría", categoryName: "Nombre de la categoría", uncategorized: "Sin categoría",
     localConstants: "Constantes locales (entradas)", localConstantsHint: "Escribe cada una como nombre=valor, por ejemplo v0=5m/s. Las filas siguientes pueden usar las anteriores.",
+    notMeasured: "No medido", notMeasuredHint: "Marca como «no medido» las cotas de plano, los recuentos y los valores normalizados para que no cuenten como cifras significativas.",
     invalidConstantName: "Escribe cada constante como nombre=valor (por ejemplo, v0=5m/s).",
     invalidStepName: "Escribe cada paso como nombre=expresión (por ejemplo, v=v0+a*t), o quita el \"=\" para dejarlo sin nombre.",
     addLocalConstant: "Añadir constante", steps: "Pasos (resultados)", stepsHint: "Escribe cada uno como nombre=expresión, por ejemplo v=v0+a*t. Puede usar constantes y pasos anteriores.", addStep: "Añadir paso", stepTitlePlaceholder: "v=v0+a*t",
@@ -113,6 +116,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     notebookTitlePlaceholder: "Tensão de flexão", notebookDescriptionPlaceholder: "Nota opcional",
     category: "Categoria", newCategory: "Nova categoria", categoryName: "Nome da categoria", uncategorized: "Sem categoria",
     localConstants: "Constantes locais (entradas)", localConstantsHint: "Digite cada uma como nome=valor, por exemplo v0=5m/s. As linhas seguintes podem usar as anteriores.",
+    notMeasured: "Não medido", notMeasuredHint: "Marque cotas de desenho, contagens e valores normalizados como «não medido» para que não contem como algarismos significativos.",
     invalidConstantName: "Digite cada constante como nome=valor (por exemplo, v0=5m/s).",
     invalidStepName: "Digite cada etapa como nome=expressão (por exemplo, v=v0+a*t), ou remova o \"=\" para deixá-la sem nome.",
     addLocalConstant: "Adicionar constante", steps: "Etapas (resultados)", stepsHint: "Digite cada uma como nome=expressão, por exemplo v=v0+a*t. Pode referenciar constantes e etapas anteriores.", addStep: "Adicionar etapa", stepTitlePlaceholder: "v=v0+a*t",
@@ -133,6 +137,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     notebookTitlePlaceholder: "Biegespannung", notebookDescriptionPlaceholder: "Optionale Notiz",
     category: "Kategorie", newCategory: "Neue Kategorie", categoryName: "Kategoriename", uncategorized: "Ohne Kategorie",
     localConstants: "Lokale Konstanten (Eingaben)", localConstantsHint: "Gib jede als Name=Wert ein, zum Beispiel v0=5m/s. Spätere Zeilen können frühere referenzieren.",
+    notMeasured: "Nicht gemessen", notMeasuredHint: "Markiere Zeichnungsmaße, Stückzahlen und Normwerte als „nicht gemessen“, damit sie nicht als signifikante Stellen zählen.",
     invalidConstantName: "Gib jede Konstante als Name=Wert ein (z. B. v0=5m/s).",
     invalidStepName: "Gib jeden Schritt als Name=Ausdruck ein (z. B. v=v0+a*t), oder entferne das \"=\", um ihn unbenannt zu lassen.",
     addLocalConstant: "Konstante hinzufügen", steps: "Schritte (Ergebnisse)", stepsHint: "Gib jeden als Name=Ausdruck ein, zum Beispiel v=v0+a*t. Kann Konstanten und frühere Schritte referenzieren.", addStep: "Schritt hinzufügen", stepTitlePlaceholder: "v=v0+a*t",
@@ -153,6 +158,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     notebookTitlePlaceholder: "Contrainte de flexion", notebookDescriptionPlaceholder: "Note facultative",
     category: "Catégorie", newCategory: "Nouvelle catégorie", categoryName: "Nom de la catégorie", uncategorized: "Sans catégorie",
     localConstants: "Constantes locales (entrées)", localConstantsHint: "Saisissez chacune sous la forme nom=valeur, par exemple v0=5m/s. Les lignes suivantes peuvent référencer les précédentes.",
+    notMeasured: "Non mesuré", notMeasuredHint: "Marquez les cotes de plan, les effectifs et les valeurs normalisées comme « non mesurés » afin qu'ils ne comptent pas comme chiffres significatifs.",
     invalidConstantName: "Saisissez chaque constante sous la forme nom=valeur (par exemple v0=5m/s).",
     invalidStepName: "Saisissez chaque étape sous la forme nom=expression (par exemple v=v0+a*t), ou retirez le \"=\" pour la laisser sans nom.",
     addLocalConstant: "Ajouter une constante", steps: "Étapes (résultats)", stepsHint: "Saisissez chacune sous la forme nom=expression, par exemple v=v0+a*t. Peut référencer des constantes et des étapes précédentes.", addStep: "Ajouter une étape", stepTitlePlaceholder: "v=v0+a*t",
@@ -649,6 +655,7 @@ export function NotebookEditorSheet({
 
             <Text style={styles.fieldLabel}>{copy.localConstants}</Text>
             <Text style={styles.hintText}>{copy.localConstantsHint}</Text>
+            <Text style={styles.hintText}>{copy.notMeasuredHint}</Text>
             {notebookLocalConstants.map((item, constantIndex) => {
               const railKey = localConstantFieldKey(item.id);
               const isRailForced = forcedSelection?.key === railKey;
@@ -673,6 +680,20 @@ export function NotebookEditorSheet({
                     />
                     <Pressable onPress={() => setNotebookLocalConstants((current) => current.filter((entry) => entry.id !== item.id))}><Text style={styles.removeStepText}>{copy.removeRow}</Text></Pressable>
                   </View>
+                  {/* 有効数字に数えるかの切り替え。**`exactEdited` を必ず一緒に立てる**——これが
+                      無いと applyPresetExactConstants が次の読み込みでシードの印を貼り直し、
+                      プリセットで消した印が復活する（lib/calculator-store.tsx の該当コメント）。 */}
+                  <Pressable
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: item.exact === true }}
+                    // チップは高さ24dpで、単位チップ等の既存の見た目に合わせてある。
+                    // 当たり判定だけ広げてMaterialの最小に近づける（レイアウトは変えない）。
+                    hitSlop={8}
+                    onPress={() => updateLocalConstant(item.id, { exact: !item.exact, exactEdited: true })}
+                    style={({ pressed }) => [styles.exactToggle, item.exact && styles.exactToggleActive, pressed && styles.buttonPressed]}
+                  >
+                    <Text style={[styles.exactToggleText, item.exact && styles.exactToggleTextActive]}>{item.exact ? "✓ " : ""}{copy.notMeasured}</Text>
+                  </Pressable>
                   {renderCharacterRail(railKey, (char) =>
                     insertCharacterIntoField(railKey, formatNameValue(item.symbol, item.expression), char, (name, value) => updateLocalConstant(item.id, { symbol: name, expression: value })),
                   )}
@@ -797,4 +818,10 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   unitRail: { gap: 6, paddingTop: 6 },
   unitChip: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, paddingHorizontal: 9, paddingVertical: 5 },
   unitChipText: { color: colors.primary, fontFamily: mono, fontSize: 12, fontWeight: "800" },
+  // 「測定値でない」のトグル。定数1つに1つ付くので、単位チップより控えめな大きさにして
+  // 行が定数の式より目立たないようにする（既定はオフで、触る頻度が低い設定）。
+  exactToggle: { alignSelf: "flex-start", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginTop: 8, paddingHorizontal: 9, paddingVertical: 5 },
+  exactToggleActive: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
+  exactToggleText: { color: colors.muted, fontSize: 11, fontWeight: "800" },
+  exactToggleTextActive: { color: colors.onPrimary },
 });

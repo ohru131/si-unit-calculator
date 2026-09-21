@@ -35,6 +35,7 @@ const EN_COPY = {
   saveFailed: "Could not save. Please try again.",
   noStepsError: "This notebook needs at least one step.",
   insertConstant: "Insert", insertUnit: "Insert unit", significantDigits: "{count} s.f.",
+  notMeasured: "Not measured",
   back: "Back",
   switchTitle: "Unsaved changes",
   switchMessage: "This notebook has values you haven't saved. Switching notebooks discards them.",
@@ -55,6 +56,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     saveFailed: "保存できませんでした。もう一度お試しください。",
     noStepsError: "手順が最低1つ必要です。",
     insertConstant: "挿入", insertUnit: "単位を挿入", significantDigits: "有効{count}桁",
+    notMeasured: "測定値でない",
     back: "戻る",
     switchTitle: "保存していない変更があります",
     switchMessage: "このノートには保存していない値があります。ノートを切り替えると破棄されます。",
@@ -73,6 +75,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     saveFailed: "No se pudo guardar. Inténtalo de nuevo.",
     noStepsError: "Este cuaderno necesita al menos un paso.",
     insertConstant: "Insertar", insertUnit: "Insertar unidad", significantDigits: "{count} c.s.",
+    notMeasured: "No medido",
     back: "Atrás",
     switchTitle: "Cambios sin guardar",
     switchMessage: "Este cuaderno tiene valores que no has guardado. Al cambiar de cuaderno se descartan.",
@@ -91,6 +94,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     saveFailed: "Não foi possível salvar. Tente novamente.",
     noStepsError: "Este caderno precisa de pelo menos uma etapa.",
     insertConstant: "Inserir", insertUnit: "Inserir unidade", significantDigits: "{count} a.s.",
+    notMeasured: "Não medido",
     back: "Voltar",
     switchTitle: "Alterações não salvas",
     switchMessage: "Este caderno tem valores que você não salvou. Trocar de caderno descarta essas alterações.",
@@ -109,6 +113,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     saveFailed: "Speichern fehlgeschlagen. Bitte erneut versuchen.",
     noStepsError: "Dieses Rechenheft braucht mindestens einen Schritt.",
     insertConstant: "Einfügen", insertUnit: "Einheit einfügen", significantDigits: "{count} sign. Stellen",
+    notMeasured: "Nicht gemessen",
     back: "Zurück",
     switchTitle: "Nicht gespeicherte Änderungen",
     switchMessage: "Dieses Rechenheft hat Werte, die du nicht gespeichert hast. Beim Wechseln gehen sie verloren.",
@@ -127,6 +132,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     saveFailed: "Impossible d'enregistrer. Veuillez réessayer.",
     noStepsError: "Ce carnet nécessite au moins une étape.",
     insertConstant: "Insérer", insertUnit: "Insérer une unité", significantDigits: "{count} chiffres sig.",
+    notMeasured: "Non mesuré",
     back: "Retour",
     switchTitle: "Modifications non enregistrées",
     switchMessage: "Ce carnet contient des valeurs non enregistrées. Changer de carnet les abandonne.",
@@ -692,6 +698,9 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                     autoCorrect={false}
                     style={[styles.inputField, errors[item.id] && styles.inputFieldError]}
                   />
+                  {/* 印が付いている定数にだけラベルを出す。付いていない定数にも出すと、
+                      定数の数だけ意味の無い行が積まれる（切り替えは編集シート側）。 */}
+                  {item.exact ? <Text style={styles.exactBadgeText}>{copy.notMeasured}</Text> : null}
                   {errors[item.id] ? <Text numberOfLines={1} style={styles.inputError}>{errors[item.id]}</Text> : null}
                 </View>
               );
@@ -884,6 +893,9 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   inputField: { backgroundColor: colors.background, borderColor: colors.border, borderRadius: 10, borderWidth: 1, color: colors.foreground, fontFamily: mono, fontSize: 15, minHeight: 42, paddingHorizontal: 12 },
   inputFieldError: { borderColor: colors.errorBorder },
   inputError: { color: colors.error, fontSize: 11, lineHeight: 15 },
+  // 「測定値でない」の読み取り専用ラベル。有効数字がその桁で出る理由をこの画面で読めるようにする
+  // （切り替えは編集シート。毎日使う画面に設定のトグルを並べない）。
+  exactBadgeText: { color: colors.muted, fontSize: 11, fontWeight: "700", lineHeight: 15 },
   resultsList: { gap: 10 },
   resultCard: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 16, borderWidth: 1, padding: 13 },
   resultCardFinal: { borderColor: colors.primary, borderWidth: 2 },
