@@ -95,6 +95,7 @@ function renderStepsSection(model: NotebookExportModel, heading: string): string
 ${title}
 <p class="step-expression">${escapeHtml(step.expression)}</p>
 <p class="step-result">${escapeHtml(step.resultText)}</p>
+${step.rawResultText ? `<p class="step-raw-result">${escapeHtml(step.rawResultText)}</p>` : ""}
 </div>`;
     })
     .join("\n");
@@ -148,6 +149,7 @@ section { margin-bottom: 16px; }
 .step-title { margin: 0 0 4px; font-weight: bold; }
 .step-expression { margin: 0 0 4px; font-family: "Menlo", "Consolas", monospace; }
 .step-result { margin: 0; font-weight: bold; }
+.step-raw-result { margin: 2px 0 0; font-size: 12px; color: #5b6b7a; }
 .step-card-error .step-result { color: #b00020; }
 footer { margin-top: 24px; font-size: 11px; color: #666666; text-align: center; }
 </style>

@@ -92,8 +92,9 @@ const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // （lib/global-settings.tsx の calculator（=アプリ名 UnitCalc・全言語共通） / notebook / constants / settings / language / expression /
 // result、app/(tabs)/index.tsx の compareUnits / decimalForm / exactForm / samples、
 // app/(tabs)/constants.tsx の notebookSearch、app/(tabs)/pro.tsx の previewNote）。
-// examCategory は lib/sample-calculations.ts の "exam" カテゴリのラベルで、**言語ごとに
-// その国で実際に受ける試験の名前**になっている（Klausur / EBAU / ENEM / physique-chimie / 電験・電工）。
+// electricCategory は lib/sample-calculations.ts の "electric" カテゴリのラベル。旧 "exam" タブは
+// 2026-09-21 にここへ統合したので、**資格・試験の名前が入るのはそれが本当に電気の試験である言語だけ**
+// （日＝電験・電工、独＝Prüfung、英＝exams）。西・葡・仏は電気の名前だけになる。
 // searchQuery はその言語のターゲット層が実際に打ちそうな語を選んである。
 const LABELS = {
   en: {
@@ -104,7 +105,7 @@ const LABELS = {
     exactForm: "Exact",
     scientificForm: "Scientific notation",
     samples: "Examples",
-    examCategory: "Exam prep",
+    electricCategory: "Electricity & exams",
     languageOption: "English",
     deviceLocale: "en-US",
     languageSection: "App language",
@@ -122,7 +123,7 @@ const LABELS = {
     exactForm: "分数・π",
     scientificForm: "科学表記",
     samples: "サンプル",
-    examCategory: "試験対策（電験・電工）",
+    electricCategory: "電気（電験・電工）",
     languageOption: "日本語",
     deviceLocale: "ja-JP",
     languageSection: "アプリの言語",
@@ -139,7 +140,7 @@ const LABELS = {
     exactForm: "Exacto",
     scientificForm: "Notación científica",
     samples: "Ejemplos",
-    examCategory: "Preparación (EBAU)",
+    electricCategory: "Electricidad",
     languageOption: "Español",
     deviceLocale: "es-ES",
     languageSection: "Idioma de la app",
@@ -156,7 +157,7 @@ const LABELS = {
     exactForm: "Exato",
     scientificForm: "Notação científica",
     samples: "Exemplos",
-    examCategory: "Preparação (ENEM)",
+    electricCategory: "Eletricidade",
     languageOption: "Português (Brasil)",
     deviceLocale: "pt-BR",
     languageSection: "Idioma do app",
@@ -173,7 +174,7 @@ const LABELS = {
     exactForm: "Exakt",
     scientificForm: "Wissenschaftliche Notation",
     samples: "Beispiele",
-    examCategory: "Klausur & Prüfung",
+    electricCategory: "Elektrotechnik & Prüfung",
     languageOption: "Deutsch",
     deviceLocale: "de-DE",
     languageSection: "App-Sprache",
@@ -190,7 +191,7 @@ const LABELS = {
     exactForm: "Exact",
     scientificForm: "Notation scientifique",
     samples: "Exemples",
-    examCategory: "Révisions (physique-chimie)",
+    electricCategory: "Électricité",
     languageOption: "Français",
     deviceLocale: "fr-FR",
     languageSection: "Langue de l'app",
@@ -438,16 +439,17 @@ const SHOTS = [
     },
   },
   {
-    // 言語ごとに一番効くカット。サンプルシートの先頭タブが、その国で実際に受ける試験の名前
-    // （Klausur & Prüfung / Preparación (EBAU) / Preparação (ENEM) / 試験対策（電験・電工） ほか）で
-    // 出るので、ストアの一覧で「自分向けのアプリだ」と分かる。タブの並びも lib/locale-relevance.ts で
-    // 言語ごとに変えてあり、この1枚に両方が写る。
+    // 言語ごとに一番効くカット。電気のタブが、その国の資格・試験の名前を含んだラベル
+    // （電気（電験・電工） / Elektrotechnik & Prüfung / Electricity & exams）で出るので、
+    // ストアの一覧で「自分向けのアプリだ」と分かる。タブの並びも lib/locale-relevance.ts で
+    // 言語ごとに変えてあり、この1枚に両方が写る（旧 "exam" タブはここへ統合済み。
+    // **ファイル名の 14-exam-samples は既存の素材と揃えるために据え置いている**）。
     name: "14-exam-samples",
     run: async (page, lang) => {
       await openTab(page, LABELS[lang].tabs.calculator);
       await page.getByText(LABELS[lang].samples, { exact: true }).first().click();
       await sleep(900);
-      await page.getByText(LABELS[lang].examCategory, { exact: true }).first().click();
+      await page.getByText(LABELS[lang].electricCategory, { exact: true }).first().click();
       await sleep(700);
     },
   },

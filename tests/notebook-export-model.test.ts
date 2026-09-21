@@ -85,12 +85,16 @@ describe("buildNotebookExportModel", () => {
     expect(model.constants).toEqual([{ text: "d=140km" }, { text: "t=2h" }, { text: "t₂=3h" }, { text: "d₃=245km" }]);
     // resultSymbol「v」が付いた手順は「v=d/t」という等式の形でexpressionに出る
     // （結果欄を「d/t」ではなく「v = d/t」と等式で読めるようにする、というCLAUDE.mdの設計どおり）。
-    expect(model.steps[0]).toEqual({ title: "Speed v", expression: "v=d/t", resultText: "70 km/h", isError: false });
+    // 140km / 2h は割り切れて 70 km/h。
+    expect(model.steps[0]).toEqual({ title: "Speed v", expression: "v=d/t", resultText: "70 km/h", rawResultText: undefined, isError: false });
     // 後続の手順は s1 ではなく v を参照する（resultSymbolを補うときに参照側も書き換える不変条件）。
+    // 有効数字はノートの既定だが、**桁が1のときは丸めない**（MIN_ROUNDING_DIGITS）。ここは
+    // `t=2h`・`t₂=3h` が1桁なので、210 km がそのまま出る。
     expect(model.steps[1]).toEqual({
       title: "Distance covered in time t₂",
       expression: "d₂=v*t₂",
       resultText: "210 km",
+      rawResultText: undefined,
       isError: false,
     });
   });
@@ -223,6 +227,14 @@ describe("resolveNotebookStepDisplay", () => {
     const results = evaluateNotebookSteps([{ id: "s1", title: "", expression: "5m", targetUnit: "cm" }], [], "en", [], undefined);
     const display = resolveNotebookStepDisplay(results[0], "", "metric", undefined);
     expect(display).toEqual({ value: "5 m", error: undefined, isError: false });
+  });
+
+  it("単位ラベルの見栄え差し替え（J/kg/K → J/(kg·K)）を通す", () => {
+    // ノート一覧のプレビュー（components/notebooks/notebook-list.tsx）が roundedValueFor を
+    // 直接呼んでいた頃は、丸めだけ揃っていてこの差し替えが漏れ、カードと詳細画面で
+    // 単位の綴りが割れていた（CodeRabbitが#73で指摘）。3つの表示が同じ関数を通ることの担保。
+    const results = evaluateNotebookSteps([{ id: "s1", title: "", expression: "4200J/kg/K", targetUnit: "J/kg/K" }], [], "en", [], undefined);
+    expect(resolveNotebookStepDisplay(results[0], undefined, "metric", undefined).value).toBe("4200 J/(kg·K)");
   });
 });
 

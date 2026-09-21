@@ -158,7 +158,12 @@ describe("掛け算・割り算の相手の候補", () => {
     const suggestions = companions({ leftGroupId: "voltage", corpusExamples: getPresetUnitExamples() });
     expect(symbols(suggestions).slice(0, 4)).toEqual(["A", "W", "mA", "Ω"]);
     // 力学・長さも同じ規則で、実際に一緒に計算されている単位が先に出る。
-    expect(symbols(companions({ leftGroupId: "mass", corpusExamples: getPresetUnitExamples() })).slice(0, 2)).toEqual(["m/s²", "N"]);
+    // 質量の先頭は加速度（F = ma）で固定する。2番目以降は corpus の件数しだいで動く
+    // （実験レポートの質量パーセント濃度が g と % を結び付けているので、いまは % が N より前）ので、
+    // 「N が上位に残っていること」だけを見る——順位そのものを固定するとサンプルを1件足すたびに落ちる。
+    const massCompanions = symbols(companions({ leftGroupId: "mass", corpusExamples: getPresetUnitExamples() }));
+    expect(massCompanions[0]).toBe("m/s²");
+    expect(massCompanions.slice(0, 4)).toContain("N");
     expect(symbols(companions({ leftGroupId: "length", corpusExamples: getPresetUnitExamples() }))[0]).toBe("m/s");
   });
 

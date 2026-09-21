@@ -289,7 +289,7 @@ export const PHYSICS_ELECTRICITY_SEEDS: NotebookSeed[] = [
     description: { en: "Compute the voltage from the current and resistance.", ja: "電流と抵抗から、電圧を求めます。", es: "Calcula el voltaje a partir de la corriente y la resistencia.", "pt-BR": "Calcule a tensão a partir da corrente e da resistência.", de: "Berechnet die Spannung aus der Stromstärke und dem Widerstand.", fr: "Calculer la tension à partir du courant et de la résistance." },
     localConstants: [
       { symbol: "I", expression: "0.5A" },
-      { symbol: "R", expression: "20Ohm" },
+      { symbol: "R", expression: "20Ω" },
     ],
     steps: [{ title: { en: "Voltage V", ja: "電圧 V", es: "Voltaje V", "pt-BR": "Tensão V", de: "Spannung V", fr: "Tension V" }, expression: "I*R", targetUnit: "V", formulaLatex: "V = IR" }],
   },

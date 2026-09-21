@@ -9,9 +9,9 @@ Google Play Console の文字数上限（短い説明 80字・詳しい説明 4,
 以前は日英だけ撮って es/pt-BR/de/fr には英語の画像を流用していたが、**掲載文だけ言語ごとに書き分けても、
 一覧に出る画像が英語のままだとその言語のユーザーには「英語のアプリ」に見える**。
 画像は単に翻訳するのではなく、**言語ごとに写すノート・サンプルを変えている**
-（独=Spannungsfall と Klausur & Prüfung、西=campo eléctrico と Preparación (EBAU)、
-葡=campo elétrico と Preparação (ENEM)、日=電圧降下と試験対策（電験・電工）、
-英=Mechanics と Exam prep、仏=Mécanique と Révisions (physique-chimie)）。
+（独=Spannungsfall と Elektrotechnik & Prüfung、西=campo eléctrico と Electricidad、
+葡=campo elétrico と Eletricidade、日=電圧降下と電気（電験・電工）、
+英=Mechanics と Electricity & exams、仏=Mécanique と Électricité）。
 
 新機能の裏取り元（今回追記した機能と根拠）:
 
@@ -182,11 +182,9 @@ es-419 を足してもスペインの掲載は消えない。
   含まれることを公式資料で確認できたので、実際の掲載文（`「こんな方に」`の1項目）には名指しで入れている。
 - **画像は es のものを流用する**（`scripts/push-play-listing.mjs` の `IMAGE_SOURCE`）。
   アプリ自体のスペイン語は1種類なので、撮り直しても同じ絵になる。
-- **ただし `14-exam-samples` のカットには「Preparación (EBAU)」が写る。**
-  これはアプリ側のサンプルカテゴリのラベル（`lib/sample-calculations.ts`）なので、
-  掲載文だけでは直せない。**中南米で違和感が出るのを承知で流用している**（8枚中1枚）。
-  本気で分けるなら、アプリの `es` のラベルを中立な語にするか、言語とは別に地域で
-  ラベルを出し分ける必要があり、別作業になる。
+- **かつて `14-exam-samples` のカットに「Preparación (EBAU)」が写るのが es-419 の唯一の弱点だった**が、
+  2026-09-21 に旧 `exam` タブを電気へ統合した際、西語のラベルを中立な「Electricidad」にしたので解消した
+  （EBAU は一般物理の試験で、電気の計算しか入っていないタブにその名前を付けていたのが元々の誤り）。
 
 ### 2026-09-13 に「単位まで含めて計算する」を軸に書き直した理由
 

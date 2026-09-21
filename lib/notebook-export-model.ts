@@ -4,11 +4,12 @@ import { evaluateNotebookSteps, formatNameValue, type NotebookStepResult, resolv
 import { notebookFormulaRows } from "@/lib/notebook-formula-rows";
 import { stepDisplayTitle } from "@/lib/notebook-step-title";
 import { compatibleUnitOptionsFromHints } from "@/lib/unit-options";
-import { formatQuantity, type MeasuringStandard, type SavedConstant, type UnitSystem } from "@/lib/units";
+import { inferSignificantDigits, significantDigitsAfterConversion, toSignificantDecimal } from "@/lib/significant-figures";
+import { convertQuantity, formatNumberForLocale, formatQuantity, type MeasuringStandard, type SavedConstant, type UnitSystem } from "@/lib/units";
 
 export type NotebookExportFormulaRow = { explanation: string; latex: string };
 export type NotebookExportConstant = { text: string };
-export type NotebookExportStep = { title: string; expression: string; resultText: string; isError: boolean };
+export type NotebookExportStep = { title: string; expression: string; resultText: string; /** 有効数字で丸めたときの、丸める前の値。PDFでも小さく併記する。 */ rawResultText?: string; isError: boolean };
 export type NotebookExportModel = {
   title: string;
   description: string;
@@ -18,12 +19,44 @@ export type NotebookExportModel = {
 };
 
 export type NotebookStepDisplay = {
+  /** 主表示。有効数字で丸められるならその形（`≈ 2.6 mA`）、そうでなければ素の値。 */
   value?: string;
+  /** 丸めたときだけ、丸める前の値（単位付き）。画面もPDFも小さく併記する。 */
+  rawValue?: string;
+  /** 丸めに使った桁数。丸めていなければ undefined。 */
+  significantDigits?: number;
   error?: string;
   // 値が1つも無く、エラー文言だけを出す（components/notebooks/notebook-detail.tsxの
   // `displayError && !displayValue` と同じ判定）。
   isError: boolean;
 };
+
+/**
+ * 手順1件の有効数字の桁数。**手順の式ではなくローカル定数まで辿って数える。**
+ *
+ * ノートの手順は `V*I*cos(φ)` のように識別子だけで書かれていてリテラルが1つも無く、
+ * 式だけを見ても桁は一度も読めない。入力値はローカル定数（`V=100V`・`I=5A`）の方にあるので、
+ * そこまで辿る（lib/significant-figures.ts の resolveIdentifier）。先行手順の記号も同じ経路で
+ * その手順の式へ解決するので、何段重ねても元の入力値の桁に行き着く。
+ *
+ * **電卓では辿らない。** あちらの識別子は保存済みの定数と履歴参照で、保存された値の精度が
+ * その式で意図した桁とは限らないため（lib/significant-figures.ts の注記）。
+ */
+export function notebookStepSignificantDigits(
+  step: CalculationNoteStep,
+  localConstants: readonly { symbol: string; expression: string }[],
+  priorResults: readonly NotebookStepResult[],
+): number | null {
+  const sources = new Map<string, string>();
+  localConstants.forEach((item) => {
+    const symbol = item.symbol.trim();
+    if (symbol) sources.set(symbol, item.expression);
+  });
+  priorResults.forEach((entry) => {
+    if (entry.symbol) sources.set(entry.symbol, entry.step.expression);
+  });
+  return inferSignificantDigits(step.expression, { resolveIdentifier: (symbol) => sources.get(symbol) });
+}
 
 // 手順1件ぶんの「画面に実際に表示される値・エラー文字列」を組み立てる。
 // なぜ関数として切り出すか: components/notebooks/notebook-detail.tsx（画面）と
@@ -37,6 +70,8 @@ export function resolveNotebookStepDisplay(
   overrideUnit: string | undefined,
   unitSystem: UnitSystem,
   locale: string | undefined,
+  /** notebookStepSignificantDigits の結果。渡さなければ従来どおり丸めない。 */
+  significantDigits?: number | null,
 ): NotebookStepDisplay {
   const effectiveUnit = overrideUnit ?? result.step.targetUnit.trim();
   // 単位ラベルの見栄え差し替えの手掛かりは「今表示に使っている単位 → 式 → 実際のSI表記」の順に
@@ -68,7 +103,55 @@ export function resolveNotebookStepDisplay(
       value = `${value.slice(0, -effectiveUnit.length)}${label}`;
     }
   }
+  // 有効数字で丸めた形を主表示にする（ノートの既定。電卓はチップで選ぶ）。
+  // **数値の部分だけを差し替える。** value は「数値 + 空白 + 単位ラベル」で、単位ラベルは
+  // 上の見栄え差し替えを通っていることがある。文字列を分割し直すのではなく、同じ整形関数で
+  // 作った数値の文字列を接頭辞として照合して置き換えれば、ラベルをそのまま保てる。
+  const rounded = roundedValueFor(result, value, effectiveUnit, significantDigits, locale);
+  if (rounded) return { value: rounded.value, rawValue: rounded.rawValue, significantDigits: rounded.significantDigits, error, isError: false };
   return { value, error, isError: Boolean(error) && !value };
+}
+
+/**
+ * 「数値 + 単位」の表示文字列のうち、**数値の部分だけ**を有効数字で丸めた形に差し替える。
+ *
+ * 文字列を空白で割るのではなく、同じ整形関数（formatNumberForLocale）で作った数値を接頭辞として
+ * 照合する。単位ラベルは見栄えの差し替え（`Ohm` → `Ω` 等）を通っていることがあり、割って
+ * 組み直すとその差し替えが失われるため。
+ */
+export function roundedValueFor(
+  result: NotebookStepResult,
+  value: string | undefined,
+  effectiveUnit: string,
+  significantDigits: number | null | undefined,
+  locale: string | undefined,
+): { value: string; significantDigits: number; rawValue?: string } | null {
+  if (!value || !result.quantity || significantDigits === undefined || significantDigits === null) return null;
+  // どの数値が画面に出ているかを value と同じ経路で求める。換算に失敗していればSI値。
+  let numeric = result.quantity.siValue;
+  let convertedUnit = "";
+  if (effectiveUnit) {
+    try {
+      const converted = convertQuantity(result.quantity, effectiveUnit, locale);
+      numeric = converted.value;
+      convertedUnit = effectiveUnit;
+    } catch {
+      numeric = result.quantity.siValue;
+    }
+  }
+  // オフセットを持つ単位（°C・°F）への換算を挟むと桁では追えなくなる（電卓と同じ判定）。
+  const digits = significantDigitsAfterConversion(significantDigits, convertedUnit);
+  const decimal = toSignificantDecimal(numeric, { significantDigits: digits, locale });
+  if (!decimal) return null;
+  const plain = formatNumberForLocale(numeric, locale);
+  if (!value.startsWith(plain)) return null;
+  // **丸める前の値は、実際に桁が落ちたときだけ返す。** `2 mol` を2桁で読んだ `2.0 mol` のように
+  // 末尾の0が増えただけのときに「2 mol」を併記すると、何も失われていないのに失われたように見える。
+  return {
+    value: `${decimal.text}${value.slice(plain.length)}`,
+    significantDigits: decimal.significantDigits,
+    rawValue: decimal.roundedFrom === null ? undefined : value,
+  };
 }
 
 export type BuildNotebookExportModelOptions = {
@@ -116,12 +199,16 @@ export function buildNotebookExportModel(options: BuildNotebookExportModelOption
   const pool = [...globalConstants, ...resolved];
   const stepResults = evaluateNotebookSteps(notebook.steps, pool, language, [], locale);
 
-  const steps: NotebookExportStep[] = stepResults.map((result) => {
-    const display = resolveNotebookStepDisplay(result, unitOverrides[result.step.id], unitSystem, locale);
+  const steps: NotebookExportStep[] = stepResults.map((result, index) => {
+    // 桁は手順の式ではなくローカル定数まで辿って数える（notebookStepSignificantDigits）。
+    // 画面と同じ判断を通すこと——PDFだけ丸めない／丸めすぎると、同じノートで数字が食い違う。
+    const digits = notebookStepSignificantDigits(result.step, notebook.localConstants, stepResults.slice(0, index));
+    const display = resolveNotebookStepDisplay(result, unitOverrides[result.step.id], unitSystem, locale, digits);
     return {
       title: stepDisplayTitle(result.step.title, result.step.expression),
       expression: formatNameValue(result.step.resultSymbol ?? "", result.step.expression),
       resultText: display.isError ? (display.error ?? "") : (display.value ?? ""),
+      rawResultText: display.rawValue,
       isError: display.isError,
     };
   });

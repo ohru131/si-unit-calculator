@@ -354,6 +354,7 @@ export default function ConstantsScreen() {
         <NotebookList
           language={language}
           locale={locale}
+          unitSystem={unitSystem}
           categoryLabel=""
           notebooks={notebookSearchResults}
           globalConstants={constants}
@@ -370,6 +371,7 @@ export default function ConstantsScreen() {
         <NotebookList
           language={language}
           locale={locale}
+          unitSystem={unitSystem}
           categoryLabel={categoryLabel(selectedCategoryId)}
           notebooks={notebooksInCategory}
           globalConstants={constants}
