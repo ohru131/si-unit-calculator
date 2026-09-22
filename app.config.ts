@@ -41,7 +41,7 @@ const env = {
 const config: ExpoConfig = {
   name: env.appName,
   slug: env.appSlug,
-  version: "1.6.0",
+  version: "1.7.0",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: env.scheme,
@@ -74,7 +74,7 @@ const config: ExpoConfig = {
     // EAS の production ビルドは eas.json の appVersionSource: "remote" 側の採番を使い、
     // この値は無視する（EAS CLI が「消すことを推奨」と警告するのはそのため）。両方の
     // 採番が混ざっても順序が壊れないよう、EAS側のカウンタはこの値以上に保つ。
-    versionCode: 7,
+    versionCode: 8,
     // このアプリは通知を一切出さない（スキャフォールド由来の POST_NOTIFICATIONS を削除済み）。
     // 空配列は「追加の権限を宣言しない」の明示で、@expo/config-plugins の withPermissions は
     // 値が空なら何も足さない。**ただし空配列でも権限は14個載る**——ネイティブ依存の
