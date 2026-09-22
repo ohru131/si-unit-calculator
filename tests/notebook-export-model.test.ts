@@ -366,9 +366,10 @@ describe("表示する桁数の上限（PDFと画面をそろえる）", () => {
     const base = { notebook, globalConstants: [], language: "ja" as const, locale: "ja-JP", unitSystem: "metric" as const, measuringStandard: "jis" as const, unitOverrides: {} };
     const withoutCap = buildNotebookExportModel(base);
     const withCap = buildNotebookExportModel({ ...base, maxDigits: 6 });
-    // 定格 5PS の出力は有効1桁で丸めが効かないので、上限だけが桁を決める。
-    expect(withoutCap.steps[0].resultText).toBe("3.67749375 kW");
-    expect(withCap.steps[0].resultText).toBe("3.67749 kW");
+    // 損失は「電気入力 − 出力」＝測定値どうしの引き算なので有効数字が読めず丸めが効かない。
+    // つまりこの手順の桁を決めているのは表示桁の上限だけで、上限を渡さないと10桁のまま出る。
+    expect(withoutCap.steps[2].resultText).toBe("501.4764205 W");
+    expect(withCap.steps[2].resultText).toBe("501.476 W");
   });
 });
 

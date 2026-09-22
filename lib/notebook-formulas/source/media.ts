@@ -63,13 +63,13 @@ export const PHOTOGRAPHY_SEEDS: NotebookSeed[] = [
       fr: "Calculer l'indice de lumination d'un réglage de prise de vue et la luminosité de la scène à laquelle il correspond à ISO 100. L'IL (EV) est défini par rapport à un temps de pose d'une seconde : l'expression divise donc t par 1 s pour obtenir le nombre sans unité qu'attend le logarithme. f/8 au 1/125 s vaut EV 13 ; en photographiant à ISO 400, la scène elle-même est à environ EV 11 en ISO 100.",
     },
     localConstants: [
-      { symbol: "N", expression: "8" },
-      { symbol: "t", expression: "1s/125" },
+      { symbol: "N", expression: "8.0" },
+      { symbol: "t", expression: "1s/125", exact: true },
       { symbol: "S", expression: "400" },
     ],
     steps: [
-      { title: { en: "Exposure value EV of the settings", ja: "撮影設定の露出値 EV", es: "Valor de exposición EV de los ajustes", "pt-BR": "Valor de exposição EV dos ajustes", de: "Lichtwert EV der Einstellung", fr: "Indice de lumination EV du réglage" }, expression: "log2(N^2/(t/1s))", targetUnit: "", formulaLatex: "EV = \\log_2 \\dfrac{N^2}{t}" },
-      { title: { en: "Scene brightness EV at ISO 100", ja: "ISO100換算の被写体の明るさ EV100", es: "Brillo de la escena EV en ISO 100", "pt-BR": "Brilho da cena EV em ISO 100", de: "Motivhelligkeit EV bei ISO 100", fr: "Luminosité de la scène EV à ISO 100" }, expression: "log2(N^2/(t/1s))-log2(S/100)", targetUnit: "", formulaLatex: "EV_{100} = EV - \\log_2 \\dfrac{S}{100}" },
+      { title: { en: "Exposure value EV of the settings", ja: "撮影設定の露出値 EV", es: "Valor de exposición EV de los ajustes", "pt-BR": "Valor de exposição EV dos ajustes", de: "Lichtwert EV der Einstellung", fr: "Indice de lumination EV du réglage" }, expression: "log2(N^2/(t/s))", targetUnit: "", formulaLatex: "EV = \\log_2 \\dfrac{N^2}{t}" },
+      { title: { en: "Scene brightness EV at ISO 100", ja: "ISO100換算の被写体の明るさ EV100", es: "Brillo de la escena EV en ISO 100", "pt-BR": "Brilho da cena EV em ISO 100", de: "Motivhelligkeit EV bei ISO 100", fr: "Luminosité de la scène EV à ISO 100" }, expression: "log2(N^2/(t/s))-log2(S/100)", targetUnit: "", formulaLatex: "EV_{100} = EV - \\log_2 \\dfrac{S}{100}" },
     ],
   },
   {
@@ -84,8 +84,8 @@ export const PHOTOGRAPHY_SEEDS: NotebookSeed[] = [
     },
     localConstants: [
       { symbol: "N₁", expression: "2.8" },
-      { symbol: "t₁", expression: "1s/125" },
-      { symbol: "N₂", expression: "8" },
+      { symbol: "t₁", expression: "1s/125", exact: true },
+      { symbol: "N₂", expression: "8.0" },
       { symbol: "S₁", expression: "100" },
       { symbol: "S₂", expression: "400" },
     ],
@@ -129,7 +129,7 @@ export const PHOTOGRAPHY_SEEDS: NotebookSeed[] = [
     },
     localConstants: [
       { symbol: "f", expression: "24mm" },
-      { symbol: "k", expression: "1" },
+      { symbol: "k", expression: "1.0" },
       { symbol: "N", expression: "2.8" },
       { symbol: "p", expression: "5.94µm" },
       { symbol: "C", expression: "500mm*s" },
@@ -183,7 +183,7 @@ export const AUDIO_SEEDS: NotebookSeed[] = [
       fr: "Convertir entre pression acoustique et niveau de pression acoustique. Les résultats notés dB sont des nombres sans unité : le décibel est un rapport logarithmique, pas une unité. Une pression de 0,1 Pa vaut environ 74 dB, et 94 dB correspondent à 1 Pa (le niveau d'un calibreur étalon).",
     },
     localConstants: [
-      { symbol: "p", expression: "0.1Pa" },
+      { symbol: "p", expression: "0.10Pa" },
       { symbol: "p₀", expression: "20µPa" },
       { symbol: "L", expression: "94" },
     ],
@@ -223,7 +223,7 @@ export const AUDIO_SEEDS: NotebookSeed[] = [
     },
     localConstants: [
       { symbol: "L₁", expression: "100" },
-      { symbol: "r₁", expression: "1m" },
+      { symbol: "r₁", expression: "1.0m" },
       { symbol: "r₂", expression: "10m" },
       { symbol: "Lₜ", expression: "85" },
     ],

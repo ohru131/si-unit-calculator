@@ -69,8 +69,8 @@ export const PHYSICS_MECHANICS_SEEDS: NotebookSeed[] = [
     title: { en: "Uniform circular motion (angular velocity & speed)", ja: "等速円運動（角速度・速さ）", es: "Movimiento circular uniforme (velocidad angular y velocidad)", "pt-BR": "Movimento circular uniforme (velocidade angular e velocidade)", de: "Gleichförmige Kreisbewegung (Winkelgeschwindigkeit und Geschwindigkeit)", fr: "Mouvement circulaire uniforme (vitesse angulaire et vitesse)" },
     description: { en: "Compute the angular velocity and speed of uniform circular motion from the period and radius.", ja: "周期と半径から、等速円運動の角速度と速さを求めます。", es: "Calcula la velocidad angular y la velocidad de un movimiento circular uniforme a partir del periodo y el radio.", "pt-BR": "Calcule a velocidade angular e a velocidade de um movimento circular uniforme a partir do período e do raio.", de: "Berechnet die Winkelgeschwindigkeit und die Geschwindigkeit einer gleichförmigen Kreisbewegung aus der Periode und dem Radius.", fr: "Calculer la vitesse angulaire et la vitesse d'un mouvement circulaire uniforme à partir de la période et du rayon." },
     localConstants: [
-      { symbol: "T", expression: "2s" },
-      { symbol: "r", expression: "0.5m" },
+      { symbol: "T", expression: "2.0s" },
+      { symbol: "r", expression: "0.50m" },
     ],
     steps: [
       { title: { en: "Angular velocity ω", ja: "角速度 ω", es: "Velocidad angular ω", "pt-BR": "Velocidade angular ω", de: "Winkelgeschwindigkeit ω", fr: "Vitesse angulaire ω" }, expression: "2*pi/T", targetUnit: "rad/s", formulaLatex: "\\omega = \\dfrac{2\\pi}{T}" },
@@ -81,7 +81,7 @@ export const PHYSICS_MECHANICS_SEEDS: NotebookSeed[] = [
     title: { en: "Period of simple harmonic motion (spring pendulum)", ja: "単振動の周期（ばね振り子）", es: "Periodo del movimiento armónico simple (péndulo elástico)", "pt-BR": "Período do movimento harmônico simples (pêndulo elástico)", de: "Schwingungsdauer der harmonischen Schwingung (Federpendel)", fr: "Période du mouvement harmonique simple (pendule élastique)" },
     description: { en: "Compute the period of a spring pendulum from its mass and spring constant.", ja: "質量とばね定数から、ばね振り子の周期を求めます。", es: "Calcula el periodo de un péndulo elástico a partir de su masa y la constante elástica del resorte.", "pt-BR": "Calcule o período de um pêndulo elástico a partir de sua massa e da constante elástica da mola.", de: "Berechnet die Schwingungsdauer eines Federpendels aus seiner Masse und der Federkonstante.", fr: "Calculer la période d'un pendule élastique à partir de sa masse et de la constante de raideur du ressort." },
     localConstants: [
-      { symbol: "m", expression: "0.5kg" },
+      { symbol: "m", expression: "0.50kg" },
       { symbol: "k", expression: "20N/m" },
     ],
     steps: [{ title: { en: "Period T", ja: "周期 T", es: "Periodo T", "pt-BR": "Período T", de: "Schwingungsdauer T", fr: "Période T" }, expression: "2*pi*sqrt(m/k)", targetUnit: "s", formulaLatex: "T = 2\\pi\\sqrt{\\dfrac{m}{k}}" }],
@@ -126,7 +126,7 @@ export const PHYSICS_MECHANICS_SEEDS: NotebookSeed[] = [
     title: { en: "Period of a simple pendulum", ja: "単振り子の周期", es: "Periodo de un péndulo simple", "pt-BR": "Período de um pêndulo simples", de: "Schwingungsdauer eines Fadenpendels", fr: "Période d'un pendule simple" },
     description: { en: "Compute the period of a simple pendulum from its length and gravitational acceleration (valid for small swing angles).", ja: "振り子の長さと重力加速度から、単振り子の周期を求めます（振れ角が小さい場合に成り立ちます）。", es: "Calcula el periodo de un péndulo simple a partir de su longitud y la aceleración de la gravedad (válido para ángulos de oscilación pequeños).", "pt-BR": "Calcule o período de um pêndulo simples a partir de seu comprimento e da aceleração da gravidade (válido para pequenos ângulos de oscilação).", de: "Berechnet die Schwingungsdauer eines Fadenpendels aus seiner Länge und der Fallbeschleunigung (gültig für kleine Auslenkwinkel).", fr: "Calculer la période d'un pendule simple à partir de sa longueur et de l'accélération de la pesanteur (valable pour de petits angles d'oscillation)." },
     localConstants: [
-      { symbol: "L", expression: "1m" },
+      { symbol: "L", expression: "1.0m" },
       { symbol: "g", expression: "9.8m/s^2" },
     ],
     steps: [{ title: { en: "Period T", ja: "周期 T", es: "Periodo T", "pt-BR": "Período T", de: "Schwingungsdauer T", fr: "Période T" }, expression: "2*pi*sqrt(L/g)", targetUnit: "s", formulaLatex: "T = 2\\pi\\sqrt{\\dfrac{L}{g}}" }],
@@ -161,7 +161,7 @@ export const PHYSICS_THERMAL_SEEDS: NotebookSeed[] = [
     title: { en: "Ideal gas law", ja: "理想気体の状態方程式", es: "Ecuación de estado del gas ideal", "pt-BR": "Equação de estado dos gases ideais", de: "Ideale Gasgleichung", fr: "Loi des gaz parfaits" },
     description: { en: "Compute the pressure of an ideal gas from the amount of substance, temperature, and volume.", ja: "物質量・温度・体積から、理想気体の圧力を求めます。", es: "Calcula la presión de un gas ideal a partir de la cantidad de sustancia, la temperatura y el volumen.", "pt-BR": "Calcule a pressão de um gás ideal a partir da quantidade de matéria, da temperatura e do volume.", de: "Berechnet den Druck eines idealen Gases aus der Stoffmenge, der Temperatur und dem Volumen.", fr: "Calculer la pression d'un gaz parfait à partir de la quantité de matière, de la température et du volume." },
     localConstants: [
-      { symbol: "n", expression: "1mol" },
+      { symbol: "n", expression: "1.00mol" },
       { symbol: "R", expression: "8.314J/mol/K" },
       { symbol: "T", expression: "300K" },
       { symbol: "V", expression: "0.0246m^3" },
@@ -351,7 +351,7 @@ export const PHYSICS_ATOMIC_SEEDS: NotebookSeed[] = [
     description: { en: "Compute the energy of a single photon from Planck's constant and the light frequency.", ja: "プランク定数と振動数から、光子1個のエネルギーを求めます。", es: "Calcula la energía de un solo fotón a partir de la constante de Planck y la frecuencia de la luz.", "pt-BR": "Calcule a energia de um único fóton a partir da constante de Planck e da frequência da luz.", de: "Berechnet die Energie eines einzelnen Photons aus dem planckschen Wirkungsquantum und der Lichtfrequenz.", fr: "Calculer l'énergie d'un photon unique à partir de la constante de Planck et de la fréquence de la lumière." },
     localConstants: [
       { symbol: "h", expression: "6.626e-34J*s" },
-      { symbol: "f", expression: "5e14Hz" },
+      { symbol: "f", expression: "5.0e14Hz" },
     ],
     steps: [{ title: { en: "Photon energy E", ja: "光子のエネルギー E", es: "Energía del fotón E", "pt-BR": "Energia do fóton E", de: "Photonenenergie E", fr: "Énergie du photon E" }, expression: "h*f", targetUnit: "eV", formulaLatex: "E = hf" }],
   },

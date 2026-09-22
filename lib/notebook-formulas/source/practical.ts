@@ -24,7 +24,7 @@ export const ELECTRICITY_BASICS_SEEDS: NotebookSeed[] = [
     ],
     steps: [
       { title: { en: "Energy used E", ja: "使用電力量 E", es: "Energía usada E", "pt-BR": "Energia usada E", de: "Verbrauchte Energie E", fr: "Énergie utilisée E" }, expression: "P*t", targetUnit: "kWh", formulaLatex: "E = Pt" },
-      { title: { en: "Cost", ja: "電気代", es: "Costo", "pt-BR": "Custo", de: "Kosten", fr: "Coût" }, expression: "(s1/1kWh)*rate", targetUnit: "", formulaLatex: "\\text{cost} = \\dfrac{E}{1\\text{kWh}} \\times \\text{rate}" },
+      { title: { en: "Cost", ja: "電気代", es: "Costo", "pt-BR": "Custo", de: "Kosten", fr: "Coût" }, expression: "(s1/kWh)*rate", targetUnit: "", formulaLatex: "\\text{cost} = \\dfrac{E}{1\\text{kWh}} \\times \\text{rate}" },
     ],
   },
   {
@@ -53,14 +53,14 @@ export const ELECTRICITY_BASICS_SEEDS: NotebookSeed[] = [
   },
   {
     title: { en: "Power with power factor (AC circuit)", ja: "力率つき消費電力（交流回路）", es: "Potencia con factor de potencia (circuito de CA)", "pt-BR": "Potência com fator de potência (circuito CA)", de: "Leistung mit Leistungsfaktor (Wechselstromkreis)", fr: "Puissance avec facteur de puissance (circuit CA)" },
-    description: { en: "Compute the power triangle of an AC load from voltage, current and power factor. The power factor is entered as the angle φ = acos(0.8), so the calculator works out cos φ and sin φ itself: replace the 0.8 with your own power factor and the angle, the real power and the reactive power all follow. Apparent power (VA) and reactive power (var) have the same dimension as the watt, so all three are shown in W.", ja: "電圧・電流・力率から、交流負荷の電力の三角形（皮相・有効・無効）を求めます。力率は角度 φ = acos(0.8) の形で入れてあるので、cos φ と sin φ は電卓が計算します。0.8 を自分の力率に書き換えれば、力率角も有効電力も無効電力も一緒に追従します。皮相電力（VA）と無効電力（var）はワットと同じ次元なので、表示はどれも W になります。", es: "Calcula el triángulo de potencias de una carga de CA a partir del voltaje, la corriente y el factor de potencia. El factor de potencia se introduce como el ángulo φ = acos(0,8), de modo que la calculadora obtiene por sí sola cos φ y sen φ: cambia el 0,8 por tu factor de potencia y el ángulo, la potencia activa y la reactiva se actualizan con él. La potencia aparente (VA) y la reactiva (var) tienen la misma dimensión que el vatio, así que las tres se muestran en W.", "pt-BR": "Calcule o triângulo de potências de uma carga CA a partir da tensão, da corrente e do fator de potência. O fator de potência é informado como o ângulo φ = acos(0,8), de modo que a calculadora obtém sozinha cos φ e sen φ: troque o 0,8 pelo seu fator de potência e o ângulo, a potência ativa e a reativa acompanham. A potência aparente (VA) e a reativa (var) têm a mesma dimensão do watt, então as três aparecem em W.", de: "Berechnet das Leistungsdreieck einer Wechselstromlast aus Spannung, Strom und Leistungsfaktor. Der Leistungsfaktor wird als Winkel φ = acos(0,8) eingegeben, cos φ und sin φ rechnet der Rechner selbst aus: Wird die 0,8 durch den eigenen Leistungsfaktor ersetzt, ziehen Phasenwinkel, Wirk- und Blindleistung mit. Scheinleistung (VA) und Blindleistung (var) haben dieselbe Dimension wie das Watt, deshalb werden alle drei in W angezeigt.", fr: "Calculer le triangle des puissances d'une charge CA à partir de la tension, du courant et du facteur de puissance. Le facteur de puissance est saisi sous forme d'angle φ = acos(0,8) : la calculatrice en déduit elle-même cos φ et sin φ. Remplacer le 0,8 par son propre facteur de puissance met à jour l'angle, la puissance active et la puissance réactive. La puissance apparente (VA) et la puissance réactive (var) ont la même dimension que le watt, les trois sont donc affichées en W." },
+    description: { en: "Compute the power triangle of an AC load from voltage, current and power factor. The power factor is entered as the angle φ = acos(0.80), so the calculator works out cos φ and sin φ itself: replace the 0.80 with your own power factor and the angle, the real power and the reactive power all follow. Apparent power (VA) and reactive power (var) have the same dimension as the watt, so all three are shown in W.", ja: "電圧・電流・力率から、交流負荷の電力の三角形（皮相・有効・無効）を求めます。力率は角度 φ = acos(0.80) の形で入れてあるので、cos φ と sin φ は電卓が計算します。0.80 を自分の力率に書き換えれば、力率角も有効電力も無効電力も一緒に追従します。皮相電力（VA）と無効電力（var）はワットと同じ次元なので、表示はどれも W になります。", es: "Calcula el triángulo de potencias de una carga de CA a partir del voltaje, la corriente y el factor de potencia. El factor de potencia se introduce como el ángulo φ = acos(0,80), de modo que la calculadora obtiene por sí sola cos φ y sen φ: cambia el 0,80 por tu factor de potencia y el ángulo, la potencia activa y la reactiva se actualizan con él. La potencia aparente (VA) y la reactiva (var) tienen la misma dimensión que el vatio, así que las tres se muestran en W.", "pt-BR": "Calcule o triângulo de potências de uma carga CA a partir da tensão, da corrente e do fator de potência. O fator de potência é informado como o ângulo φ = acos(0,80), de modo que a calculadora obtém sozinha cos φ e sen φ: troque o 0,80 pelo seu fator de potência e o ângulo, a potência ativa e a reativa acompanham. A potência aparente (VA) e a reativa (var) têm a mesma dimensão do watt, então as três aparecem em W.", de: "Berechnet das Leistungsdreieck einer Wechselstromlast aus Spannung, Strom und Leistungsfaktor. Der Leistungsfaktor wird als Winkel φ = acos(0,80) eingegeben, cos φ und sin φ rechnet der Rechner selbst aus: Wird die 0,80 durch den eigenen Leistungsfaktor ersetzt, ziehen Phasenwinkel, Wirk- und Blindleistung mit. Scheinleistung (VA) und Blindleistung (var) haben dieselbe Dimension wie das Watt, deshalb werden alle drei in W angezeigt.", fr: "Calculer le triangle des puissances d'une charge CA à partir de la tension, du courant et du facteur de puissance. Le facteur de puissance est saisi sous forme d'angle φ = acos(0,80) : la calculatrice en déduit elle-même cos φ et sin φ. Remplacer le 0,80 par son propre facteur de puissance met à jour l'angle, la puissance active et la puissance réactive. La puissance apparente (VA) et la puissance réactive (var) ont la même dimension que le watt, les trois sont donc affichées en W." },
     localConstants: [
       // 商用電源の電圧は地域で決まるので、投入時に端末の地域に応じた式へ差し替える。
       { symbol: "V", expression: "100V", regionalDefault: "mainsVoltage" },
-      { symbol: "I", expression: "5A" },
+      { symbol: "I", expression: "5.0A" },
       // 力率角。銘板や試験問題で与えられるのは力率そのものなので、定数は acos(力率) の形で持ち、
       // 0.8 を書き換えれば角度も cos φ も sin φ も追従するようにしてある（三角関数は電卓が計算する）。
-      { symbol: "φ", expression: "acos(0.8)" },
+      { symbol: "φ", expression: "acos(0.80)" },
     ],
     steps: [
       { title: { en: "Phase angle φ", ja: "力率角 φ", es: "Ángulo de desfase φ", "pt-BR": "Ângulo de defasagem φ", de: "Phasenwinkel φ", fr: "Angle de déphasage φ" }, expression: "φ", targetUnit: "deg" },
@@ -83,7 +83,7 @@ export const ELECTRICITY_BASICS_SEEDS: NotebookSeed[] = [
       // 商用電源の電圧は地域で決まる（100V/120V/230V）ので投入時に差し替える。
       // 電圧が低い地域ほど同じ電力で電流が増え、同じ配線でも降下率が大きくなる＝この計算の値打ちが出る。
       { symbol: "V", expression: "100V", regionalDefault: "mainsVoltage" },
-      { symbol: "f", expression: "0.03" },
+      { symbol: "f", expression: "0.030" },
     ],
     steps: [
       { title: { en: "Voltage drop ΔU", ja: "電圧降下 ΔU", es: "Caída de voltaje ΔU", "pt-BR": "Queda de tensão ΔU", de: "Spannungsfall ΔU", fr: "Chute de tension ΔU" }, expression: "2*ρ*L*I/A", targetUnit: "V", formulaLatex: "\\Delta U = \\dfrac{2 \\rho L I}{A}" },
@@ -110,7 +110,7 @@ export const ELECTRICITY_BASICS_SEEDS: NotebookSeed[] = [
     title: { en: "Motor efficiency, losses and line current", ja: "モーターの効率・損失・線電流", es: "Rendimiento del motor, pérdidas y corriente de línea", "pt-BR": "Rendimento do motor, perdas e corrente de linha", de: "Wirkungsgrad, Verlustleistung und Strom eines Motors", fr: "Rendement du moteur, pertes et courant de ligne" },
     description: { en: "Motors are rated in metric horsepower (PS and CV, 735.5 W each — not the 745.7 W of hp). Convert the rating to kW, then use the efficiency to get the electrical input, the power lost as heat, and the current drawn from the mains at the given power factor. The power factor is entered as the angle φ = acos(0.85), so cos φ is computed rather than typed in.", ja: "モーターの定格はメートル馬力（PS・CV、1つ735.5W。英馬力 hp の745.7Wとは別物）で書かれています。定格をkWに直し、効率から電気入力・熱になる損失・力率を考えた線電流を求めます。力率は角度 φ = acos(0.85) として入れてあるので、cos φ は電卓が計算します。", es: "La potencia de los motores viene en caballos métricos (CV, 735,5 W cada uno, no los 745,7 W del hp). Convierte el valor a kW y usa el rendimiento para obtener la potencia eléctrica de entrada, la pérdida en forma de calor y la corriente que toma de la red con el factor de potencia dado. El factor de potencia se introduce como el ángulo φ = acos(0,85), así que cos φ se calcula en lugar de teclearse.", "pt-BR": "A potência dos motores vem em cavalos-vapor métricos (CV, 735,5 W cada, não os 745,7 W do hp). Converta o valor para kW e use o rendimento para obter a potência elétrica de entrada, a perda em forma de calor e a corrente absorvida da rede com o fator de potência dado. O fator de potência é informado como o ângulo φ = acos(0,85), então cos φ é calculado em vez de digitado.", de: "Motorleistungen sind in PS angegeben (735,5 W je PS, nicht die 745,7 W der britischen hp). Der Wert wird in kW umgerechnet; über den Wirkungsgrad ergeben sich die elektrische Aufnahmeleistung, die als Wärme abgegebene Verlustleistung und der Strom, den der Motor bei dem angegebenen Leistungsfaktor aus dem Netz zieht. Der Leistungsfaktor wird als Winkel φ = acos(0,85) eingegeben, cos φ wird also berechnet und nicht eingetippt.", fr: "La puissance des moteurs est donnée en chevaux (CV, 735,5 W chacun, pas les 745,7 W du hp anglais). Convertir cette valeur en kW, puis utiliser le rendement pour obtenir la puissance électrique absorbée, les pertes sous forme de chaleur et le courant appelé sur le réseau avec le facteur de puissance donné. Le facteur de puissance est saisi sous forme d'angle φ = acos(0,85) : cos φ est donc calculé et non saisi." },
     localConstants: [
-      { symbol: "P₂", expression: "5PS" },
+      { symbol: "P₂", expression: "5.0PS" },
       { symbol: "η", expression: "0.88" },
       { symbol: "V", expression: "100V", regionalDefault: "mainsVoltage" },
       // 力率も角度として持つ（上の「力率つき消費電力」と同じ形。0.85 を書き換えれば cos φ が追従する）。
@@ -153,7 +153,7 @@ export const ASTRONOMY_SEEDS: NotebookSeed[] = [
     localConstants: [
       { symbol: "G", expression: "6.674e-11N*m^2/kg^2" },
       { symbol: "Mₛᵤₙ", expression: "1.989e30kg" },
-      { symbol: "a", expression: "1au" },
+      { symbol: "a", expression: "1.00au" },
     ],
     steps: [{ title: { en: "Orbital period T", ja: "公転周期 T", es: "Periodo orbital T", "pt-BR": "Período orbital T", de: "Umlaufzeit T", fr: "Période orbitale T" }, expression: "sqrt(4*pi^2*a^3/(G*Mₛᵤₙ))", targetUnit: "yr", formulaLatex: "T = \\sqrt{\\dfrac{4\\pi^2 a^3}{GM_{sun}}}" }],
   },
@@ -267,7 +267,7 @@ export const CHEMISTRY_SEEDS: NotebookSeed[] = [
     title: { en: "Ideal gas law (molar volume at STP)", ja: "気体の状態方程式（標準状態のモル体積）", es: "Ecuación de estado del gas ideal (volumen molar en condiciones normales)", "pt-BR": "Equação de estado dos gases ideais (volume molar nas CNTP)", de: "Ideale Gasgleichung (molares Volumen bei Normbedingungen)", fr: "Loi des gaz parfaits (volume molaire dans les CNTP)" },
     description: { en: "Compute the volume of a gas from the amount of substance, temperature, and pressure. At STP (0°C, 1 atm) the result should be about 22.4 L.", ja: "物質量・温度・圧力から気体の体積を求めます。標準状態（0℃・1atm）では約22.4Lになります。", es: "Calcula el volumen de un gas a partir de la cantidad de sustancia, la temperatura y la presión. En condiciones normales (0 °C, 1 atm) el resultado debería ser de aproximadamente 22,4 L.", "pt-BR": "Calcule o volume de um gás a partir da quantidade de matéria, da temperatura e da pressão. Nas CNTP (0 °C, 1 atm) o resultado deve ser de aproximadamente 22,4 L.", de: "Berechnet das Volumen eines Gases aus Stoffmenge, Temperatur und Druck. Bei Normbedingungen (0 °C, 1 atm) sollte das Ergebnis etwa 22,4 L betragen.", fr: "Calculer le volume d'un gaz à partir de la quantité de matière, de la température et de la pression. Dans les conditions normales (0 °C, 1 atm), le résultat devrait être d'environ 22,4 L." },
     localConstants: [
-      { symbol: "n", expression: "1mol" },
+      { symbol: "n", expression: "1.00mol" },
       { symbol: "R", expression: "8.314J/mol/K" },
       { symbol: "T", expression: "273.15K" },
       { symbol: "P", expression: "101325Pa" },
@@ -344,7 +344,7 @@ export const VEHICLES_SEEDS: NotebookSeed[] = [
     ],
     steps: [
       { title: { en: "Fuel needed", ja: "必要な燃料", es: "Combustible necesario", "pt-BR": "Combustível necessário", de: "Benötigter Kraftstoff", fr: "Carburant nécessaire" }, expression: "distance/fuelEconomy", targetUnit: "L", formulaLatex: "\\text{fuel} = \\dfrac{\\text{distance}}{\\text{fuelEconomy}}" },
-      { title: { en: "Trip cost", ja: "走行コスト", es: "Costo del viaje", "pt-BR": "Custo da viagem", de: "Fahrtkosten", fr: "Coût du trajet" }, expression: "(s1/1L)*price", targetUnit: "", formulaLatex: "\\text{cost} = \\dfrac{\\text{fuel}}{1\\text{L}} \\times \\text{price}" },
+      { title: { en: "Trip cost", ja: "走行コスト", es: "Costo del viaje", "pt-BR": "Custo da viagem", de: "Fahrtkosten", fr: "Coût du trajet" }, expression: "(s1/L)*price", targetUnit: "", formulaLatex: "\\text{cost} = \\dfrac{\\text{fuel}}{1\\text{L}} \\times \\text{price}" },
     ],
   },
   {
@@ -396,8 +396,8 @@ export const COOKING_SEEDS: NotebookSeed[] = [
     title: { en: "Gram conversion from density (sugar per tablespoon)", ja: "密度からのグラム換算（砂糖大さじ何g）", es: "Conversión a gramos a partir de la densidad (azúcar por cucharada)", "pt-BR": "Conversão para gramas a partir da densidade (açúcar por colher de sopa)", de: "Umrechnung in Gramm anhand der Dichte (Zucker pro Esslöffel)", fr: "Conversion en grammes à partir de la masse volumique (sucre par cuillère à soupe)" },
     description: { en: "Compute the mass in grams from the density of sugar and a volume measured in tablespoons.", ja: "砂糖の密度と体積（大さじ）から、質量をグラムで求めます。", es: "Calcula la masa en gramos a partir de la densidad del azúcar y un volumen medido en cucharadas.", "pt-BR": "Calcule a massa em gramas a partir da densidade do açúcar e de um volume medido em colheres de sopa.", de: "Berechnet die Masse in Gramm aus der Dichte von Zucker und einem in Esslöffeln gemessenen Volumen.", fr: "Calculer la masse en grammes à partir de la masse volumique du sucre et d'un volume mesuré en cuillères à soupe." },
     localConstants: [
-      { symbol: "ρ", expression: "0.9g/mL" },
-      { symbol: "V", expression: "3tbsp" },
+      { symbol: "ρ", expression: "0.90g/mL" },
+      { symbol: "V", expression: "3tbsp", exact: true },
     ],
     steps: [{ title: { en: "Mass", ja: "質量", es: "Masa", "pt-BR": "Massa", de: "Masse", fr: "Masse" }, expression: "ρ*V", targetUnit: "g", formulaLatex: "m = \\rho \\times V" }],
   },

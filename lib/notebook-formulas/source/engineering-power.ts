@@ -105,9 +105,9 @@ export const ENG_POWER_SEEDS: NotebookSeed[] = [
     title: { en: "Acceleration torque and flywheel energy", ja: "加速トルクとはずみ車のエネルギー", es: "Par de aceleración y energía del volante de inercia", "pt-BR": "Torque de aceleração e energia do volante de inércia", de: "Beschleunigungsmoment und Schwungradenergie", fr: "Couple d'accélération et énergie du volant d'inertie" },
     description: { en: "Compute the angular velocity of a rotor, the angular acceleration needed to reach it within a given run-up time, the torque that acceleration demands, and the kinetic energy stored once it is up to speed.", ja: "回転体の角速度と、指定した起動時間でそこまで加速するのに必要な角加速度・トルク、そして定常回転に達したときに蓄えられる回転エネルギーを求めます。", es: "Calcula la velocidad angular de un rotor, la aceleración angular necesaria para alcanzarla dentro de un tiempo de arranque dado, el par que exige esa aceleración y la energía cinética almacenada una vez alcanzada la velocidad de régimen.", "pt-BR": "Calcule a velocidade angular de um rotor, a aceleração angular necessária para atingi-la dentro de um tempo de partida dado, o torque que essa aceleração exige e a energia cinética armazenada depois que a rotação de regime é atingida.", de: "Berechnet die Winkelgeschwindigkeit eines Rotors, die Winkelbeschleunigung, die zum Erreichen dieser Drehzahl innerhalb einer vorgegebenen Hochlaufzeit nötig ist, das dafür erforderliche Beschleunigungsmoment und die bei Betriebsdrehzahl gespeicherte Rotationsenergie.", fr: "Calculer la vitesse angulaire d'un rotor, l'accélération angulaire nécessaire pour l'atteindre dans un temps de démarrage donné, le couple qu'exige cette accélération et l'énergie cinétique emmagasinée une fois la vitesse de régime atteinte." },
     localConstants: [
-      { symbol: "J", expression: "0.05kg*m^2" },
+      { symbol: "J", expression: "0.050kg*m^2" },
       { symbol: "n", expression: "1500rpm" },
-      { symbol: "t", expression: "2s" },
+      { symbol: "t", expression: "2.0s" },
       { symbol: "ω", expression: "2*pi*n" },
     ],
     steps: [
@@ -159,7 +159,7 @@ export const ENG_ELEMENTS_SEEDS: NotebookSeed[] = [
       { symbol: "z", expression: "5.0mm" },
       { symbol: "L_w", expression: "400mm" },
       { symbol: "F", expression: "40kN" },
-      { symbol: "a", expression: "0.7*z" },
+      { symbol: "a", expression: "0.70*z" },
     ],
     steps: [
       { title: { en: "Throat thickness a", ja: "のど厚 a", es: "Espesor de garganta a", "pt-BR": "Espessura da garganta a", de: "Nahtdicke a", fr: "Épaisseur de gorge a" }, expression: "a", targetUnit: "mm", formulaLatex: "a = 0.7z" },
@@ -203,12 +203,12 @@ export const ENG_ELEMENTS_SEEDS: NotebookSeed[] = [
     description: { en: "Compute the basic rating life of a ball bearing from its dynamic load rating and the equivalent load, first in millions of revolutions and then in hours. The exponent 3 applies to ball bearings only — roller bearings use 10/3. The /60 of the textbook formula disappears here, because rpm is a real unit: dividing a number of revolutions by a rotational speed already gives a time.", ja: "動定格荷重と等価荷重から、玉軸受の基本定格寿命を、まず百万回転で、続いて時間で求めます。指数の3は玉軸受のもので、ころ軸受では10/3になります。ここではrpmを本物の単位として扱うため、教科書の式に出てくる/60は要りません。回転数を回転速度で割れば、そのまま時間の次元になります。", es: "Calcula la vida nominal básica de un rodamiento de bolas a partir de su capacidad de carga dinámica y de la carga equivalente, primero en millones de revoluciones y después en horas. El exponente 3 vale solo para los rodamientos de bolas: los de rodillos usan 10/3. Aquí no hace falta el /60 de la fórmula de los libros de texto, porque rpm es una unidad real: dividir un número de revoluciones entre una velocidad de rotación ya da un tiempo.", "pt-BR": "Calcule a vida nominal básica de um rolamento de esferas a partir da capacidade de carga dinâmica e da carga equivalente, primeiro em milhões de revoluções e depois em horas. O expoente 3 vale apenas para rolamentos de esferas: os de rolos usam 10/3. Aqui o /60 da fórmula dos livros não é necessário, porque rpm é uma unidade de verdade: dividir um número de revoluções por uma velocidade de rotação já resulta em um tempo.", de: "Berechnet die nominelle Lebensdauer eines Kugellagers aus der dynamischen Tragzahl und der äquivalenten Lagerbelastung, zuerst in Millionen Umdrehungen und dann in Stunden. Der Exponent 3 gilt nur für Kugellager: Rollenlager rechnen mit 10/3. Das /60 der Lehrbuchformel entfällt hier, weil rpm eine echte Einheit ist: Eine Umdrehungszahl durch eine Drehzahl geteilt ergibt bereits eine Zeit.", fr: "Calculer la durée de vie nominale d'un roulement à billes à partir de sa charge dynamique de base et de la charge équivalente, d'abord en millions de tours puis en heures. L'exposant 3 ne vaut que pour les roulements à billes : les roulements à rouleaux utilisent 10/3. Le /60 de la formule des manuels disparaît ici, car rpm est une véritable unité : diviser un nombre de tours par une vitesse de rotation donne déjà un temps." },
     localConstants: [
       { symbol: "C", expression: "25.5kN" },
-      { symbol: "P_r", expression: "4kN" },
+      { symbol: "P_r", expression: "4.0kN" },
       { symbol: "n", expression: "1500rpm" },
     ],
     steps: [
       { title: { en: "Basic rating life L10 (million revolutions)", ja: "基本定格寿命 L10（百万回転）", es: "Vida nominal básica L10 (millones de revoluciones)", "pt-BR": "Vida nominal básica L10 (milhões de revoluções)", de: "Nominelle Lebensdauer L10 (Millionen Umdrehungen)", fr: "Durée de vie nominale L10 (millions de tours)" }, expression: "(C/P_r)^3", targetUnit: "", formulaLatex: "L_{10} = \\left(\\dfrac{C}{P_r}\\right)^3" },
-      { title: { en: "Basic rating life in hours", ja: "基本定格寿命（時間）", es: "Vida nominal básica en horas", "pt-BR": "Vida nominal básica em horas", de: "Nominelle Lebensdauer in Stunden", fr: "Durée de vie nominale en heures" }, expression: "(C/P_r)^3*1e6/n", targetUnit: "h", formulaLatex: "L_{10h} = \\dfrac{10^6 L_{10}}{n}" },
+      { title: { en: "Basic rating life in hours", ja: "基本定格寿命（時間）", es: "Vida nominal básica en horas", "pt-BR": "Vida nominal básica em horas", de: "Nominelle Lebensdauer in Stunden", fr: "Durée de vie nominale en heures" }, expression: "(C/P_r)^3*10^6/n", targetUnit: "h", formulaLatex: "L_{10h} = \\dfrac{10^6 L_{10}}{n}" },
     ],
   },
   {

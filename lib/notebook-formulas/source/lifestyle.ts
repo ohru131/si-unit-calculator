@@ -31,7 +31,7 @@ export const BREWING_SEEDS: NotebookSeed[] = [
     localConstants: [
       { symbol: "V", expression: "250mL" },
       { symbol: "R", expression: "16.7" },
-      { symbol: "ρ", expression: "1g/mL" },
+      { symbol: "ρ", expression: "1.00g/mL" },
       { symbol: "mₚ", expression: "15g" },
     ],
     steps: [
