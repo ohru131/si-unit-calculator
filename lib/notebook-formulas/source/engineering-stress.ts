@@ -11,9 +11,9 @@ export const ENG_STRESS_SEEDS: NotebookSeed[] = [
     title: { en: "Axial stress & elongation of a tie rod", ja: "引張材の軸応力と伸び", es: "Esfuerzo axial y alargamiento de un tirante", "pt-BR": "Tensão axial e alongamento de um tirante", de: "Zugspannung und Verlängerung eines Zugstabs", fr: "Contrainte axiale et allongement d'un tirant" },
     description: { en: "A 200 mm² tie rod of ASTM A36 structural steel (E = 200 GPa, yield σ_y = 250 MPa) carries 25 kN of tension. The stress comes out at 125 MPa, exactly half the yield strength, and the 2 m rod stretches 1.25 mm.", ja: "断面積200mm²の引張材（ASTM A36相当の構造用鋼: E=200GPa、降伏応力 σ_y=250MPa）に25kNの引張力が働く場合を計算します。応力は125MPa＝降伏応力のちょうど半分、長さ2mの材の伸びは1.25mmになります。", es: "Un tirante de 200 mm² de acero estructural ASTM A36 (E = 200 GPa, límite elástico σ_y = 250 MPa) soporta una tracción de 25 kN. El esfuerzo resulta de 125 MPa, exactamente la mitad del límite elástico, y el tirante de 2 m se alarga 1,25 mm.", "pt-BR": "Um tirante de 200 mm² de aço estrutural ASTM A36 (E = 200 GPa, tensão de escoamento σ_y = 250 MPa) suporta uma tração de 25 kN. A tensão resulta em 125 MPa, exatamente metade da tensão de escoamento, e a barra de 2 m se alonga 1,25 mm.", de: "Ein Zugstab mit 200 mm² Querschnitt aus Baustahl ASTM A36 (E = 200 GPa, Streckgrenze σ_y = 250 MPa) nimmt 25 kN Zugkraft auf. Die Zugspannung beträgt 125 MPa, genau die Hälfte der Streckgrenze, und der 2 m lange Stab verlängert sich um 1,25 mm.", fr: "Un tirant de 200 mm² en acier de construction ASTM A36 (E = 200 GPa, limite d'élasticité σ_y = 250 MPa) reprend une traction de 25 kN. La contrainte vaut 125 MPa, exactement la moitié de la limite d'élasticité, et le tirant de 2 m s'allonge de 1,25 mm." },
     localConstants: [
-      { symbol: "F", expression: "25kN" },
-      { symbol: "A", expression: "200mm^2", exact: true },
-      { symbol: "L", expression: "2m", exact: true },
+      { symbol: "F", expression: "25.0kN" },
+      { symbol: "A", expression: "200mm^2" },
+      { symbol: "L", expression: "2.00m" },
       { symbol: "E", expression: "200GPa" },
     ],
     steps: [
@@ -40,7 +40,7 @@ export const ENG_STRESS_SEEDS: NotebookSeed[] = [
     localConstants: [
       { symbol: "ν", expression: "0.3" },
       { symbol: "ε", expression: "0.001" },
-      { symbol: "d", expression: "20mm", exact: true },
+      { symbol: "d", expression: "20mm" },
     ],
     steps: [
       { title: { en: "Lateral strain ε_lat", ja: "横ひずみ ε_lat", es: "Deformación transversal ε_lat", "pt-BR": "Deformação transversal ε_lat", de: "Querdehnung ε_lat", fr: "Déformation transversale ε_lat" }, expression: "-ν*ε", targetUnit: "", formulaLatex: "\\varepsilon_{lat} = -\\nu\\varepsilon" },
@@ -67,7 +67,7 @@ export const ENG_STRESS_SEEDS: NotebookSeed[] = [
       { symbol: "α", expression: "12e-6/K" },
       { symbol: "ΔT", expression: "40K" },
       { symbol: "E", expression: "200GPa" },
-      { symbol: "L", expression: "6m", exact: true },
+      { symbol: "L", expression: "6.0m" },
     ],
     steps: [
       { title: { en: "Free expansion δ_T", ja: "自由な伸び δ_T", es: "Dilatación libre δ_T", "pt-BR": "Dilatação livre δ_T", de: "Freie Wärmedehnung δ_T", fr: "Dilatation libre δ_T" }, expression: "α*L*ΔT", targetUnit: "mm", formulaLatex: "\\delta_T = \\alpha L \\Delta T" },
@@ -79,8 +79,8 @@ export const ENG_STRESS_SEEDS: NotebookSeed[] = [
     description: { en: "A Ø16 mm pin joining a 10 mm plate carries 30 kN. In a double-shear joint the pin is cut by two planes, so each one takes half the load — that is the factor of 2. The bearing stress the pin presses onto the hole wall is a different check with a different area (d×t), and here it is the larger of the two.", ja: "厚さ10mmの板を留める直径16mmのピンに30kNが働く場合です。二面せん断の継手ではピンが2つの面で切られるので、1面あたりの荷重は半分になります（式の2はこれです）。一方、ピンが穴の内壁を押す支圧応力は、面積の取り方（d×t）が異なる別の検定で、この例では支圧応力の方が大きくなります。", es: "Un pasador de Ø16 mm que une una chapa de 10 mm soporta 30 kN. En una unión a doble cortadura el pasador queda cortado por dos planos, así que cada uno toma la mitad de la carga: de ahí el factor 2. El esfuerzo de aplastamiento con el que el pasador presiona la pared del agujero es una comprobación distinta, con otra área (d×t), y aquí resulta ser el mayor de los dos.", "pt-BR": "Um pino de Ø16 mm que une uma chapa de 10 mm suporta 30 kN. Em uma ligação em corte duplo o pino é cortado por dois planos, então cada um recebe metade da carga: é daí que vem o fator 2. A tensão de esmagamento com que o pino pressiona a parede do furo é uma verificação diferente, com outra área (d×t), e aqui ela é a maior das duas.", de: "Ein Bolzen mit Ø16 mm, der ein 10 mm dickes Blech verbindet, nimmt 30 kN auf. Bei einer zweischnittigen Verbindung wird der Bolzen von zwei Ebenen geschnitten, jede nimmt also die halbe Last auf – daher der Faktor 2. Die Lochleibungsspannung, mit der der Bolzen gegen die Lochwand drückt, ist ein anderer Nachweis mit einer anderen Fläche (d×t) und hier der größere der beiden Werte.", fr: "Un axe de Ø16 mm assemblant une tôle de 10 mm reprend 30 kN. Dans un assemblage en double cisaillement, l'axe est coupé par deux plans, chacun reprend donc la moitié de la charge : c'est de là que vient le facteur 2. La pression diamétrale exercée par l'axe sur la paroi du trou est une vérification différente, avec une autre aire (d×t), et c'est ici la plus grande des deux." },
     localConstants: [
       { symbol: "F", expression: "30kN" },
-      { symbol: "d", expression: "16mm", exact: true },
-      { symbol: "t", expression: "10mm", exact: true },
+      { symbol: "d", expression: "16.0mm" },
+      { symbol: "t", expression: "10.0mm" },
       { symbol: "A", expression: "pi*d^2/4" },
     ],
     steps: [
@@ -114,6 +114,10 @@ export const ENG_STRESS_SEEDS: NotebookSeed[] = [
   {
     title: { en: "Stress concentration at a hole", ja: "穴まわりの応力集中", es: "Concentración de esfuerzos en un agujero", "pt-BR": "Concentração de tensões em um furo", de: "Spannungskonzentration am Loch", fr: "Concentration de contraintes au bord d'un trou" },
     description: { en: "A 60 mm wide, 8 mm thick strap with a Ø20 mm hole carries 15 kN. Spreading the load over the remaining net section gives only about 47 MPa, but the stress crowds around the edge of the hole: with a concentration factor K_t of about 2.4 the real peak is about 110 MPa. This peak, not the nominal value, is what starts a fatigue crack.", ja: "幅60mm・厚さ8mmの帯板に直径20mmの穴が開き、15kNが働く場合です。穴を除いた正味断面で荷重を均すと47MPaにしかなりませんが、応力は穴の縁に集中します。応力集中係数K_tを2.4とすると実際のピークは約110MPaです。疲労き裂の起点になるのは公称応力ではなくこのピーク値です。", es: "Una pletina de 60 mm de ancho y 8 mm de espesor con un agujero de Ø20 mm soporta 15 kN. Al repartir la carga sobre la sección neta restante solo salen unos 47 MPa, pero el esfuerzo se agolpa en el borde del agujero: con un factor de concentración K_t de aproximadamente 2,4, el pico real es de unos 110 MPa. Lo que inicia una grieta por fatiga es ese pico, no el valor nominal.", "pt-BR": "Uma barra chata de 60 mm de largura e 8 mm de espessura com um furo de Ø20 mm suporta 15 kN. Distribuindo a carga pela seção líquida restante saem apenas cerca de 47 MPa, mas a tensão se concentra na borda do furo: com um fator de concentração K_t de cerca de 2,4, o pico real é de cerca de 110 MPa. O que inicia uma trinca por fadiga é esse pico, não o valor nominal.", de: "Ein 60 mm breiter und 8 mm dicker Flachstahl mit einem Loch von Ø20 mm nimmt 15 kN auf. Verteilt man die Last über den verbleibenden Restquerschnitt, ergeben sich nur rund 47 MPa, doch die Zugspannung drängt sich am Lochrand zusammen: mit einer Formzahl K_t von etwa 2,4 liegt die tatsächliche Spitze bei rund 110 MPa. Ein Ermüdungsriss geht von dieser Spitze aus, nicht von der Nennspannung.", fr: "Un fer plat de 60 mm de largeur et 8 mm d'épaisseur percé d'un trou de Ø20 mm reprend 15 kN. En répartissant la charge sur la section nette restante, on n'obtient qu'environ 47 MPa, mais la contrainte se concentre au bord du trou : avec un coefficient de concentration K_t d'environ 2,4, le pic réel atteint environ 110 MPa. C'est ce pic, et non la valeur nominale, qui amorce une fissure de fatigue." },
+    // **このノートだけは呼び寸法に `exact` を残す。** 他のノートは印をやめて「45.0mm」のように
+    // 桁を書き分ける方式へ移したが、ここは手順が `(w-d)` という**加減算**を通る。測定値どうしの
+    // 加減算では桁が読めず（lib/significant-figures.ts）、印を外すと丸めが丸ごと止まって
+    // `46.875 MPa` の生値に戻る——実機で「出しすぎ、47くらいでは」と言われたまさにその表示。
     localConstants: [
       { symbol: "F", expression: "15kN" },
       { symbol: "w", expression: "60mm", exact: true },
