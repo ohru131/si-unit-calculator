@@ -301,7 +301,7 @@ export const VEHICLES_SEEDS: NotebookSeed[] = [
     description: { en: "Compute the braking distance from speed and the coefficient of friction.", ja: "速度と摩擦係数から、ブレーキをかけてから停止するまでの制動距離を求めます。", es: "Calcula la distancia de frenado a partir de la velocidad y el coeficiente de fricción.", "pt-BR": "Calcule a distância de frenagem a partir da velocidade e do coeficiente de atrito.", de: "Berechnet den Bremsweg aus der Geschwindigkeit und dem Reibungskoeffizienten.", fr: "Calculer la distance de freinage à partir de la vitesse et du coefficient de frottement." },
     localConstants: [
       { symbol: "v", expression: "60km/h" },
-      { symbol: "μ", expression: "0.7" },
+      { symbol: "μ", expression: "0.70" },
       { symbol: "g", expression: "9.8m/s^2" },
     ],
     steps: [{ title: { en: "Braking distance d", ja: "制動距離 d", es: "Distancia de frenado d", "pt-BR": "Distância de frenagem d", de: "Bremsweg d", fr: "Distance de freinage d" }, expression: "v^2/(2*μ*g)", targetUnit: "m", formulaLatex: "d = \\dfrac{v^2}{2\\mu g}" }],
@@ -312,7 +312,7 @@ export const VEHICLES_SEEDS: NotebookSeed[] = [
     localConstants: [
       { symbol: "v", expression: "60km/h" },
       { symbol: "tᵣ", expression: "0.75s" },
-      { symbol: "μ", expression: "0.7" },
+      { symbol: "μ", expression: "0.70" },
       { symbol: "g", expression: "9.8m/s^2" },
     ],
     steps: [
@@ -351,7 +351,7 @@ export const VEHICLES_SEEDS: NotebookSeed[] = [
     title: { en: "Safe cornering speed", ja: "カーブを安全に曲がれる速度", es: "Velocidad segura en curva", "pt-BR": "Velocidade segura em curva", de: "Sichere Kurvengeschwindigkeit", fr: "Vitesse sûre en virage" },
     description: { en: "Estimate the safe cornering speed from the road's coefficient of friction and the curve radius.", ja: "路面の摩擦係数とカーブの半径から、安全に曲がれる速度の目安を求めます。", es: "Estima la velocidad segura en una curva a partir del coeficiente de fricción de la calzada y el radio de la curva.", "pt-BR": "Estime a velocidade segura em uma curva a partir do coeficiente de atrito da pista e do raio da curva.", de: "Schätzt die sichere Kurvengeschwindigkeit aus dem Reibungskoeffizienten der Fahrbahn und dem Kurvenradius.", fr: "Estimer la vitesse sûre en virage à partir du coefficient de frottement de la route et du rayon de la courbe." },
     localConstants: [
-      { symbol: "μ", expression: "0.8" },
+      { symbol: "μ", expression: "0.80" },
       { symbol: "g", expression: "9.8m/s^2" },
       { symbol: "r", expression: "50m" },
     ],
