@@ -226,12 +226,9 @@ export default function ConstantsScreen() {
     setConstantSheetVisible(true);
   };
 
-  // 名前を変えた編集は「新しい名前で保存してから古い名前を消す」。**先に消さないこと**——
-  // 先に消すと、保存が名前の検証（単位記号との衝突など）で弾かれたときに元の定数まで失われる。
-  const saveConstant = async (symbol: string, expression: string) => {
-    await upsertConstant(symbol, expression);
-    if (constantSheetSymbol && constantSheetSymbol !== symbol) await removeConstant(constantSheetSymbol);
-  };
+  // 開いていた記号を渡すと改名になる（`upsertConstant` が1回の書き込みで古い名前を片付ける）。
+  // **「保存してから removeConstant」の2手で書かないこと**——理由は `upsertConstant` の型のコメント。
+  const saveConstant = (symbol: string, expression: string) => upsertConstant(symbol, expression, constantSheetSymbol ?? undefined);
 
   // カテゴリカードのエクスポートボタン用にカテゴリIDからラベルを引く。categoryLabel（上のcategoryOptions）は
   // 「高校物理」のような親カテゴリをノートの所属先として選べないため除外してあり、親カテゴリIDでは

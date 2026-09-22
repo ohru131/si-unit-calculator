@@ -2598,7 +2598,11 @@ export default function CalculatorScreen() {
           resultDigits={resultDigits}
           constant={editingConstant}
           constants={constants}
-          onSave={(symbol, value) => upsertConstant(symbol, value)}
+          // 開いていた記号を渡すと改名になる（`upsertConstant` が1回の書き込みで古い名前を
+          // 片付ける）。**「保存してから removeConstant」の2手で書かないこと**——理由は
+          // `upsertConstant` の型のコメントを参照。CodeRabbitが#81で改名が複製になるのを
+          // 検出し、2手の直し方を試したところ今度は新しい名前の方が消えた。
+          onSave={(symbol, value) => upsertConstant(symbol, value, constantSheetSymbol ?? undefined)}
           onDelete={async (symbol) => {
             await removeConstant(symbol);
             setConstantSheetVisible(false);

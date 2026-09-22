@@ -28,6 +28,7 @@ const EN_COPY = {
   symbolLabel: "Name", expressionLabel: "Value", preview: "Value",
   symbolPlaceholder: "R", expressionPlaceholder: "4.7kΩ",
   invalidSymbol: "Start the name with a letter, then letters or digits (for example R1).",
+  duplicateSymbol: "A constant with this name already exists. Edit that one, or pick a different name.",
   save: "Save", saving: "Saving…", close: "Close", delete: "Delete", cancel: "Cancel", keyboard: "ABC keyboard",
   deleteConfirm: "Delete this constant? Expressions that use it will stop working.",
 } as const;
@@ -38,6 +39,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     symbolLabel: "名前", expressionLabel: "値", preview: "値",
     symbolPlaceholder: "R", expressionPlaceholder: "4.7kΩ",
     invalidSymbol: "名前は英字で始め、以降は英数字にしてください（例：R1）。",
+    duplicateSymbol: "同じ名前の定数がすでにあります。そちらを編集するか、別の名前にしてください。",
     save: "保存", saving: "保存中…", close: "閉じる", delete: "削除", cancel: "キャンセル", keyboard: "文字キーボード",
     deleteConfirm: "この定数を削除しますか？これを使っている式は計算できなくなります。",
   },
@@ -46,6 +48,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     symbolLabel: "Nombre", expressionLabel: "Valor", preview: "Valor",
     symbolPlaceholder: "R", expressionPlaceholder: "4.7kΩ",
     invalidSymbol: "El nombre debe empezar por una letra y seguir con letras o cifras (por ejemplo R1).",
+    duplicateSymbol: "Ya existe una constante con este nombre. Edita esa o elige otro nombre.",
     save: "Guardar", saving: "Guardando…", close: "Cerrar", delete: "Eliminar", cancel: "Cancelar", keyboard: "Teclado de letras",
     deleteConfirm: "¿Eliminar esta constante? Las expresiones que la usan dejarán de funcionar.",
   },
@@ -54,6 +57,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     symbolLabel: "Nome", expressionLabel: "Valor", preview: "Valor",
     symbolPlaceholder: "R", expressionPlaceholder: "4.7kΩ",
     invalidSymbol: "O nome deve começar com uma letra e seguir com letras ou algarismos (por exemplo R1).",
+    duplicateSymbol: "Já existe uma constante com este nome. Edite aquela ou escolha outro nome.",
     save: "Salvar", saving: "Salvando…", close: "Fechar", delete: "Excluir", cancel: "Cancelar", keyboard: "Teclado de letras",
     deleteConfirm: "Excluir esta constante? As expressões que a usam deixarão de funcionar.",
   },
@@ -62,6 +66,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     symbolLabel: "Name", expressionLabel: "Wert", preview: "Wert",
     symbolPlaceholder: "R", expressionPlaceholder: "4.7kΩ",
     invalidSymbol: "Der Name beginnt mit einem Buchstaben, danach Buchstaben oder Ziffern (zum Beispiel R1).",
+    duplicateSymbol: "Eine Konstante mit diesem Namen gibt es bereits. Bearbeite diese oder wähle einen anderen Namen.",
     save: "Speichern", saving: "Speichert…", close: "Schließen", delete: "Löschen", cancel: "Abbrechen", keyboard: "Buchstabentastatur",
     deleteConfirm: "Diese Konstante löschen? Ausdrücke, die sie verwenden, funktionieren dann nicht mehr.",
   },
@@ -70,6 +75,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     symbolLabel: "Nom", expressionLabel: "Valeur", preview: "Valeur",
     symbolPlaceholder: "R", expressionPlaceholder: "4.7kΩ",
     invalidSymbol: "Le nom commence par une lettre, puis des lettres ou des chiffres (par exemple R1).",
+    duplicateSymbol: "Une constante porte déjà ce nom. Modifiez-la ou choisissez un autre nom.",
     save: "Enregistrer", saving: "Enregistrement…", close: "Fermer", delete: "Supprimer", cancel: "Annuler", keyboard: "Clavier de lettres",
     deleteConfirm: "Supprimer cette constante ? Les expressions qui l’utilisent ne fonctionneront plus.",
   },
@@ -85,6 +91,11 @@ type Props = {
   constant?: SavedConstant;
   /** 保存済みの全定数。値の欄から参照できる名前（「定数」パネル）と、名前の重複判定に使う。 */
   constants: readonly SavedConstant[];
+  /**
+   * 保存。**名前を変えた編集の後始末（古い記号を消す）は呼び出し側の役目**——ストアを持って
+   * いるのはあちらなので。順序は「新しい名前で保存してから古い名前を消す」で固定すること
+   * （先に消すと、保存が名前の検証で弾かれたときに元の定数まで失われる）。
+   */
   onSave: (symbol: string, expression: string) => Promise<unknown>;
   /** 渡すと削除ボタンを出す（新規作成のときは呼び出し側が渡さない）。 */
   onDelete?: (symbol: string) => Promise<unknown> | void;
@@ -144,11 +155,21 @@ export function ConstantEditorSheet({ visible, language, locale, unitSystem, res
   // 自分自身は参照できない（`R = R * 2` は解決できない）ので、編集中の記号は候補から外す。
   const otherConstants = useMemo(() => constants.filter((item) => item.symbol !== (constant?.symbol ?? symbol.trim())), [constant?.symbol, constants, symbol]);
   const draft = evaluateConstantDraft(symbol, expression, otherConstants);
+  // **別の保存済み定数と同じ名前は弾く。** `upsertConstant` は同じ記号を置き換えるので、
+  // 保存済みの `R` を `H1` へ改名すると `H1` の値が黙って上書きされ、そのうえ改名の後始末で
+  // `R` も消える——**一度の保存で2つの値が失われる**（CodeRabbitが#81で検出）。
+  // 自分自身への保存（`constant?.symbol` と同じ）は上書きではなく更新なので通す。
+  const isDuplicateSymbol = Boolean(draft.symbol)
+    && draft.symbol !== constant?.symbol
+    && constants.some((item) => item.symbol === draft.symbol);
+  const canSave = draft.canSave && !isDuplicateSymbol;
   const draftMessage = draft.hasInvalidSymbol
     ? copy.invalidSymbol
-    : draft.error
-      ? unitErrorMessage(draft.error, language) ?? draft.error.message
-      : "";
+    : isDuplicateSymbol
+      ? copy.duplicateSymbol
+      : draft.error
+        ? unitErrorMessage(draft.error, language) ?? draft.error.message
+        : "";
   // 保存に失敗したときのメッセージは下書きの診断より優先して出す（押した操作の結果だから）。
   const message = saveError || draftMessage;
 
@@ -238,7 +259,7 @@ export function ConstantEditorSheet({ visible, language, locale, unitSystem, res
   };
 
   const handleSave = async () => {
-    if (!draft.canSave || isSaving) return;
+    if (!canSave || isSaving) return;
     setIsSaving(true);
     setSaveError("");
     try {
@@ -315,7 +336,7 @@ export function ConstantEditorSheet({ visible, language, locale, unitSystem, res
               <Text style={styles.preview}>= {previewText}</Text>
             ) : null}
             {message ? <Text style={styles.error}>{message}</Text> : null}
-            <Pressable disabled={!draft.canSave || isSaving} onPress={() => void handleSave()} style={({ pressed }) => [styles.saveButton, (!draft.canSave || isSaving) && styles.saveButtonDisabled, pressed && styles.buttonPressed]}>
+            <Pressable disabled={!canSave || isSaving} onPress={() => void handleSave()} style={({ pressed }) => [styles.saveButton, (!canSave || isSaving) && styles.saveButtonDisabled, pressed && styles.buttonPressed]}>
               <Text style={styles.saveText}>{isSaving ? copy.saving : copy.save}</Text>
             </Pressable>
           </ScrollView>

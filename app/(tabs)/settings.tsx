@@ -65,7 +65,11 @@ export default function SettingsScreen() {
     digits,
     label: digits === RESULT_DIGITS_UNLIMITED ? t("resultDigitsUnlimited") : t("resultDigitsOption").replace("{count}", String(digits)),
   }));
-  const resultDigitsValue = t("resultDigitsOption").replace("{count}", String(resultDigits));
+  // 折りたたんだ行に出す今の値。**選択肢と同じ判定を通すこと**——素の `{count}桁` に
+  // 当てはめると「丸めなし」を選んだあとの行が「0桁」になる（CodeRabbitが#81で検出）。
+  const resultDigitsValue = resultDigits === RESULT_DIGITS_UNLIMITED
+    ? t("resultDigitsUnlimited")
+    : t("resultDigitsOption").replace("{count}", String(resultDigits));
   // 0件のときは行に値を出さない。customUnitEmptyは「まだ自作の単位はありません。」という
   // 文章で、行の値の位置に置くと狭い端末幅で「まだ自作の単位はあ…」と切れて読めなくなる
   // （仏語は42文字あり確実に切れる）。開けば同じ文章が空状態として出るので、閉じた行は

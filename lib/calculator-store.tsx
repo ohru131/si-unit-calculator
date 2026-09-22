@@ -210,7 +210,13 @@ type CalculatorStore = {
   activeNotebookId: string | null;
   hasRestorableConstants: boolean;
   isLoading: boolean;
-  upsertConstant: (symbol: string, expression: string) => Promise<SavedConstant>;
+  /**
+   * 定数を保存する。`previousSymbol` を渡すとその記号を同時に片付ける＝**改名**になる。
+   * **改名を「保存してから removeConstant」の2手で書かないこと**——`removeConstant` は
+   * `constants` をクロージャから読むので、直前の保存が反映されていない一覧を書き戻し、
+   * 保存したばかりの新しい名前が消える（`saveCustomUnit` で踏んだのと同じ形）。
+   */
+  upsertConstant: (symbol: string, expression: string, previousSymbol?: string) => Promise<SavedConstant>;
   removeConstant: (symbol: string) => Promise<void>;
   importConstants: (entries: ImportedConstant[], mode: "merge" | "replace", customUnits: CustomUnit[]) => Promise<{ count: number; customUnitCount: number }>;
   clearConstants: () => Promise<void>;
@@ -1323,9 +1329,10 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
   }, [currencyCode, regionCode, language, isGlobalSettingsReady, isLoading]);
 
   const upsertConstant = useCallback(
-    async (symbolInput: string, expressionInput: string) => {
+    async (symbolInput: string, expressionInput: string, previousSymbolInput?: string) => {
       const symbol = symbolInput.trim();
       const expression = expressionInput.trim();
+      const previousSymbol = previousSymbolInput?.trim();
       if (/^a[1-9]\d*$/i.test(symbol)) throw new Error(STORE_MESSAGES[language].reservedAutoConstantSymbol);
       // 単位記号をグローバル定数の名前にさせない。識別子の解決は単位より先なので、`W = 3cm` を
       // 許すと裸の `W` は 3cm・数値の直後の `W`（`5W`）はワットになり、**エラーにならないまま
@@ -1339,8 +1346,14 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
       // **取り込み（importConstants）も通さない**——復元は利用者が自分の値を明示的に写す操作で、
       // 別の端末で保存済みの名前を黙って落とす方が驚きが大きい。
       if (isResolvableUnitSymbol(symbol)) throw new Error(STORE_MESSAGES[language].unitSymbolConstant(symbol));
-      const existing = constants.find((item) => item.symbol === symbol);
-      const others = constants.filter((item) => item.symbol !== symbol);
+      // **改名は1回の書き込みで済ませる。** 「新しい名前で保存」→「古い名前を removeConstant」の
+      // 2手で書くと、後者が `constants` をクロージャから読むため**直前の保存が乗っていない一覧**を
+      // 書き戻し、保存したばかりの新しい名前が消える（実際に踏んだ。`saveCustomUnit` が
+      // 続けて削除すると1件復活したのと同じ形）。古い記号をここで一緒に外せばその窓が無い。
+      const others = constants.filter((item) => item.symbol !== symbol && item.symbol !== previousSymbol);
+      // 作成日は改名しても引き継ぐ（同じ定数の名前を変えただけなので）。
+      const existing = constants.find((item) => item.symbol === symbol)
+        ?? (previousSymbol ? constants.find((item) => item.symbol === previousSymbol) : undefined);
       const parsed = parseConstantDefinition(`${symbol} = ${expression}`, others);
       const nextItem: SavedConstant = { ...parsed, createdAt: existing?.createdAt ?? new Date().toISOString() };
       await persistConstants([...others, nextItem].sort((left, right) => left.symbol.localeCompare(right.symbol)));

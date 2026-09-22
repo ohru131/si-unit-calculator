@@ -55,3 +55,23 @@ describe("evaluateConstantDraft", () => {
     expect((draft.error as UnitError).code).toBe("dimensionMismatchAddSubtract");
   });
 });
+
+// 保存済みの `R` を、既にある `H1` へ改名すると `upsertConstant` が `H1` を置き換え、
+// 改名の後始末で `R` も消える＝一度の保存で2つの値が失われる。シート側で弾く。
+describe("別の保存済み定数と同じ名前", () => {
+  const saved: SavedConstant[] = [
+    { symbol: "R", expression: "4.7kΩ", quantity: { siValue: 4700, dimension: [2, 1, -3, -2, 0, 0, 0] }, createdAt: new Date(0).toISOString() },
+    ...existing,
+  ];
+
+  it("式としては成立するので、下書きの評価そのものは通る", () => {
+    // 弾くのは画面側（isDuplicateSymbol）で、この純関数は「その式が計算できるか」だけを見る。
+    // ここが通ることが、重複の判定を別に持つ必要がある理由そのもの。
+    expect(evaluateConstantDraft("H1", "3cm", saved.filter((item) => item.symbol !== "R")).canSave).toBe(true);
+  });
+
+  it("自分自身への保存は重複ではない（更新）", () => {
+    // 編集中の記号は otherConstants から外れるので、同じ名前のまま値だけ変えられる。
+    expect(evaluateConstantDraft("R", "10kΩ", saved.filter((item) => item.symbol !== "R")).canSave).toBe(true);
+  });
+});
