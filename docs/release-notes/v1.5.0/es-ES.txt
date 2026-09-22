@@ -1,0 +1,1 @@
+Mejoras en la actualización de plantillas, cifras significativas, notación científica y entrada de unidades. Nuevo límite de 4/6/8/10 dígitos.

@@ -52,6 +52,17 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - **次の versionCode / バージョン名は推測せず Play に問い合わせる。** `play-service-account-unitcalc.json`（gitignore済み）があるので、`androidpublisher` の `edits.create` → `edits.bundles.list` / `edits.tracks.list` を読めば「どの versionCode が使用済みか」「どのトラックに何が配信中か」が確定する（**edit を commit せず削除すれば読み取りだけで何も変わらない**）。JWT の組み方は `scripts/push-play-listing.mjs` の `getAccessToken` を流用できる。2026-09-18時点の実測: versionCode 1＝1.0.0、versionCode 2＝**alpha（クローズドテスト）に `UnitCalc 1.1.0` として配信中**。つまり **1.1.0 は既に出ている**ので、mainに積んだ変更を出すには 1.2.0 / versionCode 3 が要った。**「タグを打っただけ・AABを作っただけ」と「Playに出した」を混同しないこと**——後者は Play 側にしか記録が無い。
 - **`CHANGELOG.md` は各PRが `## [Unreleased]` に1行足す。** リリース時にその塊を `## [X.Y.Z] - 日付` に改名し、同じコミットにタグを打つ。Playの「このバージョンの新機能」はここから写す。
 
+### `scripts/release.mjs` — 出すもの一式を作って検査して上げる（2026-09-22）
+
+`node scripts/release.mjs <check|notes|build|pack|upload|ship>`（`pnpm release:check` などのエイリアスあり）。**掲載情報（タイトル・説明・スクショ）は `push-play-listing.mjs` の担当で、こちらは AAB・トラック・「このバージョンの新機能」だけ。**
+
+- **数字は推測せず実物から取る。** versionCode / versionName / package / 権限は**AAB そのもの**（zip の `base/manifest/AndroidManifest.xml` は protobuf なので、最小限の走査で読んでいる）から、使用済み versionCode と配信中の版と掲載言語は**Play API**から読む。`android/app/build/intermediates/` は別設定の前回ビルドの残骸が混ざる（実際に `.smoketest` が残っていた）ので情報源にしない。
+- **`check` が拾うもの**: app.config.ts / package.json / CHANGELOG のバージョン不一致、`build.gradle` との食い違い（＝prebuild し忘れ）、**AAB よりソースの方が新しい**（＝ビルドし忘れ）、タグが無い・HEAD を指していない、`origin/main` へ未push（v1.3.0 の事故の形）、リリースノートの欠け・TODO 残り・500字超え、versionCode が Play で使用済み。**AAB の sha1 が Play の sha1 と一致すれば「Playにあるのはこのビルド」が確定する**（タグのメッセージに sha1 を書く運用と同じ突き合わせ）。
+- **`notes` はリリースノートを `docs/release-notes/vX.Y.Z/<Playの掲載言語>.txt` に置く。** その versionCode のノートが既に Play にあれば**確定した本文としてそのまま取り込む**（リポジトリに控えが無い状態を解消する）。無ければ日本語だけ CHANGELOG から下書きし、他は `TODO` のまま残す——**機械翻訳を挟まない**のは、誰も読まないまま en-US に日本語が出る事故を避けるため。`check` が TODO を NG にするので出し忘れない。
+- **`upload` の既定はドライラン。`--validate` は Play を読むだけで AAB を送らない**（掲載情報の方の `--validate` とはここだけ意味が違う。AAB は一度送ると versionCode が使用済みとして残りうるので「お試しで送る」を用意しない）。`--commit` だけが実際に配信する。ローカルの sha1 が Play に既にあればアップロードを飛ばしてトラック更新だけ行う。
+- **`pack` は `release/vX.Y.Z/`（gitignore 済み）に AAB・checksums・ノート・SUMMARY.md を集める。** SUMMARY.md には権限の実測・Play の状況・検査結果・次の手順（タグの状態で3通りに出し分け。**別のコミットに付いているタグは付け替えない**）が入る。
+- **このリポジトリのテキストは CRLF と LF が混ざっている**（CHANGELOG.md と package.json は CRLF、app.config.ts は LF）。JS の正規表現では `\r` が行終端なので `/^- (.+)$/` が CRLF の行に**一致しない**——CHANGELOG からの下書きが末尾の1行だけになる形で実際に壊れた。`readText()` で必ず潰してから解析する。
+
 ## アーキテクチャの要点
 
 - `lib/i18n.ts` — **多言語化の土台。`APP_LANGUAGES` 配列が唯一の情報源**で、型（`AppLanguage`）・入力検証（`isAppLanguage`）・端末ロケール判定（`resolveDeviceLanguage`）・Intlロケールと設定画面の言語名（`LANGUAGE_META`、言語名はその言語自身の表記=endonym）を全てここから導出する。**言語を足すときはこの配列に追加するだけ**で、あとは型エラーが出た箇所を埋めていけばよい。

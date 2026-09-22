@@ -30,6 +30,11 @@ expo-env.d.ts
 *.apk
 *.keystore
 
+# scripts/release.mjs が Play へ出す一式を集める先（AAB のコピー・チェックサム・
+# リリースノート・SUMMARY.md）。AAB と同じ理由でコミットしない。**リリースノートの
+# 本体は docs/release-notes/ 側**（こちらは人が書くのでコミットする）。
+/release/
+
 # ローカルで Play 提出用の release AAB を署名するための資格情報。
 # `eas credentials -p android` で落とした keystore と、その3つのパスワードを持つ。
 # **公開リポジトリなので絶対にコミットしないこと**（鍵とパスワードが揃うと、

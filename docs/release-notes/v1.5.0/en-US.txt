@@ -1,0 +1,1 @@
+Improved preset updates, significant-figure formatting, scientific notation, and unit entry in calculation notebooks. Added a 4/6/8/10-digit display limit setting.

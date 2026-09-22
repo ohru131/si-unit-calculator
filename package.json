@@ -16,7 +16,13 @@
     "notebook:check": "tsx scripts/check-notebook-seed.ts",
     "notebook:i18n": "tsx scripts/check-seed-translations.ts",
     "bench:keystroke": "tsx scripts/bench-calculator-keystroke.ts",
-    "notebook:rounding": "tsx scripts/report-notebook-rounding.ts"
+    "notebook:rounding": "tsx scripts/report-notebook-rounding.ts",
+    "release": "node scripts/release.mjs",
+    "release:check": "node scripts/release.mjs check",
+    "release:notes": "node scripts/release.mjs notes",
+    "release:build": "node scripts/release.mjs build",
+    "release:pack": "node scripts/release.mjs pack",
+    "release:upload": "node scripts/release.mjs upload"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
