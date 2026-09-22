@@ -579,7 +579,9 @@ function commandBuild(args) {
     throw new Error("credentials.json が無い。デバッグ鍵で署名された AAB は Play に弾かれる（eas credentials -p android で落とす）");
   }
   if (!args.skipPrebuild) run("npx", ["expo", "prebuild", "-p", "android", "--no-install"]);
-  run(process.platform === "win32" ? "gradlew.bat" : "./gradlew", ["bundleRelease"], join(ROOT, "android"));
+  // cmd.exe は cwd から実行ファイルを解決しない（PATH だけを見る）ので `.\` が要る。付け忘れると
+  // 「内部コマンドまたは外部コマンド…として認識されていません」で prebuild だけ通って落ちる。
+  run(process.platform === "win32" ? ".\\gradlew.bat" : "./gradlew", ["bundleRelease"], join(ROOT, "android"));
   const aab = readAab(DEFAULT_AAB);
   console.log(`\nできた: ${DEFAULT_AAB.replace(ROOT, ".")}`);
   console.log(`  ${aab.package} / ${aab.versionName} (${aab.versionCode}) / ${bytes(aab.size)} / sha1 ${aab.sha1}`);
