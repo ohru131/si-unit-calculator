@@ -100,6 +100,9 @@ const LABELS = {
   en: {
     expression: "Expression",
     result: "Result",
+    // 入力欄の右の確定ボタン（2026-09-22に `=` からアイコンへ変えたので、ラベルは
+    // `copy.saveCalculation`。カードの見出し `result` とは別物）。
+    submit: "Save calculation",
     compareUnits: "Compare units",
     decimalForm: "Decimal",
     exactForm: "Exact",
@@ -118,6 +121,7 @@ const LABELS = {
   ja: {
     expression: "式",
     result: "結果",
+    submit: "計算を保存",
     compareUnits: "単位を比較",
     decimalForm: "小数",
     exactForm: "分数・π",
@@ -135,6 +139,7 @@ const LABELS = {
   es: {
     expression: "Expresión",
     result: "Resultado",
+    submit: "Guardar el cálculo",
     compareUnits: "Comparar unidades",
     decimalForm: "Decimal",
     exactForm: "Exacto",
@@ -152,6 +157,7 @@ const LABELS = {
   "pt-BR": {
     expression: "Expressão",
     result: "Resultado",
+    submit: "Salvar o cálculo",
     compareUnits: "Comparar unidades",
     decimalForm: "Decimal",
     exactForm: "Exato",
@@ -169,6 +175,7 @@ const LABELS = {
   de: {
     expression: "Ausdruck",
     result: "Ergebnis",
+    submit: "Berechnung speichern",
     compareUnits: "Einheiten vergleichen",
     decimalForm: "Dezimal",
     exactForm: "Exakt",
@@ -186,6 +193,7 @@ const LABELS = {
   fr: {
     expression: "Expression",
     result: "Résultat",
+    submit: "Enregistrer le calcul",
     compareUnits: "Comparer les unités",
     decimalForm: "Décimal",
     exactForm: "Exact",
@@ -252,7 +260,7 @@ async function typeExpression(page, lang, text) {
 }
 
 async function submitExpression(page, lang) {
-  await page.getByLabel(LABELS[lang].result).first().click();
+  await page.getByLabel(LABELS[lang].submit).first().click();
   await sleep(700);
 }
 

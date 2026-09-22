@@ -5,6 +5,7 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import { AppLanguage, isAppLanguage, LANGUAGE_META, resolveDeviceLanguage } from "@/lib/i18n";
 import { UNIT_GROUP_NAMES } from "@/lib/unit-group-names";
 import { resolveDefaultMeasuringStandard, resolveDefaultUnitSystem } from "@/lib/locale-defaults";
+import { DEFAULT_RESULT_DIGITS, parseStoredResultDigits } from "@/lib/result-digits";
 import { isMeasuringStandard, MeasuringStandard, setMeasuringStandard as applyMeasuringStandard, UnitSystem } from "@/lib/units";
 
 // AppLanguage の唯一の定義は lib/i18n.ts。既存のimport元（他ファイルが
@@ -54,17 +55,9 @@ const ONBOARDING_SEEN_KEY = "si-unit-calculator.onboarding-seen.v1";
 const MEASURING_STANDARD_KEY = "si-unit-calculator.measuring-standard.v1";
 const RESULT_DIGITS_KEY = "si-unit-calculator.result-digits.v1";
 
-/** 設定タブで選べる上限。10は MAX_DISPLAY_DIGITS と同じ＝従来どおり（上限なしに相当）。 */
-export const RESULT_DIGITS_OPTIONS = [4, 6, 8, 10] as const;
-/**
- * 既定は6桁。利用者の指示。**10桁のまま出すと、丸めが効かない手順（有効1桁の入力しか
- * 無い・桁が読めない）で `3.677749375 kW` のような数字が並ぶ**（プリセット376手順のうち91件）。
- */
-export const DEFAULT_RESULT_DIGITS = 6;
-
-function isResultDigits(value: unknown): value is number {
-  return typeof value === "number" && (RESULT_DIGITS_OPTIONS as readonly number[]).includes(value);
-}
+// 選択肢・既定値・保存値の読み戻しは lib/result-digits.ts（Reactに依存しない純データ）にある。
+// 画面（app/(tabs)/settings.tsx）が今までどおりここから引けるよう再exportしておく。
+export { DEFAULT_RESULT_DIGITS, RESULT_DIGITS_OPTIONS } from "@/lib/result-digits";
 
 // 英語のキー集合を正にして、他の言語は同じキーが全部揃っていないと型エラーにする。
 // COPY 全体を satisfies Record<AppLanguage, Record<string, string>> とするとキー漏れをその場で検出できず、
@@ -118,8 +111,9 @@ const EN_COPY = {
   measuringStandard: "Cup & spoon standard",
   measuringStandardHint: "Sets the actual size used for cup, tbsp, and tsp everywhere in the app.",
   resultDigits: "Digits shown",
-  resultDigitsHint: "Caps how many significant digits a result may show. Significant-figure rounding still applies when it can be read from the expression; this only stops long raw values like 3.677493750.",
+  resultDigitsHint: "Caps how many significant digits a result may show. Significant-figure rounding still applies when it can be read from the expression; this only stops long raw values like 3.677493750. When a result is cut short, the untrimmed value is shown underneath it. Pick “No limit” for numbers that need more than 10 digits — raw floating-point values such as 0.30000000000000004 will then show in full.",
   resultDigitsOption: "{count} digits",
+  resultDigitsUnlimited: "No limit",
   standardUSShort: "US",
   standardJISShort: "JIS",
   standardUS: "US customary (cup ≈ 236.6 mL)",
@@ -227,8 +221,9 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     measuringStandard: "カップ・大さじ・小さじの規格",
     measuringStandardHint: "アプリ内すべてのカップ・大さじ・小さじの実際の量をまとめて切り替えます。",
     resultDigits: "表示する桁数",
-    resultDigitsHint: "結果に出す有効数字の上限です。式から桁が読めるときは有効数字の丸めがそのまま効き、ここで止まるのは `3.677493750` のような長い生値だけです。",
+    resultDigitsHint: "結果に出す有効数字の上限です。式から桁が読めるときは有効数字の丸めがそのまま効き、ここで止まるのは `3.677493750` のような長い生値だけです。切り詰めたときは、切り詰めていない値をその下に小さく添えます。10桁を超える数を扱うときは「丸めなし」を選んでください（倍精度の素の値がそのまま出るので `0.1 + 0.2` は `0.30000000000000004` になります）。",
     resultDigitsOption: "{count}桁",
+    resultDigitsUnlimited: "丸めなし",
     standardUSShort: "米国",
     standardJISShort: "JIS",
     standardUS: "米国基準（カップ ≈ 236.6mL）",
@@ -321,8 +316,9 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     measuringStandard: "Estándar de taza y cuchara",
     measuringStandardHint: "Define el tamaño real que se usa para taza, cucharada y cucharadita en toda la app.",
     resultDigits: "Dígitos mostrados",
-    resultDigitsHint: "Limita cuántas cifras significativas puede mostrar un resultado. El redondeo por cifras significativas sigue aplicándose cuando se puede leer de la expresión; esto solo corta valores largos como 3,677493750.",
+    resultDigitsHint: "Limita cuántas cifras significativas puede mostrar un resultado. El redondeo por cifras significativas sigue aplicándose cuando se puede leer de la expresión; esto solo corta valores largos como 3,677493750. Cuando un resultado se corta, debajo aparece el valor sin cortar. Elige «Sin límite» para números de más de 10 cifras: entonces se muestran los valores brutos en coma flotante, como 0,30000000000000004.",
     resultDigitsOption: "{count} dígitos",
+    resultDigitsUnlimited: "Sin límite",
     standardUSShort: "EE. UU.",
     standardJISShort: "JIS",
     standardUS: "Habitual de EE. UU. (taza ≈ 236,6 mL)",
@@ -415,8 +411,9 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     measuringStandard: "Padrão de xícara e colher",
     measuringStandardHint: "Define o tamanho real usado para xícara, colher de sopa e colher de chá em todo o app.",
     resultDigits: "Dígitos exibidos",
-    resultDigitsHint: "Limita quantos algarismos significativos um resultado pode exibir. O arredondamento por algarismos significativos continua valendo quando pode ser lido da expressão; isto só corta valores longos como 3,677493750.",
+    resultDigitsHint: "Limita quantos algarismos significativos um resultado pode exibir. O arredondamento por algarismos significativos continua valendo quando pode ser lido da expressão; isto só corta valores longos como 3,677493750. Quando um resultado é cortado, o valor sem corte aparece logo abaixo. Escolha «Sem limite» para números com mais de 10 algarismos: aí os valores brutos de ponto flutuante aparecem por inteiro, como 0,30000000000000004.",
     resultDigitsOption: "{count} dígitos",
+    resultDigitsUnlimited: "Sem limite",
     standardUSShort: "EUA",
     standardJISShort: "JIS",
     standardUS: "Padrão dos EUA (xícara ≈ 236,6 mL)",
@@ -509,8 +506,9 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     measuringStandard: "Tassen- und Löffelstandard",
     measuringStandardHint: "Legt die tatsächliche Größe fest, die überall in der App für Tasse, Esslöffel und Teelöffel verwendet wird.",
     resultDigits: "Angezeigte Stellen",
-    resultDigitsHint: "Begrenzt, wie viele signifikante Stellen ein Ergebnis anzeigen darf. Die Rundung auf signifikante Stellen greift weiterhin, wenn sie aus dem Ausdruck ablesbar ist; hier werden nur lange Rohwerte wie 3,677493750 abgeschnitten.",
+    resultDigitsHint: "Begrenzt, wie viele signifikante Stellen ein Ergebnis anzeigen darf. Die Rundung auf signifikante Stellen greift weiterhin, wenn sie aus dem Ausdruck ablesbar ist; hier werden nur lange Rohwerte wie 3,677493750 abgeschnitten. Wird ein Ergebnis gekürzt, steht der ungekürzte Wert darunter. Für Zahlen mit mehr als 10 Stellen „Ohne Begrenzung“ wählen – dann erscheinen Gleitkomma-Rohwerte wie 0,30000000000000004 vollständig.",
     resultDigitsOption: "{count} Stellen",
+    resultDigitsUnlimited: "Ohne Begrenzung",
     standardUSShort: "USA",
     standardJISShort: "JIS",
     standardUS: "US-Standard (Tasse ≈ 236,6 mL)",
@@ -603,8 +601,9 @@ const COPY: Record<AppLanguage, Record<TranslationKey, string>> = {
     measuringStandard: "Norme de tasse et cuillère",
     measuringStandardHint: "Définit la contenance réelle utilisée pour tasse, cuillère à soupe et cuillère à café dans toute l'app.",
     resultDigits: "Chiffres affichés",
-    resultDigitsHint: "Limite le nombre de chiffres significatifs qu'un résultat peut afficher. L'arrondi aux chiffres significatifs s'applique toujours lorsqu'il est lisible dans l'expression ; seules les valeurs brutes longues comme 3,677493750 sont coupées ici.",
+    resultDigitsHint: "Limite le nombre de chiffres significatifs qu'un résultat peut afficher. L'arrondi aux chiffres significatifs s'applique toujours lorsqu'il est lisible dans l'expression ; seules les valeurs brutes longues comme 3,677493750 sont coupées ici. Lorsqu'un résultat est coupé, la valeur non coupée apparaît en dessous. Choisissez « Sans limite » pour les nombres de plus de 10 chiffres : les valeurs brutes en virgule flottante s'affichent alors en entier, comme 0,30000000000000004.",
     resultDigitsOption: "{count} chiffres",
+    resultDigitsUnlimited: "Sans limite",
     standardUSShort: "É.-U.",
     standardJISShort: "JIS",
     standardUS: "Norme américaine (tasse ≈ 236,6 mL)",
@@ -704,8 +703,7 @@ export function GlobalSettingsProvider({ children }: { children: ReactNode }) {
         const resolvedStandard = savedStandard ?? resolveDefaultMeasuringStandard(deviceLocale, resolvedLanguage);
         applyMeasuringStandard(resolvedStandard);
         setMeasuringStandardState(resolvedStandard);
-        const savedDigits = Number(storedResultDigits);
-        setResultDigitsState(isResultDigits(savedDigits) ? savedDigits : DEFAULT_RESULT_DIGITS);
+        setResultDigitsState(parseStoredResultDigits(storedResultDigits));
       })
       .catch(() => undefined)
       .finally(() => setIsReady(true));

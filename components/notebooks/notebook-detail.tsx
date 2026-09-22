@@ -787,6 +787,11 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                           {displayRawValue ? `${displayRawValue} · ` : ""}
                           {copy.significantDigits.replace("{count}", String(displayDigits))}
                         </Text>
+                      ) : displayRawValue ? (
+                        // 有効数字の丸めが効かない手順では、値を変えているのは表示桁の上限
+                        // （設定タブの resultDigits）だけ。桁数の但し書きは無いが、切り詰めて
+                        // いない値は同じ形で見せる（4桁だとちょうどの値と見分けられないため）。
+                        <Text style={styles.resultRawValue}>{displayRawValue}</Text>
                       ) : null}
                       {displayError ? <Text style={styles.resultWarning}>{displayError}</Text> : null}
                     </>

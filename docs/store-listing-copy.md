@@ -316,7 +316,7 @@ OFF YOUR OWN NUMBERS` のような凝った文から、節の中身が分かる�
   第一検索語がそのまま入らない言語があったため、宣言文に軽く組み込み直している
   （例: `UnitCalc ist ein Einheitenrechner: Er rechnet mit den Einheiten...`）。
 
-### English（2,929字）
+### English（2,931字）
 
 ```
 UnitCalc is a unit calculator that computes with the units, not just the numbers.
@@ -340,7 +340,7 @@ EXACT VALUES (FRACTIONS, π, √)
 Results can display as fractions, or as multiples of π or √, instead of decimals: 1/3 stays 1/3, 2*pi*50 becomes 100π, sqrt(8) becomes 2√2.
 
 YOUR OWN UNITS AND CONSTANTS
-Define your own units (shaku = 0.303m). Save constants like W = 3cm and use them directly in any expression.
+Define your own units (shaku = 0.303m). Save constants like R = 4.7kΩ and use them directly in any expression.
 
 FORMULA NOTEBOOKS
 Save a formula once, then reuse it for any unit-aware calculation just by plugging in new values.
@@ -363,7 +363,7 @@ UnitCalc Pro is a one-time purchase that removes ads, exports your history as CS
 No account to create. Your calculations, notebooks and custom units stay on your device.
 ```
 
-### 日本語（1,285字）
+### 日本語（1,287字）
 
 ```
 UnitCalc は、数字だけでなく単位を含めて計算できる電卓です。
@@ -387,7 +387,7 @@ UnitCalc は、数字だけでなく単位を含めて計算できる電卓で�
 結果を、小数ではなく分数やπ・√の形でも表示できます。1/3 は 1/3 のまま、2*pi*50 は 100π、sqrt(8) は 2√2 になります。
 
 自分の単位と定数
-独自の単位も登録できます（shaku = 0.303m）。W = 3cm のように任意の定数も保存でき、式の中でそのまま使えます。
+独自の単位も登録できます（shaku = 0.303m）。R = 4.7kΩ のように任意の定数も保存でき、式の中でそのまま使えます。
 
 計算ノート
 数式を1つ登録しておけば、値を入れ替えるだけで複雑な単位付き計算をいつでも再利用できます。
@@ -409,7 +409,7 @@ UnitCalc Pro（買い切り）を購入すると、広告が非表示になり�
 
 ```
 
-### Español（3,213字）
+### Español（3,215字）
 
 ```
 UnitCalc es una calculadora con unidades: calcula con las unidades, no solo con los números.
@@ -433,7 +433,7 @@ VALORES EXACTOS (FRACCIONES, π, √)
 Un resultado puede mostrarse como fracción, o como múltiplo de π o de √, en lugar de decimal: 1/3 sigue siendo 1/3, 2*pi*50 pasa a 100π, sqrt(8) pasa a 2√2.
 
 TUS UNIDADES Y TUS CONSTANTES
-Define tus propias unidades (shaku = 0.303m). Guarda constantes como W = 3cm y reutilízalas directamente en cualquier expresión.
+Define tus propias unidades (shaku = 0.303m). Guarda constantes como R = 4.7kΩ y reutilízalas directamente en cualquier expresión.
 
 CUADERNOS QUE CALCULAN
 Guarda una fórmula una vez y reutilízala para cualquier cálculo con unidades con solo cambiar los valores.
@@ -456,7 +456,7 @@ UnitCalc Pro se compra una sola vez. Quita la publicidad, exporta el historial e
 Sin cuenta que crear. Tus cálculos, tus cuadernos y tus unidades se quedan en el dispositivo.
 ```
 
-### Español (Latinoamérica)（3,379字）
+### Español (Latinoamérica)（3,381字）
 
 ```
 UnitCalc es una calculadora con unidades: calcula con las unidades, no solo con los números.
@@ -480,7 +480,7 @@ VALORES EXACTOS (FRACCIONES, π, √)
 Un resultado puede mostrarse como fracción, o como múltiplo de π o de √, en lugar de decimal: 1/3 sigue siendo 1/3, 2*pi*50 pasa a 100π, sqrt(8) pasa a 2√2.
 
 TUS UNIDADES Y TUS CONSTANTES
-Define tus propias unidades (shaku = 0.303m). Guarda constantes como W = 3cm y reutilízalas directamente en cualquier expresión.
+Define tus propias unidades (shaku = 0.303m). Guarda constantes como R = 4.7kΩ y reutilízalas directamente en cualquier expresión.
 
 CUADERNOS QUE CALCULAN
 Guarda una fórmula una vez y reutilízala para cualquier cálculo con unidades con solo cambiar los valores.
@@ -503,7 +503,7 @@ UnitCalc Pro se compra una sola vez. Quita la publicidad, exporta el historial e
 Sin cuenta que crear. Tus cálculos, tus cuadernos y tus unidades se quedan en el dispositivo.
 ```
 
-### Português (Brasil)（3,199字）
+### Português (Brasil)（3,201字）
 
 ```
 O UnitCalc é uma calculadora de unidades: calcula com as unidades, não só com os números.
@@ -527,7 +527,7 @@ VALORES EXATOS (FRAÇÕES, π, √)
 Um resultado pode aparecer como fração, ou como múltiplo de π ou de √, em vez de decimal: 1/3 continua 1/3, 2*pi*50 vira 100π, sqrt(8) vira 2√2.
 
 SUAS UNIDADES E SUAS CONSTANTES
-Defina suas próprias unidades (shaku = 0.303m). Salve constantes como W = 3cm e use de novo em qualquer expressão.
+Defina suas próprias unidades (shaku = 0.303m). Salve constantes como R = 4.7kΩ e use de novo em qualquer expressão.
 
 CADERNOS QUE CALCULAM
 Salve uma fórmula uma vez e reutilize para qualquer conta com unidades só trocando os valores.
@@ -550,7 +550,7 @@ O UnitCalc Pro é uma compra única. Ele tira os anúncios, exporta o histórico
 Sem conta para criar. Seus cálculos, seus cadernos e suas unidades ficam no aparelho.
 ```
 
-### Deutsch（3,227字）
+### Deutsch（3,229字）
 
 ```
 UnitCalc ist ein Einheitenrechner: Er rechnet mit den Einheiten, nicht nur mit den Zahlen.
@@ -574,7 +574,7 @@ EXAKTE WERTE (BRÜCHE, π, √)
 Ergebnisse lassen sich als Bruch oder als Vielfaches von π oder √ anzeigen, statt als Dezimalzahl: 1/3 bleibt 1/3, aus 2*pi*50 wird 100π, aus sqrt(8) wird 2√2.
 
 EIGENE EINHEITEN UND KONSTANTEN
-Lege eigene Einheiten an (shaku = 0.303m). Speichere Konstanten wie W = 3cm und nutze sie direkt in jedem Ausdruck.
+Lege eigene Einheiten an (shaku = 0.303m). Speichere Konstanten wie R = 4.7kΩ und nutze sie direkt in jedem Ausdruck.
 
 RECHENHEFTE
 Speichere eine Formel einmal und nutze sie danach für jede Rechnung mit Einheiten wieder, indem du nur neue Werte einträgst.
@@ -597,7 +597,7 @@ UnitCalc Pro kaufst du einmal. Es entfernt die Werbung, exportiert den Verlauf a
 Ein Konto brauchst du nicht. Deine Rechnungen, Rechenhefte und eigenen Einheiten bleiben auf dem Gerät.
 ```
 
-### Français（3,412字）
+### Français（3,414字）
 
 ```
 UnitCalc est une calculatrice et un convertisseur d'unités : il calcule avec les unités, pas seulement avec les nombres.
@@ -621,7 +621,7 @@ VALEURS EXACTES (FRACTIONS, π, √)
 Un résultat peut s'afficher en fraction, ou comme un multiple de π ou de √, plutôt qu'en décimal : 1/3 reste 1/3, 2*pi*50 devient 100π, sqrt(8) devient 2√2.
 
 VOS UNITÉS ET VOS CONSTANTES
-Définissez vos propres unités (shaku = 0.303m). Enregistrez des constantes comme W = 3cm et réutilisez-les directement dans n'importe quelle expression.
+Définissez vos propres unités (shaku = 0.303m). Enregistrez des constantes comme R = 4.7kΩ et réutilisez-les directement dans n'importe quelle expression.
 
 DES CARNETS QUI CALCULENT
 Enregistrez une formule une fois, puis réutilisez-la pour tout calcul avec unités en changeant simplement les valeurs.

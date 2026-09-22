@@ -5,6 +5,7 @@ import { localizedText } from "../lib/i18n";
 import { evaluateNotebookSteps, resolveNotebookLocalConstants } from "../lib/notebook-engine";
 import { PRESET_NOTEBOOK_SEEDS } from "../lib/notebook-formulas";
 import { buildNotebookExportModel, notebookStepSignificantDigits, resolveNotebookStepDisplay, notebookWithDraftValues } from "../lib/notebook-export-model";
+import { RESULT_DIGITS_UNLIMITED } from "../lib/units";
 
 const NOW = "2026-01-01T00:00:00.000Z";
 
@@ -368,5 +369,33 @@ describe("表示する桁数の上限（PDFと画面をそろえる）", () => {
     // 定格 5PS の出力は有効1桁で丸めが効かないので、上限だけが桁を決める。
     expect(withoutCap.steps[0].resultText).toBe("3.67749375 kW");
     expect(withCap.steps[0].resultText).toBe("3.67749 kW");
+  });
+});
+
+// 有効数字の丸めが効かない手順（式から桁が読めない・有効1桁）では、値を変えているのは
+// 表示桁の上限だけ。4桁にしているとちょうどの値と見分けられないので、切り詰めていない値を
+// rawValue で返し、画面とPDFが有効数字のときと同じ形で小さく併記できるようにする。
+describe("表示桁の上限で切り詰めたときの元の値", () => {
+  const step = (expression: string, targetUnit = ""): CalculationNoteStep => ({
+    id: "s", title: "", expression, targetUnit,
+  });
+  const resultFor = (expression: string, targetUnit = "", maxDigits?: number) =>
+    evaluateNotebookSteps([step(expression, targetUnit)], [], "ja", [], "ja-JP", maxDigits)[0];
+
+  it("切り詰めたときは rawValue に上限なしの値が入る", () => {
+    const display = resolveNotebookStepDisplay(resultFor("5PS", "kW", 4), undefined, "metric", "ja-JP", null, 4);
+    expect(display.value).toBe("3.677 kW");
+    expect(display.rawValue).toBe("3.67749375 kW");
+  });
+
+  it("桁が足りている値には付かない（丸めていないのに丸めたように見せない）", () => {
+    const display = resolveNotebookStepDisplay(resultFor("2m + 3m", "m", 4), undefined, "metric", "ja-JP", null, 4);
+    expect(display.value).toBe("5 m");
+    expect(display.rawValue).toBeUndefined();
+  });
+
+  it("「丸めなし」では切り詰めが起きないので付かない", () => {
+    const display = resolveNotebookStepDisplay(resultFor("5PS", "kW", RESULT_DIGITS_UNLIMITED), undefined, "metric", "ja-JP", null, RESULT_DIGITS_UNLIMITED);
+    expect(display.rawValue).toBeUndefined();
   });
 });

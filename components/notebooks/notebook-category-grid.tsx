@@ -5,6 +5,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
+import { useKeyboardHeight } from "@/hooks/use-keyboard-height";
 import { UNCATEGORIZED_CATEGORY_ID, type CalculationNotebook, type NotebookCategory } from "@/lib/calculator-store";
 import { localizedText, type AppLanguage } from "@/lib/i18n";
 import { categoryExportHasContent, collectExportCategoryIds } from "@/lib/notebook-category-export";
@@ -80,6 +81,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
 
 export function NotebookCategoryGrid({ language, notebooks, notebookCategories, parentCategoryId, onSelectCategory, onSelectParentCategory, onBack, onCreateCategory, onRenameCategory, onDeleteCategory, onExportCategory }: Props) {
   const colors = useColors();
+  const keyboardHeight = useKeyboardHeight();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [promptVisible, setPromptVisible] = useState(false);
   const [promptValue, setPromptValue] = useState("");
@@ -198,7 +200,11 @@ export function NotebookCategoryGrid({ language, notebooks, notebookCategories, 
       </ScrollView>
 
       <Modal visible={promptVisible} transparent animationType="fade" onRequestClose={() => setPromptVisible(false)}>
-        <View style={styles.promptBackdrop}>
+        {/* **Modal は Android の adjustResize が効くウィンドウの外に出る**ので、`autoFocus` で
+            上がったキーボードが画面の下半分を覆ってもこのダイアログは画面の中央に居座り、背の低い
+            端末では入力欄と保存ボタンがキーボードの裏に入る。**残りの高さの中で中央に置く**ように、
+            キーボードのぶんだけ下を詰める（下から出るシートと同じ考え方）。 */}
+        <View style={[styles.promptBackdrop, keyboardHeight > 0 && { marginBottom: keyboardHeight }]}>
           <View style={styles.promptCard}>
             <Text style={styles.promptTitle}>{editingCategoryId ? copy.rename : copy.newCategory}</Text>
             <TextInput autoFocus value={promptValue} onChangeText={setPromptValue} placeholder={copy.categoryName} placeholderTextColor={colors.placeholder} style={styles.promptInput} onSubmitEditing={submitPrompt} returnKeyType="done" />
