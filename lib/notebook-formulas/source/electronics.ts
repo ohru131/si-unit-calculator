@@ -22,8 +22,8 @@ export const ELECTRONICS_SEEDS: NotebookSeed[] = [
     localConstants: [
       { symbol: "R", expression: "47kΩ" },
       { symbol: "C", expression: "100µF" },
-      { symbol: "Vₛ", expression: "5V" },
-      { symbol: "Vₜ", expression: "3V" },
+      { symbol: "Vₛ", expression: "5.0V" },
+      { symbol: "Vₜ", expression: "3.0V" },
     ],
     steps: [
       { title: { en: "Time constant τ", ja: "時定数 τ", es: "Constante de tiempo τ", "pt-BR": "Constante de tempo τ", de: "Zeitkonstante τ", fr: "Constante de temps τ" }, expression: "R*C", targetUnit: "s", formulaLatex: "\\tau = RC" },
@@ -35,7 +35,7 @@ export const ELECTRONICS_SEEDS: NotebookSeed[] = [
     title: { en: "Three resistors in series, parallel and mixed", ja: "抵抗3本の直列・並列・混合合成", es: "Tres resistencias en serie, en paralelo y en combinación mixta", "pt-BR": "Três resistores em série, em paralelo e em associação mista", de: "Drei Widerstände in Reihe, parallel und gemischt", fr: "Trois résistances en série, en parallèle et en montage mixte" },
     description: { en: "Compute the combined resistance of three resistors wired in series, wired all in parallel, and wired as two in parallel followed by the third in series.", ja: "3本の抵抗値から、すべて直列にした場合・すべて並列にした場合・2本を並列にして3本目を直列にした場合の合成抵抗をそれぞれ求めます。", es: "Calcula la resistencia equivalente de tres resistencias conectadas todas en serie, todas en paralelo, y con dos en paralelo seguidas de la tercera en serie.", "pt-BR": "Calcule a resistência equivalente de três resistores ligados todos em série, todos em paralelo, e com dois em paralelo seguidos do terceiro em série.", de: "Berechnet den Ersatzwiderstand von drei Widerständen, wenn alle in Reihe geschaltet sind, wenn alle parallel geschaltet sind und wenn zwei parallel geschaltet sind und der dritte dazu in Reihe liegt.", fr: "Calculer la résistance équivalente de trois résistances montées toutes en série, toutes en parallèle, puis deux en parallèle suivies de la troisième en série." },
     localConstants: [
-      { symbol: "R₁", expression: "1kΩ" },
+      { symbol: "R₁", expression: "1.0kΩ" },
       { symbol: "R₂", expression: "2.2kΩ" },
       { symbol: "R₃", expression: "4.7kΩ" },
     ],
@@ -79,7 +79,7 @@ export const ELECTRONICS_SEEDS: NotebookSeed[] = [
     title: { en: "Capacitive and inductive reactance", ja: "容量リアクタンスと誘導リアクタンス", es: "Reactancia capacitiva e inductiva", "pt-BR": "Reatância capacitiva e indutiva", de: "Kapazitiver und induktiver Blindwiderstand", fr: "Réactance capacitive et inductive" },
     description: { en: "Compute the reactance of a capacitor and of an inductor at a given frequency, and the net reactance when the two are in series.", ja: "ある周波数でのコンデンサとコイルのリアクタンスを求め、両者を直列にしたときの合成リアクタンスを計算します。", es: "Calcula la reactancia de un condensador y la de una bobina a una frecuencia dada, y la reactancia resultante cuando ambos están en serie.", "pt-BR": "Calcule a reatância de um capacitor e a de um indutor em uma frequência dada, e a reatância resultante quando os dois estão em série.", de: "Berechnet den Blindwiderstand eines Kondensators und einer Spule bei einer gegebenen Frequenz sowie den resultierenden Blindwiderstand, wenn beide in Reihe liegen.", fr: "Calculer la réactance d'un condensateur et celle d'une bobine à une fréquence donnée, ainsi que la réactance résultante lorsque les deux sont en série." },
     localConstants: [
-      { symbol: "f", expression: "1kHz" },
+      { symbol: "f", expression: "1.0kHz" },
       { symbol: "C", expression: "100nF" },
       { symbol: "L", expression: "10mH" },
     ],
@@ -105,12 +105,12 @@ export const ELECTRONICS_SEEDS: NotebookSeed[] = [
   },
   {
     title: { en: "Resistor power dissipation and derating", ja: "抵抗の消費電力とディレーティング", es: "Potencia disipada en una resistencia y reducción de régimen (derating)", "pt-BR": "Potência dissipada em um resistor e derating (redução de regime)", de: "Verlustleistung eines Widerstands und Derating (Leistungsminderung)", fr: "Puissance dissipée dans une résistance et déclassement (derating)" },
-    description: { en: "Compute the power a resistor dissipates from the current through it, how much of its rating that uses, and the largest current allowed if you limit it to a given fraction of the rating (δ = 0.5 means using at most half the rated power).", ja: "抵抗に流れる電流から消費電力を求め、定格に対する使用率と、定格の何割かに抑えて使う場合に流せる最大電流を計算します（δ=0.5なら定格電力の半分までで使う、という意味です）。", es: "Calcula la potencia que disipa una resistencia a partir de la corriente que circula por ella, qué parte de su valor nominal supone eso y la corriente máxima admisible si te limitas a una fracción dada del valor nominal (δ = 0,5 significa usar como mucho la mitad de la potencia nominal).", "pt-BR": "Calcule a potência que um resistor dissipa a partir da corrente que passa por ele, que parcela do valor nominal isso representa e a corrente máxima permitida se você se limitar a uma fração dada do valor nominal (δ = 0,5 significa usar no máximo metade da potência nominal).", de: "Berechnet die Verlustleistung eines Widerstands aus dem Strom durch ihn, welchen Anteil des Nennwerts das ausmacht und den größten zulässigen Strom, wenn man sich auf einen vorgegebenen Anteil des Nennwerts beschränkt (δ = 0,5 bedeutet, höchstens die halbe Nennleistung zu nutzen).", fr: "Calculer la puissance dissipée par une résistance à partir du courant qui la traverse, la part de sa valeur nominale que cela représente et le courant maximal admissible si l'on se limite à une fraction donnée de la valeur nominale (δ = 0,5 signifie n'utiliser au plus que la moitié de la puissance nominale)." },
+    description: { en: "Compute the power a resistor dissipates from the current through it, how much of its rating that uses, and the largest current allowed if you limit it to a given fraction of the rating (δ = 0.50 means using at most half the rated power).", ja: "抵抗に流れる電流から消費電力を求め、定格に対する使用率と、定格の何割かに抑えて使う場合に流せる最大電流を計算します（δ=0.50なら定格電力の半分までで使う、という意味です）。", es: "Calcula la potencia que disipa una resistencia a partir de la corriente que circula por ella, qué parte de su valor nominal supone eso y la corriente máxima admisible si te limitas a una fracción dada del valor nominal (δ = 0,50 significa usar como mucho la mitad de la potencia nominal).", "pt-BR": "Calcule a potência que um resistor dissipa a partir da corrente que passa por ele, que parcela do valor nominal isso representa e a corrente máxima permitida se você se limitar a uma fração dada do valor nominal (δ = 0,50 significa usar no máximo metade da potência nominal).", de: "Berechnet die Verlustleistung eines Widerstands aus dem Strom durch ihn, welchen Anteil des Nennwerts das ausmacht und den größten zulässigen Strom, wenn man sich auf einen vorgegebenen Anteil des Nennwerts beschränkt (δ = 0,50 bedeutet, höchstens die halbe Nennleistung zu nutzen).", fr: "Calculer la puissance dissipée par une résistance à partir du courant qui la traverse, la part de sa valeur nominale que cela représente et le courant maximal admissible si l'on se limite à une fraction donnée de la valeur nominale (δ = 0,50 signifie n'utiliser au plus que la moitié de la puissance nominale)." },
     localConstants: [
       { symbol: "I", expression: "30mA" },
       { symbol: "R", expression: "100Ω" },
       { symbol: "Pₘₐₓ", expression: "0.25W" },
-      { symbol: "δ", expression: "0.5" },
+      { symbol: "δ", expression: "0.50" },
     ],
     steps: [
       { title: { en: "Dissipated power P", ja: "消費電力 P", es: "Potencia disipada P", "pt-BR": "Potência dissipada P", de: "Verlustleistung P", fr: "Puissance dissipée P" }, expression: "I^2*R", targetUnit: "mW", formulaLatex: "P = I^2 R" },
@@ -136,7 +136,7 @@ export const SOLAR_SEEDS: NotebookSeed[] = [
     steps: [
       { title: { en: "Daily energy", ja: "1日の消費電力量", es: "Energía diaria", "pt-BR": "Energia diária", de: "Tagesenergie", fr: "Énergie journalière" }, expression: "P₁*t₁+P₂*t₂+P₃*t₃", targetUnit: "Wh", formulaLatex: "E_{day} = P_1 t_1 + P_2 t_2 + P_3 t_3" },
       { title: { en: "Monthly energy (30 days)", ja: "1か月（30日）の消費電力量", es: "Energía mensual (30 días)", "pt-BR": "Energia mensal (30 dias)", de: "Monatsenergie (30 Tage)", fr: "Énergie mensuelle (30 jours)" }, expression: "(P₁*t₁+P₂*t₂+P₃*t₃)*30", targetUnit: "kWh", formulaLatex: "E_{month} = 30 (P_1 t_1 + P_2 t_2 + P_3 t_3)" },
-      { title: { en: "Average continuous power", ja: "平均消費電力", es: "Potencia media continua", "pt-BR": "Potência média contínua", de: "Mittlere Dauerleistung", fr: "Puissance moyenne continue" }, expression: "(P₁*t₁+P₂*t₂+P₃*t₃)/1d", targetUnit: "W", formulaLatex: "P_{avg} = \\dfrac{P_1 t_1 + P_2 t_2 + P_3 t_3}{1\\,\\mathrm{d}}" },
+      { title: { en: "Average continuous power", ja: "平均消費電力", es: "Potencia media continua", "pt-BR": "Potência média contínua", de: "Mittlere Dauerleistung", fr: "Puissance moyenne continue" }, expression: "(P₁*t₁+P₂*t₂+P₃*t₃)/d", targetUnit: "W", formulaLatex: "P_{avg} = \\dfrac{P_1 t_1 + P_2 t_2 + P_3 t_3}{1\\,\\mathrm{d}}" },
     ],
   },
   {
@@ -159,8 +159,8 @@ export const SOLAR_SEEDS: NotebookSeed[] = [
     localConstants: [
       { symbol: "E", expression: "2000Wh" },
       { symbol: "D", expression: "2", exact: true },
-      { symbol: "DoD", expression: "0.5" },
-      { symbol: "η", expression: "0.9" },
+      { symbol: "DoD", expression: "0.50" },
+      { symbol: "η", expression: "0.90" },
       { symbol: "V", expression: "24V" },
     ],
     steps: [
@@ -174,7 +174,7 @@ export const SOLAR_SEEDS: NotebookSeed[] = [
     description: { en: "Compute how long a panel takes to fill a battery from the panel power, the battery capacity and voltage, and a charging efficiency.", ja: "パネルの出力・蓄電池の容量と電圧・充電効率から、蓄電池を満充電にするまでの時間を求めます。", es: "Calcula cuánto tarda un panel en cargar por completo una batería a partir de la potencia del panel, la capacidad y el voltaje de la batería, y un rendimiento de carga.", "pt-BR": "Calcule quanto tempo um painel leva para carregar totalmente uma bateria a partir da potência do painel, da capacidade e da tensão da bateria, e de um rendimento de carga.", de: "Berechnet, wie lange ein Modul braucht, um eine Batterie vollzuladen, aus der Modulleistung, der Batteriekapazität, der Batteriespannung und einem Ladewirkungsgrad.", fr: "Calculer le temps que met un panneau à charger complètement une batterie à partir de la puissance du panneau, de la capacité et de la tension de la batterie, et d'un rendement de charge." },
     localConstants: [
       { symbol: "P", expression: "200W" },
-      { symbol: "η", expression: "0.8" },
+      { symbol: "η", expression: "0.80" },
       { symbol: "Q", expression: "100A*h" },
       { symbol: "V", expression: "12V" },
     ],
