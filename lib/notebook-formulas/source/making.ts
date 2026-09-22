@@ -169,13 +169,13 @@ export const DIY_SEEDS: NotebookSeed[] = [
     },
     localConstants: [
       { symbol: "l", expression: "1.2m" },
-      { symbol: "w", expression: "0.6m" },
+      { symbol: "w", expression: "0.60m" },
       { symbol: "h", expression: "0.28m" },
       { symbol: "ρ", expression: "1000kg/m^3" },
       // 水の比熱（15℃前後）。
       { symbol: "c", expression: "4186J/kg/K" },
       { symbol: "ΔT", expression: "25K" },
-      { symbol: "P", expression: "4kW" },
+      { symbol: "P", expression: "4.0kW" },
       // 電力量単価。妥当な値が通貨圏ごとに桁から違うので、投入時に端末の通貨に応じた値へ差し替える
       // （expression は通貨が判別できなかったときのフォールバック）。
       { symbol: "rate", expression: "31", regionalDefault: "electricityPerKWh" },
@@ -184,7 +184,7 @@ export const DIY_SEEDS: NotebookSeed[] = [
       { title: { en: "Water volume V", ja: "水の体積 V", es: "Volumen de agua V", "pt-BR": "Volume de água V", de: "Wasservolumen V", fr: "Volume d'eau V" }, expression: "l*w*h", targetUnit: "L", formulaLatex: "V = l w h" },
       { title: { en: "Heat needed Q", ja: "必要な熱量 Q", es: "Calor necesario Q", "pt-BR": "Calor necessário Q", de: "Benötigte Wärme Q", fr: "Chaleur nécessaire Q" }, expression: "ρ*l*w*h*c*ΔT", targetUnit: "kWh", formulaLatex: "Q = \\rho l w h \\, c \\, \\Delta T" },
       { title: { en: "Heating time t", ja: "加熱時間 t", es: "Tiempo de calentamiento t", "pt-BR": "Tempo de aquecimento t", de: "Aufheizzeit t", fr: "Durée de chauffe t" }, expression: "ρ*l*w*h*c*ΔT/P", targetUnit: "h", formulaLatex: "t = \\dfrac{\\rho l w h \\, c \\, \\Delta T}{P}" },
-      { title: { en: "Electricity cost", ja: "電気代", es: "Costo de electricidad", "pt-BR": "Custo de eletricidade", de: "Stromkosten", fr: "Coût de l'électricité" }, expression: "(ρ*l*w*h*c*ΔT/1kWh)*rate", targetUnit: "", formulaLatex: "\\text{cost} = \\dfrac{Q}{1\\text{kWh}} \\times \\text{rate}" },
+      { title: { en: "Electricity cost", ja: "電気代", es: "Costo de electricidad", "pt-BR": "Custo de eletricidade", de: "Stromkosten", fr: "Coût de l'électricité" }, expression: "(ρ*l*w*h*c*ΔT/kWh)*rate", targetUnit: "", formulaLatex: "\\text{cost} = \\dfrac{Q}{1\\text{kWh}} \\times \\text{rate}" },
     ],
   },
 ];
@@ -228,7 +228,7 @@ export const PRINTING_SEEDS: NotebookSeed[] = [
       { symbol: "d", expression: "1.75mm" },
       // PLAの密度。PETGは1.27、ABSは1.04g/cm³。
       { symbol: "ρ", expression: "1.24g/cm^3" },
-      { symbol: "mₛ", expression: "1kg" },
+      { symbol: "mₛ", expression: "1.00kg" },
       // 1kgスプールの価格。通貨単位は付けず、端末の地域から解決する
       // （日本円だけ桁が3つ違うので、裸の数値だと必ずどこかの通貨で事故る）。
       // expression は通貨が判別できなかったときのフォールバック。
@@ -237,7 +237,7 @@ export const PRINTING_SEEDS: NotebookSeed[] = [
     steps: [
       { title: { en: "Mass of that length m", ja: "その長さの質量 m", es: "Masa de esa longitud m", "pt-BR": "Massa desse comprimento m", de: "Masse dieser Länge m", fr: "Masse de cette longueur m" }, expression: "ρ*pi*d^2/4*L", targetUnit: "g", formulaLatex: "m = \\rho \\dfrac{\\pi d^2}{4} L" },
       { title: { en: "Length on a spool", ja: "スプールに巻かれている長さ", es: "Longitud que lleva una bobina", "pt-BR": "Comprimento em uma bobina", de: "Länge auf einer Rolle", fr: "Longueur sur une bobine" }, expression: "4*mₛ/(ρ*pi*d^2)", targetUnit: "m", formulaLatex: "L_{spool} = \\dfrac{4 m_s}{\\rho \\pi d^2}" },
-      { title: { en: "Material cost", ja: "材料費", es: "Costo del material", "pt-BR": "Custo do material", de: "Materialkosten", fr: "Coût matière" }, expression: "(ρ*pi*d^2/4*L/1kg)*price", targetUnit: "", formulaLatex: "\\text{cost} = \\dfrac{m}{1\\text{kg}} \\times \\text{price}" },
+      { title: { en: "Material cost", ja: "材料費", es: "Costo del material", "pt-BR": "Custo do material", de: "Materialkosten", fr: "Coût matière" }, expression: "(ρ*pi*d^2/4*L/kg)*price", targetUnit: "", formulaLatex: "\\text{cost} = \\dfrac{m}{1\\text{kg}} \\times \\text{price}" },
     ],
   },
   {
@@ -251,7 +251,7 @@ export const PRINTING_SEEDS: NotebookSeed[] = [
       fr: "Calculer le débit volumique que l'extrudeur doit fournir à partir de la hauteur de couche, de la largeur d'extrusion et de la vitesse d'impression, puis le comparer à la limite du hotend. Un hotend courant de classe E3D V6 fond environ 11 mm³/s de PLA à travers une buse de 0,4 mm (15 mm³/s annoncés dans des conditions idéales) ; les hotends à haut débit vont bien au-delà. Dépasser la limite ne provoque pas d'erreur : cela se traduit par de la sous-extrusion.",
     },
     localConstants: [
-      { symbol: "h", expression: "0.2mm" },
+      { symbol: "h", expression: "0.20mm" },
       { symbol: "w", expression: "0.45mm" },
       { symbol: "v", expression: "60mm/s" },
       // ホットエンドの最大体積流量。ノーマルのE3D V6でPLAが実用上11mm³/s前後
@@ -276,9 +276,9 @@ export const PRINTING_SEEDS: NotebookSeed[] = [
     },
     localConstants: [
       { symbol: "H", expression: "60mm" },
-      { symbol: "h", expression: "0.2mm" },
+      { symbol: "h", expression: "0.20mm" },
       { symbol: "tₗ", expression: "25s" },
-      { symbol: "t₀", expression: "5min" },
+      { symbol: "t₀", expression: "5.0min" },
     ],
     steps: [
       { title: { en: "Layer count n", ja: "積層数 n", es: "Número de capas n", "pt-BR": "Número de camadas n", de: "Schichtanzahl n", fr: "Nombre de couches n" }, expression: "H/h", targetUnit: "", formulaLatex: "n = \\dfrac{H}{h}" },

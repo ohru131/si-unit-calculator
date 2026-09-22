@@ -385,7 +385,7 @@ export const SCIENCE_ELECTRICITY_SEEDS: NotebookSeed[] = [
     ],
     steps: [
       { title: { en: "Energy used E", ja: "使用電力量 E", es: "Energía utilizada E", "pt-BR": "Energia utilizada E", de: "Verbrauchte Energie E", fr: "Énergie utilisée E" }, expression: "P*t", targetUnit: "kWh", formulaLatex: "E = Pt" },
-      { title: { en: "Cost", ja: "電気代", es: "Coste", "pt-BR": "Custo", de: "Kosten", fr: "Coût" }, expression: "(s1/1kWh)*rate", targetUnit: "", formulaLatex: "\\text{cost} = \\dfrac{E}{1\\text{kWh}} \\times \\text{rate}" },
+      { title: { en: "Cost", ja: "電気代", es: "Coste", "pt-BR": "Custo", de: "Kosten", fr: "Coût" }, expression: "(s1/kWh)*rate", targetUnit: "", formulaLatex: "\\text{cost} = \\dfrac{E}{1\\text{kWh}} \\times \\text{rate}" },
     ],
   },
 ];
