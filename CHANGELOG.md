@@ -4,7 +4,7 @@
 各PRは `## [Unreleased]` に1行足す。リリース時にその塊を `## [x.y.z] - YYYY-MM-DD` に改名し、同じコミットに `vx.y.z` の注釈付きタグを打つ。
 Play の「このバージョンの新機能」はここから写す。
 
-## [Unreleased]
+## [1.6.0] - 2026-09-22
 
 ### 変更
 - **グローバル定数まわりを電卓タブへ出し、結果の桁の見せ方を直した。** キーボードの `定数` パネルの鉛筆チップから定数を足す・直す・消せるようになり（編集フォームはライブラリタブと共用。値の欄は電卓と同じキーパッド・単位レールで打てるので `Ω`・`µ`・`²` も入る）、入力欄の右の `=` は役割どおりの保存アイコンになった。表示桁で切り詰めた値には切り詰めていない値を小さく併記し、設定の「表示する桁数」に「丸めなし」（`3333333333333` のような10桁を超える数のため）を足した。結果の「他 ›」はこの結果と同じ次元の単位を読み付きで並べるだけにしてある。
@@ -82,7 +82,8 @@ Play の「このバージョンの新機能」はここから写す。
 
 Google Play クローズドテストに提出した最初のビルド（Shipaton 2026）。
 
-[Unreleased]: https://github.com/ohru131/si-unit-calculator/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/ohru131/si-unit-calculator/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/ohru131/si-unit-calculator/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/ohru131/si-unit-calculator/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/ohru131/si-unit-calculator/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/ohru131/si-unit-calculator/compare/v1.2.0...v1.3.0
