@@ -12,13 +12,13 @@ describe("evaluateConstantDraft", () => {
   // 開いた瞬間に赤字が出ると、打ち始める前から間違いを指摘されることになる。
   it("空の欄では何も言わない（保存もできない）", () => {
     expect(evaluateConstantDraft("", "", [])).toMatchObject({ canSave: false, error: null, hasInvalidSymbol: false });
-    expect(evaluateConstantDraft("W1", "", [])).toMatchObject({ canSave: false, error: null });
+    expect(evaluateConstantDraft("R", "", [])).toMatchObject({ canSave: false, error: null });
     expect(evaluateConstantDraft("", "3cm", [])).toMatchObject({ canSave: false, error: null });
   });
 
   it("成立する下書きは値を返す", () => {
-    const draft = evaluateConstantDraft(" W1 ", " 3cm ", []);
-    expect(draft).toMatchObject({ symbol: "W1", expression: "3cm", canSave: true, error: null });
+    const draft = evaluateConstantDraft(" R ", " 3cm ", []);
+    expect(draft).toMatchObject({ symbol: "R", expression: "3cm", canSave: true, error: null });
     expect(formatQuantity(draft.quantity!, "cm", "en")).toBe("3 cm");
   });
 
@@ -50,7 +50,7 @@ describe("evaluateConstantDraft", () => {
   });
 
   it("式が評価できないときは理由を返す", () => {
-    const draft = evaluateConstantDraft("W1", "3cm + 2kg", []);
+    const draft = evaluateConstantDraft("R", "3cm + 2kg", []);
     expect(draft.canSave).toBe(false);
     expect((draft.error as UnitError).code).toBe("dimensionMismatchAddSubtract");
   });

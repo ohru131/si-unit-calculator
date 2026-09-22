@@ -41,7 +41,7 @@ const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "mon
 const EN_COPY = {
   notebooksTab: "Notebooks", constantsTab: "Global constants",
   delete: "Delete", cancel: "Cancel",
-  constantEmpty: "No constants yet", constantEmptyHint: "Store a reusable value such as W1 = 3cm.",
+  constantEmpty: "No constants yet", constantEmptyHint: "Store a reusable value such as R = 4.7kΩ.",
   constantNew: "New constant",
   deleteConfirm: "Delete this item? This cannot be undone.", validation: "Please fill in the required fields.",
   notebookNew: "New notebook", uncategorized: "Uncategorized",
@@ -55,7 +55,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   ja: {
       notebooksTab: "計算ノート", constantsTab: "グローバル定数",
     delete: "削除", cancel: "キャンセル",
-    constantEmpty: "定数はまだありません", constantEmptyHint: "例：W1 = 3cm のように、よく使う値を保存できます。",
+    constantEmpty: "定数はまだありません", constantEmptyHint: "例：R = 4.7kΩ のように、よく使う値を保存できます。",
     constantNew: "新しい定数",
     deleteConfirm: "この項目を削除しますか？元に戻せません。", validation: "必須項目を入力してください。",
     notebookNew: "新しい計算ノート", uncategorized: "未分類",
@@ -65,7 +65,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   es: {
       notebooksTab: "Cuadernos", constantsTab: "Constantes globales",
     delete: "Eliminar", cancel: "Cancelar",
-    constantEmpty: "Aún no hay constantes", constantEmptyHint: "Guarda un valor reutilizable, por ejemplo W1 = 3cm.",
+    constantEmpty: "Aún no hay constantes", constantEmptyHint: "Guarda un valor reutilizable, por ejemplo R = 4.7kΩ.",
     constantNew: "Nueva constante",
     deleteConfirm: "¿Eliminar este elemento? Esta acción no se puede deshacer.", validation: "Completa los campos obligatorios.",
     notebookNew: "Nuevo cuaderno", uncategorized: "Sin categoría",
@@ -75,7 +75,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   "pt-BR": {
       notebooksTab: "Cadernos", constantsTab: "Constantes globais",
     delete: "Excluir", cancel: "Cancelar",
-    constantEmpty: "Ainda não há constantes", constantEmptyHint: "Salve um valor reutilizável, por exemplo W1 = 3cm.",
+    constantEmpty: "Ainda não há constantes", constantEmptyHint: "Salve um valor reutilizável, por exemplo R = 4.7kΩ.",
     constantNew: "Nova constante",
     deleteConfirm: "Excluir este item? Isso não pode ser desfeito.", validation: "Preencha os campos obrigatórios.",
     notebookNew: "Novo caderno", uncategorized: "Sem categoria",
@@ -85,7 +85,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   de: {
       notebooksTab: "Rechenhefte", constantsTab: "Globale Konstanten",
     delete: "Löschen", cancel: "Abbrechen",
-    constantEmpty: "Noch keine Konstanten", constantEmptyHint: "Speichere einen wiederverwendbaren Wert, zum Beispiel W1 = 3cm.",
+    constantEmpty: "Noch keine Konstanten", constantEmptyHint: "Speichere einen wiederverwendbaren Wert, zum Beispiel R = 4.7kΩ.",
     constantNew: "Neue Konstante",
     deleteConfirm: "Diesen Eintrag löschen? Das kann nicht rückgängig gemacht werden.", validation: "Bitte fülle die Pflichtfelder aus.",
     notebookNew: "Neues Rechenheft", uncategorized: "Ohne Kategorie",
@@ -95,7 +95,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   fr: {
       notebooksTab: "Carnets", constantsTab: "Constantes globales",
     delete: "Supprimer", cancel: "Annuler",
-    constantEmpty: "Aucune constante pour le moment", constantEmptyHint: "Enregistrez une valeur réutilisable, par exemple W1 = 3cm.",
+    constantEmpty: "Aucune constante pour le moment", constantEmptyHint: "Enregistrez une valeur réutilisable, par exemple R = 4.7kΩ.",
     constantNew: "Nouvelle constante",
     deleteConfirm: "Supprimer cet élément ? Cette action est irréversible.", validation: "Veuillez remplir les champs obligatoires.",
     notebookNew: "Nouveau carnet", uncategorized: "Sans catégorie",

@@ -26,8 +26,8 @@ const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "mon
 const EN_COPY = {
   title: "Constant", titleNew: "New constant",
   symbolLabel: "Name", expressionLabel: "Value", preview: "Value",
-  symbolPlaceholder: "W1", expressionPlaceholder: "3cm",
-  invalidSymbol: "Start the name with a letter, then letters or digits (for example W1).",
+  symbolPlaceholder: "R", expressionPlaceholder: "4.7kΩ",
+  invalidSymbol: "Start the name with a letter, then letters or digits (for example R1).",
   save: "Save", saving: "Saving…", close: "Close", delete: "Delete", cancel: "Cancel", keyboard: "ABC keyboard",
   deleteConfirm: "Delete this constant? Expressions that use it will stop working.",
 } as const;
@@ -36,40 +36,40 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   ja: {
     title: "定数", titleNew: "新しい定数",
     symbolLabel: "名前", expressionLabel: "値", preview: "値",
-    symbolPlaceholder: "W1", expressionPlaceholder: "3cm",
-    invalidSymbol: "名前は英字で始め、以降は英数字にしてください（例：W1）。",
+    symbolPlaceholder: "R", expressionPlaceholder: "4.7kΩ",
+    invalidSymbol: "名前は英字で始め、以降は英数字にしてください（例：R1）。",
     save: "保存", saving: "保存中…", close: "閉じる", delete: "削除", cancel: "キャンセル", keyboard: "文字キーボード",
     deleteConfirm: "この定数を削除しますか？これを使っている式は計算できなくなります。",
   },
   es: {
     title: "Constante", titleNew: "Nueva constante",
     symbolLabel: "Nombre", expressionLabel: "Valor", preview: "Valor",
-    symbolPlaceholder: "W1", expressionPlaceholder: "3cm",
-    invalidSymbol: "El nombre debe empezar por una letra y seguir con letras o cifras (por ejemplo W1).",
+    symbolPlaceholder: "R", expressionPlaceholder: "4.7kΩ",
+    invalidSymbol: "El nombre debe empezar por una letra y seguir con letras o cifras (por ejemplo R1).",
     save: "Guardar", saving: "Guardando…", close: "Cerrar", delete: "Eliminar", cancel: "Cancelar", keyboard: "Teclado de letras",
     deleteConfirm: "¿Eliminar esta constante? Las expresiones que la usan dejarán de funcionar.",
   },
   "pt-BR": {
     title: "Constante", titleNew: "Nova constante",
     symbolLabel: "Nome", expressionLabel: "Valor", preview: "Valor",
-    symbolPlaceholder: "W1", expressionPlaceholder: "3cm",
-    invalidSymbol: "O nome deve começar com uma letra e seguir com letras ou algarismos (por exemplo W1).",
+    symbolPlaceholder: "R", expressionPlaceholder: "4.7kΩ",
+    invalidSymbol: "O nome deve começar com uma letra e seguir com letras ou algarismos (por exemplo R1).",
     save: "Salvar", saving: "Salvando…", close: "Fechar", delete: "Excluir", cancel: "Cancelar", keyboard: "Teclado de letras",
     deleteConfirm: "Excluir esta constante? As expressões que a usam deixarão de funcionar.",
   },
   de: {
     title: "Konstante", titleNew: "Neue Konstante",
     symbolLabel: "Name", expressionLabel: "Wert", preview: "Wert",
-    symbolPlaceholder: "W1", expressionPlaceholder: "3cm",
-    invalidSymbol: "Der Name beginnt mit einem Buchstaben, danach Buchstaben oder Ziffern (zum Beispiel W1).",
+    symbolPlaceholder: "R", expressionPlaceholder: "4.7kΩ",
+    invalidSymbol: "Der Name beginnt mit einem Buchstaben, danach Buchstaben oder Ziffern (zum Beispiel R1).",
     save: "Speichern", saving: "Speichert…", close: "Schließen", delete: "Löschen", cancel: "Abbrechen", keyboard: "Buchstabentastatur",
     deleteConfirm: "Diese Konstante löschen? Ausdrücke, die sie verwenden, funktionieren dann nicht mehr.",
   },
   fr: {
     title: "Constante", titleNew: "Nouvelle constante",
     symbolLabel: "Nom", expressionLabel: "Valeur", preview: "Valeur",
-    symbolPlaceholder: "W1", expressionPlaceholder: "3cm",
-    invalidSymbol: "Le nom commence par une lettre, puis des lettres ou des chiffres (par exemple W1).",
+    symbolPlaceholder: "R", expressionPlaceholder: "4.7kΩ",
+    invalidSymbol: "Le nom commence par une lettre, puis des lettres ou des chiffres (par exemple R1).",
     save: "Enregistrer", saving: "Enregistrement…", close: "Fermer", delete: "Supprimer", cancel: "Annuler", keyboard: "Clavier de lettres",
     deleteConfirm: "Supprimer cette constante ? Les expressions qui l’utilisent ne fonctionneront plus.",
   },
@@ -141,7 +141,7 @@ export function ConstantEditorSheet({ visible, language, locale, unitSystem, res
     return () => hidden.remove();
   }, []);
 
-  // 自分自身は参照できない（`W1 = W1 * 2` は解決できない）ので、編集中の記号は候補から外す。
+  // 自分自身は参照できない（`R = R * 2` は解決できない）ので、編集中の記号は候補から外す。
   const otherConstants = useMemo(() => constants.filter((item) => item.symbol !== (constant?.symbol ?? symbol.trim())), [constant?.symbol, constants, symbol]);
   const draft = evaluateConstantDraft(symbol, expression, otherConstants);
   const draftMessage = draft.hasInvalidSymbol

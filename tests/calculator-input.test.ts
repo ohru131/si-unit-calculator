@@ -16,9 +16,9 @@ describe("evaluateCalculatorInput", () => {
   // 定数定義は「右辺の値を返すが保存はしない」。保存は = を押したときだけの副作用として
   // 呼び出し側が行うので、リアルタイム表示から呼んでも定数表を汚さない。
   it("定数定義は右辺の値と定義を返す", () => {
-    const { quantity, definition } = evaluateCalculatorInput("W1 = 3cm", []);
-    expect(definition).toEqual({ symbol: "W1", expression: "3cm" });
-    expect(formatQuantity(quantity, "cm", "en")).toBe("3 cm");
+    const { quantity, definition } = evaluateCalculatorInput("R = 4.7kΩ", []);
+    expect(definition).toEqual({ symbol: "R", expression: "4.7kΩ" });
+    expect(formatQuantity(quantity, "Ω", "en")).toBe("4700 Ω");
   });
 
   // 定数名はASCII限定ではない（mₒ や α でも定義できる）。ここをエンジンと別の正規表現に
@@ -51,7 +51,7 @@ describe("previewCalculatorInput", () => {
   });
 
   it("定数定義も = を押す前に値を出せる", () => {
-    expect(formatQuantity(previewCalculatorInput("W1 = 3cm", [])!, "cm", "en")).toBe("3 cm");
+    expect(formatQuantity(previewCalculatorInput("R = 4.7kΩ", [])!, "Ω", "en")).toBe("4700 Ω");
   });
 });
 
