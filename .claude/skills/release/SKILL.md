@@ -9,6 +9,19 @@ description: UnitCalc の正式バージョンアップを通しで行う。main
 
 所要時間の目安: デバッグビルド **約10分**、リリース AAB のフルビルド **約20分**。合わせて1時間弱みておく。
 
+## 道具
+
+`scripts/release.mjs`（`pnpm release:<cmd>` のエイリアスあり）が AAB・トラック・リリースノートを担当する。**掲載情報（タイトル・説明・スクショ）は別系統で `scripts/push-play-listing.mjs`。**
+
+| コマンド | すること |
+|---|---|
+| `check` | 宣言・build.gradle・AAB の実物・リリースノート・Play の実測を突き合わせる（既定） |
+| `notes` | `docs/release-notes/vX.Y.Z/` に雛形を作る（`--from-play` で前版を下敷きに） |
+| `build` | `prebuild` + `gradlew bundleRelease` |
+| `pack` | `release/vX.Y.Z/` に AAB・checksums・ノート・SUMMARY.md を集める（gitignore 済み） |
+| `upload` | Play へ上げる。**既定はドライラン**、`--validate` は読むだけ、`--commit` で実行 |
+| `ship` | `check` → `build` → `pack` を通しで |
+
 ---
 
 ## 0. 着手前に必ず見る

@@ -1,0 +1,1 @@
+Amélioration des modèles, chiffres significatifs, notation scientifique et saisie des unités. Nouvelle limite d’affichage de 4/6/8/10 chiffres.

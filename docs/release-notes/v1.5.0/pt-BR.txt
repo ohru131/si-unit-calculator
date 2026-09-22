@@ -1,0 +1,1 @@
+Melhorias nas atualizações de modelos, algarismos significativos, notação científica e entrada de unidades. Novo limite de 4/6/8/10 dígitos.
