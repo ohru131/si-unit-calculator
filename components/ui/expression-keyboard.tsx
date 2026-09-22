@@ -20,6 +20,7 @@ const EN_COPY = {
   toolConstants: "Constants", toolPowers: "Powers and exponents", toolFunctions: "Math functions", toolSymbols: "Subscripts and Greek letters", toolAlphabet: "Letters", toolUnits: "Units",
   unitsShort: "Unit", constantsShort: "Const", shift: "Shift",
   subscriptDigits: "Subscript digits", subscriptLetters: "Subscript letters", greekLower: "Greek (lowercase)", greekUpper: "Greek (uppercase)",
+  editConstants: "Edit constants", editConstantsDone: "Done editing constants", newConstant: "New constant",
 } as const;
 const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   en: EN_COPY,
@@ -29,6 +30,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     toolConstants: "定数", toolPowers: "べき乗・指数", toolFunctions: "数学関数", toolSymbols: "下付き文字・ギリシャ文字", toolAlphabet: "英字", toolUnits: "単位",
     unitsShort: "単位", constantsShort: "定数", shift: "大文字",
     subscriptDigits: "下付き数字", subscriptLetters: "下付き文字", greekLower: "ギリシャ文字（小文字）", greekUpper: "ギリシャ文字（大文字）",
+    editConstants: "定数を編集", editConstantsDone: "定数の編集を終える", newConstant: "新しい定数",
   },
   es: {
     caretLeft: "Mover el cursor a la izquierda", caretRight: "Mover el cursor a la derecha", keyboardKey: "Teclado del sistema",
@@ -36,6 +38,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     toolConstants: "Constantes", toolPowers: "Potencias y exponentes", toolFunctions: "Funciones matemáticas", toolSymbols: "Subíndices y letras griegas", toolAlphabet: "Letras", toolUnits: "Unidades",
     unitsShort: "Unid.", constantsShort: "Const.", shift: "Mayúsculas",
     subscriptDigits: "Dígitos en subíndice", subscriptLetters: "Letras en subíndice", greekLower: "Griego (minúsculas)", greekUpper: "Griego (mayúsculas)",
+    editConstants: "Editar constantes", editConstantsDone: "Terminar de editar", newConstant: "Nueva constante",
   },
   "pt-BR": {
     caretLeft: "Mover o cursor para a esquerda", caretRight: "Mover o cursor para a direita", keyboardKey: "Teclado do sistema",
@@ -43,6 +46,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     toolConstants: "Constantes", toolPowers: "Potências e expoentes", toolFunctions: "Funções matemáticas", toolSymbols: "Subscritos e letras gregas", toolAlphabet: "Letras", toolUnits: "Unidades",
     unitsShort: "Unid.", constantsShort: "Const.", shift: "Maiúsculas",
     subscriptDigits: "Dígitos subscritos", subscriptLetters: "Letras subscritas", greekLower: "Grego (minúsculas)", greekUpper: "Grego (maiúsculas)",
+    editConstants: "Editar constantes", editConstantsDone: "Concluir a edição", newConstant: "Nova constante",
   },
   de: {
     caretLeft: "Cursor nach links", caretRight: "Cursor nach rechts", keyboardKey: "Systemtastatur",
@@ -50,6 +54,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     toolConstants: "Konstanten", toolPowers: "Potenzen und Exponenten", toolFunctions: "Mathematische Funktionen", toolSymbols: "Tiefgestellte Zeichen und griechische Buchstaben", toolAlphabet: "Buchstaben", toolUnits: "Einheiten",
     unitsShort: "Einh.", constantsShort: "Konst.", shift: "Großschreibung",
     subscriptDigits: "Tiefgestellte Ziffern", subscriptLetters: "Tiefgestellte Buchstaben", greekLower: "Griechisch (klein)", greekUpper: "Griechisch (groß)",
+    editConstants: "Konstanten bearbeiten", editConstantsDone: "Bearbeiten beenden", newConstant: "Neue Konstante",
   },
   fr: {
     caretLeft: "Déplacer le curseur vers la gauche", caretRight: "Déplacer le curseur vers la droite", keyboardKey: "Clavier du système",
@@ -57,6 +62,7 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     toolConstants: "Constantes", toolPowers: "Puissances et exposants", toolFunctions: "Fonctions mathématiques", toolSymbols: "Indices et lettres grecques", toolAlphabet: "Lettres", toolUnits: "Unités",
     unitsShort: "Unité", constantsShort: "Const.", shift: "Majuscules",
     subscriptDigits: "Chiffres en indice", subscriptLetters: "Lettres en indice", greekLower: "Grec (minuscules)", greekUpper: "Grec (majuscules)",
+    editConstants: "Modifier les constantes", editConstantsDone: "Terminer la modification", newConstant: "Nouvelle constante",
   },
 };
 
@@ -88,6 +94,22 @@ type Props = {
    * ノートはその手順から参照できる記号。**渡さなければ数学定数だけ**が出る。
    */
   constants?: readonly { symbol: string; hint?: string }[];
+  /**
+   * 「定数」パネルから定数そのものを編集できるようにする（電卓タブだけ）。渡さなければ従来どおり
+   * 押すと名前が挿入されるだけ。**この部品は memo してあるので、呼び出し側で useMemo すること**
+   * （毎レンダー新しいオブジェクトを渡すとキーパッドのメモ化が丸ごと効かなくなる）。
+   *
+   * 【なぜここに置くか】定数を足す・直す口がライブラリタブの中にしか無く、「電卓で使うものなのに
+   * どこで編集するのか分からない」と報告された。定数の名前が並んでいるまさにこの場所が、直したいと
+   * 思う場所でもある。**常時ボタンを出さず編集モードのトグルにする**のは、普段の用途は挿入で、
+   * チップ1つ1つに鉛筆を添えると名前が読めなくなるため。
+   */
+  constantActions?: {
+    isEditing: boolean;
+    onToggleEditing: () => void;
+    onEdit: (symbol: string) => void;
+    onCreate: () => void;
+  };
   /** キーパッド本体の直上に挟む行（16進入力の A〜F など）。 */
   aboveKeypad?: ReactNode;
   isOsKeyboardActive?: boolean;
@@ -123,7 +145,7 @@ const TOOLS: readonly { id: KeyboardTool; label: string }[] = [
  */
 export const ExpressionKeyboard = memo(function ExpressionKeyboard({
   language, layout, tool, onToolChange, onKey, onInsert, onPrefix, activePrefix = null, onMoveCaret, caretAtStart = false, caretAtEnd = false,
-  isKeyDisabled, panelsDisabled = false, unitPanel, constants, aboveKeypad, isOsKeyboardActive = false, onToggleOsKeyboard, style,
+  isKeyDisabled, panelsDisabled = false, unitPanel, constants, constantActions, aboveKeypad, isOsKeyboardActive = false, onToggleOsKeyboard, style,
 }: Props) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors, layout), [colors, layout]);
@@ -170,16 +192,58 @@ export const ExpressionKeyboard = memo(function ExpressionKeyboard({
       // 数学定数（π・e）と、画面が渡す「今その式で使える名前」（電卓は保存済みの定数、ノートは
       // その手順から参照できるローカル定数と先行手順の記号）を1つのグリッドに並べる。
       // **中身は画面側が決める**——電卓とノートで「使える名前」が違うため。
-      const entries = [...MATH_CONSTANT_KEYS.map((symbol) => ({ symbol, hint: undefined as string | undefined })), ...(constants ?? [])];
-      if (!entries.length) return null;
-      return panelRows(entries.map((entry) => (
-        <View key={entry.symbol} style={scrollPanels ? styles.scrollCell : styles.functionCell}>
-          <Pressable accessibilityLabel={entry.hint ? `${entry.symbol} ${entry.hint}` : entry.symbol} hitSlop={KEY_CELL_PADDING} onPress={() => onInsert(entry.symbol)} style={({ pressed }) => [styles.panelGridKey, pressed && styles.pressed]}>
-            <Text numberOfLines={1} style={styles.functionKeyText}>{entry.symbol}</Text>
-            {entry.hint ? <Text numberOfLines={1} style={styles.panelKeyHint}>{entry.hint}</Text> : null}
-          </Pressable>
-        </View>
-      )));
+      //
+      // **π・e は編集モードでも従来どおり挿入する。** 保存された定数ではないので直しようが無く、
+      // 押しても何も起きないキーを作らないため。
+      const editing = Boolean(constantActions?.isEditing);
+      const entries = [
+        ...MATH_CONSTANT_KEYS.map((symbol) => ({ symbol, hint: undefined as string | undefined, editable: false })),
+        ...(constants ?? []).map((entry) => ({ ...entry, editable: true })),
+      ];
+      const cells = entries.map((entry) => {
+        const isEditTarget = editing && entry.editable;
+        return (
+          <View key={entry.symbol} style={scrollPanels ? styles.scrollCell : styles.functionCell}>
+            <Pressable
+              accessibilityLabel={isEditTarget ? `${copy.editConstants}: ${entry.symbol}` : entry.hint ? `${entry.symbol} ${entry.hint}` : entry.symbol}
+              hitSlop={KEY_CELL_PADDING}
+              onPress={() => (isEditTarget ? constantActions?.onEdit(entry.symbol) : onInsert(entry.symbol))}
+              style={({ pressed }) => [styles.panelGridKey, isEditTarget && styles.panelGridKeyEditing, pressed && styles.pressed]}
+            >
+              <Text numberOfLines={1} style={styles.functionKeyText}>{entry.symbol}</Text>
+              {entry.hint ? <Text numberOfLines={1} style={styles.panelKeyHint}>{entry.hint}</Text> : null}
+            </Pressable>
+          </View>
+        );
+      });
+      if (constantActions) {
+        // 編集モード中だけ「＋ 新しい定数」を出す。普段は挿入のためのパネルなので、定数が
+        // 増えるほど末尾の＋が名前の列から遠ざかって邪魔になる。
+        if (editing) {
+          cells.push(
+            <View key="__new__" style={scrollPanels ? styles.scrollCell : styles.functionCell}>
+              <Pressable accessibilityLabel={copy.newConstant} hitSlop={KEY_CELL_PADDING} onPress={constantActions.onCreate} style={({ pressed }) => [styles.panelGridKey, styles.panelGridKeyEditing, pressed && styles.pressed]}>
+                <Text numberOfLines={1} style={styles.functionKeyText}>＋</Text>
+              </Pressable>
+            </View>,
+          );
+        }
+        cells.push(
+          <View key="__edit__" style={scrollPanels ? styles.scrollCell : styles.functionCell}>
+            <Pressable
+              accessibilityLabel={editing ? copy.editConstantsDone : copy.editConstants}
+              accessibilityState={{ selected: editing }}
+              hitSlop={KEY_CELL_PADDING}
+              onPress={constantActions.onToggleEditing}
+              style={({ pressed }) => [styles.panelGridKey, editing && styles.panelGridKeyActive, pressed && styles.pressed]}
+            >
+              <IconSymbol name="pencil" size={16} color={editing ? colors.onPrimary : colors.primary} />
+            </Pressable>
+          </View>,
+        );
+      }
+      if (!cells.length) return null;
+      return panelRows(cells);
     }
     if (tool === "functions") {
       return panelRows(MATH_FUNCTION_KEYS.map((item) => (
@@ -419,6 +483,12 @@ const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => St
   scrollCell: { padding: KEY_CELL_PADDING },
   symbolCell: { padding: KEY_CELL_PADDING, width: `${100 / SYMBOL_KEY_COLUMNS}%` },
   panelGridKey: { alignItems: "center", backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 8, borderWidth: 1, justifyContent: "center", minHeight: layout.keyRowMinHeight, minWidth: layout.keyRowMinHeight, paddingHorizontal: 8 },
+  // 「定数」パネルの編集モード。押すと**式に入らず編集シートが開く**ので、見た目でそれと分かる
+  // 必要がある（同じ形のチップのまま挙動だけ変えると、入れたつもりでシートが出る）。枠を強調する
+  // だけに留めるのは、名前そのものは読めたままにしたいため。
+  panelGridKeyEditing: { backgroundColor: colors.surface, borderColor: colors.primary, borderStyle: "dashed" },
+  // 編集モードのトグル自体（鉛筆）が点いている状態。
+  panelGridKeyActive: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
   // 関数は `atan2(` の6文字が入る必要があるので、記号より1段小さい字で組む。
   functionKeyText: { color: colors.primary, fontFamily: mono, fontSize: 13, fontWeight: "800" },
   panelKeyHint: { color: colors.muted, fontSize: 9, marginTop: 1 },

@@ -156,10 +156,12 @@ const LANGUAGE_SECTION = /^(App language|アプリの言語|App-Sprache)$/;
 const tab = (page, lang, key) => page.getByText(TABS[lang][key], { exact: true }).last().click();
 const key = (page, label) => page.getByLabel(label, { exact: true }).first().click();
 // 確定（履歴に残す）。**キーパッドの `=` は 2026-09-20 に廃止**され、入力欄の右の
-// ボタンだけになった（打つそばから答えが出るので `=` は確定操作でしかない）。
-// ラベルは `t("result")`＝"Result"。`key(page, "=")` に戻さないこと——`=` は
-// `ABC` パネルの中（定数定義用）にしか無く、パネルを開いていないと見つからない。
-const submit = (page) => page.getByLabel("Result", { exact: true }).first().click();
+// ボタンだけになった（打つそばから答えが出るので `=` は確定操作でしかない）。さらに
+// **2026-09-22 にそのボタン自体が `=` からアイコンへ変わった**ので、ラベルは
+// `copy.saveCalculation`＝"Save calculation"（結果カードの見出し "Result" ではない）。
+// `key(page, "=")` に戻さないこと——`=` は `ABC` パネルの中（定数定義用）にしか無く、
+// パネルを開いていないと見つからない。
+const submit = (page) => page.getByLabel("Save calculation", { exact: true }).first().click();
 
 // 打ち終わったらフォーカスを外す。ブラウザのフォーカスリング（黒い枠）は実機の
 // 見え方ではないので、静止して見せる区間には出したくない。

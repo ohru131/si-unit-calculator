@@ -33,6 +33,9 @@ const MAPPING = {
   "delete.left": "backspace",
   "crown.fill": "workspace-premium",
   "square.and.arrow.up": "ios-share",
+  // 電卓の入力欄の右のボタン（確定＝履歴に残す・定数を保存する）。SF Symbol の
+  // square.and.arrow.down は iOS 13 からあるので、古いOSでアイコンだけ空白になる心配はない。
+  "square.and.arrow.down": "save-alt",
   "gearshape.fill": "settings",
   "doc.on.doc": "content-copy",
   "magnifyingglass": "search",

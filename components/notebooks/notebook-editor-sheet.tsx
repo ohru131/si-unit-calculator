@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { LatexView } from "@/components/ui/latex-view";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
+import { useKeyboardHeight } from "@/hooks/use-keyboard-height";
 import {
   type CalculationNotebook,
   type CalculationNoteStep,
@@ -18,6 +20,7 @@ import { toHalfWidthAscii } from "@/lib/fullwidth-input";
 import { localizedText, type AppLanguage } from "@/lib/i18n";
 import { clampSelectionRange, getLocalConstantFieldSuggestions, getStepFieldSuggestions, insertConstantSymbol, mapCombinedSelectionToExpressionRange } from "@/lib/notebook-constant-suggestions";
 import { evaluateNotebookSteps, formatNameValue, normalizeStepForSave, parseNameValue, resolveNotebookLocalConstants } from "@/lib/notebook-engine";
+import { resolveSheetKeyboardLayout } from "@/lib/sheet-layout";
 import { notebookFormulaRows } from "@/lib/notebook-formula-rows";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
 import { orderNotebookCategoriesForLanguage } from "@/lib/locale-relevance";
@@ -200,6 +203,10 @@ export function NotebookEditorSheet({
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const copy = COPY[language];
+  // シートは OS のキーボードから自分で逃げる（判断は lib/sheet-layout.ts。理由はそちらのコメント）。
+  const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const keyboardHeight = useKeyboardHeight();
 
   // エンジンのエラー(UnitError)は現在の言語で表示する。UnitError以外は従来どおりError.messageを出す
   // （app/(tabs)/constants.tsxのengineErrorMessageと同じ考え方。バリデーション以外の想定外エラーの
@@ -541,8 +548,13 @@ export function NotebookEditorSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={closeNotebookEditor}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalBackdrop}>
-        <View style={styles.sheet}><View style={styles.sheetHandle} /><View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>{editingNotebookId ? copy.notebookEdit : copy.notebookNew}</Text></View><Pressable accessibilityLabel={copy.close} onPress={closeNotebookEditor} style={({ pressed }) => [styles.closeButton, pressed && styles.iconPressed]}><IconSymbol name="xmark" size={21} color={colors.muted} /></Pressable></View>
+      {/* **Modal は Android の adjustResize が効くウィンドウの外に出る**ので、キーボードが
+          上がってもシートは下端に貼り付いたままで、下の方の入力欄（手順の式など）がキーボードの
+          裏に入る。`KeyboardAvoidingView` の behavior="padding" も iOS でしか効かない。
+          実測した高さぶん持ち上げ、上限の高さも同時に縮める（判断は lib/sheet-layout.ts）。
+          比と下余白は styles.sheet と同じ値を渡すこと。 */}
+      <View style={styles.modalBackdrop}>
+        <View style={[styles.sheet, resolveSheetKeyboardLayout(keyboardHeight, windowHeight, insets.bottom, { maxHeightRatio: 0.92, paddingBottom: 36 })]}><View style={styles.sheetHandle} /><View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>{editingNotebookId ? copy.notebookEdit : copy.notebookNew}</Text></View><Pressable accessibilityLabel={copy.close} onPress={closeNotebookEditor} style={({ pressed }) => [styles.closeButton, pressed && styles.iconPressed]}><IconSymbol name="xmark" size={21} color={colors.muted} /></Pressable></View>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <Text style={styles.fieldLabel}>{copy.notebookTitleLabel}</Text>
             <TextInput value={notebookTitle} onChangeText={setNotebookTitle} placeholder={copy.notebookTitlePlaceholder} placeholderTextColor={colors.placeholder} style={styles.input} />
@@ -769,7 +781,7 @@ export function NotebookEditorSheet({
             <Pressable disabled={isSaving} onPress={() => void saveNotebook()} style={({ pressed }) => [styles.saveButton, (pressed || isSaving) && styles.buttonPressed]}><Text style={styles.saveText}>{isSaving ? copy.saving : copy.save}</Text></Pressable>
           </ScrollView>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
