@@ -5,7 +5,7 @@ import { notebookFormulaRows } from "@/lib/notebook-formula-rows";
 import { stepDisplayTitle } from "@/lib/notebook-step-title";
 import { compatibleUnitOptionsFromHints } from "@/lib/unit-options";
 import { inferSignificantDigits, significantDigitsAfterConversion, toSignificantDecimal, type ResolvedIdentifier } from "@/lib/significant-figures";
-import { convertQuantity, formatNumberForLocale, formatQuantity, type MeasuringStandard, type SavedConstant, type UnitSystem } from "@/lib/units";
+import { convertQuantity, displayDigitsRoundedFrom, formatNumberForLocale, formatQuantity, type MeasuringStandard, type SavedConstant, type UnitSystem } from "@/lib/units";
 
 export type NotebookExportFormulaRow = { explanation: string; latex: string };
 export type NotebookExportConstant = { text: string };
@@ -115,7 +115,48 @@ export function resolveNotebookStepDisplay(
   // 作った数値の文字列を接頭辞として照合して置き換えれば、ラベルをそのまま保てる。
   const rounded = roundedValueFor(result, value, effectiveUnit, significantDigits, locale, maxDigits);
   if (rounded) return { value: rounded.value, rawValue: rounded.rawValue, significantDigits: rounded.significantDigits, error, isError: false };
-  return { value, error, isError: Boolean(error) && !value };
+  // 有効数字の丸めが効かない手順（式から桁が読めない・有効1桁）では、値を変えているのは
+  // 表示桁の上限（設定タブの resultDigits）だけになる。切り詰めたときは切り詰めていない値を
+  // rawValue に入れて、画面とPDFが有効数字のときと同じ形で小さく併記できるようにする。
+  return { value, rawValue: displayDigitsRawValueFor(result, value, effectiveUnit, locale, maxDigits), error, isError: Boolean(error) && !value };
+}
+
+/**
+ * 「数値 + 単位」の表示文字列のうち、**数値の部分だけ**を表示桁の上限を掛けない形に差し替えた
+ * 文字列。上限で値が変わっていなければ `undefined`（併記しない）。
+ *
+ * 数値の取り出し方・照合の仕方は `roundedValueFor` と同じ（同じ整形関数で作った数値を接頭辞と
+ * して照合する）。文字列を空白で割らないのは、単位ラベルが見栄えの差し替え（`Ohm` → `Ω`）を
+ * 通っていることがあり、割って組み直すとその差し替えが失われるため。
+ */
+function displayDigitsRawValueFor(
+  result: NotebookStepResult,
+  value: string | undefined,
+  effectiveUnit: string,
+  locale: string | undefined,
+  maxDigits?: number,
+): string | undefined {
+  if (!value || !result.quantity) return undefined;
+  const numeric = displayedNumericFor(result, effectiveUnit, locale);
+  const full = displayDigitsRoundedFrom(numeric, locale, maxDigits);
+  if (full === null) return undefined;
+  const plain = formatNumberForLocale(numeric, locale, maxDigits);
+  if (!value.startsWith(plain)) return undefined;
+  return `${full}${value.slice(plain.length)}`;
+}
+
+/**
+ * その手順で**実際に画面へ出ている数値**。表示単位へ換算できていればその値、できていなければ
+ * SI値（表示側が siFallback へ落ちているときと同じ）。
+ */
+function displayedNumericFor(result: NotebookStepResult, effectiveUnit: string, locale: string | undefined): number {
+  if (!result.quantity) return Number.NaN;
+  if (!effectiveUnit) return result.quantity.siValue;
+  try {
+    return convertQuantity(result.quantity, effectiveUnit, locale).value;
+  } catch {
+    return result.quantity.siValue;
+  }
 }
 
 /**

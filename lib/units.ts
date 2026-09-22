@@ -1179,13 +1179,63 @@ export function formatNumber(value: number): string {
  */
 export const MAX_DISPLAY_DIGITS = 10;
 
+/**
+ * 設定タブの「丸めなし」。**10桁では表せない値をそのまま出すための逃げ道**で、
+ * `3333333333333`（13桁）のように打てるのに表示では別の値になってしまう入力に効く。
+ *
+ * **既定にはしないこと。** 上限を外すと倍精度の素の値がそのまま出るので、`0.1 + 0.2` が
+ * `0.30000000000000004` になる。普段の画面では雑音でしかなく、桁を自分で見に行きたい人だけが
+ * 選ぶ設定として置いてある。
+ */
+export const RESULT_DIGITS_UNLIMITED = 0;
+/** `Intl.NumberFormat` の `maximumSignificantDigits` が受け付ける最大値。 */
+const MAX_INTL_SIGNIFICANT_DIGITS = 21;
+
+/** 「丸めなし」か。0以下・非数（設定の読み込みが壊れた場合）はどちらも上限なしに倒す。 */
+export function isUnlimitedDisplayDigits(maxDigits: number = MAX_DISPLAY_DIGITS): boolean {
+  return !Number.isFinite(maxDigits) || Math.round(maxDigits) <= RESULT_DIGITS_UNLIMITED;
+}
+
+/**
+ * 上限を掛けずに、その倍精度の値を一意に表せる最短の表記で出す（「丸めなし」用）。
+ * 指数表記へ落とす境目は `formatNumber` と同じにして、設定を変えたときに表記の形まで
+ * 変わらないようにする。**`toExponential()` は引数なしで呼ぶこと**——桁数を渡すとそこで
+ * 丸まり、上限を外した意味が無くなる。
+ */
+function formatNumberExact(value: number): string {
+  if (value === 0 || Object.is(value, -0)) return "0";
+  if (Math.abs(value) >= 1e7 || Math.abs(value) < 1e-6) return value.toExponential();
+  return String(value);
+}
+
 export function formatNumberForLocale(value: number, locale?: string, maxDigits: number = MAX_DISPLAY_DIGITS): string {
+  const unlimited = isUnlimitedDisplayDigits(maxDigits);
   const digits = Math.max(1, Math.min(MAX_DISPLAY_DIGITS, Math.round(maxDigits)));
   // ロケールが無い・指数表記になる範囲は Intl を通さないので、桁の上限は自分で掛ける。
   if (!locale || Math.abs(value) >= 1e7 || (Math.abs(value) < 1e-6 && value !== 0)) {
+    if (unlimited) return formatNumberExact(value);
     return formatNumber(digits === MAX_DISPLAY_DIGITS ? value : Number(value.toPrecision(digits)));
   }
-  return new Intl.NumberFormat(locale, { maximumSignificantDigits: digits, useGrouping: false }).format(Object.is(value, -0) ? 0 : value);
+  return new Intl.NumberFormat(locale, { maximumSignificantDigits: unlimited ? MAX_INTL_SIGNIFICANT_DIGITS : digits, useGrouping: false }).format(Object.is(value, -0) ? 0 : value);
+}
+
+/**
+ * 表示桁の上限（設定タブの `resultDigits`）で**実際に値が変わったとき**だけ、上限を掛けない
+ * 表記（10桁）を返す。画面はこれを小さく併記して「これは丸めた値だ」と分かるようにする。
+ *
+ * 【なぜ要るか】4桁にしていると `2.553 mA` が**ちょうどの値と見分けられない**（利用者からの指摘）。
+ * 有効数字の丸め（`lib/significant-figures.ts` の `roundedFrom`）は既に同じ形で元の値を併記して
+ * いるので、表示桁の切り詰めも同じ見せ方にそろえる。
+ *
+ * 基準は `MAX_DISPLAY_DIGITS`（10桁）で、**倍精度の素の値ではない**。素の値にすると
+ * `2.5531914893617023` のような17桁が併記されることになり、有効数字の併記と桁数がそろわない。
+ * 「丸めなし」を選んでいるときは切り詰めそのものが起きないので `null`。
+ */
+export function displayDigitsRoundedFrom(value: number, locale?: string, maxDigits: number = MAX_DISPLAY_DIGITS): string | null {
+  if (isUnlimitedDisplayDigits(maxDigits)) return null;
+  const shown = formatNumberForLocale(value, locale, maxDigits);
+  const full = formatNumberForLocale(value, locale, MAX_DISPLAY_DIGITS);
+  return shown === full ? null : full;
 }
 
 // dimension・localeから組み立てる文字列自体は無次元かどうかの判定に使わず、

@@ -68,7 +68,7 @@ import {
   type ExpressionSegment,
   type UnitSuggestion,
 } from "@/lib/unit-input";
-import { convertQuantity, formatDimension, formatNumberForLocale, formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, getRegionalUnits, getUnitRegistration, isDimensionless, UNIT_GROUPS, type UnitGroup, type UnitOption } from "@/lib/units";
+import { convertQuantity, displayDigitsRoundedFrom, formatDimension, formatNumberForLocale, formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, getRegionalUnits, getUnitRegistration, isDimensionless, UNIT_GROUPS, type UnitGroup, type UnitOption } from "@/lib/units";
 
 // 「全消し」の要望に対応するため、従来は空セルのプレースホルダだった最下段（"0"と"="の間）に
 // ⌫（一文字削除）を動かし、空いた最上段の右端（従来⌫があった場所）にACを置く。
@@ -272,7 +272,7 @@ const HISTORY_UNIT_EXAMPLE_LIMIT = 80;
 // 引数を取るメッセージ（unresolvedUnit系・unitDoesNotFit等）が混ざるため、EN_COPYのas constは外し、
 // COPYの型はRecord<AppLanguage, typeof EN_COPY>で両言語の値の形（string/関数）を揃える。
 const EN_COPY = {
-  calculate: "=", siBase: "SI base", emptyResult: "Enter an expression to see the result. Tap = to save it to your history.", pickUnit: "Choose a registered unit", speedTitle: "Distance, time & speed", speedFormula: "Speed = distance ÷ time     Distance = speed × time", findSpeed: "Find speed", findDistance: "Find distance", findTime: "Find time", savedHistory: "Saved calculations", historyHint: "Latest answers are available as a1, a2, and so on.", clear: "Clear", unitSearch: "Search units, names, or categories", copied: "Calculation copied", copy: "Copy", unitDetails: "Unit details", siConversion: "SI conversion", commonUse: "Common use", close: "Close", advancedMath: "Advanced math", insertUnitTitle: "Search a unit to insert", saveTemplate: "Save", samples: "Examples", keyboardKey: "Keyboard", outputUnit: "Display unit", registered: "Registered", supported: "Supported, not listed", unknown: "Not a usable unit", unknownHint: "Check the symbol or pick a candidate below.", history: "History", use: "Use", noUnit: "SI base", compatible: "Fits this result", allCandidates: "Closest candidates", hintComplete: "Finish", more: "More", showAs: "Show as", fixTap: "Tap the red unit to fix it.", aliasNote: "same as", noSearchResults: "No unit matches this search.", noSearchResultsHint: "Try a different symbol, name, or category.", noHistory: "No saved calculations yet.", noHistoryHint: "Every result you calculate is saved here automatically.",
+  calculate: "=", siBase: "SI base", emptyResult: "Enter an expression to see the result. Tap = to save it to your history.", pickUnit: "Choose a registered unit", speedTitle: "Distance, time & speed", speedFormula: "Speed = distance ÷ time     Distance = speed × time", findSpeed: "Find speed", findDistance: "Find distance", findTime: "Find time", savedHistory: "Saved calculations", historyHint: "Latest answers are available as a1, a2, and so on.", clear: "Clear", unitSearch: "Search units, names, or categories", copied: "Calculation copied", copy: "Copy", unitDetails: "Unit details", siConversion: "SI conversion", commonUse: "Common use", close: "Close", advancedMath: "Advanced math", insertUnitTitle: "Search a unit to insert", saveTemplate: "Save", samples: "Examples", keyboardKey: "Keyboard", outputUnit: "Display unit", registered: "Registered", supported: "Supported, not listed", unknown: "Not a usable unit", unknownHint: "Check the symbol or pick a candidate below.", history: "History", use: "Use", noUnit: "SI base", compatible: "Fits this result", allCandidates: "Closest candidates", hintComplete: "Finish", more: "More", showAs: "Show as", fixTap: "Tap the red unit to fix it.", aliasNote: "same as", noSearchResults: "No unit matches this search.", noSearchResultsHint: "Try a different symbol, name, or category.", noHistory: "No saved calculations yet.", noHistoryHint: "Every result you calculate is saved here automatically.", noCompatibleUnits: "No named unit fits this result.", noCompatibleUnitsHint: "The SI form above is the only way to read it.",
   cannotConvertUnit: "Could not convert to this unit.",
   unresolvedUnitSuggestion: (text: string, canonical: string) => `“${text}” is not a usable unit. Did you mean ${canonical}?`,
   unresolvedUnitUnknown: (text: string) => `“${text}” is not a registered or supported unit.`,
@@ -313,7 +313,7 @@ const EN_COPY = {
 const COPY: Record<AppLanguage, typeof EN_COPY> = {
   en: EN_COPY,
   ja: {
-    calculate: "=", siBase: "SI標準", emptyResult: "式を入力すると結果が出ます。「=」を押すと履歴に保存されます。", pickUnit: "登録済み単位から選択", speedTitle: "距離・時間・速度", speedFormula: "速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間", findSpeed: "速度を求める", findDistance: "距離を求める", findTime: "時間を求める", savedHistory: "保存済みの計算履歴", historyHint: "最新の結果は a1、a2… として次の式で使えます。", clear: "消去", unitSearch: "単位・読み・カテゴリを検索", copied: "計算結果をコピーしました", copy: "コピー", unitDetails: "単位の説明", siConversion: "SI換算", commonUse: "主な利用分野", close: "閉じる", advancedMath: "上級の数学機能", insertUnitTitle: "単位を検索して入力", saveTemplate: "保存", samples: "サンプル", keyboardKey: "キーボード", outputUnit: "表示単位", registered: "登録済み", supported: "計算対応（候補外）", unknown: "使えない単位", unknownHint: "記号を確認するか、下の候補から選んでください。", history: "履歴", use: "使う", noUnit: "SI標準", compatible: "この結果に合う単位", allCandidates: "近い候補", hintComplete: "確定", more: "他", showAs: "表示単位", fixTap: "赤い単位をタップすると修正できます。", aliasNote: "＝", noSearchResults: "一致する単位が見つかりません。", noSearchResultsHint: "別の記号・名前・カテゴリでも試してください。", noHistory: "保存された計算はまだありません。", noHistoryHint: "計算するたびに自動で保存されます。",
+    calculate: "=", siBase: "SI標準", emptyResult: "式を入力すると結果が出ます。「=」を押すと履歴に保存されます。", pickUnit: "登録済み単位から選択", speedTitle: "距離・時間・速度", speedFormula: "速度 ＝ 距離 ÷ 時間　　距離 ＝ 速度 × 時間", findSpeed: "速度を求める", findDistance: "距離を求める", findTime: "時間を求める", savedHistory: "保存済みの計算履歴", historyHint: "最新の結果は a1、a2… として次の式で使えます。", clear: "消去", unitSearch: "単位・読み・カテゴリを検索", copied: "計算結果をコピーしました", copy: "コピー", unitDetails: "単位の説明", siConversion: "SI換算", commonUse: "主な利用分野", close: "閉じる", advancedMath: "上級の数学機能", insertUnitTitle: "単位を検索して入力", saveTemplate: "保存", samples: "サンプル", keyboardKey: "キーボード", outputUnit: "表示単位", registered: "登録済み", supported: "計算対応（候補外）", unknown: "使えない単位", unknownHint: "記号を確認するか、下の候補から選んでください。", history: "履歴", use: "使う", noUnit: "SI標準", compatible: "この結果に合う単位", allCandidates: "近い候補", hintComplete: "確定", more: "他", showAs: "表示単位", fixTap: "赤い単位をタップすると修正できます。", aliasNote: "＝", noSearchResults: "一致する単位が見つかりません。", noSearchResultsHint: "別の記号・名前・カテゴリでも試してください。", noHistory: "保存された計算はまだありません。", noHistoryHint: "計算するたびに自動で保存されます。", noCompatibleUnits: "この結果に合う単位はありません。", noCompatibleUnitsHint: "上のSI表記がこの値の読み方です。",
     cannotConvertUnit: "この単位へは変換できません。",
     unresolvedUnitSuggestion: (text: string, canonical: string) => `「${text}」は使えません。${canonical} に修正できます。`,
     unresolvedUnitUnknown: (text: string) => `「${text}」は未登録・未対応の単位です。`,
@@ -352,7 +352,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     quickStartDefine: "定数を定義 — あとで W1 × H1 のように使える",
   },
   es: {
-    calculate: "=", siBase: "Base SI", emptyResult: "Escribe una expresión para ver el resultado. Toca = para guardarlo en el historial.", pickUnit: "Elige una unidad registrada", speedTitle: "Distancia, tiempo y velocidad", speedFormula: "Velocidad = distancia ÷ tiempo     Distancia = velocidad × tiempo", findSpeed: "Calcular velocidad", findDistance: "Calcular distancia", findTime: "Calcular tiempo", savedHistory: "Cálculos guardados", historyHint: "Los últimos resultados están disponibles como a1, a2, etc.", clear: "Borrar", unitSearch: "Buscar unidades, nombres o categorías", copied: "Cálculo copiado", copy: "Copiar", unitDetails: "Detalles de la unidad", siConversion: "Conversión SI", commonUse: "Uso común", close: "Cerrar", advancedMath: "Matemáticas avanzadas", insertUnitTitle: "Buscar una unidad para insertar", saveTemplate: "Guardar", samples: "Ejemplos", keyboardKey: "Teclado", outputUnit: "Unidad mostrada", registered: "Registrada", supported: "Compatible, sin listar", unknown: "Unidad no válida", unknownHint: "Revisa el símbolo o elige un candidato abajo.", history: "Historial", use: "Usar", noUnit: "Base SI", compatible: "Compatible con este resultado", allCandidates: "Candidatos más cercanos", hintComplete: "Completar", more: "Más", showAs: "Mostrar como", fixTap: "Toca la unidad en rojo para corregirla.", aliasNote: "igual a", noSearchResults: "Ninguna unidad coincide con esta búsqueda.", noSearchResultsHint: "Prueba otro símbolo, nombre o categoría.", noHistory: "Aún no hay cálculos guardados.", noHistoryHint: "Cada resultado que calculas se guarda aquí automáticamente.",
+    calculate: "=", siBase: "Base SI", emptyResult: "Escribe una expresión para ver el resultado. Toca = para guardarlo en el historial.", pickUnit: "Elige una unidad registrada", speedTitle: "Distancia, tiempo y velocidad", speedFormula: "Velocidad = distancia ÷ tiempo     Distancia = velocidad × tiempo", findSpeed: "Calcular velocidad", findDistance: "Calcular distancia", findTime: "Calcular tiempo", savedHistory: "Cálculos guardados", historyHint: "Los últimos resultados están disponibles como a1, a2, etc.", clear: "Borrar", unitSearch: "Buscar unidades, nombres o categorías", copied: "Cálculo copiado", copy: "Copiar", unitDetails: "Detalles de la unidad", siConversion: "Conversión SI", commonUse: "Uso común", close: "Cerrar", advancedMath: "Matemáticas avanzadas", insertUnitTitle: "Buscar una unidad para insertar", saveTemplate: "Guardar", samples: "Ejemplos", keyboardKey: "Teclado", outputUnit: "Unidad mostrada", registered: "Registrada", supported: "Compatible, sin listar", unknown: "Unidad no válida", unknownHint: "Revisa el símbolo o elige un candidato abajo.", history: "Historial", use: "Usar", noUnit: "Base SI", compatible: "Compatible con este resultado", allCandidates: "Candidatos más cercanos", hintComplete: "Completar", more: "Más", showAs: "Mostrar como", fixTap: "Toca la unidad en rojo para corregirla.", aliasNote: "igual a", noSearchResults: "Ninguna unidad coincide con esta búsqueda.", noSearchResultsHint: "Prueba otro símbolo, nombre o categoría.", noHistory: "Aún no hay cálculos guardados.", noHistoryHint: "Cada resultado que calculas se guarda aquí automáticamente.", noCompatibleUnits: "Ninguna unidad con nombre encaja con este resultado.", noCompatibleUnitsHint: "La forma SI de arriba es la única manera de leerlo.",
     cannotConvertUnit: "No se pudo convertir a esta unidad.",
     unresolvedUnitSuggestion: (text: string, canonical: string) => `“${text}” no es una unidad válida. ¿Quisiste decir ${canonical}?`,
     unresolvedUnitUnknown: (text: string) => `“${text}” no es una unidad registrada ni compatible.`,
@@ -391,7 +391,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     quickStartDefine: "Define una constante: después la usas como W1 × H1",
   },
   "pt-BR": {
-    calculate: "=", siBase: "Base SI", emptyResult: "Digite uma expressão para ver o resultado. Toque em = para salvá-lo no histórico.", pickUnit: "Escolha uma unidade registrada", speedTitle: "Distância, tempo e velocidade", speedFormula: "Velocidade = distância ÷ tempo     Distância = velocidade × tempo", findSpeed: "Calcular velocidade", findDistance: "Calcular distância", findTime: "Calcular tempo", savedHistory: "Cálculos salvos", historyHint: "Os últimos resultados ficam disponíveis como a1, a2 etc.", clear: "Limpar", unitSearch: "Buscar unidades, nomes ou categorias", copied: "Cálculo copiado", copy: "Copiar", unitDetails: "Detalhes da unidade", siConversion: "Conversão SI", commonUse: "Uso comum", close: "Fechar", advancedMath: "Matemática avançada", insertUnitTitle: "Buscar uma unidade para inserir", saveTemplate: "Salvar", samples: "Exemplos", keyboardKey: "Teclado", outputUnit: "Unidade de exibição", registered: "Registrada", supported: "Compatível, não listada", unknown: "Unidade inválida", unknownHint: "Verifique o símbolo ou escolha um candidato abaixo.", history: "Histórico", use: "Usar", noUnit: "Base SI", compatible: "Compatível com este resultado", allCandidates: "Candidatos mais próximos", hintComplete: "Concluir", more: "Mais", showAs: "Exibir como", fixTap: "Toque na unidade em vermelho para corrigi-la.", aliasNote: "igual a", noSearchResults: "Nenhuma unidade corresponde a esta busca.", noSearchResultsHint: "Tente outro símbolo, nome ou categoria.", noHistory: "Ainda não há cálculos salvos.", noHistoryHint: "Cada resultado calculado é salvo aqui automaticamente.",
+    calculate: "=", siBase: "Base SI", emptyResult: "Digite uma expressão para ver o resultado. Toque em = para salvá-lo no histórico.", pickUnit: "Escolha uma unidade registrada", speedTitle: "Distância, tempo e velocidade", speedFormula: "Velocidade = distância ÷ tempo     Distância = velocidade × tempo", findSpeed: "Calcular velocidade", findDistance: "Calcular distância", findTime: "Calcular tempo", savedHistory: "Cálculos salvos", historyHint: "Os últimos resultados ficam disponíveis como a1, a2 etc.", clear: "Limpar", unitSearch: "Buscar unidades, nomes ou categorias", copied: "Cálculo copiado", copy: "Copiar", unitDetails: "Detalhes da unidade", siConversion: "Conversão SI", commonUse: "Uso comum", close: "Fechar", advancedMath: "Matemática avançada", insertUnitTitle: "Buscar uma unidade para inserir", saveTemplate: "Salvar", samples: "Exemplos", keyboardKey: "Teclado", outputUnit: "Unidade de exibição", registered: "Registrada", supported: "Compatível, não listada", unknown: "Unidade inválida", unknownHint: "Verifique o símbolo ou escolha um candidato abaixo.", history: "Histórico", use: "Usar", noUnit: "Base SI", compatible: "Compatível com este resultado", allCandidates: "Candidatos mais próximos", hintComplete: "Concluir", more: "Mais", showAs: "Exibir como", fixTap: "Toque na unidade em vermelho para corrigi-la.", aliasNote: "igual a", noSearchResults: "Nenhuma unidade corresponde a esta busca.", noSearchResultsHint: "Tente outro símbolo, nome ou categoria.", noHistory: "Ainda não há cálculos salvos.", noHistoryHint: "Cada resultado calculado é salvo aqui automaticamente.", noCompatibleUnits: "Nenhuma unidade com nome corresponde a este resultado.", noCompatibleUnitsHint: "A forma SI acima é a única maneira de lê-lo.",
     cannotConvertUnit: "Não foi possível converter para esta unidade.",
     unresolvedUnitSuggestion: (text: string, canonical: string) => `“${text}” não é uma unidade válida. Você quis dizer ${canonical}?`,
     unresolvedUnitUnknown: (text: string) => `“${text}” não é uma unidade registrada nem compatível.`,
@@ -430,7 +430,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     quickStartDefine: "Defina uma constante: depois é só usar como W1 × H1",
   },
   de: {
-    calculate: "=", siBase: "SI-Basis", emptyResult: "Gib einen Ausdruck ein, um das Ergebnis zu sehen. Tippe auf =, um es im Verlauf zu speichern.", pickUnit: "Registrierte Einheit wählen", speedTitle: "Strecke, Zeit & Geschwindigkeit", speedFormula: "Geschwindigkeit = Strecke ÷ Zeit     Strecke = Geschwindigkeit × Zeit", findSpeed: "Geschwindigkeit berechnen", findDistance: "Strecke berechnen", findTime: "Zeit berechnen", savedHistory: "Gespeicherte Berechnungen", historyHint: "Die letzten Ergebnisse stehen als a1, a2 usw. zur Verfügung.", clear: "Löschen", unitSearch: "Einheiten, Namen oder Kategorien suchen", copied: "Berechnung kopiert", copy: "Kopieren", unitDetails: "Details zur Einheit", siConversion: "SI-Umrechnung", commonUse: "Typische Verwendung", close: "Schließen", advancedMath: "Erweiterte Mathematik", insertUnitTitle: "Einheit suchen und einfügen", saveTemplate: "Speichern", samples: "Beispiele", keyboardKey: "Tastatur", outputUnit: "Anzeigeeinheit", registered: "Registriert", supported: "Unterstützt, nicht gelistet", unknown: "Keine gültige Einheit", unknownHint: "Prüfe das Symbol oder wähle unten einen Vorschlag.", history: "Verlauf", use: "Verwenden", noUnit: "SI-Basis", compatible: "Passt zu diesem Ergebnis", allCandidates: "Nächste Vorschläge", hintComplete: "Fertig", more: "Mehr", showAs: "Anzeigen als", fixTap: "Tippe auf die rote Einheit, um sie zu korrigieren.", aliasNote: "entspricht", noSearchResults: "Keine Einheit passt zu dieser Suche.", noSearchResultsHint: "Versuche ein anderes Symbol, einen anderen Namen oder eine andere Kategorie.", noHistory: "Noch keine gespeicherten Berechnungen.", noHistoryHint: "Jedes berechnete Ergebnis wird hier automatisch gespeichert.",
+    calculate: "=", siBase: "SI-Basis", emptyResult: "Gib einen Ausdruck ein, um das Ergebnis zu sehen. Tippe auf =, um es im Verlauf zu speichern.", pickUnit: "Registrierte Einheit wählen", speedTitle: "Strecke, Zeit & Geschwindigkeit", speedFormula: "Geschwindigkeit = Strecke ÷ Zeit     Strecke = Geschwindigkeit × Zeit", findSpeed: "Geschwindigkeit berechnen", findDistance: "Strecke berechnen", findTime: "Zeit berechnen", savedHistory: "Gespeicherte Berechnungen", historyHint: "Die letzten Ergebnisse stehen als a1, a2 usw. zur Verfügung.", clear: "Löschen", unitSearch: "Einheiten, Namen oder Kategorien suchen", copied: "Berechnung kopiert", copy: "Kopieren", unitDetails: "Details zur Einheit", siConversion: "SI-Umrechnung", commonUse: "Typische Verwendung", close: "Schließen", advancedMath: "Erweiterte Mathematik", insertUnitTitle: "Einheit suchen und einfügen", saveTemplate: "Speichern", samples: "Beispiele", keyboardKey: "Tastatur", outputUnit: "Anzeigeeinheit", registered: "Registriert", supported: "Unterstützt, nicht gelistet", unknown: "Keine gültige Einheit", unknownHint: "Prüfe das Symbol oder wähle unten einen Vorschlag.", history: "Verlauf", use: "Verwenden", noUnit: "SI-Basis", compatible: "Passt zu diesem Ergebnis", allCandidates: "Nächste Vorschläge", hintComplete: "Fertig", more: "Mehr", showAs: "Anzeigen als", fixTap: "Tippe auf die rote Einheit, um sie zu korrigieren.", aliasNote: "entspricht", noSearchResults: "Keine Einheit passt zu dieser Suche.", noSearchResultsHint: "Versuche ein anderes Symbol, einen anderen Namen oder eine andere Kategorie.", noHistory: "Noch keine gespeicherten Berechnungen.", noHistoryHint: "Jedes berechnete Ergebnis wird hier automatisch gespeichert.", noCompatibleUnits: "Zu diesem Ergebnis passt keine benannte Einheit.", noCompatibleUnitsHint: "Die SI-Schreibweise oben ist die einzige Lesart.",
     cannotConvertUnit: "Umrechnung in diese Einheit nicht möglich.",
     unresolvedUnitSuggestion: (text: string, canonical: string) => `„${text}“ ist keine gültige Einheit. Meintest du ${canonical}?`,
     unresolvedUnitUnknown: (text: string) => `„${text}“ ist keine registrierte oder unterstützte Einheit.`,
@@ -469,7 +469,7 @@ const COPY: Record<AppLanguage, typeof EN_COPY> = {
     quickStartDefine: "Konstante definieren – danach kannst du sie als W1 × H1 nutzen",
   },
   fr: {
-    calculate: "=", siBase: "Base SI", emptyResult: "Saisissez une expression pour voir le résultat. Appuyez sur = pour l'enregistrer dans l'historique.", pickUnit: "Choisir une unité enregistrée", speedTitle: "Distance, temps et vitesse", speedFormula: "Vitesse = distance ÷ temps     Distance = vitesse × temps", findSpeed: "Calculer la vitesse", findDistance: "Calculer la distance", findTime: "Calculer le temps", savedHistory: "Calculs enregistrés", historyHint: "Les derniers résultats sont disponibles sous la forme a1, a2, etc.", clear: "Effacer", unitSearch: "Rechercher des unités, des noms ou des catégories", copied: "Calcul copié", copy: "Copier", unitDetails: "Détails de l'unité", siConversion: "Conversion SI", commonUse: "Usage courant", close: "Fermer", advancedMath: "Mathématiques avancées", insertUnitTitle: "Rechercher une unité à insérer", saveTemplate: "Enregistrer", samples: "Exemples", keyboardKey: "Clavier", outputUnit: "Unité affichée", registered: "Enregistrée", supported: "Prise en charge, non listée", unknown: "Unité non valide", unknownHint: "Vérifiez le symbole ou choisissez un candidat ci-dessous.", history: "Historique", use: "Utiliser", noUnit: "Base SI", compatible: "Compatible avec ce résultat", allCandidates: "Candidats les plus proches", hintComplete: "Terminer", more: "Plus", showAs: "Afficher en", fixTap: "Touchez l'unité en rouge pour la corriger.", aliasNote: "identique à", noSearchResults: "Aucune unité ne correspond à cette recherche.", noSearchResultsHint: "Essayez un autre symbole, nom ou catégorie.", noHistory: "Aucun calcul enregistré pour le moment.", noHistoryHint: "Chaque résultat calculé est enregistré ici automatiquement.",
+    calculate: "=", siBase: "Base SI", emptyResult: "Saisissez une expression pour voir le résultat. Appuyez sur = pour l'enregistrer dans l'historique.", pickUnit: "Choisir une unité enregistrée", speedTitle: "Distance, temps et vitesse", speedFormula: "Vitesse = distance ÷ temps     Distance = vitesse × temps", findSpeed: "Calculer la vitesse", findDistance: "Calculer la distance", findTime: "Calculer le temps", savedHistory: "Calculs enregistrés", historyHint: "Les derniers résultats sont disponibles sous la forme a1, a2, etc.", clear: "Effacer", unitSearch: "Rechercher des unités, des noms ou des catégories", copied: "Calcul copié", copy: "Copier", unitDetails: "Détails de l'unité", siConversion: "Conversion SI", commonUse: "Usage courant", close: "Fermer", advancedMath: "Mathématiques avancées", insertUnitTitle: "Rechercher une unité à insérer", saveTemplate: "Enregistrer", samples: "Exemples", keyboardKey: "Clavier", outputUnit: "Unité affichée", registered: "Enregistrée", supported: "Prise en charge, non listée", unknown: "Unité non valide", unknownHint: "Vérifiez le symbole ou choisissez un candidat ci-dessous.", history: "Historique", use: "Utiliser", noUnit: "Base SI", compatible: "Compatible avec ce résultat", allCandidates: "Candidats les plus proches", hintComplete: "Terminer", more: "Plus", showAs: "Afficher en", fixTap: "Touchez l'unité en rouge pour la corriger.", aliasNote: "identique à", noSearchResults: "Aucune unité ne correspond à cette recherche.", noSearchResultsHint: "Essayez un autre symbole, nom ou catégorie.", noHistory: "Aucun calcul enregistré pour le moment.", noHistoryHint: "Chaque résultat calculé est enregistré ici automatiquement.", noCompatibleUnits: "Aucune unité nommée ne correspond à ce résultat.", noCompatibleUnitsHint: "L'écriture SI ci-dessus est la seule lecture possible.",
     cannotConvertUnit: "Impossible de convertir vers cette unité.",
     unresolvedUnitSuggestion: (text: string, canonical: string) => `« ${text} » n'est pas une unité valide. Vouliez-vous dire ${canonical} ?`,
     unresolvedUnitUnknown: (text: string) => `« ${text} » n'est pas une unité enregistrée ou prise en charge.`,
@@ -1043,6 +1043,18 @@ export default function CalculatorScreen() {
   const roundedValue: { text: string; significantDigits: number | null; roundedFrom: string | null } | null =
     valueForm === "scientific" ? scientificValue : valueForm === "significant" ? significantValue : null;
 
+  // 表示桁の上限（設定タブの resultDigits）で実際に値が切り詰められたときだけ、切り詰めて
+  // いない値を小さく併記する。**4桁にしていると `2.553 mA` がちょうどの値と見分けられない**
+  // （利用者からの指摘）。有効数字の丸め（roundedValue.roundedFrom）が既に同じ形で元の値を
+  // 出しているので、見せ方をそろえる。
+  //
+  // 小数表示のときだけ出す。有効数字・科学表記は自前の `roundedFrom` を持っていて、そちらは
+  // resultDigits を通さないので切り詰めが起きない。進数表示は整数なので同じく起きない。
+  const displayDigitsNote = useMemo(
+    () => (display && baseInputMode === null ? displayDigitsRoundedFrom(display.numeric, locale, resultDigits) : null),
+    [baseInputMode, display, locale, resultDigits],
+  );
+
   const shownValueText = !display
     ? ""
     : valueForm === "exact" && exactValue
@@ -1418,7 +1430,9 @@ export default function CalculatorScreen() {
   // 報告された）。
   const openUnitPicker = (mode: "display" | "insert" = "display") => {
     setUnitPickerMode(mode);
-    setUnitSearch(mode === "display" ? targetUnit : "");
+    // 表示単位のシートには検索欄が無いので、検索語は必ず空にする（残っていると
+    // `unitSearch.trim()` の分岐が検索結果の画面を出してしまう）。
+    setUnitSearch("");
     setShowUnitPicker(true);
     // 挿入のための検索は「綴りを打ちたい」場面なので、シートが滑り込んだあと検索欄へフォーカスする
     // （表示単位の方は候補チップを眺めて選ぶことが多いので出さない）。
@@ -2202,17 +2216,27 @@ export default function CalculatorScreen() {
                       ) : null}
                     </>
                   ) : (
-                    <Animated.Text numberOfLines={2} adjustsFontSizeToFit style={[styles.resultValue, resultAnimatedStyle]}>
-                      {activeBase !== 10 && resultBaseParts ? (
-                        <>
-                          {resultBaseParts.sign}
-                          <Text style={{ color: colors.warning }}>{resultBaseParts.prefix}</Text>
-                          {resultBaseParts.digits}
-                        </>
-                      ) : (
-                        display.value
-                      )}
-                    </Animated.Text>
+                    <>
+                      <Animated.Text numberOfLines={2} adjustsFontSizeToFit style={[styles.resultValue, resultAnimatedStyle]}>
+                        {activeBase !== 10 && resultBaseParts ? (
+                          <>
+                            {resultBaseParts.sign}
+                            <Text style={{ color: colors.warning }}>{resultBaseParts.prefix}</Text>
+                            {resultBaseParts.digits}
+                          </>
+                        ) : (
+                          display.value
+                        )}
+                      </Animated.Text>
+                      {/* 表示桁の上限で切り詰めたときは、切り詰めていない値を小さく併記する
+                          （有効数字の丸めと同じ見せ方）。基数表示中は整数なので出さない。 */}
+                      {activeBase === 10 && displayDigitsNote ? (
+                        <Text style={styles.roundedFromText}>
+                          {displayDigitsNote}
+                          {display.unitLabel ? ` ${display.unitLabel}` : ""}
+                        </Text>
+                      ) : null}
+                    </>
                   )}
                   {/* 表示単位の次元が合わずSI表記へフォールバックしているときは、選択中の単位チップ
                       （例 cm）を光らせたままにすると、値がm/sなのにcmが選ばれているように見えて
@@ -2398,14 +2422,20 @@ export default function CalculatorScreen() {
             <View style={styles.sheetHeader}>
               <View style={styles.sheetHeaderMain}>
                 <Text style={styles.sheetTitle}>{unitPickerMode === "insert" ? copy.insertUnitTitle : copy.outputUnit}</Text>
-                <Text style={styles.sheetSubtitle}>{copy.pickUnit}</Text>
+                <Text style={styles.sheetSubtitle}>{unitPickerMode === "insert" ? copy.pickUnit : copy.compatible}</Text>
               </View>
               <Pressable accessibilityLabel={copy.close} onPress={() => setShowUnitPicker(false)} style={styles.closeHelp}><IconSymbol name="xmark" size={20} color={colors.muted} /></Pressable>
             </View>
+            {/* **表示単位を選ぶときは検索欄もカテゴリ行も出さない。** 結果の次元と関係のない単位を
+                選んでも `resolveDisplayUnit` が黙って自動へ戻すだけで、選んだことに意味が無い
+                （利用者からの指摘）。ここは「同じ次元の単位を読み付きで並べるだけ」に絞り、
+                綴りで探す・全カテゴリを辿るのは式へ単位を挿す側（insert）の役目にする。 */}
+            {unitPickerMode === "insert" ? (
             <View style={styles.unitSearchWrap}>
               <IconSymbol name="magnifyingglass" size={18} color={colors.muted} />
               <TextInput ref={unitSearchRef} value={unitSearch} onChangeText={(text) => setUnitSearch(toHalfWidthAscii(text))} placeholder={copy.unitSearch} placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={styles.unitSearchInput} />
             </View>
+            ) : null}
             {unitSearch.trim() ? (
               <View style={[styles.registrationCard, searchedUnitRegistration.status === "unknown" && styles.registrationCardUnknown, searchedUnitRegistration.status === "supported" && styles.registrationCardSupported]}>
                 <Text style={styles.registrationCardTitle}>{searchedUnitRegistration.status === "registered" ? copy.registered : searchedUnitRegistration.status === "supported" ? copy.supported : copy.unknown}</Text>
@@ -2421,7 +2451,7 @@ export default function CalculatorScreen() {
                 ) : null}
               </View>
             ) : null}
-            {unitSearch.trim() ? null : (
+            {unitSearch.trim() || unitPickerMode === "display" ? null : (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRail}>
                 {visibleInputGroups.map((group) => (
                   <Pressable key={group.id} onPress={() => setInputGroupId(group.id)} style={({ pressed }) => [styles.categoryChip, inputGroupId === group.id && styles.categoryChipActive, pressed && styles.pressed]}>
@@ -2446,24 +2476,38 @@ export default function CalculatorScreen() {
                 </>
               ) : (
                 <>
-                  {/* 「この結果に合う単位」は表示単位を選ぶときだけ。式へ挿す単位は結果の次元と無関係。 */}
-                  {unitPickerMode === "display" && compatibleUnitGroups.length ? (
-                    <>
-                      <Text style={styles.pickerSectionLabel}>{copy.compatible}</Text>
-                      {compatibleUnitGroups.map((group) => (
+                  {/* 表示単位のときは「この結果に合う単位」だけを並べる。式へ挿す単位は結果の
+                      次元と無関係なので、そちらはカテゴリ行で選んだグループを出す。 */}
+                  {unitPickerMode === "display" ? (
+                    compatibleUnitGroups.length ? (
+                      compatibleUnitGroups.map((group) => (
                         <View key={group.id} style={styles.pickerGroup}>
                           <Text style={styles.unitGroupLabel}>{unitGroupLabel(group.id)}</Text>
                           <View style={styles.chips}>{visibleGroupUnits(group).map((unitOption) => renderUnitChip({ group, unit: unitOption }, () => chooseUnit(unitOption.symbol), pickerChipActive(unitOption.symbol)))}</View>
                         </View>
-                      ))}
+                      ))
+                    ) : (
+                      // 合成次元（`N·m²/C²` など）には名前の付いた単位が無く、
+                      // getCompatibleUnitGroups が空になる。押せるものが1つも無い画面に
+                      // なるので、理由を出す（SI表記のまま読むのが正解だと伝える）。
+                      <View style={styles.emptyState}>
+                        <IconSymbol name="info.circle" size={22} color={colors.muted} />
+                        <Text style={styles.emptyStateTitle}>{copy.noCompatibleUnits}</Text>
+                        <Text style={styles.emptyStateText}>{copy.noCompatibleUnitsHint}</Text>
+                      </View>
+                    )
+                  ) : (
+                    <>
+                      <Text style={styles.pickerSectionLabel}>{unitGroupLabel(selectedInputGroup.id)}</Text>
+                      <View style={styles.chips}>{selectedInputUnits.map((unitOption) => renderUnitChip({ group: selectedInputGroup, unit: unitOption }, () => chooseUnit(unitOption.symbol), pickerChipActive(unitOption.symbol)))}</View>
                     </>
-                  ) : null}
-                  <Text style={styles.pickerSectionLabel}>{unitGroupLabel(selectedInputGroup.id)}</Text>
-                  <View style={styles.chips}>{selectedInputUnits.map((unitOption) => renderUnitChip({ group: selectedInputGroup, unit: unitOption }, () => chooseUnit(unitOption.symbol), pickerChipActive(unitOption.symbol)))}</View>
+                  )}
                 </>
               )}
-              {/* 検索中でも、Pro のお気に入り単位は隠さず常に選べるようにする。 */}
-              {isPro && favoriteUnits.length ? (
+              {/* Pro のお気に入り単位は「綴りで探す」側（insert）にだけ出す。表示単位の一覧に
+                  混ぜると、この結果の次元に合わないお気に入りが並んで選べてしまう
+                  （合う単位は上の一覧に既に出ている）。 */}
+              {unitPickerMode === "insert" && isPro && favoriteUnits.length ? (
                 <View style={styles.favoritePicker}>
                   <Text style={styles.pickerSectionLabel}>PRO</Text>
                   <View style={styles.chips}>{favoriteUnits.map((unit) => <Pressable key={unit} onPress={() => chooseUnit(unit)} style={({ pressed }) => [styles.unitChip, pressed && styles.pressed]}><Text style={styles.unitChipSymbol}>{unit}</Text></Pressable>)}</View>

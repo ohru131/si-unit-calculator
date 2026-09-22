@@ -99,6 +99,12 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - **`Intl` を通さない経路にも掛けること。** `formatNumberForLocale` は `|v| >= 1e7` と `< 1e-6` で `formatNumber` へ逃がすので、そちらにも `toPrecision` を掛けないと大きい値・小さい値だけ上限が効かない。
   - **PDFの書き出し（`exportNotebookDocument`）にも必ず渡すこと。** 渡さないとPDFだけ10桁のまま出て画面と値が食い違う（`resolveNotebookStepDisplay` を画面とPDFで共有しているのと同じ理由。CodeRabbitが#79で**diff範囲外のコメント**として検出した——`get_review_comments` には出ない経路なので、レビュー本文も必ず読む）。`tests/notebook-export-model.test.ts` で固定。
   - 設定は**電卓の結果・単位比較表・計算ノート（画面／一覧のプレビュー／PDF）・グローバル定数の一覧**へ引き回してある。引き回しの入口は `evaluateNotebookSteps` と `resolveNotebookStepDisplay` の末尾引数、および `buildNotebookExportModelOptions.maxDigits`。**画面コンポーネントは props で受ける**（`NotebookDetail` / `NotebookList` の `resultDigits`）ので、`useMemo` の依存配列に必ず入れる（入れないと設定を変えても再計算されない）。
+  - **切り詰めたときは、切り詰めていない値を小さく併記する**（`displayDigitsRoundedFrom`。2026-09-21）。4桁にしていると `2.553 mA` が**ちょうどの値と見分けられない**（利用者からの指摘）。有効数字の丸め（`toSignificantDecimal` の `roundedFrom`）が既に同じ形で元の値を出しているので、見せ方をそろえる。
+    - **基準は `MAX_DISPLAY_DIGITS`（10桁）で、倍精度の素の値ではない。** 素の値にすると `2.5531914893617023` のような17桁が併記され、有効数字の併記と桁数がそろわない。
+    - 電卓は**小数表示のときだけ**出す（有効数字・科学表記は自前の `roundedFrom` を持ち、そちらは `resultDigits` を通らない。進数表示は整数なので切り詰めが起きない）。計算ノートは `resolveNotebookStepDisplay` が `rawValue` に入れるので、画面・一覧のプレビュー・PDFへ自動で乗る。
+  - **「丸めなし」（`RESULT_DIGITS_UNLIMITED` = 0）がある**（2026-09-21）。`3333333333333`（13桁）のように**打てるのに10桁では表せない値**のための逃げ道で、`formatNumberForLocale` が `toPrecision` を掛けず、Intl 側も `maximumSignificantDigits: 21` にする。指数表記へ落とす境目（`|v| >= 1e7`）は変えない——設定で**表記の形**まで変わらないようにするため（`toExponential()` を引数なしで呼ぶので桁は落ちない）。
+    - **既定にしないこと。** 上限を外すと倍精度の素の値がそのまま出るので `0.1 + 0.2` が `0.30000000000000004` になる。
+    - **選択肢に 0 を足したことで `Number(null) === 0` が「妥当な設定値」になった。** 保存値の読み戻しを `Number(raw)` のまま書いていたため、**一度も設定していない端末が黙って丸めなしになった**（実際に踏んだ。`12V / 4.7kΩ` が16桁で出た）。判定は `lib/result-digits.ts` の `parseStoredResultDigits` に切り出してあり、「保存が無い」と「0 が保存されている」を先に分ける。**`lib/global-settings.tsx`（.tsx）に純関数を置かないこと**——RNのソースを解析しに行ってテストから読めない（`lib/unit-group-names.ts` を切り出したのと同じ事情）。
 - **科学表記の指数は別の `Text` として描く**（2026-09-21）。**上付き数字（`⁻⁵`・`⁰`〜`⁹`）を1つのTextに混ぜないこと。** 等幅フォント（Menlo / monospace）は U+207B・U+2070-2079 を持たないので、プラットフォームのフォールバックが**等倍で描き `2.5×10 − 5` と読める絵になる**（実機で「小数表示と高さが変わる」と報告され、Webのスクショでも再現した）。`ScientificNotation` は `mantissa` と `exponent` を別に持っているので、描画側で `${mantissa}×10` と指数を分けて並べるだけでよい。
   - 指数の `lineHeight` は本文の文字サイズの55%に**明示する**。明示しないと行ボックスがフォント任せになり、プラットフォームによって上下する。マイナスは U+2212（ハイフンだと字幅が細くて指数に見えない）。
   - **`adjustsFontSizeToFit` と `numberOfLines` は付けない。** パートごとに別の Text なので縮小率がばらばらになり、仮数と単位で字の大きさが食い違う。長い値は行を折り返して受ける（小数表示が2行になるのと同じ）。
@@ -235,6 +241,10 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - 呼び出し側が必ず渡すのは `expression` / `selection` / `identifiers` / `analysis` / `unitSystem` の5つ。`fixSelection`（赤い未対応単位のタップ）・`prefixEntry`・`requiredGroup`（評価エラーから読めた次元）・`recentExamples`（計算履歴）は**電卓にしか無いので任意**で、渡さなければその絞り込みが効かないだけ。
   - **`analysis` は呼び出し側が持っているものを渡す。** 電卓は入力欄の色分けのために毎打鍵 `analyzeExpression` を通しているので、フック側で作り直すと二重になる。
   - **検索チップ（`onOpenSearch`）は任意。** 単位ピッカーのシートは電卓（`app/(tabs)/index.tsx`）にしか無く、表示単位の選択・Proのお気に入り・キーボード回避と絡んでいるのでまだ切り出していない。ノートでは検索チップが出ない（カテゴリ行からは全グループ・全単位に届く）。**シートを共通化するときはここに `onOpenSearch` を渡すだけで済む。**
+  - **単位ピッカーのシートは `unitPickerMode` で中身が別物**（2026-09-21）。`insert`（式へ単位を挿す。レールの「検索」チップから）は従来どおり検索欄＋全カテゴリ＋Proのお気に入りを出すが、`display`（結果カードの「他 ›」）は**この結果と同じ次元の単位を読み付きで並べるだけ**に絞ってある。
+    - **理由**: 表示単位に結果と次元の合わない単位を選んでも `resolveDisplayUnit` が黙って自動へ戻すだけで、選んだことに意味が無い（利用者からの指摘）。検索欄・カテゴリ行・お気に入りは「次元の違う単位も選べる」ように見せてしまうので、display からは外した。
+    - `openUnitPicker("display")` は**検索語を必ず空にする**（残っていると `unitSearch.trim()` の分岐が検索結果の画面を出してしまう）。以前はここに `targetUnit` を入れていた。
+    - **合成次元（`N·m²/C²` など）では `getCompatibleUnitGroups` が空になる**ので、押せるものが1つも無い画面になる。空状態（`noCompatibleUnits`）で「SI表記のまま読むのが正解」と伝える。
   - `bottomGap` はキーパッド直上に置くときの下余白（電卓は `layout.keyRowGap - 2`）。`trailing` は右端に足すボタン（電卓の進数入力の入口 `0x`）。
 - `components/ui/expression-keyboard.tsx` + `lib/expression-keyboard.ts` — **電卓と計算ノート詳細が共用する式キーボード**（2026-09-19）。上から 開いているパネル → ツール行（`定数`・`xⁿ`・`f(x)`・`αβ`・`ABC`・`単位`・⌨）→ **5列4段**のキーパッド（`EXPRESSION_CELLS`）。**ツール行がパネルより下にあるのは意図的**（下の項を参照）。きっかけは「電卓とノートでキー配置が違う」「`f(x)` の列が接頭語の下に出るのがいまいち」「`x²` などを構造化して f(x) も上に」「接頭語と単位のセットを折りたたみたい」という一連の指摘。
   - **パネルは同時に1つだけ**（`tool: KeyboardTool | null`。親が持つ＝制御コンポーネント）。縦に積むと画面の低い端末でキーパッドがタブバーに潜る。同じツールをもう一度押すと畳む。既定は `units`。電卓は未対応単位を赤字でタップしたとき（`setFixSelection`）に `units` へ切り替える——修正候補はそこにしか出ない。
@@ -814,9 +824,10 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 ### 現在の基準値（2026-09-21時点、定数の編集を電卓タブへ出した後）
 
 - `npx tsc --noEmit` → **`app/_layout.tsx` の `@/global.css` で1件のみ**（従来どおりの環境依存）。
-- `npx vitest run` → **1155 passed / 2 failed**。失敗2件は従来どおり `tests/revenuecat.credentials.test.ts`（環境依存）。新規: `tests/sheet-layout.test.ts`（5件）・`tests/constant-editor.test.ts`（7件）、`tests/calculator-input.test.ts` に定数名と単位記号の衝突4件。
+- `npx vitest run` → **1169 passed / 2 failed**。失敗2件は従来どおり `tests/revenuecat.credentials.test.ts`（環境依存）。新規: `tests/sheet-layout.test.ts`（5件）・`tests/constant-editor.test.ts`（7件）、`tests/calculator-input.test.ts` に定数名と単位記号の衝突4件、`tests/display-digits.test.ts` に丸めなし・併記・保存値の読み戻し10件、`tests/notebook-export-model.test.ts` に表示桁の併記3件。
 - `npx expo lint` → **2エラー・0警告**（`app/(tabs)/index.tsx` の既存分のまま）。
 - `npx expo export --platform web` が通る（**初回は `react-native-css-interop/.cache/web.css` のSHA-1で落ちることがあり、同じコマンドをもう一度走らせると通る**）。Playwright（400×800・ja）で確認済み: `W = 3cm` が `=` を押す前に赤字で弾かれる／`定数` パネルの鉛筆で編集モードに入り `＋` から新規作成できる／名前を OS のキーボード・値をアプリ内キーパッドと接頭語キー＋単位レール（`4.7` → `k` → `kΩ`）で打って保存できる／保存した `R1` がパネルのチップに出る／名前を `V` にすると保存ボタンが無効のまま理由が出る／既存の定数を開いて削除の確認が出る／ライブラリタブの定数カードからも同じシートが開く。
+- Playwright（400×820・ja）で追加確認済み: 既定6桁で `12V / 4.7kΩ` が `2.55319 mA`＋小さく `2.553191489 mA`／4桁で `2.553 mA`＋同じ併記／「丸めなし」で `3333333333333` が `3.333333333333e+12`（13桁とも残る）／「他 ›」が電流の A・mA・µA を読み付きで並べるだけになり検索欄もカテゴリ行も出ない／合成次元（`9e9*N*m^2/C^2`）で空状態が出る／レールの「検索」（insert）は従来どおり検索欄＋全カテゴリ／計算ノートの3手順とも切り詰めていない値を併記。
 - **未検証（この環境では Web しか動かせない）**: 名前の欄をタップして OS のキーボードが上がったときにシートが持ち上がるか（`keyboardDidShow` は Web では発火しない）、値の欄の ⌨ キーで OS のキーボードが出るか。**Android実機で確認すること。**
 
 ## 次にやりそうなこと（ユーザーから明示的な指示待ち）

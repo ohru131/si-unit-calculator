@@ -17,7 +17,7 @@ import { RESULT_DIGITS_OPTIONS, useGlobalSettings } from "@/lib/global-settings"
 import { APP_LANGUAGES, LANGUAGE_META } from "@/lib/i18n";
 import { usePro } from "@/lib/revenuecat-provider";
 import { type ThemePreference, useThemeContext } from "@/lib/theme-provider";
-import { MeasuringStandard, UnitSystem } from "@/lib/units";
+import { MeasuringStandard, RESULT_DIGITS_UNLIMITED, UnitSystem } from "@/lib/units";
 
 // 地域行を連打するとProプレビュー（Web限定の隠しスイッチ）を切り替える。誤操作で
 // 踏まないよう、Android設定の「ビルド番号を7回タップ」に倣って7回・2秒以内に揃える。
@@ -59,7 +59,12 @@ export default function SettingsScreen() {
   const systemValue = systems.find((option) => option.id === unitSystem)?.label ?? "";
   const measuringStandardValue = measuringStandards.find((option) => option.id === measuringStandard)?.shortLabel ?? "";
   // 表示する桁数。10は MAX_DISPLAY_DIGITS と同じ＝従来どおり（実質「上限なし」）。
-  const resultDigitsOptions = RESULT_DIGITS_OPTIONS.map((digits) => ({ digits, label: t("resultDigitsOption").replace("{count}", String(digits)) }));
+  // 0（RESULT_DIGITS_UNLIMITED）は「丸めなし」。`{count}桁` に当てはめると「0桁」になるので、
+  // 専用の文言を出す。
+  const resultDigitsOptions = RESULT_DIGITS_OPTIONS.map((digits) => ({
+    digits,
+    label: digits === RESULT_DIGITS_UNLIMITED ? t("resultDigitsUnlimited") : t("resultDigitsOption").replace("{count}", String(digits)),
+  }));
   const resultDigitsValue = t("resultDigitsOption").replace("{count}", String(resultDigits));
   // 0件のときは行に値を出さない。customUnitEmptyは「まだ自作の単位はありません。」という
   // 文章で、行の値の位置に置くと狭い端末幅で「まだ自作の単位はあ…」と切れて読めなくなる
