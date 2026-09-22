@@ -1,12 +1,14 @@
-import { useMemo, useState } from "react";
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { NotebookKeypad } from "@/components/notebooks/notebook-keypad";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { LatexView } from "@/components/ui/latex-view";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
 import { useKeyboardHeight } from "@/hooks/use-keyboard-height";
+import { useUnitRail } from "@/hooks/use-unit-rail";
 import {
   type CalculationNotebook,
   type CalculationNoteStep,
@@ -15,19 +17,19 @@ import {
   type NotebookLocalConstant,
   UNCATEGORIZED_CATEGORY_ID,
 } from "@/lib/calculator-store";
-import { FORMULA_CHARACTER_GROUPS } from "@/lib/formula-characters";
+import { resolveCalculatorLayout } from "@/lib/calculator-layout";
 import { toHalfWidthAscii } from "@/lib/fullwidth-input";
 import { localizedText, type AppLanguage } from "@/lib/i18n";
-import { clampSelectionRange, getLocalConstantFieldSuggestions, getStepFieldSuggestions, insertConstantSymbol, mapCombinedSelectionToExpressionRange } from "@/lib/notebook-constant-suggestions";
-import { evaluateNotebookSteps, formatNameValue, normalizeStepForSave, parseNameValue, resolveNotebookLocalConstants } from "@/lib/notebook-engine";
+import { clampSelectionRange, getLocalConstantFieldSuggestions, getStepFieldSuggestions, mapCombinedSelectionToExpressionRange } from "@/lib/notebook-constant-suggestions";
+import { formatNameValue, normalizeStepForSave, parseNameValue } from "@/lib/notebook-engine";
+import { backspaceInCombinedField, insertInCombinedField, moveCaretInCombinedField } from "@/lib/notebook-keypad";
 import { resolveSheetKeyboardLayout } from "@/lib/sheet-layout";
 import { notebookFormulaRows } from "@/lib/notebook-formula-rows";
 import { PRESET_NOTEBOOK_CATEGORIES } from "@/lib/notebook-formulas";
 import { orderNotebookCategoriesForLanguage } from "@/lib/locale-relevance";
 import { nextStepNamePatch } from "@/lib/notebook-step-title";
-import { getUnitInsertionRange, replaceExpressionRange } from "@/lib/unit-input";
+import { analyzeExpression, prefixEntryStillValid, replaceExpressionRange, resolvePrefixKeyPress, shouldResetPaletteForKey, type PrefixEntry } from "@/lib/unit-input";
 import { unitErrorMessage } from "@/lib/unit-errors";
-import { compatibleUnitOptions } from "@/lib/unit-options";
 import { type SavedConstant, type UnitSystem } from "@/lib/units";
 
 const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" });
@@ -48,7 +50,7 @@ export type NotebookSaveInput = Omit<CalculationNotebook, "id" | "createdAt" | "
 // 同名キーがある（グローバル定数の編集シートと共用する文言）。文言の持ち方の規約
 // （lib/i18n.tsのUI文言はRecord化する方式）に沿って、この共有コンポーネントも自分専用のCOPYを持つ。
 const EN_COPY = {
-  close: "Close", save: "Save", saving: "Saving…",
+  close: "Close", save: "Save", saving: "Saving…", keypadDismiss: "Done",
   notebookNew: "New notebook", notebookEdit: "Edit notebook",
   notebookTitleLabel: "Title", notebookDescriptionLabel: "Description",
   notebookTitlePlaceholder: "Bending stress", notebookDescriptionPlaceholder: "Optional note",
@@ -62,8 +64,6 @@ const EN_COPY = {
   formulaLatexPlaceholder: "Display formula, optional LaTeX (e.g. v = v_0 + at)",
   formulasLabel: "Formula explanations", formulasHint: "The formulas shown at the top of the notebook. The explanation is optional — a formula on its own is fine. Add as many as you like.",
   addFormula: "Add formula", formulaExplanationPlaceholder: "Explanation (e.g. This gives the velocity)",
-  insert: "Insert", formulaCharactersLabel: "Symbols", definedVariablesLabel: "Defined variables", unitsLabel: "Units",
-  symbolGroupSubscriptDigits: "Subscript digits", symbolGroupSubscriptLetters: "Subscript letters", symbolGroupGreekLower: "Greek (lowercase)", symbolGroupGreekUpper: "Greek (uppercase)",
   resultTitleLabel: "Display title", resultTitlePlaceholder: "e.g. Velocity v",
   formulaLatexRequired: "Each formula explanation needs its own formula (LaTeX). Remove the explanation or add the formula, otherwise it will be discarded on save.",
   validation: "Please fill in the required fields.",
@@ -71,7 +71,7 @@ const EN_COPY = {
 const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
   en: EN_COPY,
   ja: {
-    close: "閉じる", save: "保存", saving: "保存中…",
+    close: "閉じる", save: "保存", saving: "保存中…", keypadDismiss: "閉じる",
     notebookNew: "新しい計算ノート", notebookEdit: "計算ノートを編集",
     notebookTitleLabel: "タイトル", notebookDescriptionLabel: "説明",
     notebookTitlePlaceholder: "曲げ応力", notebookDescriptionPlaceholder: "任意のメモ",
@@ -85,14 +85,12 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     formulaLatexPlaceholder: "表示用の数式（任意、LaTeX。例：v = v_0 + at）",
     formulasLabel: "数式の解説", formulasHint: "ノートの先頭に出す数式です。説明文は任意で、数式だけでも構いません。いくつでも追加できます。",
     addFormula: "数式を追加", formulaExplanationPlaceholder: "説明文（例：速度を求める式です）",
-    insert: "挿入", formulaCharactersLabel: "特殊記号", definedVariablesLabel: "定義済みの変数", unitsLabel: "単位",
-    symbolGroupSubscriptDigits: "下付き数字", symbolGroupSubscriptLetters: "下付き文字", symbolGroupGreekLower: "ギリシャ文字（小文字）", symbolGroupGreekUpper: "ギリシャ文字（大文字）",
     resultTitleLabel: "表示タイトル", resultTitlePlaceholder: "例：速度 v",
     formulaLatexRequired: "数式の解説には数式（LaTeX）も入力してください。数式が不要なら説明文ごと削除してください（空のままだと保存時に消えます）。",
     validation: "必須項目を入力してください。",
   },
   es: {
-    close: "Cerrar", save: "Guardar", saving: "Guardando…",
+    close: "Cerrar", save: "Guardar", saving: "Guardando…", keypadDismiss: "Listo",
     notebookNew: "Nuevo cuaderno", notebookEdit: "Editar cuaderno",
     notebookTitleLabel: "Título", notebookDescriptionLabel: "Descripción",
     notebookTitlePlaceholder: "Esfuerzo de flexión", notebookDescriptionPlaceholder: "Nota opcional",
@@ -106,14 +104,12 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     formulaLatexPlaceholder: "Fórmula visible, LaTeX opcional (por ejemplo, v = v_0 + at)",
     formulasLabel: "Explicaciones de fórmulas", formulasHint: "Las fórmulas que se muestran al principio del cuaderno. La explicación es opcional: una fórmula sola también vale. Añade tantas como quieras.",
     addFormula: "Añadir fórmula", formulaExplanationPlaceholder: "Explicación (por ejemplo, esto calcula la velocidad)",
-    insert: "Insertar", formulaCharactersLabel: "Símbolos", definedVariablesLabel: "Variables definidas", unitsLabel: "Unidades",
-    symbolGroupSubscriptDigits: "Dígitos en subíndice", symbolGroupSubscriptLetters: "Letras en subíndice", symbolGroupGreekLower: "Griego (minúsculas)", symbolGroupGreekUpper: "Griego (mayúsculas)",
     resultTitleLabel: "Título mostrado", resultTitlePlaceholder: "p. ej., Velocidad v",
     formulaLatexRequired: "Cada explicación de fórmula necesita su propia fórmula (LaTeX). Elimina la explicación o añade la fórmula; de lo contrario se descartará al guardar.",
     validation: "Completa los campos obligatorios.",
   },
   "pt-BR": {
-    close: "Fechar", save: "Salvar", saving: "Salvando…",
+    close: "Fechar", save: "Salvar", saving: "Salvando…", keypadDismiss: "Concluído",
     notebookNew: "Novo caderno", notebookEdit: "Editar caderno",
     notebookTitleLabel: "Título", notebookDescriptionLabel: "Descrição",
     notebookTitlePlaceholder: "Tensão de flexão", notebookDescriptionPlaceholder: "Nota opcional",
@@ -127,14 +123,12 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     formulaLatexPlaceholder: "Fórmula exibida, LaTeX opcional (por exemplo, v = v_0 + at)",
     formulasLabel: "Explicações das fórmulas", formulasHint: "As fórmulas exibidas no início do caderno. A explicação é opcional — uma fórmula sozinha também serve. Adicione quantas quiser.",
     addFormula: "Adicionar fórmula", formulaExplanationPlaceholder: "Explicação (por exemplo, isso calcula a velocidade)",
-    insert: "Inserir", formulaCharactersLabel: "Símbolos", definedVariablesLabel: "Variáveis definidas", unitsLabel: "Unidades",
-    symbolGroupSubscriptDigits: "Dígitos subscritos", symbolGroupSubscriptLetters: "Letras subscritas", symbolGroupGreekLower: "Grego (minúsculas)", symbolGroupGreekUpper: "Grego (maiúsculas)",
     resultTitleLabel: "Título exibido", resultTitlePlaceholder: "ex.: Velocidade v",
     formulaLatexRequired: "Cada explicação de fórmula precisa de sua própria fórmula (LaTeX). Remova a explicação ou adicione a fórmula; caso contrário, ela será descartada ao salvar.",
     validation: "Preencha os campos obrigatórios.",
   },
   de: {
-    close: "Schließen", save: "Speichern", saving: "Speichert…",
+    close: "Schließen", save: "Speichern", saving: "Speichert…", keypadDismiss: "Fertig",
     notebookNew: "Neues Rechenheft", notebookEdit: "Rechenheft bearbeiten",
     notebookTitleLabel: "Titel", notebookDescriptionLabel: "Beschreibung",
     notebookTitlePlaceholder: "Biegespannung", notebookDescriptionPlaceholder: "Optionale Notiz",
@@ -148,14 +142,12 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     formulaLatexPlaceholder: "Anzeigeformel, optional LaTeX (z. B. v = v_0 + at)",
     formulasLabel: "Formelerklärungen", formulasHint: "Die Formeln, die oben im Rechenheft stehen. Die Erklärung ist optional — eine Formel allein genügt. Beliebig viele möglich.",
     addFormula: "Formel hinzufügen", formulaExplanationPlaceholder: "Erklärung (z. B. Damit wird die Geschwindigkeit berechnet)",
-    insert: "Einfügen", formulaCharactersLabel: "Symbole", definedVariablesLabel: "Definierte Variablen", unitsLabel: "Einheiten",
-    symbolGroupSubscriptDigits: "Tiefgestellte Ziffern", symbolGroupSubscriptLetters: "Tiefgestellte Buchstaben", symbolGroupGreekLower: "Griechisch (klein)", symbolGroupGreekUpper: "Griechisch (groß)",
     resultTitleLabel: "Anzeigetitel", resultTitlePlaceholder: "z. B. Geschwindigkeit v",
     formulaLatexRequired: "Jede Formelerklärung braucht eine eigene Formel (LaTeX). Entferne die Erklärung oder ergänze die Formel, sonst wird sie beim Speichern verworfen.",
     validation: "Bitte fülle die Pflichtfelder aus.",
   },
   fr: {
-    close: "Fermer", save: "Enregistrer", saving: "Enregistrement…",
+    close: "Fermer", save: "Enregistrer", saving: "Enregistrement…", keypadDismiss: "Terminé",
     notebookNew: "Nouveau carnet", notebookEdit: "Modifier le carnet",
     notebookTitleLabel: "Titre", notebookDescriptionLabel: "Description",
     notebookTitlePlaceholder: "Contrainte de flexion", notebookDescriptionPlaceholder: "Note facultative",
@@ -169,8 +161,6 @@ const COPY: Record<AppLanguage, Record<keyof typeof EN_COPY, string>> = {
     formulaLatexPlaceholder: "Formule affichée, LaTeX facultatif (par exemple v = v_0 + at)",
     formulasLabel: "Explications des formules", formulasHint: "Les formules affichées en haut du carnet. L'explication est facultative : une formule seule suffit. Ajoutez-en autant que vous voulez.",
     addFormula: "Ajouter une formule", formulaExplanationPlaceholder: "Explication (par exemple, ceci calcule la vitesse)",
-    insert: "Insérer", formulaCharactersLabel: "Symboles", definedVariablesLabel: "Variables définies", unitsLabel: "Unités",
-    symbolGroupSubscriptDigits: "Chiffres en indice", symbolGroupSubscriptLetters: "Lettres en indice", symbolGroupGreekLower: "Grec (minuscules)", symbolGroupGreekUpper: "Grec (majuscules)",
     resultTitleLabel: "Titre affiché", resultTitlePlaceholder: "p. ex. Vitesse v",
     formulaLatexRequired: "Chaque explication de formule a besoin de sa propre formule (LaTeX). Supprimez l'explication ou ajoutez la formule, sinon elle sera perdue à l'enregistrement.",
     validation: "Veuillez remplir les champs obligatoires.",
@@ -204,7 +194,9 @@ export function NotebookEditorSheet({
   const styles = useMemo(() => createStyles(colors), [colors]);
   const copy = COPY[language];
   // シートは OS のキーボードから自分で逃げる（判断は lib/sheet-layout.ts。理由はそちらのコメント）。
-  const { height: windowHeight } = useWindowDimensions();
+  const { fontScale, height: windowHeight } = useWindowDimensions();
+  // キーパッドの段階（キーの高さ・文字の拡大率）は電卓と同じ物差しで決める。
+  const keyboardLayout = useMemo(() => resolveCalculatorLayout({ fontScale, height: windowHeight }), [fontScale, windowHeight]);
   const insets = useSafeAreaInsets();
   const keyboardHeight = useKeyboardHeight();
 
@@ -231,17 +223,31 @@ export function NotebookEditorSheet({
   });
   const [notebookError, setNotebookError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  // mₒ・nₜ のようなUnicode下付き文字・ギリシャ文字は端末キーボードで直接入力できないため、
-  // 「名前＝式」欄の直下に「タップで挿入」ボタンの列を出す。フィールドごとに一意なキー
-  // （`local:${id}` / `step:${id}`）で、どのフィールドのレールを表示中かを管理する
-  // （components/notebooks/notebook-detail.tsx と同じパターン）。
+  // 「名前＝式」欄（ローカル定数・手順）を編集している間、シートの下端に**電卓と共用のキーパッド**
+  // （components/notebooks/notebook-keypad.tsx）を出す。フィールドごとに一意なキー
+  // （`local:${id}` / `step:${id}`）で、どのフィールドを編集中かを管理する（詳細画面と同じパターン）。
+  // 【なぜ欄の直下のボタン列をやめたか】以前は欄ごとに記号レール（ギリシャ文字・下付き）と
+  // 「定義済みの変数／単位」のチップ列を直下に出していた。数字と演算子は端末のキーボード、記号と
+  // 単位は欄の下、という分かれ方で、電卓・ノート詳細とキーの位置も中身も違っていた（単位はカテゴリも
+  // 文脈依存の候補も接頭語の補完も無い平らな一覧だった）。入力手段を1箇所に寄せれば、片方にだけ入る
+  // 改良が生まれない（利用者からの指示「テキストボックスの下のボタンではなく共通のアプリキーパッドを」）。
   // 【なぜフォーカスと連動させないか】以前は「フォーカス中のフィールド」に厳密に連動させ、onBlurで
-  // 150ms後に消していた。しかしグループタブ（下の記号グループ切替）や単位・変数チップはどれも
-  // TextInputの外にあるPressableなので、それを押した瞬間にonBlurが先に発火してレールごと消え、
-  // 目的のボタンを押せなくなってしまう（実際に踏んだ不具合）。そこで「最後にフォーカスしたフィールド」の
-  // レールを、別のフィールドにフォーカスが移るかモーダルを閉じるまで表示し続ける方式に変える。
-  // TextInputのonBlurではもう何もしない（scheduleRailBlurは廃止）。
+  // 150ms後に消していた。しかしキーパッドのキーもチップもTextInputの外にあるPressableなので、それを
+  // 押した瞬間にonBlurが先に発火してキーパッドごと消え、目的のボタンを押せなくなってしまう
+  // （実際に踏んだ不具合）。そこで「最後にフォーカスした欄」を、別の欄にフォーカスが移るか
+  // 上段の「閉じる」を押すまで保持する方式にしてある。TextInputのonBlurでは何もしない。
   const [activeRailKey, setActiveRailKey] = useState<string | null>(null);
+  // 接頭語キーで入れた1文字を「まだ単位を選んでいる途中」として覚える（電卓・ノート詳細と同じ）。
+  // これが無いと `m` が単体のメートルとして解決され、レールの候補が長さの単位だけになる。
+  const [prefixEntry, setPrefixEntry] = useState<PrefixEntry | null>(null);
+  // OS のキーボードを出している欄。「名前＝式」欄は既定では出さず（showSoftInputOnFocus）、
+  // タイトル・説明文などの英字が主の欄は従来どおり出す（そのときはキーパッドを畳む）。
+  const [osKeyboardKey, setOsKeyboardKey] = useState<string | null>(null);
+  // キーボードキーで focus() を呼ぶ相手と、キーパッドの下に隠れた欄を見える位置へ寄せるための参照。
+  const inputRefs = useRef<Record<string, TextInput | null>>({});
+  const scrollRef = useRef<ScrollView | null>(null);
+  const scrollOffsetRef = useRef(0);
+  const scrollViewportHeightRef = useRef(0);
   // 各フィールドの現在のキャレット/選択範囲（onSelectionChangeで更新）。ボタンをタップしたとき
   // 末尾ではなく、この位置に文字を挿し込むために使う。レールがフォーカスと連動しなくなった分、
   // フォーカスが外れた状態でボタンを押しても直前のキャレット位置へ正しく挿入できる必要がある
@@ -253,13 +259,56 @@ export function NotebookEditorSheet({
   // fieldSelectionsには反映済みなので、次に続けてボタンを押したときの挿入位置は正しく積み上がる
   // （再びこのフィールドをタップしてフォーカスが戻ったときにキャレットが正しい位置に来る）。
   const [forcedSelection, setForcedSelection] = useState<{ key: string; selection: { start: number; end: number } } | null>(null);
-  // フォーカス中フィールドで今どの文字グループ（下付き数字／下付き英字／ギリシャ小文字／ギリシャ大文字）を
-  // 表示しているか。全グループを縦に並べるとモーダルが伸びすぎるため、タブで1グループだけを横スクロール表示する。
-  const [activeCharacterGroupId, setActiveCharacterGroupId] = useState(FORMULA_CHARACTER_GROUPS[0].id);
-  // 変数・単位レールは同じ2行構成（タブ＋チップ）を共有し、タブで「定義済みの変数」⇔「単位」を切り替える。
-  // レールを3本（記号・変数・単位）縦に並べるとモーダルが伸びすぎるため、変数と単位を別々の行にせず
-  // 記号レールと同じタブ切替パターンに揃えることで、単位チップを追加してもレールの縦幅を増やさない。
-  const [activeAuxRailTab, setActiveAuxRailTab] = useState<"variables" | "units">("variables");
+
+  // Android の戻るボタンで OS のキーボードを閉じると onBlur が来ないことがあり、⌨ キーが点いたまま
+  // 残る（電卓・ノート詳細と同じ対処）。OS が隠した時点でこちらの記録も消す。
+  useEffect(() => {
+    const subscription = Keyboard.addListener("keyboardDidHide", () => setOsKeyboardKey(null));
+    return () => subscription.remove();
+  }, []);
+
+  /**
+   * 編集中の欄がキーパッドの下に隠れていれば、見える位置までスクロールする。OS のキーボードなら
+   * Android が自動で寄せてくれるが、自前のキーパッドにはその仕組みが無い。測定は ScrollView の枠に
+   * 対する相対座標なので、現在のスクロール量を足して絶対位置にする（ノート詳細と同じ）。
+   */
+  const ensureActiveFieldVisible = (key: string | null) => {
+    if (!key) return;
+    const input = inputRefs.current[key];
+    const scrollView = scrollRef.current;
+    const scrollNode = scrollView?.getNativeScrollRef();
+    if (!input || !scrollView || !scrollNode) return;
+    input.measureLayout(
+      scrollNode,
+      (_x, y, _width, height) => {
+        const viewport = scrollViewportHeightRef.current;
+        if (!viewport) return;
+        const margin = 12;
+        if (y + height + margin > viewport) {
+          scrollView.scrollTo({ y: scrollOffsetRef.current + y + height + margin - viewport, animated: true });
+        } else if (y < 0) {
+          scrollView.scrollTo({ y: scrollOffsetRef.current + y - margin, animated: true });
+        }
+      },
+      () => undefined,
+    );
+  };
+  // ScrollView が縮み終わってから測る必要があるので1フレーム待つ。
+  useEffect(() => {
+    if (!activeRailKey) return;
+    const timer = setTimeout(() => ensureActiveFieldVisible(activeRailKey), 50);
+    return () => clearTimeout(timer);
+  }, [activeRailKey]);
+
+  // **キーボードキーで出すときは一度 blur してから遅らせて focus する。** その欄は利用者が直前に
+  // タップしていて既にフォーカス中なので、そのまま focus() を呼んでも RN は「既にフォーカス済み」と
+  // 見て何もせず、showSoftInputOnFocus を true にしても表示要求が出ない（ノート詳細で踏んだのと同じ）。
+  useEffect(() => {
+    if (!osKeyboardKey) return;
+    inputRefs.current[osKeyboardKey]?.blur();
+    const timer = setTimeout(() => inputRefs.current[osKeyboardKey]?.focus(), 50);
+    return () => clearTimeout(timer);
+  }, [osKeyboardKey]);
   // カテゴリピッカーの第2段（サブカテゴリ行）を、どの大分類について開いているか。閉じているときはnull。
   // 理科・高校物理のサブカテゴリが選ばれているなら、ピッカーの第2段を最初から開いておく
   // （自分の選択を見るための再ナビゲーションを不要にするため）。
@@ -328,24 +377,6 @@ export function NotebookEditorSheet({
     setShowNewCategoryField(false);
     setIsCategoryPickerOpen(false);
   };
-
-  // 編集画面の単位チップ用。まだ保存前で値が確定していないローカル定数も、ここで先行評価しておく
-  // （detail画面のresolveNotebookLocalConstantsと同じ使い方）。1行の失敗（式が未入力・不正）は
-  // 他の行の評価やUIを止めない。
-  const { resolved: notebookResolvedConstants } = useMemo(
-    () => resolveNotebookLocalConstants(notebookLocalConstants, globalConstants, language),
-    [notebookLocalConstants, globalConstants, language],
-  );
-  const notebookResolvedBySymbol = useMemo(() => new Map(notebookResolvedConstants.map((item) => [item.symbol, item])), [notebookResolvedConstants]);
-  const notebookConstantPool = useMemo(() => [...globalConstants, ...notebookResolvedConstants], [globalConstants, notebookResolvedConstants]);
-  // 手順欄の単位チップ用に、現在の入力内容で手順を先行評価しておく（保存前のプレビューと同じ考え方）。
-  const notebookStepResults = useMemo(() => evaluateNotebookSteps(notebookSteps, notebookConstantPool, language), [notebookSteps, notebookConstantPool, language]);
-  // ローカル定数の式が他の定数記号を参照しているとき、その記号が単位記号と同じ綴りでも単位挿入で
-  // 誤って上書きしないよう、既知の識別子として明示的に渡す（notebook-detail.tsxのconstantIdentifiersと同じ考え方）。
-  const notebookConstantIdentifiers = useMemo(
-    () => [...globalConstants.map((item) => item.symbol), ...notebookLocalConstants.map((item) => item.symbol.trim()).filter(Boolean)],
-    [globalConstants, notebookLocalConstants],
-  );
 
   const closeNotebookEditor = () => {
     onClose();
@@ -425,125 +456,188 @@ export function NotebookEditorSheet({
   const handleRailSelectionChange = (key: string, selection: { start: number; end: number }) => {
     setFieldSelections((current) => ({ ...current, [key]: selection }));
     setForcedSelection((current) => (current?.key === key ? null : current));
+    // 接頭語キーの記録（レールが mA・mV を出し続けるための目印）は、キャレットが押した直後の位置から
+    // 動いた時点で捨てる。**判定だけに任せないこと**——離れてから同じ位置へ戻すと古い記録が復活し、
+    // 次の接頭語キーが無関係な1文字を消す（電卓で踏んだのと同じ）。
+    if (!activeField || key !== activeField.key) { setPrefixEntry(null); return; }
+    const mapped = mapCombinedSelectionToExpressionRange(activeField.name, activeField.expression, selection.start, selection.end);
+    setPrefixEntry((current) => (prefixEntryStillValid(current, activeField.expression, mapped) ? current : null));
   };
+  // ---- アプリ内キーパッド（電卓・ノート詳細と共用） ----
 
-  // ギリシャ文字・下付き文字のボタン。既存の定義済み変数を挿すgetLocalConstantFieldSuggestions等とは違い、
-  // これから作る新しい変数名を入力するためのもの。「名前＝式」の結合文字列に対してキャレット位置へ
-  // そのまま文字を差し込み、結果をparseNameValueで割って書き戻す（名前部分にも式部分にも挿し込めるようにするため、
-  // 挿入先をexpression側に限定するinsertConstantSymbolは使わない）。
-  const insertCharacterIntoField = (key: string, combinedText: string, char: string, apply: (name: string, value: string) => void) => {
-    const selection = clampedSelection(key, combinedText.length);
-    const nextText = `${combinedText.slice(0, selection.start)}${char}${combinedText.slice(selection.end)}`;
-    const { name, value } = parseNameValue(nextText);
+  /**
+   * キーパッドが今操作している欄。「最後にフォーカスした欄」（activeRailKey）を id から引き直す。
+   * 行を削除して id が消えていれば null になり、キーパッドも出ない。
+   *
+   * **名前も式も同じ1本のテキストとして扱う**（`apply` が結合文字列を受ける）。この画面は名前
+   * そのものを作る場所で、`σ_y`・`mₒ` は端末のキーボードでは打てないため、キーパッドの記号パネルから
+   * 名前側へも入れられる必要がある（詳細画面は既存の名前の「値」だけを編集するので逆に名前を守る）。
+   */
+  const activeField = (() => {
+    if (!activeRailKey) return null;
+    if (activeRailKey.startsWith("local:")) {
+      const index = notebookLocalConstants.findIndex((entry) => localConstantFieldKey(entry.id) === activeRailKey);
+      const item = notebookLocalConstants[index];
+      if (!item) return null;
+      return {
+        key: activeRailKey,
+        name: item.symbol,
+        expression: item.expression,
+        label: item.symbol.trim() || copy.localConstants,
+        symbols: getLocalConstantFieldSuggestions(notebookLocalConstants, globalConstants, index),
+        apply: (name: string, value: string) => updateLocalConstant(item.id, { symbol: name, expression: value }),
+        applyExpression: (next: string) => updateLocalConstant(item.id, { expression: next }),
+      };
+    }
+    const index = notebookSteps.findIndex((entry) => stepFieldKey(entry.id) === activeRailKey);
+    const step = notebookSteps[index];
+    if (!step) return null;
+    return {
+      key: activeRailKey,
+      name: step.resultSymbol ?? "",
+      expression: step.expression,
+      label: step.title.trim() || step.resultSymbol?.trim() || copy.steps,
+      symbols: getStepFieldSuggestions(notebookLocalConstants, globalConstants, notebookSteps, index),
+      apply: (name: string, value: string) => applyStepNameValue(step, name, value),
+      applyExpression: (next: string) => applyStepNameValue(step, step.resultSymbol ?? "", next),
+    };
+  })();
+
+  // 単位レールの手掛かり。式の座標で渡す必要があるので、欄の結合座標から毎回直す。
+  // **useMemo で包まないこと**——activeField は毎レンダー作り直される派生値なので、包んでも依存が
+  // 毎回変わって得が無く、react-hooks/preserve-manual-memoization の警告だけ増える。
+  const railExpression = activeField?.expression ?? "";
+  const railIdentifiers = activeField?.symbols ?? [];
+  const railAnalysis = analyzeExpression(railExpression, railIdentifiers);
+  const railCombinedSelection = activeField ? clampedSelection(activeField.key, combinedCaretEnd(activeField.name, activeField.expression)) : null;
+  const railRange = activeField && railCombinedSelection
+    ? mapCombinedSelectionToExpressionRange(activeField.name, activeField.expression, railCombinedSelection.start, railCombinedSelection.end)
+    : { start: 0, end: 0 };
+  const unitRail = useUnitRail({
+    analysis: railAnalysis,
+    expression: railExpression,
+    identifiers: railIdentifiers,
+    prefixEntry,
+    selection: { start: railRange.start, end: railRange.end },
+    unitSystem,
+  });
+
+  // 欄の値を書き換えたあと、キャレットを挿入位置の直後へ置き直す（挿入を続けて積み上げられるように）。
+  const applyCombined = (key: string, text: string, caret: number, apply: (name: string, value: string) => void) => {
+    const { name, value } = parseNameValue(text);
     apply(name, value);
-    const caret = selection.start + char.length;
     const caretSelection = { start: caret, end: caret };
     setFieldSelections((current) => ({ ...current, [key]: caretSelection }));
     setForcedSelection({ key, selection: caretSelection });
   };
 
-  // 既に定義済みの変数（ローカル定数・グローバル定数・先行する手順の結果記号）を式へ挿入するボタン。
-  // insertConstantSymbolはexpression側にだけ挿し込む（「名前＝式」の名前部分にキャレットがあっても
-  // expressionの先頭へ丸める）ので、名前を誤って書き換えることはない。
-  const insertVariableIntoField = (key: string, name: string, expression: string, symbol: string, applyExpression: (next: string) => void) => {
-    const selection = clampedSelection(key, combinedCaretEnd(name, expression));
-    const { expression: nextExpression, combinedCaret } = insertConstantSymbol(name, expression, selection.start, selection.end, symbol);
-    applyExpression(nextExpression);
-    const caretSelection = { start: combinedCaret, end: combinedCaret };
-    setFieldSelections((current) => ({ ...current, [key]: caretSelection }));
-    setForcedSelection({ key, selection: caretSelection });
+  // 式だけを書き換える経路（接頭語キー・単位チップ）。キャレットは結合座標へ戻して置く。
+  const applyExpressionOnly = (next: string, expressionCaret: number) => {
+    if (!activeField) return;
+    activeField.applyExpression(next);
+    const caret = (activeField.name ? activeField.name.length + 1 : 0) + expressionCaret;
+    const caretSelection = { start: caret, end: caret };
+    setFieldSelections((current) => ({ ...current, [activeField.key]: caretSelection }));
+    setForcedSelection({ key: activeField.key, selection: caretSelection });
+  };
+
+  const insertIntoActiveField = (text: string, asPrefix = false) => {
+    if (!activeField) return;
+    const combined = formatNameValue(activeField.name, activeField.expression);
+    const selection = clampedSelection(activeField.key, combined.length);
+    const edit = insertInCombinedField(combined, selection.start, selection.end, text);
+    applyCombined(activeField.key, edit.text, edit.caret, activeField.apply);
+    // 接頭語キーで入れた1文字だけは「まだ単位を選んでいる途中」として覚える（レールが mA・mV・ms を
+    // 出せるようにするため）。記録は式の座標で持つので、名前側の長さを引いてから作る。
+    const prefixLength = activeField.name ? activeField.name.length + 1 : 0;
+    const start = edit.caret - prefixLength - text.length;
+    setPrefixEntry(asPrefix && start >= 0 ? { start, end: start + text.length, prefix: text } : null);
+  };
+
+  /** 接頭語キー。電卓と同じトグル（同じキーで取り消し・別のキーで差し替え）で、判断は純関数側。 */
+  const handleKeypadPrefix = (prefix: string) => {
+    if (!activeField) return;
+    const toggled = resolvePrefixKeyPress({ expression: activeField.expression, selection: { start: railRange.start, end: railRange.end }, prefixEntry, key: prefix });
+    if (!toggled) { insertIntoActiveField(prefix, true); return; }
+    applyExpressionOnly(toggled.expression, toggled.caret);
+    setPrefixEntry(toggled.prefixEntry);
   };
 
   /**
-   * 単位チップの挿入。定数・変数チップ（insertVariableIntoField）と違い、単位はキャレット上に
-   * 既存の単位があればそれを差し替え、数値の直後ならそこへ単位付けする（末尾決め打ちにすると、
-   * 式の途中にカーソルを置いても最後の単位が書き換わってしまうため）。詳細画面
-   * （components/notebooks/notebook-detail.tsx）のinsertUnitIntoFieldと同じロジックを、
-   * こちらの「名前＝式」結合フィールド向けに揃えたもの。
+   * レールの単位チップ。書き換える範囲は、範囲選択があればそれを最優先し（選択を無視すると `5cm` の
+   * cm を選んで km を押したときに `5kmcm` になる）、無ければレールが案内している範囲をそのまま使う
+   * ——画面に出ている案内と実際に書き換わる場所を必ず一致させるため。
    */
-  const insertUnitIntoField = (key: string, name: string, expression: string, symbol: string, identifiers: string[], applyExpression: (next: string) => void) => {
-    const selection = clampedSelection(key, combinedCaretEnd(name, expression));
-    const selected = mapCombinedSelectionToExpressionRange(name, expression, selection.start, selection.end);
-    const range = selected.start === selected.end ? getUnitInsertionRange(expression, selected.start, identifiers) : selected;
-    applyExpression(replaceExpressionRange(expression, range.start, range.end, symbol));
-    const combinedCaret = (name ? name.length + 1 : 0) + range.start + symbol.length;
-    const caretSelection = { start: combinedCaret, end: combinedCaret };
-    setFieldSelections((current) => ({ ...current, [key]: caretSelection }));
-    setForcedSelection({ key, selection: caretSelection });
+  const applyRailUnit = (symbol: string) => {
+    if (!activeField) return;
+    const { expression } = activeField;
+    const range = railRange.start === railRange.end
+      ? { start: Math.min(unitRail.target.start, expression.length), end: Math.min(unitRail.target.end, expression.length) }
+      : railRange;
+    applyExpressionOnly(replaceExpressionRange(expression, range.start, range.end, symbol), range.start + symbol.length);
+    setPrefixEntry(null);
   };
 
-  const symbolGroupLabel = (id: (typeof FORMULA_CHARACTER_GROUPS)[number]["id"]) => {
-    if (id === "subscriptDigits") return copy.symbolGroupSubscriptDigits;
-    if (id === "subscriptLetters") return copy.symbolGroupSubscriptLetters;
-    if (id === "greekLower") return copy.symbolGroupGreekLower;
-    return copy.symbolGroupGreekUpper;
+  const handleKeypadKey = (key: string) => {
+    if (!activeField) return;
+    const combined = formatNameValue(activeField.name, activeField.expression);
+    const selection = clampedSelection(activeField.key, combined.length);
+    if (key === "⌫") {
+      const edit = backspaceInCombinedField(combined, selection.start, selection.end);
+      if (!edit) return;
+      applyCombined(activeField.key, edit.text, edit.caret, activeField.apply);
+      setPrefixEntry(null);
+      return;
+    }
+    if (key === "=") { dismissKeypad(); return; }
+    // 演算子・括弧・関数のキーはカテゴリの選択を「候補」へ戻す（電卓と同じ。項が変われば
+    // さっきまでのカテゴリは当てにならない）。
+    if (shouldResetPaletteForKey(key)) unitRail.reset();
+    if (key === "AC") {
+      // 名前は残し、式だけ空にする（AC は電卓の「式を消す」キーで、欄の名前まで消すものではない）。
+      applyExpressionOnly("", 0);
+      setPrefixEntry(null);
+      unitRail.reset();
+      return;
+    }
+    insertIntoActiveField(key);
   };
 
-  // フォーカス中フィールドの直下に出す、ギリシャ文字・下付き文字のボタン列。
-  // 全グループを縦に並べるとモーダルが伸びすぎるため、タブ（横スクロール）でグループを切り替え、
-  // 選んだグループの文字だけを横スクロールの1行で出す（縦方向は常に2行分だけで収まる）。
-  const renderCharacterRail = (key: string, onInsert: (char: string) => void) => {
-    if (activeRailKey !== key) return null;
-    const activeGroup = FORMULA_CHARACTER_GROUPS.find((group) => group.id === activeCharacterGroupId) ?? FORMULA_CHARACTER_GROUPS[0];
-    return (
-      <View>
-        <Text style={styles.railLabel}>{copy.formulaCharactersLabel}</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.railGroupTabs}>
-          {FORMULA_CHARACTER_GROUPS.map((group) => (
-            <Pressable key={group.id} onPress={() => setActiveCharacterGroupId(group.id)} style={({ pressed }) => [styles.railGroupTab, activeCharacterGroupId === group.id && styles.railGroupTabActive, pressed && styles.buttonPressed]}>
-              <Text style={[styles.railGroupTabText, activeCharacterGroupId === group.id && styles.railGroupTabTextActive]}>{symbolGroupLabel(group.id)}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.unitRail}>
-          {activeGroup.chars.map((char) => (
-            <Pressable key={char} accessibilityLabel={`${copy.insert} ${char}`} onPress={() => onInsert(char)} style={({ pressed }) => [styles.unitChip, pressed && styles.buttonPressed]}>
-              <Text style={styles.unitChipText}>{char}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
-    );
+  const handleKeypadMoveCaret = (delta: 1 | -1) => {
+    if (!activeField) return;
+    const combined = formatNameValue(activeField.name, activeField.expression);
+    const selection = clampedSelection(activeField.key, combined.length);
+    const next = moveCaretInCombinedField(combined, selection.start, selection.end, delta);
+    setFieldSelections((current) => ({ ...current, [activeField.key]: next }));
+    setForcedSelection({ key: activeField.key, selection: next });
+    setPrefixEntry(null);
   };
 
-  // アクティブフィールドの直下に出す、「定義済みの変数」と「単位」のボタン列。
-  // どちらも候補が無ければ何も出さない。両方に候補があるときだけ記号レールと同じ
-  // タブ切替（横スクロール1行）を足し、片方しか無いときはタブを省いてラベルだけにする
-  // （レールを縦に3本並べるとモーダルが伸びすぎるため、変数と単位を別の行にせず、
-  // 記号レールと同じ「タブ＋チップの2行」構成を共有してレール1本分の高さに収める）。
-  const renderAuxRail = (key: string, symbols: string[], unitOptions: { symbol: string; label: string }[], onInsertVariable: (symbol: string) => void, onInsertUnit: (symbol: string) => void) => {
-    if (activeRailKey !== key) return null;
-    const hasVariables = symbols.length > 0;
-    const hasUnits = unitOptions.length > 0;
-    if (!hasVariables && !hasUnits) return null;
-    const showTabs = hasVariables && hasUnits;
-    const activeTab = showTabs ? activeAuxRailTab : (hasVariables ? "variables" : "units");
-    const items = activeTab === "variables"
-      ? symbols.map((symbol) => ({ chipKey: symbol, label: symbol, onPress: () => onInsertVariable(symbol) }))
-      : unitOptions.map((unitOption) => ({ chipKey: unitOption.symbol, label: unitOption.label, onPress: () => onInsertUnit(unitOption.symbol) }));
-    return (
-      <View>
-        {showTabs ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.railGroupTabs}>
-            <Pressable onPress={() => setActiveAuxRailTab("variables")} style={({ pressed }) => [styles.railGroupTab, activeTab === "variables" && styles.railGroupTabActive, pressed && styles.buttonPressed]}>
-              <Text style={[styles.railGroupTabText, activeTab === "variables" && styles.railGroupTabTextActive]}>{copy.definedVariablesLabel}</Text>
-            </Pressable>
-            <Pressable onPress={() => setActiveAuxRailTab("units")} style={({ pressed }) => [styles.railGroupTab, activeTab === "units" && styles.railGroupTabActive, pressed && styles.buttonPressed]}>
-              <Text style={[styles.railGroupTabText, activeTab === "units" && styles.railGroupTabTextActive]}>{copy.unitsLabel}</Text>
-            </Pressable>
-          </ScrollView>
-        ) : (
-          <Text style={styles.railLabel}>{hasVariables ? copy.definedVariablesLabel : copy.unitsLabel}</Text>
-        )}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.unitRail}>
-          {items.map((item) => (
-            <Pressable key={item.chipKey} accessibilityLabel={`${copy.insert} ${item.label}`} onPress={item.onPress} style={({ pressed }) => [styles.unitChip, pressed && styles.buttonPressed]}>
-              <Text style={styles.unitChipText}>{item.label}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
-    );
+  /** キーボードキー。出している欄でもう一度押せば閉じる（出す側の focus() は下の effect が行う）。 */
+  const toggleOsKeyboard = () => {
+    if (!activeField) return;
+    if (osKeyboardKey === activeField.key) {
+      setOsKeyboardKey(null);
+      Keyboard.dismiss();
+      return;
+    }
+    setOsKeyboardKey(activeField.key);
+  };
+
+  /** 上段の「閉じる」。キーパッドと OS のキーボードをまとめて畳む。 */
+  const dismissKeypad = () => {
+    setActiveRailKey(null);
+    setOsKeyboardKey(null);
+    Keyboard.dismiss();
+  };
+
+  /**
+   * 「名前＝式」以外の欄（タイトル・説明文・数式・表示タイトル・表示単位）へフォーカスが移ったら
+   * キーパッドを畳む。**これが無いと OS のキーボードとキーパッドが同時に積まれて入力欄が残らない。**
+   */
+  const focusPlainField = () => {
+    setActiveRailKey(null);
+    setPrefixEntry(null);
   };
 
   return (
@@ -555,11 +649,27 @@ export function NotebookEditorSheet({
           比と下余白は styles.sheet と同じ値を渡すこと。 */}
       <View style={styles.modalBackdrop}>
         <View style={[styles.sheet, resolveSheetKeyboardLayout(keyboardHeight, windowHeight, insets.bottom, { maxHeightRatio: 0.92, paddingBottom: 36 })]}><View style={styles.sheetHandle} /><View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>{editingNotebookId ? copy.notebookEdit : copy.notebookNew}</Text></View><Pressable accessibilityLabel={copy.close} onPress={closeNotebookEditor} style={({ pressed }) => [styles.closeButton, pressed && styles.iconPressed]}><IconSymbol name="xmark" size={21} color={colors.muted} /></Pressable></View>
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <ScrollView
+            ref={scrollRef}
+            // **`flexShrink: 1` を明示すること。** RN の既定は 0 なので、書かないと下端のキーパッドが
+            // シートの外へ押し出されて画面に出ない（単位レールの startRailWrap と同じ事象）。
+            style={styles.body}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            scrollEventThrottle={16}
+            onScroll={(event) => { scrollOffsetRef.current = event.nativeEvent.contentOffset.y; }}
+            onLayout={(event) => {
+              const next = event.nativeEvent.layout.height;
+              const changed = next !== scrollViewportHeightRef.current;
+              scrollViewportHeightRef.current = next;
+              // キーパッドが開いてスクロール域が縮んだ直後は、編集中の欄がその下に隠れている。
+              if (changed) ensureActiveFieldVisible(activeRailKey);
+            }}
+          >
             <Text style={styles.fieldLabel}>{copy.notebookTitleLabel}</Text>
-            <TextInput value={notebookTitle} onChangeText={setNotebookTitle} placeholder={copy.notebookTitlePlaceholder} placeholderTextColor={colors.placeholder} style={styles.input} />
+            <TextInput value={notebookTitle} onChangeText={setNotebookTitle} onFocus={focusPlainField} placeholder={copy.notebookTitlePlaceholder} placeholderTextColor={colors.placeholder} style={styles.input} />
             <Text style={styles.fieldLabel}>{copy.notebookDescriptionLabel}</Text>
-            <TextInput value={notebookDescription} onChangeText={setNotebookDescription} placeholder={copy.notebookDescriptionPlaceholder} placeholderTextColor={colors.placeholder} style={styles.input} />
+            <TextInput value={notebookDescription} onChangeText={setNotebookDescription} onFocus={focusPlainField} placeholder={copy.notebookDescriptionPlaceholder} placeholderTextColor={colors.placeholder} style={styles.input} />
 
             <Text style={styles.fieldLabel}>{copy.category}</Text>
             {/* カテゴリはチップを全部並べる形をやめ、折りたたんだ1行＋リストにした。
@@ -627,7 +737,7 @@ export function NotebookEditorSheet({
             ) : null}
             {showNewCategoryField ? (
               <View style={styles.inlineCategoryRow}>
-                <TextInput value={newCategoryName} onChangeText={setNewCategoryName} placeholder={copy.categoryName} placeholderTextColor={colors.placeholder} style={[styles.input, styles.inlineCategoryInput]} onSubmitEditing={() => void createCategoryInline()} returnKeyType="done" />
+                <TextInput value={newCategoryName} onChangeText={setNewCategoryName} onFocus={focusPlainField} placeholder={copy.categoryName} placeholderTextColor={colors.placeholder} style={[styles.input, styles.inlineCategoryInput]} onSubmitEditing={() => void createCategoryInline()} returnKeyType="done" />
                 <Pressable onPress={() => void createCategoryInline()} style={({ pressed }) => [styles.inlineCategoryButton, pressed && styles.buttonPressed]}><Text style={styles.inlineCategoryButtonText}>{copy.save}</Text></Pressable>
               </View>
             ) : null}
@@ -640,6 +750,7 @@ export function NotebookEditorSheet({
                   <TextInput
                     value={formula.explanation}
                     onChangeText={(text) => updateFormula(formula.id, { explanation: text })}
+                    onFocus={focusPlainField}
                     placeholder={copy.formulaExplanationPlaceholder}
                     placeholderTextColor={colors.placeholder}
                     multiline
@@ -650,6 +761,7 @@ export function NotebookEditorSheet({
                 <TextInput
                   value={formula.latex}
                   onChangeText={(text) => updateFormula(formula.id, { latex: text })}
+                  onFocus={focusPlainField}
                   placeholder={copy.formulaLatexPlaceholder}
                   placeholderTextColor={colors.placeholder}
                   autoCapitalize="none"
@@ -668,22 +780,28 @@ export function NotebookEditorSheet({
             <Text style={styles.fieldLabel}>{copy.localConstants}</Text>
             <Text style={styles.hintText}>{copy.localConstantsHint}</Text>
             <Text style={styles.hintText}>{copy.notMeasuredHint}</Text>
-            {notebookLocalConstants.map((item, constantIndex) => {
+            {notebookLocalConstants.map((item) => {
               const railKey = localConstantFieldKey(item.id);
               const isRailForced = forcedSelection?.key === railKey;
               return (
                 <View key={item.id} style={styles.stepCard}>
                   <View style={styles.stepHeader}>
                     <TextInput
+                      ref={(node) => { inputRefs.current[railKey] = node; }}
                       value={formatNameValue(item.symbol, item.expression)}
                       onChangeText={(text) => {
                         const { name, value } = parseNameValue(toHalfWidthAscii(text));
                         updateLocalConstant(item.id, { symbol: name, expression: value });
                         setForcedSelection((current) => (current?.key === railKey ? null : current));
+                        setPrefixEntry(null);
                       }}
                       onFocus={() => setActiveRailKey(railKey)}
                       onSelectionChange={(event) => handleRailSelectionChange(railKey, event.nativeEvent.selection)}
                       selection={isRailForced ? forcedSelection.selection : undefined}
+                      // **タップしても OS のキーボードは出さない。** キャレットを置くだけにして、数字・
+                      // 演算子はアプリ内キーパッド、単位はレールで打つ。英字が要るときだけキーパッドの
+                      // ⌨ キーで呼び出す（Web は showSoftInputOnFocus を持たず、物理キーボードで打てる）。
+                      showSoftInputOnFocus={Platform.OS === "web" ? undefined : osKeyboardKey === railKey}
                       placeholder="v0=5m/s"
                       placeholderTextColor={colors.placeholder}
                       autoCapitalize="none"
@@ -706,18 +824,6 @@ export function NotebookEditorSheet({
                   >
                     <Text style={[styles.exactToggleText, item.exact && styles.exactToggleTextActive]}>{item.exact ? "✓ " : ""}{copy.notMeasured}</Text>
                   </Pressable>
-                  {renderCharacterRail(railKey, (char) =>
-                    insertCharacterIntoField(railKey, formatNameValue(item.symbol, item.expression), char, (name, value) => updateLocalConstant(item.id, { symbol: name, expression: value })),
-                  )}
-                  {renderAuxRail(
-                    railKey,
-                    getLocalConstantFieldSuggestions(notebookLocalConstants, globalConstants, constantIndex),
-                    // クーロンの法則のkのように、次元に対応するグループが無い定数でも自分の式（例:"8.99e9N*m^2/C^2"）から
-                    // 単位候補を組み立てられるよう、quantityが未評価でもexpressionを手掛かりに渡す。
-                    compatibleUnitOptions(notebookResolvedBySymbol.get(item.symbol.trim())?.quantity, unitSystem, { expression: item.expression }),
-                    (symbol) => insertVariableIntoField(railKey, item.symbol, item.expression, symbol, (nextExpression) => updateLocalConstant(item.id, { expression: nextExpression })),
-                    (symbol) => insertUnitIntoField(railKey, item.symbol, item.expression, symbol, notebookConstantIdentifiers, (nextExpression) => updateLocalConstant(item.id, { expression: nextExpression })),
-                  )}
                 </View>
               );
             })}
@@ -725,25 +831,26 @@ export function NotebookEditorSheet({
 
             <Text style={styles.fieldLabel}>{copy.steps}</Text>
             <Text style={styles.hintText}>{copy.stepsHint}</Text>
-            {notebookSteps.map((step, stepIndex) => {
+            {notebookSteps.map((step) => {
               const railKey = stepFieldKey(step.id);
-              // この手順の式で参照できる識別子（ローカル定数・グローバル定数・先行手順の結果記号）。
-              // 変数チップの候補と、単位挿入で保護すべき識別子は同じ集合なので1回だけ求めて共有する。
-              const stepFieldIdentifiers = getStepFieldSuggestions(notebookLocalConstants, globalConstants, notebookSteps, stepIndex);
               const isRailForced = forcedSelection?.key === railKey;
               return (
               <View key={step.id} style={styles.stepCard}>
                 <View style={styles.stepHeader}>
                   <TextInput
+                    ref={(node) => { inputRefs.current[railKey] = node; }}
                     value={formatNameValue(step.resultSymbol ?? "", step.expression)}
                     onChangeText={(text) => {
                       const { name, value } = parseNameValue(toHalfWidthAscii(text));
                       applyStepNameValue(step, name, value);
                       setForcedSelection((current) => (current?.key === railKey ? null : current));
+                      setPrefixEntry(null);
                     }}
                     onFocus={() => setActiveRailKey(railKey)}
                     onSelectionChange={(event) => handleRailSelectionChange(railKey, event.nativeEvent.selection)}
                     selection={isRailForced ? forcedSelection.selection : undefined}
+                    // 定数の欄と同じ（タップではキーボードを出さず、キャレットだけ置く）。
+                    showSoftInputOnFocus={Platform.OS === "web" ? undefined : osKeyboardKey === railKey}
                     placeholder={copy.stepTitlePlaceholder}
                     placeholderTextColor={colors.placeholder}
                     autoCapitalize="none"
@@ -752,26 +859,9 @@ export function NotebookEditorSheet({
                   />
                   <Pressable onPress={() => setNotebookSteps((current) => current.filter((entry) => entry.id !== step.id))}><Text style={styles.removeStepText}>{copy.removeRow}</Text></Pressable>
                 </View>
-                {renderCharacterRail(railKey, (char) =>
-                  insertCharacterIntoField(railKey, formatNameValue(step.resultSymbol ?? "", step.expression), char, (name, value) => applyStepNameValue(step, name, value)),
-                )}
-                {renderAuxRail(
-                  railKey,
-                  stepFieldIdentifiers,
-                  // 手順は表示単位(targetUnit)が決まっていればそれを、無ければ式自体を手掛かりにする
-                  // （notebook-detail.tsxの結果チップと同じ考え方。運動量など次元に対応するグループが
-                  // 無い量でも、表示単位から接頭辞違いの候補を出せる）。
-                  compatibleUnitOptions(notebookStepResults[stepIndex]?.quantity, unitSystem, { expression: step.targetUnit.trim() || step.expression }),
-                  (symbol) => insertVariableIntoField(railKey, step.resultSymbol ?? "", step.expression, symbol, (nextExpression) => updateStep(step.id, { expression: nextExpression })),
-                  // 単位挿入で潰してはいけない識別子には、定数だけでなく**先行する手順の結果記号**も含める。
-                  // 手順に m のような単位と同じ綴りの名前を付けていると、それを参照している式で
-                  // 単位チップを押したときに変数参照の方が単位として書き換えられてしまうため。
-                  // チップに出す候補（stepFieldIdentifiers）がちょうどその式で使える識別子の集合なので、同じものを渡す。
-                  (symbol) => insertUnitIntoField(railKey, step.resultSymbol ?? "", step.expression, symbol, stepFieldIdentifiers, (nextExpression) => updateStep(step.id, { expression: nextExpression })),
-                )}
                 <Text style={styles.fieldSubLabel}>{copy.resultTitleLabel}</Text>
-                <TextInput value={step.title} onChangeText={(text) => updateStep(step.id, { title: text })} placeholder={copy.resultTitlePlaceholder} placeholderTextColor={colors.placeholder} style={[styles.stepInput, styles.stepFieldBelow]} />
-                <TextInput value={step.targetUnit} onChangeText={(text) => updateStep(step.id, { targetUnit: text })} placeholder={copy.outputUnitLabel} placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={[styles.stepInput, styles.stepFieldBelow]} />
+                <TextInput value={step.title} onChangeText={(text) => updateStep(step.id, { title: text })} onFocus={focusPlainField} placeholder={copy.resultTitlePlaceholder} placeholderTextColor={colors.placeholder} style={[styles.stepInput, styles.stepFieldBelow]} />
+                <TextInput value={step.targetUnit} onChangeText={(text) => updateStep(step.id, { targetUnit: text })} onFocus={focusPlainField} placeholder={copy.outputUnitLabel} placeholderTextColor={colors.placeholder} autoCapitalize="none" autoCorrect={false} style={[styles.stepInput, styles.stepFieldBelow]} />
               </View>
               );
             })}
@@ -780,6 +870,27 @@ export function NotebookEditorSheet({
             {notebookError ? <Text style={styles.error}>{notebookError}</Text> : null}
             <Pressable disabled={isSaving} onPress={() => void saveNotebook()} style={({ pressed }) => [styles.saveButton, (pressed || isSaving) && styles.buttonPressed]}><Text style={styles.saveText}>{isSaving ? copy.saving : copy.save}</Text></Pressable>
           </ScrollView>
+
+          {/* 「名前＝式」欄を編集している間だけ、シートの下端にキーパッドを出す。中身は電卓と同じ
+              ExpressionKeyboard ＋ UnitRail で、上段に編集中の欄名と「閉じる」が付く。 */}
+          {activeField ? (
+            <NotebookKeypad
+              language={language}
+              layout={keyboardLayout}
+              fieldLabel={activeField.label}
+              isOsKeyboardActive={osKeyboardKey === activeField.key}
+              labels={{ dismiss: copy.keypadDismiss }}
+              symbols={activeField.symbols}
+              unitRail={unitRail}
+              onKey={handleKeypadKey}
+              onInsert={insertIntoActiveField}
+              onPrefix={handleKeypadPrefix}
+              onApplyUnit={applyRailUnit}
+              onMoveCaret={handleKeypadMoveCaret}
+              onToggleOsKeyboard={toggleOsKeyboard}
+              onDismiss={dismissKeypad}
+            />
+          ) : null}
         </View>
       </View>
     </Modal>
@@ -820,16 +931,8 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   latexPreview: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 10, borderWidth: 1, marginTop: 8, padding: 10 },
   formulaExplanationInput: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 10, borderWidth: 1, color: colors.foreground, flex: 1, fontSize: 14, lineHeight: 19, minHeight: 42, paddingHorizontal: 12, paddingVertical: 6, textAlignVertical: "top" },
   fieldSubLabel: { color: colors.muted, fontSize: 11, fontWeight: "700", marginTop: 9 },
-  // 記号ボタン列（ギリシャ文字・下付き文字・定義済み変数）。横スクロール1行に収め、モーダルが縦に伸びすぎないようにする。
-  railLabel: { color: colors.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.3, marginTop: 8, textTransform: "uppercase" },
-  railGroupTabs: { gap: 6, paddingTop: 6 },
-  railGroupTab: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, paddingHorizontal: 9, paddingVertical: 5 },
-  railGroupTabActive: { backgroundColor: colors.primaryFill, borderColor: colors.primaryFill },
-  railGroupTabText: { color: colors.muted, fontSize: 10, fontWeight: "800" },
-  railGroupTabTextActive: { color: colors.onPrimary },
-  unitRail: { gap: 6, paddingTop: 6 },
-  unitChip: { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, paddingHorizontal: 9, paddingVertical: 5 },
-  unitChipText: { color: colors.primary, fontFamily: mono, fontSize: 12, fontWeight: "800" },
+  // 入力欄とキーパッドで縦を取り合うので、中身だけをスクロールさせる。
+  body: { flexShrink: 1 },
   // 「測定値でない」のトグル。定数1つに1つ付くので、単位チップより控えめな大きさにして
   // 行が定数の式より目立たないようにする（既定はオフで、触る頻度が低い設定）。
   exactToggle: { alignSelf: "flex-start", backgroundColor: colors.surface, borderColor: colors.border, borderRadius: 8, borderWidth: 1, marginTop: 8, paddingHorizontal: 9, paddingVertical: 5 },
