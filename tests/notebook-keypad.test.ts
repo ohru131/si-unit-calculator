@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { MATH_FUNCTION_KEYS } from "@/lib/math-functions";
-import { backspaceInField, insertKeypadText, moveCaretInField } from "@/lib/notebook-keypad";
+import { backspaceInCombinedField, backspaceInField, insertInCombinedField, insertKeypadText, moveCaretInCombinedField, moveCaretInField } from "@/lib/notebook-keypad";
 import { evaluateExpression } from "@/lib/units";
 
 describe("MATH_FUNCTION_KEYS", () => {
@@ -105,5 +105,43 @@ describe("逆向きの選択範囲", () => {
   it("deletes the selection regardless of the order it arrives in", () => {
     expect(backspaceInField("v", "10m/s", 4, 2)).toEqual(backspaceInField("v", "10m/s", 2, 4));
     expect(backspaceInField("v", "10m/s", 4, 2)).toEqual({ expression: "m/s", combinedCaret: 2 });
+  });
+});
+
+// 編集シート（components/notebooks/notebook-editor-sheet.tsx）は名前そのものを作る画面なので、
+// キーパッドは「名前＝式」を丸ごと1本のテキストとして編集する（詳細画面用の insertKeypadText は
+// 逆に名前を守る）。同じ欄でも役割が違うので、関数を分けてある。
+describe("結合フィールド（編集シートのキーパッド）", () => {
+  it("名前側のキャレットにも挿し込める（σ・mₒ のような名前を作るため）", () => {
+    // "v0=5m/s" のキャレット 1（"v" の直後）に "₀" を入れる
+    expect(insertInCombinedField("v0=5m/s", 1, 1, "₀")).toEqual({ text: "v₀0=5m/s", caret: 2 });
+  });
+
+  it("式側は詳細画面と同じ位置へ入る", () => {
+    expect(insertInCombinedField("m=5kg", 3, 3, ".")).toEqual({ text: "m=5.kg", caret: 4 });
+  });
+
+  it("範囲選択は置き換える（逆向きに届いても同じ結果）", () => {
+    expect(insertInCombinedField("v=10m/s", 4, 2, "2")).toEqual({ text: "v=2m/s", caret: 3 });
+    expect(insertInCombinedField("v=10m/s", 4, 2, "2")).toEqual(insertInCombinedField("v=10m/s", 2, 4, "2"));
+  });
+
+  it("⌫ は名前側も消せる（端末のキーボードで消したときと同じ結果にする）", () => {
+    expect(backspaceInCombinedField("v0=5m/s", 2, 2)).toEqual({ text: "v=5m/s", caret: 1 });
+    expect(backspaceInCombinedField("v=5m/s", 7, 7)).toEqual({ text: "v=5m/", caret: 5 });
+    expect(backspaceInCombinedField("v=5m/s", 0, 0)).toBeNull();
+  });
+
+  it("⌫ は範囲選択があればその範囲を消す（逆向きに届いても同じ）", () => {
+    expect(backspaceInCombinedField("v=10m/s", 4, 2)).toEqual(backspaceInCombinedField("v=10m/s", 2, 4));
+    expect(backspaceInCombinedField("v=10m/s", 4, 2)).toEqual({ text: "v=m/s", caret: 2 });
+  });
+
+  it("◀ ▶ は名前側へも入るが、範囲選択があるときは端へ畳むだけ", () => {
+    expect(moveCaretInCombinedField("v=5m", 2, 2, -1)).toEqual({ start: 1, end: 1 });
+    expect(moveCaretInCombinedField("v=5m", 0, 0, -1)).toEqual({ start: 0, end: 0 });
+    expect(moveCaretInCombinedField("v=5m", 4, 4, 1)).toEqual({ start: 4, end: 4 });
+    expect(moveCaretInCombinedField("v=5m", 1, 3, 1)).toEqual({ start: 3, end: 3 });
+    expect(moveCaretInCombinedField("v=5m", 3, 1, -1)).toEqual({ start: 1, end: 1 });
   });
 });
