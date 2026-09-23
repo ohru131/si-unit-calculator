@@ -7,7 +7,7 @@ description: UnitCalc の正式バージョンアップを通しで行う。main
 
 **このリポジトリのリリースは「タグを打つこと」ではなく「Play にビルドが乗ること」で完了する。** 両者を混同しない（v1.3.0 で実際にずれた）。
 
-所要時間の目安: デバッグビルド **約10分**、リリース AAB のフルビルド **約20分**。合わせて1時間弱みておく。
+所要時間の目安: デバッグビルド **約10分**（多くのリリースでは不要。下の「作り直しが要るかを先に確かめる」）、リリース AAB のフルビルド **20〜25分**。合わせて1時間弱みておく。
 
 ## 道具
 
@@ -78,6 +78,16 @@ adb shell dumpsys package com.app.siunitcalculator | grep -E "versionName|versio
 
 **リリース APK を端末へインストールしない。** Play 版は Google の署名鍵、ローカルの release は upload key で署名されるので署名不一致になり、`expo run:android --variant release` が「アンインストールして入れ直すか」と聞いてくる。承諾すると **利用者の計算ノート・履歴・自作単位が全部消える**。デバッグ版は `applicationId` に `.debug` が付く（`plugins/withDebugPackageSuffix.js`）ので Play 版と共存する。
 
+### 作り直しが要るかを先に確かめる
+
+**JS だけの変更なら debug APK のリビルドは要らない。** dev-client は JS を Metro から読むので、端末に入っている `.debug` が何バージョン前でも構わない（v1.7.1 の確認は 1.5.0 のシェルで足りた）。作り直しが要るのは**ネイティブが変わったとき**だけ:
+
+```bash
+git diff --stat <前回リリースのタグ>..HEAD -- package.json pnpm-lock.yaml app.config.ts plugins/
+```
+
+`version` と `scripts` しか動いていなければ、いま入っている `.debug` をそのまま使う。依存・プラグイン・`app.config.ts` のネイティブ設定が動いていたら作り直す:
+
 ```bash
 cd android && ./gradlew.bat installDebug --console=plain    # 約10分
 ```
@@ -88,9 +98,15 @@ cd android && ./gradlew.bat installDebug --console=plain    # 約10分
 
 ```bash
 netstat -ano | grep ":8081"        # 占有プロセスの確認
-npx expo start --port 8082 &
+npx expo start --port 8082 > metro.log 2>&1 &    # 出力はファイルへ（下記）
 adb reverse tcp:8081 tcp:8082      # アプリが叩く先
 adb reverse tcp:8082 tcp:8082      # dev-client の一覧に出る URL が localhost:8082 なので両方要る
+```
+
+**`npx expo start` の出力を `| head -N` に通さないこと。** N 行出た時点で SIGPIPE が飛んで Metro ごと死ぬ。`curl` が一度 200 を返したあと沈黙する、という切り分けにくい形になる（実際に踏んだ）。ログはファイルへリダイレクトし、起動の判定はポートで行う:
+
+```bash
+until curl -s -o /dev/null http://localhost:8082/status; do sleep 1; done    # 起動まで30秒ほど
 ```
 
 ### アプリを開く
@@ -99,9 +115,11 @@ adb reverse tcp:8082 tcp:8082      # dev-client の一覧に出る URL が local
 
 ```bash
 adb shell monkey -p com.app.siunitcalculator.debug -c android.intent.category.LAUNCHER 1
-adb exec-out screencap -p > /tmp/s.png      # スクショを読んで「Recently opened」の行をタップ
+adb exec-out screencap -p > s.png           # スクショを読んで「Recently opened」の行をタップ
 adb shell input tap <x> <y>
 ```
+
+**Metro が動いていれば `monkey` だけで最後に開いたプロジェクトが自動で読み込まれることが多い。** スクショに電卓画面が出ていれば、タップは要らずそのまま確認へ進んでよい。
 
 ### 見る項目
 
@@ -109,10 +127,31 @@ adb shell input tap <x> <y>
 - キーパッドで計算できる（`12÷3 → 4` 程度でよい）・AC が効く
 - 単位レール・接頭語キー・結果カードのチップが出る
 - 計算ノートを1つ開き、**KaTeX の数式が描画され結果の数値が正しい**
-- 広告バナーが出る（AdMob が生きている）
+- 広告バナーが出る（AdMob が生きている）。**ただし `.debug` の applicationId は AdMob に登録されていないので debug では出ない。** 見るなら Play 版（`adb shell monkey -p com.app.siunitcalculator …`）を開く。そこでも出ないなら、その端末が Pro（広告非表示）を持っている可能性がある——入力欄の上の余白ごと無ければ Pro、余白だけあって中身が空なら配信されていないだけ
 - **そのリリースで入った変更が実際に画面に出ているか**（CHANGELOG の `[Unreleased]` を見て確認する）
 
 `[RevenueCat] Error fetching offerings` の赤い帯はデバッグ版では正常。`.debug` の applicationId が Play の商品として存在しないため。
+
+### 画面が低いときだけ出る変更は、端末の設定を一時的に変えて見る
+
+電卓の段階（REGULAR / COMPACT / DENSE / ULTRA）や「文字を大きくすると押せない」系の修正は、手元の端末が高いままだと再現しない。**元の値を控えてから変え、必ず戻す**（利用者の端末なので戻し忘れない）。
+
+```bash
+adb shell settings get system font_scale     # 控える（既定 1.0）
+adb shell wm density                         # 控える（この端末は 400）
+
+adb shell settings put system font_scale 1.3
+adb shell wm density 640
+# …確認…
+adb shell wm density reset
+adb shell settings put system font_scale 1.0
+```
+
+段階の目安は **実効の高さ＝画面px ÷ density × 160 ÷ min(fontScale, 1.2)**。この端末（1080×2460）なら density 640・font_scale 1.3 で 512dp ＝ DENSE に入る。v1.7.1 ではこれで「見出しが畳まれ、ブックマーク・コピーが数字と同じ行へ移り、単位パネルが既定で閉じる」ことを実機で確認した。**CLAUDE.md の「段階の確認は Web 書き出し + Playwright」はこの方法を知らなかった頃の記述で、実機でも見られる。**
+
+### タップは座標で打つので、スクショの縮尺に注意
+
+`adb exec-out screencap -p` の画は 1080×2460 だが、読むときは縮小して表示される（例: 878×2000）。**読んだ画の座標をそのまま `adb shell input tap` に渡すとキーを1つ2つ外す**（実際に `12÷3` を打ったつもりが `163` になった）。表示倍率を掛けてから渡し、打鍵のあとは必ずスクショで結果を確かめる。
 
 確認できたら Metro を止める（ポートを掴んだままだと次のビルドと紛らわしい）。
 
@@ -152,7 +191,10 @@ sed -i 's/^## \[Unreleased\]$/## [1.6.0] - 2026-09-22/' CHANGELOG.md
 # 末尾のリンク定義も忘れずに（[Unreleased] の compare 元を新バージョンへ、[X.Y.Z] の行を追加）
 ```
 
-`CHANGELOG` の中身は各PRが `[Unreleased]` に積んだもの。**リリース時に書き足さない**（書くべきことがあるならPRの側で直す）。
+`CHANGELOG` の中身は各PRが `[Unreleased]` に積んだもの。**リリース時に書き足さない**（書くべきことがあるならPRの側で直す）。`## [Unreleased]` の見出しは改名して消えるが、それでよい（次のPRが足し直す）。
+
+- **`sed -i` は CHANGELOG の CRLF を LF に落とす。** `.gitattributes` が正規化するので `git diff` は意図した行だけを出すし、`warning: LF will be replaced by CRLF` も無視してよい。**`git diff --stat` が3ファイル・数行であることだけ確認する**（全行が差分になっていたら別の話）。
+- **日付は「コミットする日」に合わせる。** ビルドに20分以上かかるので、夜に始めると日付をまたぐ。またいだら `## [X.Y.Z] - YYYY-MM-DD` を直してから `check` を通す。
 
 ---
 
@@ -237,7 +279,15 @@ git update-index --cacheinfo 100644,$(git hash-object -w /tmp/pkg.json),package.
 node scripts/release.mjs notes        # 雛形を作る（--from-play で Play にある前版を取り込む）
 ```
 
-- **500字上限**（`check` が数える）。
+- **500字上限**（`check` が数える）。**ラテン系（es / fr / de / pt-BR）は日本語・英語より1〜2割長くなる**ので、英語で収まる文面をそのまま訳すと超える（v1.7.1 は es 503字・fr 509字で一度超えた）。書いたらその場で測る:
+
+  ```bash
+  cd docs/release-notes/vX.Y.Z && for f in *.txt; do
+    python -c "import io; print('$f', len(io.open('$f',encoding='utf-8').read().strip()))"
+  done
+  ```
+
+  削るのは前置きの修飾（`con un tamaño de letra grande del sistema` → `con letra grande del sistema`）。**実例の数値（`71 km/h` など）は残す**——そこが利用者に効く部分。
 - 中身は CHANGELOG の該当節の要約。**機能の羅列ではなく「利用者にとって何が変わったか」**を1〜3文で。既存の `docs/release-notes/v1.5.0/` が長さと粒度の見本。
 - **機械翻訳を素通ししない。** 訳語は `docs/i18n-glossary.md` に合わせる（独 `Spannung` は応力とも電圧とも読めるので文脈に注意、独のダッシュは `–`、西の電圧は `voltaje` など）。
 - `es-419` は `es-ES` と同文でよい（掲載文と違い、ノートは市場差を付けていない）。
@@ -261,7 +311,13 @@ node scripts/release.mjs upload --commit  --key play-service-account-unitcalc.js
 
 ## 11. 掲載情報（文言・スクショ・図版・アイコン）を反映
 
-AAB とは**別系統**。スクショや掲載文が変わった PR が入っているときだけ実行すればよい。
+AAB とは**別系統**。スクショや掲載文が変わった PR が入っているときだけ実行すればよい。**まず要否を機械的に判定する**:
+
+```bash
+git log --oneline <前回リリースのタグ>..HEAD -- docs/store-listing-copy.md submission-assets/
+```
+
+出力が空なら**この手順は丸ごと飛ばす**（v1.7.1 はそうだった）。
 
 ```bash
 node scripts/push-play-listing.mjs                                         # ドライラン
@@ -300,3 +356,7 @@ gh release create vX.Y.Z --verify-tag --title "vX.Y.Z" --notes-file docs/release
 | デバッグビルドが「Unable to load script」 | dev-client がディープリンクを取りこぼし assets から読もうとした | dev-client のホームから「Recently opened」をタップ |
 | 実機の利用者データが消えかける | release APK を Play 版に上書きインストール | 確認は必ず `.debug` で |
 | 掲載文と実機の食い違い | 資料は機能追加のたびに黙って陳腐化する | 掲載文を触るときは `git log -- docs/<file>` で書かれた時点を出し、そこから入った PR を数え上げる |
+| `expo start` が起動直後に死ぬ | 出力を `\| head -N` に通して SIGPIPE | ログはファイルへリダイレクトし、起動判定は `/status` が 200 を返すか |
+| キーパッドのタップが1つ隣に入る | 読んだスクショが縮小表示されている | 表示倍率を掛けてから `input tap`、打鍵ごとにスクショで確認 |
+| リリースノートが500字を超える | ラテン系は英語より1〜2割長い | 書いた直後に `len()` で測る |
+| debug のリビルドに10分待った | JS だけの変更なら不要 | `git diff -- package.json pnpm-lock.yaml app.config.ts plugins/` が空なら既存の `.debug` を使う |
