@@ -37,15 +37,37 @@ export type CalculatorLayout = {
   // **余白を取れるのは縦に余裕がある段階だけ**なので、画面が低い段階では従来どおり詰めたまま
   // にする（キーが押せなくなる方が困る、というこのファイルの既定の優先順に従う）。
   screenPaddingBottom: number;
+  /**
+   * **結果カードの見出し行（「結果」ラベル＋ブックマーク/コピー）を出すか。**
+   * この行は約28dpを**結果の数字より上**に積む。画面が低いほど、いちばん見えなければ
+   * ならない数字がその28dpのぶん下へ押し出されて枠の外に出る。低い段階では行ごと畳み、
+   * アイコンは数字と同じ行の右端へ移す（呼び出し側で分岐する）。
+   */
+  showResultCardLabel: boolean;
+  // 結果の数字の文字サイズと行の高さ。低い段階では「読める下限まで小さくして1行を残す」方を
+  // 優先する（数字が切れて見えないより、小さくても全部見える方がよい）。
+  resultValueFontSize: number;
+  resultValueMinHeight: number;
+  resultCardPaddingVertical: number;
+  /**
+   * **式キーボードのパネル（既定は「単位」）を最初から開いておくか。**
+   * 単位パネルは接頭語キー行＋単位レールで約70dp使う。縦に余裕のある端末では開いていた方が
+   * 単位を打つ手数が減るが、低い端末ではその70dpが結果カードの表示域そのものなので畳んでおく
+   * （「単位」を押せば従来どおり出る）。
+   */
+  keyboardPanelOpenByDefault: boolean;
 };
 
-const REGULAR: Omit<CalculatorLayout, "fontFactor"> = { inputRowHeight: 44, keyHeight: 42, keyRowGap: 6, keyRowMinHeight: 30, middleMinHeight: 56, panelsScrollHorizontally: false, screenPaddingBottom: 12, screenGap: 6 };
-const COMPACT: Omit<CalculatorLayout, "fontFactor"> = { inputRowHeight: 42, keyHeight: 38, keyRowGap: 5, keyRowMinHeight: 28, middleMinHeight: 44, panelsScrollHorizontally: true, screenPaddingBottom: 4, screenGap: 5 };
-const DENSE: Omit<CalculatorLayout, "fontFactor"> = { inputRowHeight: 40, keyHeight: 34, keyRowGap: 4, keyRowMinHeight: 26, middleMinHeight: 36, panelsScrollHorizontally: true, screenPaddingBottom: 4, screenGap: 4 };
+// **middleMinHeight は「結果の数字の行が必ず入る高さ」。** 結果カードの上半分（＝数字まで）は
+// スクロールの外に固定してあるので、この下限を割ると数字そのものが切り取られる。値は
+// resultCardPaddingVertical + （見出し行 28、出すときだけ）+ 数字のmarginTop 2 + resultValueMinHeight。
+const REGULAR: Omit<CalculatorLayout, "fontFactor"> = { inputRowHeight: 44, keyboardPanelOpenByDefault: true, keyHeight: 42, keyRowGap: 6, keyRowMinHeight: 30, middleMinHeight: 84, panelsScrollHorizontally: false, resultCardPaddingVertical: 10, resultValueFontSize: 36, resultValueMinHeight: 44, screenPaddingBottom: 12, screenGap: 6, showResultCardLabel: true };
+const COMPACT: Omit<CalculatorLayout, "fontFactor"> = { inputRowHeight: 42, keyboardPanelOpenByDefault: true, keyHeight: 38, keyRowGap: 5, keyRowMinHeight: 28, middleMinHeight: 49, panelsScrollHorizontally: true, resultCardPaddingVertical: 9, resultValueFontSize: 32, resultValueMinHeight: 38, screenPaddingBottom: 4, screenGap: 5, showResultCardLabel: false };
+const DENSE: Omit<CalculatorLayout, "fontFactor"> = { inputRowHeight: 40, keyboardPanelOpenByDefault: false, keyHeight: 34, keyRowGap: 4, keyRowMinHeight: 26, middleMinHeight: 43, panelsScrollHorizontally: true, resultCardPaddingVertical: 7, resultValueFontSize: 28, resultValueMinHeight: 34, screenPaddingBottom: 4, screenGap: 4, showResultCardLabel: false };
 // 文字を最大まで大きくした低い端末（表示サイズも大きくしていると dp の画面高さ自体が縮む）向け。
 // ここまで来たら結果カードはほぼ畳まれてよい（中身はこの中でスクロールする）——キーが押せない方が困る。
 // 押しやすさの下限（44dp）は割るが、押せる状態にする方を優先する。
-const ULTRA: Omit<CalculatorLayout, "fontFactor"> = { inputRowHeight: 38, keyHeight: 30, keyRowGap: 3, keyRowMinHeight: 24, middleMinHeight: 24, panelsScrollHorizontally: true, screenPaddingBottom: 4, screenGap: 3 };
+const ULTRA: Omit<CalculatorLayout, "fontFactor"> = { inputRowHeight: 38, keyboardPanelOpenByDefault: false, keyHeight: 30, keyRowGap: 3, keyRowMinHeight: 24, middleMinHeight: 38, panelsScrollHorizontally: true, resultCardPaddingVertical: 6, resultValueFontSize: 24, resultValueMinHeight: 30, screenPaddingBottom: 4, screenGap: 3, showResultCardLabel: false };
 
 export const resolveFontFactor = (fontScale: number, cap = CALCULATOR_MAX_FONT_SCALE) => {
   // fontScale が読めない環境（テスト・Web の一部）では等倍のまま扱う。縮める方向にしか働かせない。
@@ -53,12 +75,21 @@ export const resolveFontFactor = (fontScale: number, cap = CALCULATOR_MAX_FONT_S
   return fontScale > cap ? cap / fontScale : 1;
 };
 
-export const resolveCalculatorLayout = ({ fontScale, height }: { fontScale: number; height: number }): CalculatorLayout => {
+/**
+ * `bannerHeight` は**いま画面の最上部を占めているバナー広告の高さ**（無料ユーザーだけ50dp、
+ * Pro・Webでは0）。**画面の高さからこれを引いてから段階を選ぶ。** 引かないと、同じ640dpの端末でも
+ * 無料ユーザーだけ50dp足りない状態で「余裕のある段階」の寸法が使われ、結果カードが先に潰れる。
+ * **Webではバナーが出ない**ので、Playwrightで測った値はこの50dpを含まない——実機の無料ユーザーと
+ * 突き合わせるときは必ずこの引き算を通すこと。
+ */
+export const resolveCalculatorLayout = ({ bannerHeight = 0, fontScale, height }: { bannerHeight?: number; fontScale: number; height: number }): CalculatorLayout => {
   const fontFactor = resolveFontFactor(fontScale);
   // 文字が上限いっぱいまで大きい端末は、同じ画面高さでも必要な縦が増える。高さをその倍率で
   // 割った「実効の高さ」で段階を選ぶと、フォント拡大と画面の低さを1つの物差しで扱える。
   const cappedScale = Number.isFinite(fontScale) && fontScale > 0 ? Math.min(fontScale, CALCULATOR_MAX_FONT_SCALE) : 1;
-  const effectiveHeight = Number.isFinite(height) && height > 0 ? height / cappedScale : REGULAR_HEIGHT_THRESHOLD;
+  const banner = Number.isFinite(bannerHeight) && bannerHeight > 0 ? bannerHeight : 0;
+  const usableHeight = Number.isFinite(height) && height > 0 ? Math.max(height - banner, 1) : 0;
+  const effectiveHeight = usableHeight > 0 ? usableHeight / cappedScale : REGULAR_HEIGHT_THRESHOLD;
   // 640 は現状の基準端末（360×640 でキーパッド下端546.5・タブバー上端573）。ここは詰めない。
   const base = effectiveHeight >= REGULAR_HEIGHT_THRESHOLD
     ? REGULAR

@@ -17,6 +17,14 @@ type AdsContextValue = {
   adFree: boolean;
   /** 同意取得とAdMob SDKの初期化が完了し、実際に広告をリクエストしてよい状態か。 */
   canRequestAds: boolean;
+  /**
+   * **いまバナーが場所を取っているか。** バナーを描くかどうかの条件（上の4つの組み合わせ）は
+   * バナー自身だけでなく**電卓のレイアウト段階の判定**からも要る——無料ユーザーの画面は常に
+   * バナーのぶん低く、そこを見ないと「Webで測った高さ」を前提にキーパッドと結果カードを
+   * 組むことになる（Webではバナーが出ないので、実機の無料ユーザーだけ50dp足りなくなる）。
+   * **条件を2箇所に書かないためにここで1つにまとめる。**
+   */
+  isBannerVisible: boolean;
 };
 
 const AdsContext = createContext<AdsContextValue | null>(null);
@@ -48,6 +56,7 @@ export function AdsProvider({ children }: { children: ReactNode }) {
       isReady,
       adFree,
       canRequestAds,
+      isBannerVisible: isAdsPlatformAvailable && isReady && !adFree && canRequestAds,
     }),
     [adFree, canRequestAds, isAdsPlatformAvailable, isReady],
   );
