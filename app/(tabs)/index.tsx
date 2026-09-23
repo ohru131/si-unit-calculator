@@ -18,7 +18,7 @@ import {
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { CalculatorBannerAd } from "@/components/ads/calculator-banner-ad";
+import { CALCULATOR_BANNER_HEIGHT, CalculatorBannerAd } from "@/components/ads/calculator-banner-ad";
 import { ScreenContainer } from "@/components/screen-container";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ConstantEditorSheet } from "@/components/ui/constant-editor-sheet";
@@ -27,6 +27,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { ExpressionKeyboard } from "@/components/ui/expression-keyboard";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
+import { useAds } from "@/lib/ads-provider";
 import { isSampleCategoryVisible, isUnitGroupVisible, isUnitVisible, visibleUnits } from "@/lib/advanced-display";
 import { resolveSheetKeyboardLayout, SHEET_PADDING_BOTTOM } from "@/lib/sheet-layout";
 import { resolveCalculatorLayout, scaleFontSizes, type CalculatorLayout } from "@/lib/calculator-layout";
@@ -180,7 +181,6 @@ const KATEX_EM_SCALE = 1.21;
 // 収まっているので全量が効く。
 const EXPRESSION_FONT_SIZE = 21;
 const EXPRESSION_LINE_HEIGHT = 26;
-const RESULT_VALUE_FONT_SIZE = 36;
 
 // 分数だけは分子・分母を縦に2段積むので、36pxのままだとブロックの高さが小数1行の倍近く（実測80px）になる。
 // 22pxまで落とすと数式ブロックの高さが44pxになり、小数1行（44px）とほぼ同じ高さに収まる。
@@ -190,6 +190,12 @@ const STACKED_RESULT_VALUE_FONT_SIZE = 22;
 // 分数の右に置く単位ラベルだけは小数と同じ36pxにしない。2段の分数（数字22px）の横に36pxの
 // 単位を並べると、値より単位の方が大きく見えて主従が逆になる（実画面で比較して決めた）。
 const STACKED_RESULT_UNIT_FONT_SIZE = 26;
+
+// 上の2つは基準端末（値36px・行44px）での寸法。低い段階では値そのものを小さくするので、
+// 分数側も**行の高さに合わせて**下げないと、分数のときだけカードが伸びて数字が切れる
+// （分数は分子・分母で行の倍の高さを使う）。単位ラベルは従来の比（26/22）を保つ。
+const stackedValueFontSize = (layout: CalculatorLayout) => Math.min(STACKED_RESULT_VALUE_FONT_SIZE, Math.round(layout.resultValueMinHeight / 2));
+const stackedUnitFontSize = (layout: CalculatorLayout) => Math.round(stackedValueFontSize(layout) * (STACKED_RESULT_UNIT_FONT_SIZE / STACKED_RESULT_VALUE_FONT_SIZE));
 
 /**
  * 式の入力欄に描くキャレット（カーソル）。
@@ -550,7 +556,14 @@ export default function CalculatorScreen() {
   // 端末の文字サイズ・表示サイズの設定に合わせて、文字の拡大率に上限を掛け、行の高さを詰める。
   // この画面だけ縦スクロールで逃がせない（キーパッドを常に画面内に置く）ため。
   const { fontScale, height: windowHeight } = useWindowDimensions();
-  const layout = useMemo(() => resolveCalculatorLayout({ fontScale, height: windowHeight }), [fontScale, windowHeight]);
+  // **バナー広告のぶんを引いてから段階を選ぶ。** 無料ユーザーの画面は常に50dp低いので、引かないと
+  // 同じ640dpの端末でも「余裕のある段階」の寸法が使われ、結果カードだけが先に潰れる。
+  // Webではバナーが出ないため、Playwrightの実測値はこの50dpを含まない（lib/calculator-layout.ts）。
+  const { isBannerVisible } = useAds();
+  const layout = useMemo(
+    () => resolveCalculatorLayout({ bannerHeight: isBannerVisible ? CALCULATOR_BANNER_HEIGHT : 0, fontScale, height: windowHeight }),
+    [fontScale, isBannerVisible, windowHeight],
+  );
   const styles = useMemo(() => createStyles(colors, layout), [colors, layout]);
   // **下から出るシートは画面の下端まで届くので、ナビゲーションバーのぶんを自分で避ける。**
   // 画面本体は ScreenContainer と タブバー（app/(tabs)/_layout.tsx）が下端を見ているが、
@@ -602,7 +615,9 @@ export default function CalculatorScreen() {
   // 「キーの並びの中に開く横スクロールの列」にそろえた（1回の操作で挿せて、押したあと閉じる手間も無い）。
   // 式キーボードで開いているパネル。既定は「単位」（この電卓の主用途）。未対応単位を赤字でタップして
   // 修正候補を出すときは、別のパネルを開いていても「単位」へ切り替える（候補はそこにしか出ない）。
-  const [keyboardTool, setKeyboardTool] = useState<KeyboardTool | null>("units");
+  // 低い端末では既定で畳む。単位パネルは接頭語キー行＋レールで約70dp使い、そこが
+  // そのまま結果カードの表示域になる（「単位」を押せば従来どおり開く）。
+  const [keyboardTool, setKeyboardTool] = useState<KeyboardTool | null>(layout.keyboardPanelOpenByDefault ? "units" : null);
   // 単位シートの用途。display＝結果の表示単位を選ぶ（結果カードの「他 ›」）、insert＝式へ挿す単位を
   // 検索する（単位パレットのカテゴリ行の「検索」）。選んだときに呼ぶ先が違うだけで、中身は同じシート。
   const [unitPickerMode, setUnitPickerMode] = useState<"display" | "insert">("display");
@@ -633,6 +648,13 @@ export default function CalculatorScreen() {
   // 式のOSキーボード受け口（画面には出ない1×1のTextInput）。表示欄をタップしたときに
   // フォーカスを移すためだけに持つ。
   const expressionInputRef = useRef<TextInput>(null);
+  /**
+   * 結果カードの下半分（単位チップ・比較表・SI行・履歴・サンプル）のスクロール。
+   * **式が変わったら必ず先頭へ戻す。** Androidの ScrollView は内容が縮んでも contentOffset を
+   * クランプしないので、比較表を開いて下まで見たあとに式を打ち直すと、チップ列が画面の外に
+   * 残ったままになる（単位レールの railScrollKey・サンプル一覧の key と同じ事象）。
+   */
+  const resultScrollRef = useRef<ScrollView>(null);
   // quick / presetExpression / presetUnit はルートパラメータなので画面に残り続ける。
   // これらを見ているエフェクトは language も参照しているため、言語を切り替えると再実行され、
   // 入力途中の式・表示単位をもう一度上書きして結果まで消してしまう。適用済みの値を覚えて
@@ -993,7 +1015,7 @@ export default function CalculatorScreen() {
   // 落とし、ブロック全体の高さが小数1行（resultValueの36px・行の高さ44px）に近くなるよう揃える。
   // 分数を含まない形（√3・2π など）は1段なので小数と同じ大きさのままでよい。
   const isStackedExactValue = Boolean(exactValue?.latex.includes("\\frac"));
-  const exactFontSize = isStackedExactValue ? STACKED_RESULT_VALUE_FONT_SIZE : RESULT_VALUE_FONT_SIZE;
+  const exactFontSize = isStackedExactValue ? stackedValueFontSize(layout) : layout.resultValueFontSize;
 
   // 入力式から読める有効数字の桁数（lib/significant-figures.ts）。加減算が混ざる式や
   // リテラルが無い式ではnullになり、そのときは丸めずに科学表記だけを出す。
@@ -1064,6 +1086,34 @@ export default function CalculatorScreen() {
         : valueForm === "significant" && significantValue
           ? `${significantValue.text}${display.unitLabel ? ` ${display.unitLabel}` : ""}`
           : display.value;
+
+  /**
+   * **結果カードがいま何を出しているか。** カードは「主表示までの固定部」と「単位チップから下の
+   * スクロール部」に割れているので、**同じ条件を2箇所で書き分けると必ずずれる**（数字は出ているのに
+   * 下が空状態のもの、という形になる）。判定はここ1つに閉じる。
+   */
+  const resultMode: "base" | "value" | "diagnosis" | "incomplete" | "empty" =
+    baseInputParse && baseInputParse.status === "ok"
+      ? "base"
+      : baseInputMode !== null
+        ? "empty"
+        : display
+          ? "value"
+          : visibleDiagnosis
+            ? "diagnosis"
+            : expression.trim()
+              ? "incomplete"
+              : "empty";
+  // カードの下半分（スクロール部）に中身があるか。診断・書きかけ・進数入力中は無いので、
+  // 固定部だけで1枚のカードとして角丸を閉じる。
+  const hasResultBody = resultMode === "value" || resultMode === "empty";
+
+  // 式が変わったらカード下半分のスクロールを先頭へ戻す（上の resultScrollRef の注記）。
+  // 表示単位を変えただけ（比較表の行をタップ）では戻さない——そのときは利用者が
+  // 自分でその位置を見ているので、勝手に巻き戻すと選び直しができない。
+  useEffect(() => {
+    resultScrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [expression]);
 
   const rememberUnit = (symbol: string) => {
     const trimmed = symbol.trim();
@@ -1929,6 +1979,21 @@ export default function CalculatorScreen() {
     [clearHistory, colors, copy, sheetStyle, stableExportHistory, stableRestoreHistory, styles, visibleHistory],
   );
 
+  /**
+   * ブックマーク（計算ノートへ）とコピー。**置き場所が2つある**——縦に余裕のある段階では
+   * 見出し行の右、畳む段階では数字と同じ行の右。**同じ要素を2箇所に書かないため**にここで組む。
+   */
+  const resultActionsRow = baseInputMode === null && display ? (
+    <View style={styles.resultActions}>
+      <Pressable accessibilityLabel={copy.saveTemplate} onPress={() => router.push({ pathname: "/constants", params: { notebookExpression: expression, notebookUnit: targetUnit } })} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
+        <IconSymbol name="bookmark.fill" size={14} color={colors.primary} />
+      </Pressable>
+      <Pressable accessibilityLabel={copy.copy} onPress={() => void copyCalculation()} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
+        <IconSymbol name="doc.on.doc" size={14} color={colors.primary} />
+      </Pressable>
+    </View>
+  ) : null;
+
   // 結果カードの単位チップ列。**値が変わっても候補は変わらない**（次元が同じなら同じ並び）ので、
   // 数字を1文字打つたびに作り直さない。キーパッド・編集キー行と同じ理由。
   const isFallbackUnit = Boolean(display?.isFallback);
@@ -2116,41 +2181,35 @@ export default function CalculatorScreen() {
           {isRailNearInput ? renderUnitRail(false) : null}
 
         </View>
+        {/* **結果の数字はスクロールの外に固定する。** `middle` は画面で唯一伸縮する場所なので、
+            結果カードを丸ごとスクロールへ入れると、低い端末・大きい文字の設定では「カードの
+            見出し行しか入らない＝数字はスクロールしないと見えない」状態になる（実機で報告された）。
+            カードを上下に割り、**主表示（数字・診断・案内）までを固定部**、単位チップから下と
+            履歴・サンプルをスクロール部にする。枠と背景は同じ値なので、見た目は従来どおり1枚のカード。
+            **この2つを1つの ScrollView に戻さないこと。** */}
         <View style={styles.middle}>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.middleContent} keyboardShouldPersistTaps="handled">
-            {error ? (
-              <Animated.View style={[styles.messageError, errorAnimatedStyle]}>
-                <Text style={styles.messageErrorText}>{error}</Text>
-                {analysis.unresolved.length ? <Text style={styles.messageHint}>{copy.fixTap}</Text> : null}
-              </Animated.View>
-            ) : null}
-
-            <View style={styles.resultCard}>
+          <View style={[styles.resultCard, hasResultBody ? styles.resultCardHead : null, resultMode === "diagnosis" ? styles.resultCardShrink : null]}>
+            {/* 見出し行は約28dpを**数字より上**に積む。縦が足りない段階では行ごと畳み、
+                アイコンは数字と同じ行の右端へ移す（消すとコピーが押せなくなる）。 */}
+            {layout.showResultCardLabel ? (
               <View style={styles.resultHeader}>
                 <Text style={styles.cardLabel}>{t("result")}</Text>
-                {baseInputMode === null && display ? (
-                  <View style={styles.resultActions}>
-                    <Pressable accessibilityLabel={copy.saveTemplate} onPress={() => router.push({ pathname: "/constants", params: { notebookExpression: expression, notebookUnit: targetUnit } })} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
-                      <IconSymbol name="bookmark.fill" size={14} color={colors.primary} />
-                    </Pressable>
-                    <Pressable accessibilityLabel={copy.copy} onPress={() => void copyCalculation()} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
-                      <IconSymbol name="doc.on.doc" size={14} color={colors.primary} />
-                    </Pressable>
-                  </View>
-                ) : null}
+                {resultActionsRow}
               </View>
+            ) : null}
+            <View style={[styles.resultMainRow, resultMode === "diagnosis" ? styles.resultMainRowShrink : null]}>
+              <View style={styles.resultMain}>
               {baseInputParse && baseInputParse.status === "ok" ? (
                 // 進数入力モード中は通常の量（display）を経由しない。生の桁が偶然そのまま10進数として
                 // 解釈できてしまうケース（例: 2進の"1010"は10進としても妥当）があり、そちらを見せると
-                // 「今どの基数を打っているか」と画面表示が食い違うため、常にparseBaseInputの結果だけを見せる。
-                <>
-                  {/* 出すのは常に10進へ直した値。入力中の基数は入力欄の下のバーが示すので、
-                      ここに基数チップは出さない（10進の値を出しながらHEXが光る食い違いを避ける）。 */}
-                  <Animated.Text numberOfLines={2} adjustsFontSizeToFit style={[styles.resultValue, resultAnimatedStyle]}>
-                    {baseInputParse.value}
-                  </Animated.Text>
-                </>
-              ) : baseInputMode === null && display ? (
+                // 「今どの基数で打っているか」と画面表示が食い違うため、常にparseBaseInputの結果だけを見せる。
+                //
+                // 出すのは常に10進へ直した値。入力中の基数は入力欄の下のバーが示すので、
+                // ここに基数チップは出さない（10進の値を出しながらHEXが光る食い違いを避ける）。
+                <Animated.Text numberOfLines={2} adjustsFontSizeToFit style={[styles.resultValue, resultAnimatedStyle]}>
+                  {baseInputParse.value}
+                </Animated.Text>
+              ) : resultMode === "value" && display ? (
                 <>
                   {valueForm === "exact" && exactValue ? (
                     // 厳密な形はKaTeXで描く。分数の横棒と根号は文字の並びでは表現できず、
@@ -2176,7 +2235,7 @@ export default function CalculatorScreen() {
                     </View>
                   ) : roundedValue ? (
                     // **有効数字・科学表記はKaTeXで描かない。** 上付き数字はUnicodeにあるので
-                    // 小数表示とまったく同じ Text（等幅700・36px）で出せる。以前はLaTeXで
+                    // 小数表示とまったく同じ Text（等幅700）で出せる。以前はLaTeXで
                     // 組んでいて、チップを押した瞬間に字体と大きさが変わって見えた（実機で指摘された）。
                     // 分数・根号（厳密値）は文字の並びで表せないので、そちらだけKaTeXのまま。
                     <>
@@ -2243,113 +2302,143 @@ export default function CalculatorScreen() {
                       ) : null}
                     </>
                   )}
-                  {/* 表示単位の次元が合わずSI表記へフォールバックしているときは、選択中の単位チップ
-                      （例 cm）を光らせたままにすると、値がm/sなのにcmが選ばれているように見えて
-                      食い違う。フォールバック中はSIチップの方を点灯させる。 */}
-                  <View style={styles.conversionRow}>
-                    {/* key は候補の記号列。単位レールと同じ理由で、並びが変わったら
-                        ScrollView を作り直して範囲外に残った横スクロール位置を捨てる
-                        （railScrollKey の注記を参照）。ここは長さ（11件）で右端まで
-                        スクロールしたあと電圧（3件）の結果に変えると、チップ列が空に
-                        見えて表示単位を選ぶ主導線が消える。SIチップは常に先頭で固定なので
-                        conversionUnits だけを key にすれば足りる。 */}
-                    {conversionChipRail}
-                    <Pressable accessibilityLabel={copy.outputUnit} onPress={() => openUnitPicker()} style={({ pressed }) => [styles.convertMore, pressed && styles.pressed]}>
-                      <Text style={styles.convertMoreText}>{copy.more}</Text>
-                      <IconSymbol name="chevron.right" size={11} color={colors.primary} />
-                    </Pressable>
-                  </View>
-                  {baseChipsRow}
-                  {valueFormRow}
-                  {comparisonRows.length > 1 ? (
-                    <View style={styles.comparisonSection}>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={copy.compareUnits}
-                        accessibilityState={{ expanded: showComparison }}
-                        onPress={() => setShowComparison((prev) => !prev)}
-                        style={({ pressed }) => [styles.comparisonToggle, pressed && styles.pressed]}
-                      >
-                        <Text style={styles.comparisonToggleText}>{copy.compareUnits}</Text>
-                        <IconSymbol name={showComparison ? "chevron.up" : "chevron.right"} size={11} color={colors.primary} />
-                      </Pressable>
-                      {showComparison ? (
-                        <>
-                          <Text style={styles.comparisonHint}>{copy.compareUnitsHint}</Text>
-                          <View style={styles.comparisonTable}>
-                            {comparisonRows.map((row) => (
-                              <Pressable
-                                key={row.symbol}
-                                accessibilityLabel={`${row.label} ${row.value}`}
-                                onPress={() => { markUserInteraction(); applyTargetUnit(row.symbol); }}
-                                style={({ pressed }) => [styles.comparisonRow, row.isActive && styles.comparisonRowActive, pressed && styles.pressed]}
-                              >
-                                <Text style={[styles.comparisonRowLabel, row.isActive && styles.comparisonRowLabelActive]}>{row.label}</Text>
-                                <Text numberOfLines={1} style={[styles.comparisonRowValue, row.isActive && styles.comparisonRowValueActive]}>{row.value}</Text>
-                              </Pressable>
-                            ))}
-                          </View>
-                        </>
-                      ) : null}
-                    </View>
-                  ) : null}
-                  <View style={styles.siRow}>
-                    <Text style={styles.siLabel}>{copy.siBase}</Text>
-                    <Text numberOfLines={1} selectable style={styles.siValue}>{display.si}</Text>
-                  </View>
-                  {displayUnit && targetUnitRegistration.status !== "registered" ? (
-                    <Text style={styles.registrationNote}>{targetUnitRegistration.status === "supported" ? `${displayUnit} · ${copy.supported}` : `${displayUnit} · ${copy.unknown}`}</Text>
-                  ) : null}
-                  {display.error ? <Text style={styles.errorText}>{display.error}</Text> : null}
                 </>
-              ) : baseInputMode === null && visibleDiagnosis ? (
+              ) : resultMode === "diagnosis" ? (
                 // 式の意味の誤り（次元不一致・使えない単位・ゼロ除算…）はここでリアルタイムに説明する。
                 // 結果カードの中に出すので、= を押したときのエラー帯のようにレイアウトが跳ねない。
-                <View style={styles.diagnosisWrap}>
+                // **診断文だけはこの中でスクロールさせる。** 主表示を固定部に置いた以上、
+                // 文が長いと固定部がそのぶん伸び、`middle` の overflow: hidden で**最後の行が
+                // 切れて読めなくなる**（実測: 360×400・独語の次元不一致で最終行が欠けた）。
+                // 数字と違って診断は「読むもの」なので、収まらないぶんはスクロールで受ける
+                // （CodeRabbitが#84で🟡として検出）。
+                <ScrollView style={styles.diagnosisScroll} contentContainerStyle={styles.diagnosisWrap} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                   <IconSymbol name="exclamationmark.triangle.fill" size={15} color={colors.error} />
                   <View style={styles.diagnosisBody}>
                     <Text style={styles.diagnosisText}>{visibleDiagnosis}</Text>
                     {analysis.unresolved.some((segment) => segment.kind === "unknown-unit") ? <Text style={styles.diagnosisHint}>{copy.fixTap}</Text> : null}
                   </View>
-                </View>
-              ) : baseInputMode === null && expression.trim() ? (
+                </ScrollView>
+              ) : resultMode === "incomplete" ? (
                 // 書きかけ（末尾が演算子・閉じ括弧待ち）。間違いではないので案内だけ出す。
                 <Text style={styles.emptyResult}>{copy.incompleteHint}</Text>
               ) : (
                 // 通常の空状態と「進数入力モードだが変換できる桁がまだ無い（空・不正な桁）」の
                 // どちらもここに来る。入力モード中はエラーを出さない方針なので文言は変えない。
-                <>
-                  <Text style={styles.emptyResult}>{copy.emptyResult}</Text>
-                  {baseInputMode === null && !expression.trim() ? (
-                    // 空状態の「まず1つ試す」。式が空なので確認ダイアログ無しで即適用する。
-                    <View style={styles.quickStartList}>
-                      <Text style={styles.quickStartLabel}>{copy.quickStartTitle}</Text>
-                      {QUICK_START.map((item) => (
-                        <Pressable
-                          accessibilityLabel={item.expression}
-                          key={item.id}
-                          onPress={() => applyQuickStart(item.expression)}
-                          style={({ pressed }) => [styles.quickStartRow, pressed && styles.cardPressed]}
-                        >
-                          <Text style={styles.quickStartExpression}>{item.expression}</Text>
-                          <Text numberOfLines={2} style={styles.quickStartHint}>
-                            {copy[item.hintKey]}
-                          </Text>
-                          <IconSymbol name="chevron.right" size={11} color={colors.primary} />
-                        </Pressable>
-                      ))}
-                    </View>
-                  ) : null}
-                  <Pressable accessibilityLabel={copy.outputUnit} onPress={() => openUnitPicker()} style={({ pressed }) => [styles.presetOutputUnit, pressed && styles.pressed]}>
-                    <Text style={styles.presetOutputUnitLabel}>{copy.outputUnit}</Text>
-                    <View style={styles.presetOutputUnitValueWrap}>
-                      <Text style={styles.presetOutputUnitValue}>{targetUnit.trim() || "SI"}</Text>
-                      <IconSymbol name="chevron.right" size={11} color={colors.primary} />
-                    </View>
-                  </Pressable>
-                </>
+                <Text style={styles.emptyResult}>{copy.emptyResult}</Text>
               )}
+              </View>
+              {layout.showResultCardLabel ? null : resultActionsRow}
             </View>
+          </View>
+
+          <ScrollView ref={resultScrollRef} showsVerticalScrollIndicator={false} style={styles.middleScroll} contentContainerStyle={styles.middleContent} keyboardShouldPersistTaps="handled">
+            {hasResultBody ? (
+              <View style={styles.resultCardBody}>
+                {resultMode === "value" && display ? (
+                  <>
+                    {/* 表示単位の次元が合わずSI表記へフォールバックしているときは、選択中の単位チップ
+                        （例 cm）を光らせたままにすると、値がm/sなのにcmが選ばれているように見えて
+                        食い違う。フォールバック中はSIチップの方を点灯させる。 */}
+                    <View style={styles.conversionRow}>
+                      {/* key は候補の記号列。単位レールと同じ理由で、並びが変わったら
+                          ScrollView を作り直して範囲外に残った横スクロール位置を捨てる
+                          （railScrollKey の注記を参照）。ここは長さ（11件）で右端まで
+                          スクロールしたあと電圧（3件）の結果に変えると、チップ列が空に
+                          見えて表示単位を選ぶ主導線が消える。SIチップは常に先頭で固定なので
+                          conversionUnits だけを key にすれば足りる。 */}
+                      {conversionChipRail}
+                      <Pressable accessibilityLabel={copy.outputUnit} onPress={() => openUnitPicker()} style={({ pressed }) => [styles.convertMore, pressed && styles.pressed]}>
+                        <Text style={styles.convertMoreText}>{copy.more}</Text>
+                        <IconSymbol name="chevron.right" size={11} color={colors.primary} />
+                      </Pressable>
+                    </View>
+                    {baseChipsRow}
+                    {valueFormRow}
+                    {comparisonRows.length > 1 ? (
+                      <View style={styles.comparisonSection}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={copy.compareUnits}
+                          accessibilityState={{ expanded: showComparison }}
+                          onPress={() => setShowComparison((prev) => !prev)}
+                          style={({ pressed }) => [styles.comparisonToggle, pressed && styles.pressed]}
+                        >
+                          <Text style={styles.comparisonToggleText}>{copy.compareUnits}</Text>
+                          <IconSymbol name={showComparison ? "chevron.up" : "chevron.right"} size={11} color={colors.primary} />
+                        </Pressable>
+                        {showComparison ? (
+                          <>
+                            <Text style={styles.comparisonHint}>{copy.compareUnitsHint}</Text>
+                            <View style={styles.comparisonTable}>
+                              {comparisonRows.map((row) => (
+                                <Pressable
+                                  key={row.symbol}
+                                  accessibilityLabel={`${row.label} ${row.value}`}
+                                  onPress={() => { markUserInteraction(); applyTargetUnit(row.symbol); }}
+                                  style={({ pressed }) => [styles.comparisonRow, row.isActive && styles.comparisonRowActive, pressed && styles.pressed]}
+                                >
+                                  <Text style={[styles.comparisonRowLabel, row.isActive && styles.comparisonRowLabelActive]}>{row.label}</Text>
+                                  <Text numberOfLines={1} style={[styles.comparisonRowValue, row.isActive && styles.comparisonRowValueActive]}>{row.value}</Text>
+                                </Pressable>
+                              ))}
+                            </View>
+                          </>
+                        ) : null}
+                      </View>
+                    ) : null}
+                    <View style={styles.siRow}>
+                      <Text style={styles.siLabel}>{copy.siBase}</Text>
+                      <Text numberOfLines={1} selectable style={styles.siValue}>{display.si}</Text>
+                    </View>
+                    {displayUnit && targetUnitRegistration.status !== "registered" ? (
+                      <Text style={styles.registrationNote}>{targetUnitRegistration.status === "supported" ? `${displayUnit} · ${copy.supported}` : `${displayUnit} · ${copy.unknown}`}</Text>
+                    ) : null}
+                    {display.error ? <Text style={styles.errorText}>{display.error}</Text> : null}
+                  </>
+                ) : (
+                  <>
+                    {baseInputMode === null && !expression.trim() ? (
+                      // 空状態の「まず1つ試す」。式が空なので確認ダイアログ無しで即適用する。
+                      <View style={styles.quickStartList}>
+                        <Text style={styles.quickStartLabel}>{copy.quickStartTitle}</Text>
+                        {QUICK_START.map((item) => (
+                          <Pressable
+                            accessibilityLabel={item.expression}
+                            key={item.id}
+                            onPress={() => applyQuickStart(item.expression)}
+                            style={({ pressed }) => [styles.quickStartRow, pressed && styles.cardPressed]}
+                          >
+                            <Text style={styles.quickStartExpression}>{item.expression}</Text>
+                            <Text numberOfLines={2} style={styles.quickStartHint}>
+                              {copy[item.hintKey]}
+                            </Text>
+                            <IconSymbol name="chevron.right" size={11} color={colors.primary} />
+                          </Pressable>
+                        ))}
+                      </View>
+                    ) : null}
+                    <Pressable accessibilityLabel={copy.outputUnit} onPress={() => openUnitPicker()} style={({ pressed }) => [styles.presetOutputUnit, pressed && styles.pressed]}>
+                      <Text style={styles.presetOutputUnitLabel}>{copy.outputUnit}</Text>
+                      <View style={styles.presetOutputUnitValueWrap}>
+                        <Text style={styles.presetOutputUnitValue}>{targetUnit.trim() || "SI"}</Text>
+                        <IconSymbol name="chevron.right" size={11} color={colors.primary} />
+                      </View>
+                    </Pressable>
+                  </>
+                )}
+              </View>
+            ) : null}
+
+            {/* **= のエラー帯は結果カードの下。** 固定部より上へ置くと、いちばん見えなければ
+                ならない数字がその帯のぶん枠の外へ押し出される。帯が出る場面は主表示が診断・
+                空案内になっていることがほとんどで、そのときカードの下半分は無いので帯が
+                すぐ下に来る。 */}
+            {error ? (
+              <Animated.View style={[styles.messageError, errorAnimatedStyle]}>
+                <Text style={styles.messageErrorText}>{error}</Text>
+                {analysis.unresolved.length ? <Text style={styles.messageHint}>{copy.fixTap}</Text> : null}
+              </Animated.View>
+            ) : null}
 
             {notice ? <View style={styles.messageSuccess}><Text style={styles.messageSuccessText}>{notice}</Text></View> : null}
 
@@ -2684,14 +2773,46 @@ const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => St
   // overflow: hidden が無いと、下限まで縮んだときに結果カードが枠からはみ出して編集キーの行に
   // 重なる（Webで実測。ネイティブでは切り取られるがWebは既定でvisible）。
   middle: { flexGrow: 1, flexShrink: 1, minHeight: layout.middleMinHeight, overflow: "hidden" },
+  // **カードの上半分（＝結果の数字まで）は縮ませない。** ここが縮むと、いちばん見えなければ
+  // ならないものが最初に切れる。伸縮は下の middleScroll に任せる。
+  //
+  // **flexShrink を 1 のままにしないこと。** 診断を出している間は固定部も縮む側に回るので
+  // （resultCardShrink）、1 どうしだと按分されて**両方が同時に縮む**——結果、サンプルボタンの
+  // 1行を残すために診断文の最後の行が切れる（実測: 360×400・独語）。大きい値にしておくと
+  // こちらが先に 0 まで縮み、二次的な導線（履歴・サンプル）を畳んでから固定部を縮める順になる。
+  middleScroll: { flexGrow: 1, flexShrink: 100 },
   middleContent: { gap: 7 },
-  resultCard: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 16, borderWidth: 1, paddingHorizontal: 13, paddingVertical: 10 },
+  resultCard: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 16, borderWidth: 1, flexShrink: 0, paddingHorizontal: 13, paddingVertical: layout.resultCardPaddingVertical },
+  // 上半分と下半分は**枠と背景が同じ1枚のカード**に見せる。境目の角丸と枠だけを落とし、
+  // 下半分は中身が下端から出入りするので上の枠を持たない（スクロールすると上半分の裏へ潜る）。
+  resultCardHead: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderBottomWidth: 0, paddingBottom: 0 },
+  resultCardBody: {
+    backgroundColor: colors.primarySurface,
+    borderColor: colors.primaryBorder,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    borderTopWidth: 0,
+    borderWidth: 1,
+    paddingBottom: layout.resultCardPaddingVertical,
+    paddingHorizontal: 13,
+    paddingTop: 2,
+  },
   resultHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
+  // 見出し行を畳む段階では、数字（flex:1）とアイコン列を同じ行に並べる。
+  resultMainRow: { alignItems: "flex-start", flexDirection: "row", gap: 6 },
+  // 診断を出している間だけ、固定部を middle の高さに収まるまで縮ませる（中身は下の
+  // diagnosisScroll がスクロールで受ける）。**数字のときは縮ませないこと**——あちらは
+  // 一目で読むものなので、1行ぶんは必ず見えていなければならない。
+  resultCardShrink: { flexShrink: 1 },
+  // row の cross-axis（＝縦）は align で決まる。stretch にしないと中の ScrollView が
+  // 内容の高さのまま伸びて、親を縮めた意味が無くなる。
+  resultMainRowShrink: { alignItems: "stretch", flexShrink: 1 },
+  resultMain: { flexShrink: 1, flexGrow: 1, minWidth: 0 },
   cardLabel: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase" },
   resultActions: { alignItems: "center", flexDirection: "row", gap: 6 },
   iconButton: { alignItems: "center", backgroundColor: colors.surface, borderRadius: 8, height: 28, justifyContent: "center", width: 32 },
   // 結果は画面で最も大きい文字にする（式19px・キー18pxに対して28pxでは、下に並ぶチップに埋没していた）。
-  resultValue: { color: colors.primaryStrong, fontFamily: mono, fontSize: RESULT_VALUE_FONT_SIZE, fontWeight: "700", marginTop: 2, minHeight: layout.inputRowHeight },
+  resultValue: { color: colors.primaryStrong, fontFamily: mono, fontSize: layout.resultValueFontSize, fontWeight: "700", marginTop: 2, minHeight: layout.resultValueMinHeight },
   emptyResult: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 6 },
   presetOutputUnit: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
   presetOutputUnitLabel: { color: colors.muted, fontSize: 11, fontWeight: "700" },
@@ -2702,6 +2823,10 @@ const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => St
   quickStartRow: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 12, borderWidth: 1, flexDirection: "row", gap: 10, minHeight: 44, paddingHorizontal: 12, paddingVertical: 8 },
   quickStartExpression: { color: colors.primaryStrong, fontFamily: mono, fontSize: 15, fontWeight: "700" },
   quickStartHint: { color: colors.muted, flex: 1, fontSize: 11, lineHeight: 15 },
+  // diagnosisWrap は ScrollView の contentContainerStyle（中身の並べ方）、diagnosisScroll は
+  // その外枠（縮む側）。**flexGrow: 0 を明示すること**——付けないと診断が短いときにも
+  // 枠が伸びて、下のチップ列との間に空きが出る。
+  diagnosisScroll: { flexGrow: 0, flexShrink: 1 },
   diagnosisWrap: { alignItems: "flex-start", flexDirection: "row", gap: 8, marginTop: 6, minHeight: 44 },
   diagnosisBody: { flex: 1 },
   diagnosisText: { color: colors.error, fontSize: 14, fontWeight: "600", lineHeight: 20 },
@@ -2739,19 +2864,19 @@ const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => St
   // （分数の分子・根号の上線）、RNのViewは既定でoverflow:hiddenなので余白が無いと上が欠ける。
   // 上下の余白を入れないこと。小数表示（resultValue）は marginTop 2 の直下から文字が始まるので、
   // ここに余白を足すとその分だけ数字のベースラインが下がり、チップを押すたびに値が上下に跳ねる。
-  exactValueRow: { alignItems: "center", flexDirection: "row", gap: 6, marginTop: 2, minHeight: 44 },
+  exactValueRow: { alignItems: "center", flexDirection: "row", gap: 6, marginTop: 2, minHeight: layout.resultValueMinHeight },
   // 分数のときだけ余白を戻す。KaTeXのインライン描画は分子・分母が行ボックスの外へはみ出すので、
   // 余白が無いと下のチップ列と接触する（1段の形＝√・π・10ⁿ でははみ出さないので余白は要らない）。
   exactValueRowStacked: { paddingVertical: 4 },
   // 単位ラベルは小数表示（"2.55 mA" の "mA"）と同じ見た目にする。値と同じ36px・700。
   // 分数のときだけ STACKED_RESULT_UNIT_FONT_SIZE を呼び出し側で上書きする。
-  exactValueUnit: { color: colors.primaryStrong, fontFamily: mono, fontSize: RESULT_VALUE_FONT_SIZE, fontWeight: "700" },
-  exactValueUnitStacked: { fontSize: STACKED_RESULT_UNIT_FONT_SIZE },
+  exactValueUnit: { color: colors.primaryStrong, fontFamily: mono, fontSize: layout.resultValueFontSize, fontWeight: "700" },
+  exactValueUnitStacked: { fontSize: stackedUnitFontSize(layout) },
   // 丸める前の値の併記。結果の値より明らかに小さく・淡くして、主役が丸めた値であることを保つ。
   roundedFromText: { color: colors.muted, fontFamily: mono, fontSize: 12, fontWeight: "600", marginTop: -2 },
   // 科学表記は「仮数×10」と「指数」を別のTextで並べる（上の注記）。行の高さは小数表示と同じに
   // したいので、`resultValue` の minHeight をそのまま効かせ、指数側には高さを持たせない。
-  scientificRow: { alignItems: "flex-start", flexDirection: "row", flexWrap: "wrap", minHeight: layout.inputRowHeight },
+  scientificRow: { alignItems: "flex-start", flexDirection: "row", flexWrap: "wrap", minHeight: layout.resultValueMinHeight },
   scientificPart: { minHeight: undefined },
   // 指数は本文の約55%。`lineHeight` を本文の文字サイズの半分にすることで、上端が本文の
   // 上端にそろう（=上付きの位置になる）。**`lineHeight` を明示しないと行ボックスが
@@ -2759,9 +2884,9 @@ const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => St
   resultExponent: {
     color: colors.primaryStrong,
     fontFamily: mono,
-    fontSize: Math.round(RESULT_VALUE_FONT_SIZE * 0.55),
+    fontSize: Math.round(layout.resultValueFontSize * 0.55),
     fontWeight: "700",
-    lineHeight: Math.round(RESULT_VALUE_FONT_SIZE * 0.55),
+    lineHeight: Math.round(layout.resultValueFontSize * 0.55),
     marginTop: 2,
   },
   valueFormChip: { backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 9, borderWidth: 1, justifyContent: "center", minHeight: 30, paddingHorizontal: 10 },
