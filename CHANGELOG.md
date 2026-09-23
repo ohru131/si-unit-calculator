@@ -4,7 +4,7 @@
 各PRは `## [Unreleased]` に1行足す。リリース時にその塊を `## [x.y.z] - YYYY-MM-DD` に改名し、同じコミットに `vx.y.z` の注釈付きタグを打つ。
 Play の「このバージョンの新機能」はここから写す。
 
-## [Unreleased]
+## [1.7.1] - 2026-09-24
 
 ### 修正
 - **高さの少ない端末で、計算結果がスクロールしないと見えないことがあったのを直した。** 結果の数字は結果カードごと縦スクロールの中にあり、しかもカードの中で数字より上に見出し行があったため、単位の比較表まで下を見たあとや、画面の低い端末・文字を大きくした設定では数字が画面の外に残っていた。数字（と単位・丸める前の値）をスクロールの外に固定し、単位チップから下だけがスクロールするようにした。あわせて、縦が足りない段階では見出しの「結果」を畳んでブックマーク・コピーを数字と同じ行へ移し、数字の大きさを段階的に下げ、式キーボードの単位パネルを既定で閉じるようにした。無料版はバナー広告のぶん画面が50dp低いので、その差も画面の寸法の判定に入れてある。
@@ -93,7 +93,8 @@ Play の「このバージョンの新機能」はここから写す。
 
 Google Play クローズドテストに提出した最初のビルド（Shipaton 2026）。
 
-[Unreleased]: https://github.com/ohru131/si-unit-calculator/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/ohru131/si-unit-calculator/compare/v1.7.1...HEAD
+[1.7.1]: https://github.com/ohru131/si-unit-calculator/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/ohru131/si-unit-calculator/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/ohru131/si-unit-calculator/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/ohru131/si-unit-calculator/compare/v1.4.0...v1.5.0
