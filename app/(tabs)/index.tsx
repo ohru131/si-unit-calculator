@@ -2188,7 +2188,7 @@ export default function CalculatorScreen() {
             履歴・サンプルをスクロール部にする。枠と背景は同じ値なので、見た目は従来どおり1枚のカード。
             **この2つを1つの ScrollView に戻さないこと。** */}
         <View style={styles.middle}>
-          <View style={[styles.resultCard, hasResultBody ? styles.resultCardHead : null]}>
+          <View style={[styles.resultCard, hasResultBody ? styles.resultCardHead : null, resultMode === "diagnosis" ? styles.resultCardShrink : null]}>
             {/* 見出し行は約28dpを**数字より上**に積む。縦が足りない段階では行ごと畳み、
                 アイコンは数字と同じ行の右端へ移す（消すとコピーが押せなくなる）。 */}
             {layout.showResultCardLabel ? (
@@ -2197,7 +2197,7 @@ export default function CalculatorScreen() {
                 {resultActionsRow}
               </View>
             ) : null}
-            <View style={styles.resultMainRow}>
+            <View style={[styles.resultMainRow, resultMode === "diagnosis" ? styles.resultMainRowShrink : null]}>
               <View style={styles.resultMain}>
               {baseInputParse && baseInputParse.status === "ok" ? (
                 // 進数入力モード中は通常の量（display）を経由しない。生の桁が偶然そのまま10進数として
@@ -2306,13 +2306,18 @@ export default function CalculatorScreen() {
               ) : resultMode === "diagnosis" ? (
                 // 式の意味の誤り（次元不一致・使えない単位・ゼロ除算…）はここでリアルタイムに説明する。
                 // 結果カードの中に出すので、= を押したときのエラー帯のようにレイアウトが跳ねない。
-                <View style={styles.diagnosisWrap}>
+                // **診断文だけはこの中でスクロールさせる。** 主表示を固定部に置いた以上、
+                // 文が長いと固定部がそのぶん伸び、`middle` の overflow: hidden で**最後の行が
+                // 切れて読めなくなる**（実測: 360×400・独語の次元不一致で最終行が欠けた）。
+                // 数字と違って診断は「読むもの」なので、収まらないぶんはスクロールで受ける
+                // （CodeRabbitが#84で🟡として検出）。
+                <ScrollView style={styles.diagnosisScroll} contentContainerStyle={styles.diagnosisWrap} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                   <IconSymbol name="exclamationmark.triangle.fill" size={15} color={colors.error} />
                   <View style={styles.diagnosisBody}>
                     <Text style={styles.diagnosisText}>{visibleDiagnosis}</Text>
                     {analysis.unresolved.some((segment) => segment.kind === "unknown-unit") ? <Text style={styles.diagnosisHint}>{copy.fixTap}</Text> : null}
                   </View>
-                </View>
+                </ScrollView>
               ) : resultMode === "incomplete" ? (
                 // 書きかけ（末尾が演算子・閉じ括弧待ち）。間違いではないので案内だけ出す。
                 <Text style={styles.emptyResult}>{copy.incompleteHint}</Text>
@@ -2770,7 +2775,12 @@ const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => St
   middle: { flexGrow: 1, flexShrink: 1, minHeight: layout.middleMinHeight, overflow: "hidden" },
   // **カードの上半分（＝結果の数字まで）は縮ませない。** ここが縮むと、いちばん見えなければ
   // ならないものが最初に切れる。伸縮は下の middleScroll に任せる。
-  middleScroll: { flexGrow: 1, flexShrink: 1 },
+  //
+  // **flexShrink を 1 のままにしないこと。** 診断を出している間は固定部も縮む側に回るので
+  // （resultCardShrink）、1 どうしだと按分されて**両方が同時に縮む**——結果、サンプルボタンの
+  // 1行を残すために診断文の最後の行が切れる（実測: 360×400・独語）。大きい値にしておくと
+  // こちらが先に 0 まで縮み、二次的な導線（履歴・サンプル）を畳んでから固定部を縮める順になる。
+  middleScroll: { flexGrow: 1, flexShrink: 100 },
   middleContent: { gap: 7 },
   resultCard: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder, borderRadius: 16, borderWidth: 1, flexShrink: 0, paddingHorizontal: 13, paddingVertical: layout.resultCardPaddingVertical },
   // 上半分と下半分は**枠と背景が同じ1枚のカード**に見せる。境目の角丸と枠だけを落とし、
@@ -2790,6 +2800,13 @@ const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => St
   resultHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
   // 見出し行を畳む段階では、数字（flex:1）とアイコン列を同じ行に並べる。
   resultMainRow: { alignItems: "flex-start", flexDirection: "row", gap: 6 },
+  // 診断を出している間だけ、固定部を middle の高さに収まるまで縮ませる（中身は下の
+  // diagnosisScroll がスクロールで受ける）。**数字のときは縮ませないこと**——あちらは
+  // 一目で読むものなので、1行ぶんは必ず見えていなければならない。
+  resultCardShrink: { flexShrink: 1 },
+  // row の cross-axis（＝縦）は align で決まる。stretch にしないと中の ScrollView が
+  // 内容の高さのまま伸びて、親を縮めた意味が無くなる。
+  resultMainRowShrink: { alignItems: "stretch", flexShrink: 1 },
   resultMain: { flexShrink: 1, flexGrow: 1, minWidth: 0 },
   cardLabel: { color: colors.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase" },
   resultActions: { alignItems: "center", flexDirection: "row", gap: 6 },
@@ -2806,6 +2823,10 @@ const createStyles = (colors: ThemeColorPalette, layout: CalculatorLayout) => St
   quickStartRow: { alignItems: "center", backgroundColor: colors.surface, borderColor: colors.primaryBorder, borderRadius: 12, borderWidth: 1, flexDirection: "row", gap: 10, minHeight: 44, paddingHorizontal: 12, paddingVertical: 8 },
   quickStartExpression: { color: colors.primaryStrong, fontFamily: mono, fontSize: 15, fontWeight: "700" },
   quickStartHint: { color: colors.muted, flex: 1, fontSize: 11, lineHeight: 15 },
+  // diagnosisWrap は ScrollView の contentContainerStyle（中身の並べ方）、diagnosisScroll は
+  // その外枠（縮む側）。**flexGrow: 0 を明示すること**——付けないと診断が短いときにも
+  // 枠が伸びて、下のチップ列との間に空きが出る。
+  diagnosisScroll: { flexGrow: 0, flexShrink: 1 },
   diagnosisWrap: { alignItems: "flex-start", flexDirection: "row", gap: 8, marginTop: 6, minHeight: 44 },
   diagnosisBody: { flex: 1 },
   diagnosisText: { color: colors.error, fontSize: 14, fontWeight: "600", lineHeight: 20 },
