@@ -631,6 +631,16 @@ export function NotebookEditorSheet({
     Keyboard.dismiss();
   };
 
+  // キーを押したあとも欄のフォーカスを保つ。フォーカスが外れた欄は selection prop で位置を動かしても
+  // キャレットを描かないので、`◀ ▶` が効いていないように見える（実際に報告された）。Web は
+  // NotebookKeypad が mousedown でフォーカスを奪われないよう止めているが、ネイティブで外れた場合も
+  // ここで戻す。欄は showSoftInputOnFocus=false なので、focus() しても OS のキーボードは上がらない。
+  const keepActiveFieldFocused = () => {
+    if (!activeRailKey) return;
+    const input = inputRefs.current[activeRailKey];
+    if (input && !input.isFocused()) input.focus();
+  };
+
   /**
    * 「名前＝式」以外の欄（タイトル・説明文・数式・表示タイトル・表示単位）へフォーカスが移ったら
    * キーパッドを畳む。**これが無いと OS のキーボードとキーパッドが同時に積まれて入力欄が残らない。**
@@ -882,11 +892,11 @@ export function NotebookEditorSheet({
               labels={{ dismiss: copy.keypadDismiss }}
               symbols={activeField.symbols}
               unitRail={unitRail}
-              onKey={handleKeypadKey}
-              onInsert={insertIntoActiveField}
-              onPrefix={handleKeypadPrefix}
-              onApplyUnit={applyRailUnit}
-              onMoveCaret={handleKeypadMoveCaret}
+              onKey={(key) => { handleKeypadKey(key); if (key !== "=") keepActiveFieldFocused(); }}
+              onInsert={(text) => { insertIntoActiveField(text); keepActiveFieldFocused(); }}
+              onPrefix={(prefix) => { handleKeypadPrefix(prefix); keepActiveFieldFocused(); }}
+              onApplyUnit={(symbol) => { applyRailUnit(symbol); keepActiveFieldFocused(); }}
+              onMoveCaret={(delta) => { handleKeypadMoveCaret(delta); keepActiveFieldFocused(); }}
               onToggleOsKeyboard={toggleOsKeyboard}
               onDismiss={dismissKeypad}
             />

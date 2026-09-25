@@ -588,6 +588,16 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
     Keyboard.dismiss();
   };
 
+  // キーを押したあとも欄のフォーカスを保つ。フォーカスが外れた欄は selection prop で位置を動かしても
+  // キャレットを描かないので、`◀ ▶` が効いていないように見える（実際に報告された）。Web は
+  // NotebookKeypad が mousedown でフォーカスを奪われないよう止めているが、ネイティブで外れた場合も
+  // ここで戻す。欄は showSoftInputOnFocus=false なので、focus() しても OS のキーボードは上がらない。
+  const keepActiveFieldFocused = () => {
+    if (!activeRailKey) return;
+    const input = inputRefs.current[activeRailKey];
+    if (input && !input.isFocused()) input.focus();
+  };
+
   // 戻る先のカテゴリ名が空になることは基本無いが、propsの契約上は空文字も来うるため
   // 「戻る」ラベルへフォールバックする（呼び出し側のcategoryLabel()は常に非空を返す）。
   const backLabel = categoryLabel || copy.back;
@@ -838,11 +848,11 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
           labels={{ dismiss: copy.keypadDismiss }}
           symbols={activeField.symbols}
           unitRail={unitRail}
-          onKey={handleKeypadKey}
-          onInsert={handleKeypadInsert}
-          onPrefix={handleKeypadPrefix}
-          onApplyUnit={applyRailUnit}
-          onMoveCaret={handleKeypadMoveCaret}
+          onKey={(key) => { handleKeypadKey(key); if (key !== "=") keepActiveFieldFocused(); }}
+          onInsert={(text) => { handleKeypadInsert(text); keepActiveFieldFocused(); }}
+          onPrefix={(prefix) => { handleKeypadPrefix(prefix); keepActiveFieldFocused(); }}
+          onApplyUnit={(symbol) => { applyRailUnit(symbol); keepActiveFieldFocused(); }}
+          onMoveCaret={(delta) => { handleKeypadMoveCaret(delta); keepActiveFieldFocused(); }}
           onToggleOsKeyboard={toggleOsKeyboard}
           onDismiss={dismissKeypad}
         />
