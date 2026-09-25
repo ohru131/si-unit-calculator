@@ -13,6 +13,14 @@ import { type AppLanguage } from "@/lib/i18n";
 
 const mono = Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" });
 
+// Web ではキー（Pressable）が mousedown でフォーカスを奪い、編集中の欄が blur してキャレットが消える
+// （`◀ ▶` を押しても内部の位置は動くのに画面では何も見えず、「効かない」と報告された）。
+// mousedown の既定動作を止めるとフォーカスは欄に残り、クリック（onPress）はそのまま届く。
+// RN の ViewProps に onMouseDown は無いが、react-native-web の View は mouseProps として DOM へ渡す。
+const keepFieldFocusProps = Platform.OS === "web"
+  ? ({ onMouseDown: (event: { preventDefault: () => void }) => event.preventDefault() } as object)
+  : {};
+
 type Props = {
   language: AppLanguage;
   layout: CalculatorLayout;
@@ -56,7 +64,7 @@ export const NotebookKeypad = memo(function NotebookKeypad({ language, layout, f
   const rail = <UnitRail language={language} onApply={onApplyUnit} state={unitRail} />;
 
   return (
-    <View style={styles.root}>
+    <View style={styles.root} {...keepFieldFocusProps}>
       <View style={styles.topBar}>
         <Text numberOfLines={1} style={styles.fieldLabel}>{fieldLabel}</Text>
         <Pressable accessibilityLabel={labels.dismiss} accessibilityRole="button" hitSlop={4} onPress={onDismiss} style={({ pressed }) => [styles.topBarButton, pressed && styles.pressed]}>
