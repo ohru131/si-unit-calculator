@@ -16,6 +16,7 @@ import {
   VEHICLES_SEEDS,
 } from "./practical";
 import { ELECTRONICS_SEEDS, SOLAR_SEEDS } from "./electronics";
+import { INVESTING_SEEDS, REAL_ESTATE_SEEDS } from "./finance";
 import { ENG_POWER_SEEDS, ENG_ELEMENTS_SEEDS } from "./engineering-power";
 import { ENG_STRESS_SEEDS } from "./engineering-stress";
 import { BREWING_SEEDS, WEATHER_SEEDS } from "./lifestyle";
@@ -71,6 +72,11 @@ export const PRESET_NOTEBOOK_CATEGORIES: PresetNotebookCategory[] = [
   { id: "brewing", label: { en: "Coffee & home brewing", ja: "コーヒー・自家醸造", es: "Café y elaboración casera", "pt-BR": "Café e produção caseira", de: "Kaffee & Hausbrauen", fr: "Café et brassage maison" }, parentId: "home-life" },
   { id: "fitness", label: { en: "Fitness & running", ja: "フィットネス・ランニング", es: "Fitness y running", "pt-BR": "Fitness e corrida", de: "Fitness & Laufen", fr: "Fitness et course à pied" }, parentId: "home-life" },
   { id: "weather", label: { en: "Weather & atmosphere", ja: "天気・大気", es: "Tiempo y atmósfera", "pt-BR": "Tempo e atmosfera", de: "Wetter & Atmosphäre", fr: "Météo et atmosphère" }, parentId: "home-life" },
+  // お金の計算は単位が付かない（通貨はこのエンジンの単位ではない）ので、他のカテゴリと違って
+  // 次元の検査は効かない。代わりに複利・返済額のような「式を覚えていないと出せない」計算を置く。
+  { id: "money", label: { en: "Investing & real estate", ja: "資産運用・不動産", es: "Inversión e inmuebles", "pt-BR": "Investimentos e imóveis", de: "Geldanlage & Immobilien", fr: "Placements et immobilier" } },
+  { id: "investing", label: { en: "Investing & savings", ja: "資産運用・投資", es: "Inversión y ahorro", "pt-BR": "Investimentos e poupança", de: "Geldanlage & Sparen", fr: "Placements et épargne" }, parentId: "money" },
+  { id: "real-estate", label: { en: "Real estate & mortgages", ja: "不動産・住宅ローン", es: "Inmuebles e hipotecas", "pt-BR": "Imóveis e financiamento", de: "Immobilien & Baufinanzierung", fr: "Immobilier et crédit immobilier" }, parentId: "money" },
   { id: "vehicles", label: { en: "Physics of cars & bicycles", ja: "車・自転車の物理", es: "Física de los vehículos", "pt-BR": "Física dos veículos", de: "Physik von Autos & Fahrrädern", fr: "Physique des voitures et vélos" } },
 
   // 材料力学は「はり・柱」に絞り、機械設計の他分野と並べた（旧IDは維持）。
@@ -120,4 +126,6 @@ export const PRESET_NOTEBOOK_SEEDS: Record<string, NotebookSeed[]> = {
   "eng-stress": ENG_STRESS_SEEDS,
   "eng-power": ENG_POWER_SEEDS,
   "eng-elements": ENG_ELEMENTS_SEEDS,
+  investing: INVESTING_SEEDS,
+  "real-estate": REAL_ESTATE_SEEDS,
 };
