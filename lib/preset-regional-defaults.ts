@@ -48,7 +48,9 @@ export type PresetPriceProfile = Record<PresetPriceKind, number>;
 // investmentLumpSum 〜 mortgageRate は「資産運用・不動産」のノート用（2026-09-25）。
 // 一括投資額・毎月の積立額・物件価格・月額家賃・世帯の年収（税引前）・住宅ローン金利（年率%）。
 // **物件価格と家賃は同じ物件の組になるように置く**（表面利回りが4〜6%に収まる。台湾だけは
-// 実勢どおり2%台）。金利は通貨ではなく国の金融環境で決まるが、ここに載っている通貨はどれも
+// 実勢どおり2%台）。**年収は、頭金1割・30年で物件を買ったときの返済負担率が25〜40%に収まる値に置く**
+// （物件価格だけを実勢に合わせると、中南米の通貨で返済額が年収の7割〜10割を超え、ノートの説明文が
+// 言う「25〜35%」と桁違いの例になっていた）。金利は通貨ではなく国の金融環境で決まるが、ここに載っている通貨はどれも
 // 1か国（ユーロ圏は圏全体）に対応しているので通貨表に同居させた。
 //
 // **日本円だけは金額を「万円」単位で持つ**（100 = 100万円）。物件価格は円のままだと必ず
@@ -62,24 +64,24 @@ export const PRESET_PRICE_PROFILES: Record<string, PresetPriceProfile> = {
   USD: { electricityPerKWh: 0.18, fuelPerLiter: 0.95, filamentPerKg: 22, investmentLumpSum: 10000, monthlyContribution: 500, propertyPrice: 400000, monthlyRent: 2000, annualIncome: 90000, mortgageRate: 6.5 },
   EUR: { electricityPerKWh: 0.29, fuelPerLiter: 1.75, filamentPerKg: 22, investmentLumpSum: 10000, monthlyContribution: 300, propertyPrice: 300000, monthlyRent: 1200, annualIncome: 50000, mortgageRate: 3.5 },
   GBP: { electricityPerKWh: 0.26, fuelPerLiter: 1.5, filamentPerKg: 20, investmentLumpSum: 10000, monthlyContribution: 300, propertyPrice: 290000, monthlyRent: 1300, annualIncome: 45000, mortgageRate: 4.5 },
-  BRL: { electricityPerKWh: 0.85, fuelPerLiter: 6.4, filamentPerKg: 130, investmentLumpSum: 20000, monthlyContribution: 500, propertyPrice: 500000, monthlyRent: 2500, annualIncome: 60000, mortgageRate: 11 },
-  MXN: { electricityPerKWh: 2, fuelPerLiter: 23.5, filamentPerKg: 450, investmentLumpSum: 100000, monthlyContribution: 3000, propertyPrice: 3000000, monthlyRent: 15000, annualIncome: 300000, mortgageRate: 10.5 },
+  BRL: { electricityPerKWh: 0.85, fuelPerLiter: 6.4, filamentPerKg: 130, investmentLumpSum: 20000, monthlyContribution: 500, propertyPrice: 300000, monthlyRent: 1500, annualIncome: 90000, mortgageRate: 11 },
+  MXN: { electricityPerKWh: 2, fuelPerLiter: 23.5, filamentPerKg: 450, investmentLumpSum: 100000, monthlyContribution: 3000, propertyPrice: 1800000, monthlyRent: 9000, annualIncome: 500000, mortgageRate: 10.5 },
   // ここから下は、電気の地域表（ELECTRICAL_PROFILE_BY_REGION）には入っているのに通貨表が
   // 無く、**同じ国で電圧は正しいのに金額だけ言語推測（西語→EUR・英語→USD）に落ちていた**地域。
   // 電気料金は2026年9月時点の各国の住宅用実勢（現地通貨の一次情報が取れたCO・CR・TW以外は
   // USD建ての実勢に当時の為替を掛けて現地通貨へ直した概数）。燃料は現地通貨建ての店頭価格を
   // 基準に、上と同じ理由で実勢よりやや低めの丸めにしてある。フィラメントは他の通貨と同じく
   // PLA 1kgスプールを米ドル建て20ドル台とみなして為替換算した概数。
-  CAD: { electricityPerKWh: 0.18, fuelPerLiter: 1.45, filamentPerKg: 30, investmentLumpSum: 10000, monthlyContribution: 500, propertyPrice: 700000, monthlyRent: 2500, annualIncome: 90000, mortgageRate: 4.5 },
-  COP: { electricityPerKWh: 850, fuelPerLiter: 3500, filamentPerKg: 70000, investmentLumpSum: 5000000, monthlyContribution: 300000, propertyPrice: 300000000, monthlyRent: 1500000, annualIncome: 50000000, mortgageRate: 12 },
-  CRC: { electricityPerKWh: 86, fuelPerLiter: 680, filamentPerKg: 10000, investmentLumpSum: 5000000, monthlyContribution: 100000, propertyPrice: 80000000, monthlyRent: 400000, annualIncome: 12000000, mortgageRate: 8.5 },
-  DOP: { electricityPerKWh: 6.8, fuelPerLiter: 72, filamentPerKg: 1300, investmentLumpSum: 500000, monthlyContribution: 10000, propertyPrice: 6000000, monthlyRent: 30000, annualIncome: 900000, mortgageRate: 11 },
-  GTQ: { electricityPerKWh: 2.2, fuelPerLiter: 10.5, filamentPerKg: 170, investmentLumpSum: 50000, monthlyContribution: 1000, propertyPrice: 900000, monthlyRent: 4500, annualIncome: 100000, mortgageRate: 8 },
-  HNL: { electricityPerKWh: 6.5, fuelPerLiter: 34, filamentPerKg: 600, investmentLumpSum: 200000, monthlyContribution: 3000, propertyPrice: 2500000, monthlyRent: 12000, annualIncome: 300000, mortgageRate: 11 },
-  NIO: { electricityPerKWh: 6.5, fuelPerLiter: 46, filamentPerKg: 800, investmentLumpSum: 200000, monthlyContribution: 3000, propertyPrice: 3000000, monthlyRent: 15000, annualIncome: 300000, mortgageRate: 11 },
+  CAD: { electricityPerKWh: 0.18, fuelPerLiter: 1.45, filamentPerKg: 30, investmentLumpSum: 10000, monthlyContribution: 500, propertyPrice: 600000, monthlyRent: 2400, annualIncome: 120000, mortgageRate: 4.5 },
+  COP: { electricityPerKWh: 850, fuelPerLiter: 3500, filamentPerKg: 70000, investmentLumpSum: 5000000, monthlyContribution: 300000, propertyPrice: 200000000, monthlyRent: 1000000, annualIncome: 80000000, mortgageRate: 12 },
+  CRC: { electricityPerKWh: 86, fuelPerLiter: 680, filamentPerKg: 10000, investmentLumpSum: 5000000, monthlyContribution: 100000, propertyPrice: 60000000, monthlyRent: 300000, annualIncome: 18000000, mortgageRate: 8.5 },
+  DOP: { electricityPerKWh: 6.8, fuelPerLiter: 72, filamentPerKg: 1300, investmentLumpSum: 500000, monthlyContribution: 10000, propertyPrice: 4000000, monthlyRent: 20000, annualIncome: 1500000, mortgageRate: 11 },
+  GTQ: { electricityPerKWh: 2.2, fuelPerLiter: 10.5, filamentPerKg: 170, investmentLumpSum: 50000, monthlyContribution: 1000, propertyPrice: 600000, monthlyRent: 3000, annualIncome: 150000, mortgageRate: 8 },
+  HNL: { electricityPerKWh: 6.5, fuelPerLiter: 34, filamentPerKg: 600, investmentLumpSum: 200000, monthlyContribution: 3000, propertyPrice: 1500000, monthlyRent: 7500, annualIncome: 500000, mortgageRate: 11 },
+  NIO: { electricityPerKWh: 6.5, fuelPerLiter: 46, filamentPerKg: 800, investmentLumpSum: 200000, monthlyContribution: 3000, propertyPrice: 1800000, monthlyRent: 9000, annualIncome: 500000, mortgageRate: 11 },
   // 台湾の住宅用は階層制（月120kWhまで1.78元、1000kWh超で8.86元）で幅が5倍ある。
   // 単一の代表値にはどうしても無理があるので、平均的な使用量の帯にあたる値を置く。
-  TWD: { electricityPerKWh: 3.2, fuelPerLiter: 30, filamentPerKg: 700, investmentLumpSum: 300000, monthlyContribution: 10000, propertyPrice: 15000000, monthlyRent: 30000, annualIncome: 1000000, mortgageRate: 2.2 },
+  TWD: { electricityPerKWh: 3.2, fuelPerLiter: 30, filamentPerKg: 700, investmentLumpSum: 300000, monthlyContribution: 10000, propertyPrice: 12000000, monthlyRent: 25000, annualIncome: 1500000, mortgageRate: 2.2 },
 };
 
 export const DEFAULT_PRESET_PRICE_CURRENCY = "USD";

@@ -43,6 +43,9 @@ describe("資産運用・不動産のプリセット", () => {
     const equal = evaluateSeed("real-estate", "Mortgage with equal principal repayments", "JPY");
     expect(equal("Total interest")).toBeLessThan(level("Total interest"));
     expect(equal("First payment")).toBeGreaterThan(level("Monthly payment"));
+    // 2700万円・年1.5%・360回: 元金 7.5万円/月 + 初月の利息 2700×0.015/12、利息の総額は L·i/12·(N+1)/2。
+    expect(equal("First payment")).toBeCloseTo(10.875, 9);
+    expect(equal("Total interest")).toBeCloseTo(609.1875, 9);
   });
 
   it("残高は満期で0になる（k=n のとき）", () => {
@@ -76,6 +79,14 @@ describe("資産運用・不動産のプリセット", () => {
       const grossYield = (12 * profile.monthlyRent) / profile.propertyPrice;
       expect(grossYield, currency).toBeGreaterThan(0.02);
       expect(grossYield, currency).toBeLessThan(0.07);
+    }
+  });
+
+  it("既定値の返済負担率は、どの通貨でも現実的な範囲に収まる（15〜45%）", () => {
+    for (const currency of Object.keys(PRESET_PRICE_PROFILES)) {
+      const value = evaluateSeed("real-estate", "Mortgage affordability (debt-to-income ratio)", currency);
+      expect(value("Debt-to-income ratio"), currency).toBeGreaterThan(0.15);
+      expect(value("Debt-to-income ratio"), currency).toBeLessThan(0.45);
     }
   });
 });
