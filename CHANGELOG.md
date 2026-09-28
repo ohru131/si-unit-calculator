@@ -4,7 +4,7 @@
 各PRは `## [Unreleased]` に1行足す。リリース時にその塊を `## [x.y.z] - YYYY-MM-DD` に改名し、同じコミットに `vx.y.z` の注釈付きタグを打つ。
 Play の「このバージョンの新機能」はここから写す。
 
-## [Unreleased]
+## [1.7.2] - 2026-09-28
 
 ### 追加
 - **計算ノートに「資産運用・不動産」カテゴリを追加した（14件）。** 資産運用・投資（複利・積立・72の法則・CAGR・実質リターン・配当の手取り・資産の取り崩し）と、不動産・住宅ローン（元利均等／元金均等の返済額・k年後の残高・返済負担率・表面／実質利回り・還元利回り・㎡単価と坪単価）。金額・住宅ローン金利・家賃・年収の既定値は端末の通貨に合わせて入り、日本円は万円単位。
@@ -101,7 +101,8 @@ Play の「このバージョンの新機能」はここから写す。
 
 Google Play クローズドテストに提出した最初のビルド（Shipaton 2026）。
 
-[Unreleased]: https://github.com/ohru131/si-unit-calculator/compare/v1.7.1...HEAD
+[Unreleased]: https://github.com/ohru131/si-unit-calculator/compare/v1.7.2...HEAD
+[1.7.2]: https://github.com/ohru131/si-unit-calculator/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/ohru131/si-unit-calculator/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/ohru131/si-unit-calculator/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/ohru131/si-unit-calculator/compare/v1.5.0...v1.6.0

@@ -1,0 +1,3 @@
+Ajout d'une section « Placements et immobilier » aux carnets (14 fiches) : intérêts composés, plans d'épargne, règle de 72, TCAM, rendement réel, dividendes, retraits à la retraite, mensualités de crédit, capital restant dû, taux d'endettement, rentabilité locative et prix au mètre carré. Les montants suivent la devise de l'appareil.
+
+Correction aussi de la version web : le clavier intégré faisait disparaître le curseur et désactivait les flèches.

@@ -1,0 +1,3 @@
+Se añadió la sección «Inversión e inmuebles» a los cuadernos (14 elementos): interés compuesto, planes de ahorro, la regla del 72, TCAC, rentabilidad real, dividendos, retirada de ahorros en la jubilación, cuotas de hipoteca, capital pendiente, ratio de endeudamiento, rentabilidad del alquiler y precio por metro cuadrado. Los importes siguen la moneda del dispositivo.
+
+Además, se corrigió la versión web: el teclado en pantalla hacía desaparecer el cursor y desactivaba las flechas.
