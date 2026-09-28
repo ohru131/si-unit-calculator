@@ -1,0 +1,3 @@
+Den Rechenheften wurde ein neuer Bereich „Geldanlage & Immobilien“ hinzugefügt (14 Einträge): Zinseszins, Sparpläne, die 72er-Regel, CAGR, Realrendite, Dividendenerträge, Entnahmepläne, Kreditraten, Restschuld, Belastungsquote, Mietrendite und Quadratmeterpreis. Beträge richten sich nach der Währung des Geräts.
+
+Außerdem: In der Web-Version verschwand beim Tippen auf die App-Tastatur der Cursor, und die Pfeiltasten reagierten nicht mehr – das ist jetzt behoben.

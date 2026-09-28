@@ -1,0 +1,3 @@
+Added an "Investing & real estate" section to notebooks (14 items) covering compound interest, savings plans, the rule of 72, CAGR, real return, dividend income, retirement drawdown, mortgage payments, remaining balance, debt-to-income ratio, rental yield, and price per square metre. Amounts follow your device's currency.
+
+Also fixed the web version of notebooks: the on-screen keypad hid the text cursor and disabled the arrow keys.

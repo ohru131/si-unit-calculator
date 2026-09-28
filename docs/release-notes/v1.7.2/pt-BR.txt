@@ -1,0 +1,3 @@
+Adicionada a seção "Investimentos e imóveis" aos cadernos (14 itens): juros compostos, planos de investimento mensal, regra dos 72, CAGR, rentabilidade real, dividendos, retirada na aposentadoria, parcelas de financiamento, saldo devedor, comprometimento da renda, rentabilidade do aluguel e preço por metro quadrado. Os valores seguem a moeda do aparelho.
+
+Corrigido também na versão web: o teclado do app fazia o cursor sumir e desativava as setas.
