@@ -115,7 +115,7 @@ type ProContextValue = {
   isPurchasing: boolean;
   purchasePro: () => Promise<void>;
   restorePurchases: () => Promise<void>;
-  // Web限定の隠しスイッチ（Shipaton提出用のスクリーンショット撮影・審査員向けプレビュー）。
+  // Web限定の隠しスイッチ（Web版での動作確認用）。
   // isProはこのフラグと本物のentitlementのORで合成済みなので、表示側は通常isProだけを見ればよい。
   // 「今のisPro trueが本物の購入かプレビューか」を画面に出し分けたい場合のためにこちらも公開する。
   isProPreviewEnabled: boolean;
