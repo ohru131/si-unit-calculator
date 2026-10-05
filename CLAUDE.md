@@ -5,10 +5,10 @@ Expo/React Native製の単位計算アプリ。Google Play（Android）のクロ
 
 ## リポジトリのワークフロー規約
 
-- **開発ブランチ**: `claude/shipaton-2026-prep-3b0tt7` を使い続ける。
-  - このブランチのPRが既にマージ済みの場合は最新mainから作り直す。ただし**作り直す前に必ず`git status --short`と`git log origin/claude/shipaton-2026-prep-3b0tt7..claude/shipaton-2026-prep-3b0tt7`でuntracked/未コミット/未pushの変更がないか確認する**（`git checkout -B`はローカルブランチの参照を丸ごと付け替えるため、未push分のコミットはこの操作でブランチから外れて辿りにくくなる）。何かあれば`git branch backup/<日付>`で退避するか`git stash -u`してから、次のコマンドで作り直す:
-    `git fetch origin main && git checkout -B claude/shipaton-2026-prep-3b0tt7 origin/main`
-    （マージ済み履歴の上に積み増ししない）。
+- **開発ブランチ**: 作業ごとに最新の `origin/main` から `claude/<内容>` を切る（例 `git fetch origin main && git checkout -b claude/remove-shipaton-leftovers origin/main`）。**マージ済みのブランチの上に積み増ししない。**
+  - 以前は `claude/shipaton-2026-prep-3b0tt7` を使い回す決まりだったが、Shipaton の終了と履歴の書き換え（2026-10-05）に合わせて GitHub から削除した。**このブランチ名を復活させないこと。**
+  - 切る前に `git status --short` で未コミットの変更が無いか見る。あれば `git stash -u` で退避する。
+  - squash merge したら、リモートのブランチは削除する（GitHub 上に残すと、履歴を書き換えたときに古いオブジェクトがそこから辿れて clone に残る）。
 - **フロー**: ブランチで作業 → コミット → push → PR作成（テンプレートなし、Summary/Test planで書く）→ **CodeRabbitの自動レビューを待つ**（このリポジトリはCodeRabbit導入済み）→ 指摘があれば修正してpush → レビューがminimal riskになったらsquash mergeでmainへ。
 - PRを出したら `subscribe_pr_activity` でこのセッションを購読し、CodeRabbitのレビューコメントに対応してからマージする。ただの「レビュー中」通知では何もしない。
 - コミットメッセージ・PR本文に自分のモデル名は書かない（チャット内のみでOK）。
@@ -39,7 +39,7 @@ Expo/React Native製の単位計算アプリ。Google Play（Android）のクロ
 
 ## リリース管理（2026-09-15に決めた運用）
 
-- **ストアに出したビルドのコミットには `vX.Y.Z` の注釈付きタグを打つ。** `v1.0.0` は `73a70e4`、`v1.1.0` は `c57f214`（versionCode 2）、`v1.2.0` は `e222d5f`（versionCode 3）、`v1.3.0` は `318533e`（versionCode 4）、`v1.4.0` は `78748bc`（versionCode 5）、`v1.5.0` は `8922896`（versionCode 6）、`v1.6.0` は `08ea2c8`（versionCode 7）、`v1.7.0` は `38d8e6d`、`v1.7.1` は `4ad1dcb`、`v1.7.2` は `15eeae2`。どれもPlayのクローズドテスト（Alpha）に出したmain。**この一覧と `git tag -l` と Play の `edits.bundles.list` が3つそろって一致すること**（`node scripts/release.mjs check` が後2つを突き合わせる。**v1.4.0 はタグを打ち忘れていて、2026-09-22 に後から打った**——`Release v1.4.0` コミットが残っていたので復元できたが、mainが進んだあとにこれを探すのは本来やりたくない作業）。**タグのメッセージにアップロードしたAABの sha1 を書いておくと、`edits.bundles.list` が返す sha1 と突き合わせて「Playにあるのはこのコミットのビルドか」を後から確定できる**（v1.2.0 で実施。ローカルの `sha1sum` と一致した）。タグが無いとmainが進んだ時点で「ストアの版はどのコードか」を復元できない。
+- **ストアに出したビルドのコミットには `vX.Y.Z` の注釈付きタグを打つ。** `v1.0.0` は `73a70e4`、`v1.1.0` は `c57f214`（versionCode 2）、`v1.2.0` は `e222d5f`（versionCode 3）、`v1.3.0` は `318533e`（versionCode 4）、`v1.4.0` は `78748bc`（versionCode 5）、`v1.5.0` は `8922896`（versionCode 6）、`v1.6.0` は `08ea2c8`（versionCode 7）、`v1.7.0` は `38d8e6d`（versionCode 8）、`v1.7.1` は `4ad1dcb`（versionCode 9）、`v1.7.2` は `15eeae2`（versionCode 10）、`v1.7.3` は `e193561`（versionCode 11）。どれもPlayのクローズドテスト（Alpha）に出したmain。**この一覧と `git tag -l` と Play の `edits.bundles.list` が3つそろって一致すること**（`node scripts/release.mjs check` が後2つを突き合わせる。**v1.4.0 はタグを打ち忘れていて、2026-09-22 に後から打った**——`Release v1.4.0` コミットが残っていたので復元できたが、mainが進んだあとにこれを探すのは本来やりたくない作業）。**タグのメッセージにアップロードしたAABの sha1 を書いておくと、`edits.bundles.list` が返す sha1 と突き合わせて「Playにあるのはこのコミットのビルドか」を後から確定できる**（v1.2.0 で実施。ローカルの `sha1sum` と一致した）。タグが無いとmainが進んだ時点で「ストアの版はどのコードか」を復元できない。
   - **2026-10-05 に git の履歴を書き換えた**（git-filter-repo。Shipaton のデモ動画 `submission-assets/demo/` を履歴ごと削除し、スクリーンショット・図版は最新版以外の過去の版を削除。pack 166MB → 23MB）。**全コミットとタグの SHA がこの日を境に変わっている**ので、このファイル・docs・PR本文・コミットメッセージに出てくるそれ以前の短縮SHA（`f289989` 等）は旧履歴のもので、今の履歴には存在しない。上の一覧は書き換え後の値。タグのメッセージ（AABの sha1）は書き換え前のまま残っている。書き換え前の全履歴は `C:\Work\pv\si-calculator-before-rewrite-2026-10-05.bundle` に退避してある（`git clone <bundle>` で開ける）。GitHub 上の古い PR（`refs/pull/*`）は旧オブジェクトを参照したまま残るが、通常の clone には含まれない。
   - **ローカルのWindows環境からはタグもReleaseも作れる**（2026-09-18に v1.2.0 で実施）。`git tag -a vX.Y.Z <sha> -m ... && git push origin vX.Y.Z` のあと、`gh release create vX.Y.Z --verify-tag --title ... --notes-file <file>`。**本文は `--notes-file` で渡すこと**——`--notes` にヒアドキュメントの文字列を渡すと改行が `\n` の literal として本文に入る（v1.0.0 の Release が実際にそうなっている）。
     - **`gh` の active アカウントを確認してから叩くこと。** この端末には `katahimo-dev` と `ohru131` の2つがログインしていて、**active が `katahimo-dev` だと Release 作成が 「`workflow` scope may be required」 で失敗する**（実際はスコープではなくこのリポジトリへの書き込み権が無いため。`.github/workflows/deploy-pages.yml` は `push`/`workflow_dispatch` でしか起動しないので workflow スコープは無関係）。`gh auth status` で見て、`gh auth switch --hostname github.com --user ohru131` に切り替えてから作成する（既存 Release 3件とも作者は `ohru131`）。**終わったら元の active に戻す。** なお `git push` は credential helper を使うので gh の active とは独立に通る。
