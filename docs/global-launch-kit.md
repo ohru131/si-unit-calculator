@@ -31,7 +31,7 @@
 | 地域別の既定値 | 商用電源の電圧・ブレーカー定格を端末の地域から解決する（例: 日本100V、北米120V、それ以外は230V/16A。`lib/preset-regional-defaults.ts`、PR #48）。金額は通貨から解決 | **インストールした国に合った値でノートが開く**、という国際展開の訴求として掲載文・ストア説明に反映する。中南米の一部通貨・台湾は金額側が言語推測止まりで未対応（`CLAUDE.md`「次にやりそうなこと」参照） |
 | 単位系プリセット | 設定画面に「メートル法／米国慣用単位／英・帝国単位」の切替がある（`lib/global-settings.tsx`の`systemMetric`/`systemUS`/`systemUK`）。主にレシピ系ノートのカップ・大さじ等の定義（`standardUS`等）に影響する小さめの機能 | ストア掲載文の主要訴求としては優先度を下げ、6言語対応・計算ノート・単位比較・ユーザー定義単位・進数を優先する（文字数上限もあるため） |
 | ストアメタデータ | 6言語の掲載文は`docs/store-listing-copy.md`に用意済み。スクリーンショットは日英2言語のみ撮影し、他4言語には英語版を流用 | `docs/screenshot-capture-plan.md`の指示に沿って撮影する。Play Console側での多言語ストア掲載の登録手順はGoogle公式ヘルプ[1]を参照 |
-| サポート | 現状、実在の問い合わせ先が無い（旧版は`support@example.com`というダミー） | `docs/shipaton-submission-kit.md`の「提出前に差し替えが必要な箇所」を参照し、実在のメールアドレスを用意する |
+| サポート | 現状、実在の問い合わせ先が無い（旧版は`support@example.com`というダミー） | 実在のメールアドレスを用意する |
 | プライバシー | 現状、公開URLでホストされたプライバシーポリシーが無い | 同上ドキュメントのプライバシーポリシー・ドラフトを、実在の情報で完成させて公開URLでホストする |
 | 価格設定 | **買い切り（非消費型）1本、サブスクなし**（`docs/market-research-2026-09.md`第4節。電卓ジャンルはサブスクへの反発が突出して強いという調査結果に基づく） | RevenueCatのローカライズ済み購入シート（`product.priceString`をそのまま表示、自前で通貨記号を組まない）と、Play Console側の地域別価格設定に任せる |
 
@@ -39,7 +39,7 @@
 
 > UnitCalc stores saved constants, custom units, notebooks, and calculation history locally on the device. Purchase status is processed by RevenueCat and Google Play. Banner ads are served via Google AdMob. The app does not require an account and does not upload your calculation content to our servers.
 >
-> **公開前に、実在の法人・個人情報、削除依頼の連絡先を反映した本物のプライバシーポリシーに差し替え、公開URLでホストすること。** 詳細は `docs/shipaton-submission-kit.md` の「提出前に差し替えが必要な箇所」を参照。
+> **公開前に、実在の法人・個人情報、削除依頼の連絡先を反映した本物のプライバシーポリシーに差し替え、公開URLでホストすること。**
 
 ## アクセシビリティ確認
 

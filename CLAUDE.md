@@ -1,6 +1,6 @@
 # si-unit-calculator（単位付き電卓）— セッション引き継ぎメモ
 
-Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて開発中。
+Expo/React Native製の単位計算アプリ。Google Play（Android）のクローズドテストで配信中。Shipaton 2026 は終了し、提出用の資料・デモ動画は 2026-10-05 に削除した。
 このファイルは、別セッションに引き継ぐための知見・状況・規約をまとめたもの。
 
 ## リポジトリのワークフロー規約
@@ -39,13 +39,14 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 
 ## リリース管理（2026-09-15に決めた運用）
 
-- **ストアに出したビルドのコミットには `vX.Y.Z` の注釈付きタグを打つ。** `v1.0.0` は `1d9a051`、`v1.1.0` は `51e7b79`（versionCode 2）、`v1.2.0` は `f7573d0`（versionCode 3）、`v1.3.0` は `e981036`（versionCode 4）、`v1.4.0` は `3195fbc`（versionCode 5）、`v1.5.0` は `d1bcaf4`（versionCode 6）、`v1.6.0` は `83ad4cf`（versionCode 7）。どれもPlayのクローズドテスト（Alpha）に出したmain。**この一覧と `git tag -l` と Play の `edits.bundles.list` が3つそろって一致すること**（`node scripts/release.mjs check` が後2つを突き合わせる。**v1.4.0 はタグを打ち忘れていて、2026-09-22 に後から `3195fbc` へ打った**——`Release v1.4.0` コミットが残っていたので復元できたが、mainが進んだあとにこれを探すのは本来やりたくない作業）。**タグのメッセージにアップロードしたAABの sha1 を書いておくと、`edits.bundles.list` が返す sha1 と突き合わせて「Playにあるのはこのコミットのビルドか」を後から確定できる**（v1.2.0 で実施。ローカルの `sha1sum` と一致した）。タグが無いとmainが進んだ時点で「ストアの版はどのコードか」を復元できない。
+- **ストアに出したビルドのコミットには `vX.Y.Z` の注釈付きタグを打つ。** `v1.0.0` は `73a70e4`、`v1.1.0` は `c57f214`（versionCode 2）、`v1.2.0` は `e222d5f`（versionCode 3）、`v1.3.0` は `318533e`（versionCode 4）、`v1.4.0` は `78748bc`（versionCode 5）、`v1.5.0` は `8922896`（versionCode 6）、`v1.6.0` は `08ea2c8`（versionCode 7）、`v1.7.0` は `38d8e6d`、`v1.7.1` は `4ad1dcb`、`v1.7.2` は `15eeae2`。どれもPlayのクローズドテスト（Alpha）に出したmain。**この一覧と `git tag -l` と Play の `edits.bundles.list` が3つそろって一致すること**（`node scripts/release.mjs check` が後2つを突き合わせる。**v1.4.0 はタグを打ち忘れていて、2026-09-22 に後から打った**——`Release v1.4.0` コミットが残っていたので復元できたが、mainが進んだあとにこれを探すのは本来やりたくない作業）。**タグのメッセージにアップロードしたAABの sha1 を書いておくと、`edits.bundles.list` が返す sha1 と突き合わせて「Playにあるのはこのコミットのビルドか」を後から確定できる**（v1.2.0 で実施。ローカルの `sha1sum` と一致した）。タグが無いとmainが進んだ時点で「ストアの版はどのコードか」を復元できない。
+  - **2026-10-05 に git の履歴を書き換えた**（git-filter-repo。Shipaton のデモ動画 `submission-assets/demo/` を履歴ごと削除し、スクリーンショット・図版は最新版以外の過去の版を削除。pack 166MB → 23MB）。**全コミットとタグの SHA がこの日を境に変わっている**ので、このファイル・docs・PR本文・コミットメッセージに出てくるそれ以前の短縮SHA（`f289989` 等）は旧履歴のもので、今の履歴には存在しない。上の一覧は書き換え後の値。タグのメッセージ（AABの sha1）は書き換え前のまま残っている。書き換え前の全履歴は `C:\Work\pv\si-calculator-before-rewrite-2026-10-05.bundle` に退避してある（`git clone <bundle>` で開ける）。GitHub 上の古い PR（`refs/pull/*`）は旧オブジェクトを参照したまま残るが、通常の clone には含まれない。
   - **ローカルのWindows環境からはタグもReleaseも作れる**（2026-09-18に v1.2.0 で実施）。`git tag -a vX.Y.Z <sha> -m ... && git push origin vX.Y.Z` のあと、`gh release create vX.Y.Z --verify-tag --title ... --notes-file <file>`。**本文は `--notes-file` で渡すこと**——`--notes` にヒアドキュメントの文字列を渡すと改行が `\n` の literal として本文に入る（v1.0.0 の Release が実際にそうなっている）。
     - **`gh` の active アカウントを確認してから叩くこと。** この端末には `katahimo-dev` と `ohru131` の2つがログインしていて、**active が `katahimo-dev` だと Release 作成が 「`workflow` scope may be required」 で失敗する**（実際はスコープではなくこのリポジトリへの書き込み権が無いため。`.github/workflows/deploy-pages.yml` は `push`/`workflow_dispatch` でしか起動しないので workflow スコープは無関係）。`gh auth status` で見て、`gh auth switch --hostname github.com --user ohru131` に切り替えてから作成する（既存 Release 3件とも作者は `ohru131`）。**終わったら元の active に戻す。** なお `git push` は credential helper を使うので gh の active とは独立に通る。
     - **旧記述の「このサンドボックスからはタグをpushできない（git proxyが `refs/tags/*` を403で弾く）」は、Web版のサンドボックスで作業していた頃の話。** ローカルで作業しているセッションには当てはまらない。
     - **Release に AAB を添付しないこと**（公開リポジトリ。理由は `.gitignore` のコメントと同じ）。Play Console が全バージョンの AAB を保持している。
-    - **タグを打ったら、そのリリースコミットを必ず `origin/main` へpushすること。** v1.3.0 でこれを忘れ、**タグとGitHub Releaseだけが公開され、`Release v1.3.0` コミット（`e981036`）はローカルのmainにしか無い**状態になった。その間にPR #72が旧mainの上へsquash mergeされたため、`origin/main` は 1.2.0 のまま・CHANGELOGも `[Unreleased]` のままで、**「タグは v1.3.0 なのに main は 1.2.0」**という食い違いが2日間残った（2026-09-20に手で反映）。`git push origin vX.Y.Z` はタグだけを送るので、**ブランチのpushは別に要る**。`git log origin/main..main` が空であることを確認してからタグを打つのが確実。
-    - **`e981036`（v1.3.0）は main の祖先ではない。** 上の食い違いを直すとき、タグを新しいコミットへ付け替えず**内容だけをmainへ反映した**。タグは「実際にストアへ出したコードそのもの」を指すべきで、付け替えると #72 を含んだコミットを指してしまい嘘になるため。`git branch --contains v1.3.0` が空なのはこの経緯によるもので、異常ではない。
+    - **タグを打ったら、そのリリースコミットを必ず `origin/main` へpushすること。** v1.3.0 でこれを忘れ、**タグとGitHub Releaseだけが公開され、`Release v1.3.0` コミット（現 `318533e`）はローカルのmainにしか無い**状態になった。その間にPR #72が旧mainの上へsquash mergeされたため、`origin/main` は 1.2.0 のまま・CHANGELOGも `[Unreleased]` のままで、**「タグは v1.3.0 なのに main は 1.2.0」**という食い違いが2日間残った（2026-09-20に手で反映）。`git push origin vX.Y.Z` はタグだけを送るので、**ブランチのpushは別に要る**。`git log origin/main..main` が空であることを確認してからタグを打つのが確実。
+    - **`318533e`（v1.3.0）は main の祖先ではない。** 上の食い違いを直すとき、タグを新しいコミットへ付け替えず**内容だけをmainへ反映した**。タグは「実際にストアへ出したコードそのもの」を指すべきで、付け替えると #72 を含んだコミットを指してしまい嘘になるため。`git branch --contains v1.3.0` が空なのはこの経緯によるもので、異常ではない。
 - **mainは常に「次のバージョンの開発」。** リリースブランチは常設しない。公開済みの版に緊急修正が要るときだけタグから `hotfix/X.Y.Z` を切り、ビルド後にタグを打ってmainへマージする。
 - **`version`（`app.config.ts`・`package.json`）は利用者に見える番号で手で上げる。** Androidの `versionCode` は `eas.json` の `build.production.autoIncrement: true`（`cli.appVersionSource: "remote"`）でEASに任せ、リポジトリでは持たない。Playが要求するのは `versionCode` の単調増加だけで、`version` は自由（1.0.0を公開せず1.1.0から本番公開しても問題ない）。
   - **remote 管理は EAS 側のカウンタが未初期化だと `1` から始まる。** `app.config.ts` には**ローカルの gradle ビルド用に `android.versionCode` を置いてあるが、`appVersionSource: "remote"` の EAS はそれを読まない**（iOS の `buildNumber` はそもそも置いていない）ので、引き継ぐ元が無いのは変わらない。Play に提出済みの versionCode より小さい値で次のビルドが作られて**アップロードが弾かれる**ので、**次の production ビルドの前に1回だけ** `eas build:version:set -p android`（iOSを出すなら `-p ios` も）を実行し、Play Console の「アプリのバンドル」に出ている現在の versionCode（**2026-09-22時点で 7**）を入力して同期すること。**ローカルビルドだけで回している間は不要。**EASアカウントでのログインが要るので**人間がローカルで実行する**（CodeRabbitが#66で指摘）。
@@ -260,7 +261,7 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - 新しいプリセットを足すときは `tests/notebook-formulas.test.ts` が全プリセットの全手順を実際にノートエンジンで計算してエラーがないか自動チェックする（次元不整合・パースエラーを機械的に検出できる）ので、まずそのテストを通すこと。このテストは`resultSymbol`もアプリ本体と同じように渡している（渡さないと上記の`s1`落とし穴を検出できない）。
   - ただしテストで検出できるのはエラーだけで、**数値が物理的に正しいかは検出できない**（`s1`が1秒と解釈されるようなケースは次元が通ってしまう）。プリセットを足したら実際にアプリを開いて表示される値を確認すること。
 - **入力欄の右の確定ボタンは `=` ではなく保存のアイコン**（2026-09-22。利用者からの指摘）。結果は打つそばから出ているので、このボタンが実際にやるのは**履歴に残す・定数の定義を保存する・エラーを出す**の3つだけで、`=` という字面は「押すと計算される」と読めて役割と食い違っていた。アイコンは `square.and.arrow.down`（SF Symbol は iOS 13 から。Material は `save-alt`）。
-  - **読み上げラベルは `copy.saveCalculation`**（「計算を保存」）。**結果カードの見出し `t("result")` とは別物**にしてある——以前はこのボタンが `t("result")` を名乗っていて、`getByLabel("Result")` が見出しとボタンの両方に当たりうる形だった。`scripts/capture-submission-assets.mjs`（`LABELS[lang].submit`）と `scripts/record-demo-video.mjs` がこのラベルを引くので、**変えるときは両方のスクリプトも直す**。
+  - **読み上げラベルは `copy.saveCalculation`**（「計算を保存」）。**結果カードの見出し `t("result")` とは別物**にしてある——以前はこのボタンが `t("result")` を名乗っていて、`getByLabel("Result")` が見出しとボタンの両方に当たりうる形だった。`scripts/capture-submission-assets.mjs`（`LABELS[lang].submit`）がこのラベルを引くので、**変えるときはスクリプトも直す**。
   - 空状態の案内・「保存した項目を読み込みました」の文言からも `=` への言及を外してある（`=` はもう画面のどこにも無く、`ABC` パネルの中の文字としてしか存在しない）。
 - `app/(tabs)/index.tsx`（電卓） — **計算結果は state ではなく式から導出する**（`previewCalculatorInput`）。`=` を押さなくてもリアルタイムに結果が出る。`=` は「履歴に残す・定数を保存する・エラーを出す」確定操作だけを担当する。リアルタイム表示と確定計算は `lib/calculator-input.ts` の同じ関数（`evaluateCalculatorInput`）を通すこと（定数定義 `W = 3cm` の扱いが2箇所に分かれると、片方だけ値を出せない食い違いになる）。
   - **結果の数字はスクロールの外に固定する**（2026-09-23。「高さの少ない端末だと計算結果がスクロールしないと見えない」という報告）。`middle` は画面で唯一伸縮する場所なので、結果カードを丸ごと `ScrollView` へ入れると、カードの中で**数字より上にある見出し行（約28dp）**だけが残って数字が枠の外に出る。**実測（Web・360×460）で、比較表まで下へスクロールしたあとの数字の位置は `top: -75`**（画面の上へ完全に消える。400dpでは -99）。今はカードを上下に割り、**主表示（数字・診断・案内）までを固定部、単位チップから下と履歴・サンプルをスクロール部**にしてある。同じ条件で `top: 70`＝常に見える。
@@ -468,7 +469,7 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
   - 価格はストアのローカライズ済み文字列（`product.priceString`）をそのまま出す。自前で通貨記号を組まない。
   - 買い切り商品に**無料トライアルは設定できない**（App Store/Playの導入価格・トライアルはサブスク専用機能）。審査員向けはプロモコードで通す。
   - **ユーザーのキャンセルはエラーではない**。RevenueCatは `userCancelled` を持つオブジェクトでrejectするので、それを「購入に失敗しました」と出さないこと。
-  - **`RevenueCatUI.presentPaywallIfNeeded` にフォールバックしないこと**（一度入れて撤去した）。この関数はentitlementの有無しか見ず、**dashboardのofferingに入っている商品をそのまま表示する**ため、サブスク商品が残っていれば上の不変条件を迂回して継続課金を売ってしまう。買い切り商品が取れないときは購入させず理由（`productLoadFailed`）を出す。これで `react-native-purchases-ui` は未使用になっている。
+  - **`RevenueCatUI.presentPaywallIfNeeded` にフォールバックしないこと**（一度入れて撤去した）。この関数はentitlementの有無しか見ず、**dashboardのofferingに入っている商品をそのまま表示する**ため、サブスク商品が残っていれば上の不変条件を迂回して継続課金を売ってしまう。買い切り商品が取れないときは購入させず理由（`productLoadFailed`）を出す。`react-native-purchases-ui` は未使用になったので 2026-10-05 に依存から外した。**戻さないこと。**
   - 購入・復元は**同期フラグ（`purchaseLockRef`）で直列化**する。`isPurchasing` state と `Pressable` の `disabled` はどちらもコミット後の値なので、同じフレームで `onPress` が2回走ると両方すり抜ける。課金APIを叩く経路なのでstateだけでは不十分。
   - SDKキー未設定・`configure()` 完了前は購入も復元も**受け付けない**（`blockedReasonKey` / `isReady` で早期return）。叩けば必ず失敗し、「商品を読み込めません」「復元できません」と出て**本当の原因を隠す**ため。
   - **`purchasePackage()` が成功しても `pro` entitlement が付いてくるとは限らない**（dashboardで商品をentitlementに紐付け忘れている等。サブスク→買い切りの移行中はまさにこの状態になりうる）。`hasProEntitlement` を確認できたときだけ「ご購入ありがとうございます」を出し、そうでなければ復元とサポートへ導く（`purchaseNotApplied`）。支払ったのにProが有効にならないユーザーに成功メッセージを出すのが最悪の体験なので、`setIsPro` と成功メッセージを別々に判断しないこと。
@@ -614,7 +615,7 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - **この環境のffmpegはPlaywright同梱（`/opt/pw-browsers/ffmpeg-1011/ffmpeg-linux`）しかなく、フィルタが `pad`/`crop`/`scale` の3つだけ。** `drawtext`・`subtitles`・`overlay`・`concat` が無いので、**字幕焼き込みもシーン連結もffmpegでは不可能**。字幕は録画中のページDOMにオーバーレイを差し込み、SRTのタイムコードで差し替える方式にした（文言はSRTをパースして流し込むので台本と食い違わない）。ffmpegはトリムと無音化だけに使う。
 - **Playwrightの録画に `deviceScaleFactor` は効かない。** contextの指定はスクリーンショットにしか効かず、録画は 540×900 の絵が 1080×1800 キャンバスの左上に貼られるだけになる。**ブラウザ起動引数の `--force-device-scale-factor=2`** が要る。
 - **字幕バンドは下端に置く。** 入力欄・結果カード・単位チップ・厳密値チップが全部画面上部にあるので、上バンドは説明対象そのものを隠す。下バンドが隠すのはタブバーだけ。
-- **旧 `scripts/build_shipaton_demo.sh` / `scripts/build_submission_assets.py` は `/home/ubuntu/...` を直書きした過去環境の遺物で動かない。** 参考にはなるので残してあるが、実際に使うのは上記の新2スクリプト。
+- **デモ動画の録画スクリプト（`scripts/record-demo-video.mjs`）と旧スクリプト（`build_shipaton_demo.sh` / `build_submission_assets.py`）は 2026-10-05 に削除した**（Shipaton 終了のため）。撮影スクリプトだけが残っている。
 
 23. **[完了]** 「検算する電卓」への見せ方のブラッシュアップ（`docs/brushup-plan-2026-09.md`）。競合・ターゲットユーザー・実機UX監査の3調査を並行して行い、メインターゲットを**電気系の学習者・受験者（電験三種・電工二種・乙4）**、サブを理工系大学1〜2年（実験レポート）と機械・建築のジュニアエンジニアに定めた。実装は結果カード1枚に絞った: リアルタイム診断（`3m + 2kg` → 「長さ (m)と質量 (kg)は足し引きできません」）、表示単位の自動選択（`5cm + 1mm` → 5.1 cm、`12V / 4.7kΩ` → 2.55 mA、`2kg × 9.8m/s²` → 19.6 N）、結果値 28→36px、空状態にクイックスタート3件、オンボーディング2〜3枚目の差し替え（次元チェックを見せる・誘導先を「ライブラリ」に修正）、有限小数では厳密値チップを出さない、設定の言語チップの重なり修正。
 
@@ -692,7 +693,7 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 `Unit Calculator` → `UnitCalc` の一括置換で、**grepでもテストでも型でも拾えない取りこぼしが5件**出た（#55・#56でCodeRabbitが2周に分けて検出）。
 
 - **一括置換は「そこだけは置換してはいけない箇所」を巻き込む。** 掲載文の英語タイトル `UnitCalc - Unit Calculator` の副題まで置換され、`UnitCalc - UnitCalc`（19字）になっていた。**タイトルはASO第一検索語をわざと入れてある場所**なので、置換後は「意図して旧名を残す箇所」を必ず個別に見直す。字数の表記（26字）と実測がずれるのが唯一の手掛かりだった。
-- **`grep "Unit Calculator"` は `Unit&nbsp;Calculator` を見つけられない。** `scripts/record-demo-video.mjs` のクロージングカードがHTMLエンティティで区切っていて、置換もgrepの確認もすり抜けた。改名の確認は `grep -P 'Unit(?:\s|&nbsp;|&#160;)+Calculator'` のように**区切り文字を許すパターン**で行う。
+- **`grep "Unit Calculator"` は `Unit&nbsp;Calculator` を見つけられない。** 当時のデモ動画の録画スクリプトのクロージングカードがHTMLエンティティで区切っていて、置換もgrepの確認もすり抜けた。改名の確認は `grep -P 'Unit(?:\s|&nbsp;|&#160;)+Calculator'` のように**区切り文字を許すパターン**で行う。
 - **アプリ名は `app.config.ts` の外にも住んでいる。** iOSウィジェット（`widgets/UnitCalculatorWidget.ios.tsx`）は自前のCOPYを持ち、`app.config.ts` の `displayName`（＝OSのウィジェット一覧に出る名前）とは別に**ウィジェット本体に描画するタイトル**を6言語ぶん持っていた。**改名時に触る場所（この一覧を先に潰すこと）**:
 
 | 場所 | 何の名前か |
@@ -703,8 +704,6 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 | `app/(tabs)/pro.tsx` | `heroEyebrowUpgrade` |
 | `lib/notebook-export.ts` | PDF書き出しのフッター |
 | `scripts/capture-submission-assets.mjs` | 撮影用のタブ名 |
-| `scripts/record-demo-video.mjs` | タブ名と**クロージングカード**（HTMLエンティティ区切りに注意） |
-| `submission-assets/demo/demo-captions-en.srt` | **動画に焼き込まれる字幕の情報源。** ここを直さないと撮り直しても字幕が旧名のまま（台本 `docs/shipaton-demo-script.md` だけ直すと両者が食い違う） |
 | `scripts/generate-feature-graphic.mjs` | 図版の見出し |
 | `docs/store-listing-copy.md` | ストアのタイトル・短い説明・詳しい説明 |
 | `README.md` | **リポジトリの表示名**（GitHubのトップに出る。ASO用の一般語ではない） |
@@ -743,7 +742,7 @@ Expo/React Native製の単位計算アプリ。Shipaton 2026提出に向けて�
 - **消したもの**: `POST_NOTIFICATIONS`（`android.permissions`）、`expo-audio` / `expo-video` プラグイン、`expo-secure-store` プラグイン、OAuthクライアント一式（`app/oauth/callback.tsx`・`hooks/use-auth.ts`・`lib/_core/auth.ts`・`lib/_core/api.ts`・`constants/oauth.ts`・`lib/trpc.ts`）、バックエンド一式（`server/`・`shared/`・`drizzle/`・`drizzle.config.ts`・`tests/auth.logout.test.ts`）、`constants/const.ts`（`shared/const.ts` の重複で参照ゼロ）、`scripts/load-env.js` のOAuth環境変数マッピング。依存は21件（`@trpc/*`・`@tanstack/react-query`・`drizzle-orm`/`drizzle-kit`・`mysql2`・`express`・`jose`・`cookie`・`axios`・`superjson`・`zod`・`esbuild`・`concurrently`・上記のexpo 4件と型定義）で、`pnpm install` で **268パッケージ**減った。
 - **`app/_layout.tsx` の `trpc.Provider` と `QueryClientProvider` はマウントされているだけで、アプリはAPIを一度も叩いていなかった**（`trpc.` の参照がProviderの2行しか無い）。消してもWeb書き出し・Playwrightでの起動確認ともに差分なし。
 - **`dotenv` は消さないこと。** `vitest.config.ts` が使っている（サーバ用に見えるが違う）。同様に `expo-linking` は `expo-router` が要求するので残す。
-- **残した未使用の依存**: `react-native-purchases-ui`（`RevenueCatUI.presentPaywallIfNeeded` を撤去したときから未使用。権限は足さないので今回のスコープ外にした）。
+- **残した未使用の依存**: 当時は `react-native-purchases-ui` を残していたが、2026-10-05 に外した。
 - **「OAuthを消したから個人情報は一切集めていない」と書かないこと。** 最初そう書いてCodeRabbitに🟠Majorで2回指摘された（README と `docs/android-submission-checklist.md`）。**`lib/ad-revenue-tracker.ts` が `Purchases.adTracker` でバナー広告のロード・表示・開封・収益のイベントをRevenueCatへ送っている**（RevenueCat Ads β。ダッシュボードで広告収益と購入収益をまとめて見るための連携）。加えてRevenueCatは購入検証で端末生成の匿名IDとレシートを、AdMobは配信・計測で端末IDと広告IDを受け取る。**端末内で完結しているのは「アプリのデータ」（計算履歴・ノート・自作単位・設定）だけ**なので、そう限定して書く。`app/privacy-policy.tsx` の本文は最初から正しく書けていて、要約した側（README・チェックリスト）だけがズレていた。
 - **`android.permissions: []` は「全権限がこれで確定」の意味ではない。** ネイティブ依存のマニフェストはマージャで合流するので、**実際の権限一覧はリリースAAB（または `npx expo prebuild -p android` 後の `android/app/build/intermediates/merged_manifests/`）でしか確定できない**。**2026-09-18に 1.2.0 の release AAB で実測した（要確認だった項目はこれで確定）**:
 

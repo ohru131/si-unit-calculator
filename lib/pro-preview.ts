@@ -1,5 +1,5 @@
-// Web版でPro機能をプレビューできる隠しスイッチ（Shipaton提出用のスクリーンショット撮影・
-// 審査員向け）。RevenueCatの購入を経由せずにisProを立てるだけの機構なので、
+// Web版でPro機能をプレビューできる隠しスイッチ（Web版での動作確認用）。
+// RevenueCatの購入を経由せずにisProを立てるだけの機構なので、
 // react-native-purchasesを読み込まない純関数としてここに切り出し、vitestで固定できるようにする。
 // lib/purchase-message.ts と同じ理由（lib/revenuecat-provider.tsx はネイティブモジュールを
 // importするため、そこに書くとロジックだけを単体テストできない）。
