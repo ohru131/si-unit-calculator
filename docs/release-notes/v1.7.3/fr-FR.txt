@@ -1,0 +1,1 @@
+Nettoyage interne : nous avons supprimé un composant inutilisé, ce qui allège l'application. Les calculs, les carnets ainsi que l'achat et la restauration de Pro fonctionnent comme avant.

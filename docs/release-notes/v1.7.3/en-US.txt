@@ -1,0 +1,1 @@
+Internal cleanup: we removed an unused component, which makes the app smaller. Calculations, notebooks, and Pro purchase and restore work exactly as before.

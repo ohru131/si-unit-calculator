@@ -1,0 +1,1 @@
+Interne Aufräumarbeiten: Eine nicht genutzte Komponente wurde entfernt, dadurch ist die App kleiner. Berechnungen, Rechenhefte sowie Kauf und Wiederherstellung von Pro funktionieren wie bisher.

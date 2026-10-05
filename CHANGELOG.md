@@ -4,7 +4,7 @@
 各PRは `## [Unreleased]` に1行足す。リリース時にその塊を `## [x.y.z] - YYYY-MM-DD` に改名し、同じコミットに `vx.y.z` の注釈付きタグを打つ。
 Play の「このバージョンの新機能」はここから写す。
 
-## [Unreleased]
+## [1.7.3] - 2026-10-05
 
 ### 内部
 - 使っていない依存 `react-native-purchases-ui` を外した。Shipaton 2026 の提出用の資料とデモ動画の録画スクリプトを削除した（利用者から見える変化は無い）。
@@ -106,7 +106,8 @@ Play の「このバージョンの新機能」はここから写す。
 
 Google Play クローズドテストに提出した最初のビルド（Shipaton 2026）。
 
-[Unreleased]: https://github.com/ohru131/si-unit-calculator/compare/v1.7.2...HEAD
+[Unreleased]: https://github.com/ohru131/si-unit-calculator/compare/v1.7.3...HEAD
+[1.7.3]: https://github.com/ohru131/si-unit-calculator/compare/v1.7.2...v1.7.3
 [1.7.2]: https://github.com/ohru131/si-unit-calculator/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/ohru131/si-unit-calculator/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/ohru131/si-unit-calculator/compare/v1.6.0...v1.7.0

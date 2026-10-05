@@ -1,0 +1,1 @@
+Limpeza interna: removemos um componente que não era usado, o que deixa o app menor. Os cálculos, os cadernos e a compra e restauração do Pro funcionam como antes.

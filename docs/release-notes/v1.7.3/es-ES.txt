@@ -1,0 +1,1 @@
+Limpieza interna: hemos eliminado un componente que no se usaba, lo que reduce el tamaño de la app. Los cálculos, los cuadernos y la compra y restauración de Pro funcionan igual que antes.
