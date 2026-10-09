@@ -116,4 +116,38 @@ describe("プリセットの一括編集（全件書き出し → 差分マー�
     expect(new Set(merged.localConstants.map((constant) => constant.id)).size).toBe(merged.localConstants.length);
     expect(added.id.startsWith(`${target.id}-override-constant-`)).toBe(true);
   });
+
+  it("別の地域の端末で取り込んでも、ファイルで触っていない電圧・単価はその端末の地域のまま追従し続ける", () => {
+    const japan = seeded("ja");
+    const us = buildPresetNotebooksFromSeeds(CATEGORIES, "ja", resolvePresetRegionalDefaults("USD", "US", "en"), NOW);
+    const { notebooks: next, appliedCount } = applyPresetNotebookOverrides(us, exportAll(japan), LATER, presetSeedTexts);
+    expect(appliedCount).toBe(0);
+    next.forEach((notebook, index) => expect(notebook).toBe(us[index]));
+  });
+
+  it("書き出した後にシードの修正が届いた端末へ古いファイルを戻しても、修正を巻き戻さない", () => {
+    const notebooks = seeded("ja");
+    const file = exportAll(notebooks);
+    const target = notebooks.find((notebook) => notebook.localConstants.some((constant) => constant.seededExpression && !constant.regionalDefault))!;
+    const symbol = target.localConstants.find((constant) => constant.seededExpression && !constant.regionalDefault)!.symbol;
+    // シードの更新が届いた状態（保存値と投入時の値がそろって新しい値になる）。
+    const updated = notebooks.map((notebook) => (notebook.id === target.id
+      ? { ...notebook, localConstants: notebook.localConstants.map((constant) => (constant.symbol === symbol ? { ...constant, expression: "42", seededExpression: "42" } : constant)) }
+      : notebook));
+    const { notebooks: next, appliedCount } = applyPresetNotebookOverrides(updated, file, LATER, presetSeedTexts);
+    expect(appliedCount).toBe(0);
+    const merged = next.find((notebook) => notebook.id === target.id)!.localConstants.find((constant) => constant.symbol === symbol)!;
+    expect(merged.expression).toBe("42");
+  });
+
+  it("手で編集したファイルに同じ記号が2つあっても id が重複しない", () => {
+    const notebooks = seeded("ja");
+    const target = notebooks.find((notebook) => notebook.localConstants.length > 0)!;
+    const overrides = exportAll(notebooks).map((override) => (override.presetId === target.id
+      ? { ...override, localConstants: [...override.localConstants, { symbol: override.localConstants[0].symbol, expression: "1" }] }
+      : override));
+    const merged = applyPresetNotebookOverrides(notebooks, overrides, LATER, presetSeedTexts).notebooks.find((notebook) => notebook.id === target.id)!;
+    const ids = merged.localConstants.map((constant) => constant.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
 });

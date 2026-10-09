@@ -68,6 +68,17 @@ export type ImportedNotebookConstant = {
    */
   exact?: boolean;
   exactEdited?: boolean;
+  /**
+   * プリセットへの上書き（`presetOverrides`）だけに付く、**書き出した時点で「まだアプリの値」だった式**
+   * （地域既定値の目印が付いている、または投入時の値のまま）。取り込み側は `expression` がこれと同じなら
+   * 「利用者はこの欄を持っていない」と判断して端末の現在の値を残す（三方向マージの基準）。
+   * これが無いと、書き出した端末の地域で解決された電圧・単価や、書き出した後にシードの更新で
+   * 直った式が、取り込んだ瞬間に「利用者の編集」として上書きされる（別の地域へ機種変更すると
+   * 電圧が120Vの端末に100Vが入り、地域への追従も止まる）。
+   * **端末で編集済みの欄には付けない**——付けると、その編集を復元しようとしたときに「触っていない」と
+   * 読まれて復元できない。**手で編集しないこと。**
+   */
+  appExpression?: string;
 };
 
 // 上のとおり、所有権の印が付いている定数だけ書き出す。
@@ -95,7 +106,16 @@ export function importedExactFields(constant: ImportedNotebookConstant): Pick<No
     ? { exact: constant.exact, exactEdited: true }
     : {};
 }
-export type ImportedNotebookStep = { title: string; expression: string; targetUnit: string; formulaLatex?: string; resultSymbol?: string };
+export type ImportedNotebookStep = {
+  title: string;
+  expression: string;
+  targetUnit: string;
+  formulaLatex?: string;
+  resultSymbol?: string;
+  /** 定数の `appExpression` と同じ。投入時の値のままの欄にだけ付く。 */
+  appExpression?: string;
+  appTargetUnit?: string;
+};
 
 export type ImportedNotebook = {
   title: string;
@@ -157,7 +177,8 @@ function isImportedNotebookConstant(value: unknown): value is ImportedNotebookCo
   const candidate = value as Partial<ImportedNotebookConstant>;
   return typeof candidate.symbol === "string" && typeof candidate.expression === "string"
     && (candidate.exact === undefined || typeof candidate.exact === "boolean")
-    && (candidate.exactEdited === undefined || typeof candidate.exactEdited === "boolean");
+    && (candidate.exactEdited === undefined || typeof candidate.exactEdited === "boolean")
+    && (candidate.appExpression === undefined || typeof candidate.appExpression === "string");
 }
 
 function isImportedNotebookStep(value: unknown): value is ImportedNotebookStep {
@@ -165,7 +186,9 @@ function isImportedNotebookStep(value: unknown): value is ImportedNotebookStep {
   const candidate = value as Partial<ImportedNotebookStep>;
   return typeof candidate.title === "string" && typeof candidate.expression === "string" && typeof candidate.targetUnit === "string"
     && (candidate.formulaLatex === undefined || typeof candidate.formulaLatex === "string")
-    && (candidate.resultSymbol === undefined || typeof candidate.resultSymbol === "string");
+    && (candidate.resultSymbol === undefined || typeof candidate.resultSymbol === "string")
+    && (candidate.appExpression === undefined || typeof candidate.appExpression === "string")
+    && (candidate.appTargetUnit === undefined || typeof candidate.appTargetUnit === "string");
 }
 
 function isImportedNotebook(value: unknown): value is ImportedNotebook {
@@ -218,9 +241,31 @@ export function buildPresetNotebookOverrides(notebooks: CalculationNotebook[], o
       title: notebook.title,
       description: notebook.description,
       formulas: notebook.formulas.map(({ explanation, latex }) => ({ explanation, latex })),
-      localConstants: notebook.localConstants.map((constant) => ({ symbol: constant.symbol, expression: constant.expression, ...exportedExactFields(constant) })),
-      steps: notebook.steps.map(({ title, expression, targetUnit, formulaLatex, resultSymbol }) => ({ title, expression, targetUnit, formulaLatex, resultSymbol })),
+      localConstants: notebook.localConstants.map((constant) => ({
+        symbol: constant.symbol,
+        expression: constant.expression,
+        ...exportedExactFields(constant),
+        ...(constant.regionalDefault || constant.expression === constant.seededExpression ? { appExpression: constant.expression } : {}),
+      })),
+      steps: notebook.steps.map(({ title, expression, targetUnit, formulaLatex, resultSymbol, seededExpression, seededTargetUnit }) => ({
+        title,
+        expression,
+        targetUnit,
+        formulaLatex,
+        resultSymbol,
+        ...(expression === seededExpression ? { appExpression: expression } : {}),
+        ...(targetUnit === seededTargetUnit ? { appTargetUnit: targetUnit } : {}),
+      })),
     }));
+}
+
+/**
+ * 三方向マージの1欄ぶん。ファイルの値が書き出した時点の「アプリの値」（`appValue`）と同じなら、
+ * 利用者はこの欄を持っていないので**端末の現在の値を残す**（地域への追従・書き出し後に届いたシードの
+ * 修正を守る）。印の無い欄（端末で編集済み・古いファイル）は従来どおりファイルの値を採る。
+ */
+function mergeField(current: string, incoming: string, appValue: string | undefined): string {
+  return appValue !== undefined && incoming === appValue ? current : incoming;
 }
 
 /**
@@ -318,18 +363,22 @@ function mergePresetNotebookOverride(
   const currentBySymbol = new Map(notebook.localConstants.map((constant) => [constant.symbol, constant]));
   const localConstants = override.localConstants.map((incoming, index) => {
     const current = currentBySymbol.get(incoming.symbol);
+    // 突き合わせた定数は消費する。手で編集したファイルに同じ記号が2つあると、両方が同じ定数（同じid）に
+    // 当たって id が重複し、編集画面が別の行を書き換える。2つ目は新しい行として足す。
+    currentBySymbol.delete(incoming.symbol);
     const exactFields = importedExactFields(incoming);
     if (!current) {
       changed = true;
       return { id: freshId("constant", index), symbol: incoming.symbol, expression: incoming.expression, ...exactFields };
     }
-    const expressionChanged = incoming.expression !== current.expression;
+    const incomingExpression = mergeField(current.expression, incoming.expression, incoming.appExpression);
+    const expressionChanged = incomingExpression !== current.expression;
     const exactChanged = exactFields.exactEdited === true && (current.exactEdited !== true || current.exact !== exactFields.exact);
     if (!expressionChanged && !exactChanged) return current;
     changed = true;
     const next = { ...current, ...exactFields };
     if (expressionChanged) {
-      next.expression = incoming.expression;
+      next.expression = incomingExpression;
       // 地域既定値の目印は「まだアプリの値」の記録なので、値を書き換えた時点で外す。
       delete next.regionalDefault;
     }
@@ -343,9 +392,11 @@ function mergePresetNotebookOverride(
     ? notebook.steps.map((step, index) => {
         const incoming = override.steps[index];
         const stepTitle = mergeText(step.title, incoming.title, seedTexts);
-        if (stepTitle === step.title && incoming.expression === step.expression && incoming.targetUnit === step.targetUnit && incoming.formulaLatex === step.formulaLatex) return step;
+        const expression = mergeField(step.expression, incoming.expression, incoming.appExpression);
+        const targetUnit = mergeField(step.targetUnit, incoming.targetUnit, incoming.appTargetUnit);
+        if (stepTitle === step.title && expression === step.expression && targetUnit === step.targetUnit && incoming.formulaLatex === step.formulaLatex) return step;
         changed = true;
-        return { ...step, title: stepTitle, expression: incoming.expression, targetUnit: incoming.targetUnit, formulaLatex: incoming.formulaLatex };
+        return { ...step, title: stepTitle, expression, targetUnit, formulaLatex: incoming.formulaLatex };
       })
     : (changed = true, override.steps.map(({ title: stepTitle, expression, targetUnit, formulaLatex, resultSymbol }, index) => ({ id: freshId("step", index), title: stepTitle, expression, targetUnit, formulaLatex, resultSymbol })));
 
