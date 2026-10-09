@@ -209,7 +209,7 @@ export const ENG_FATIGUE_FRACTURE_SEEDS: NotebookSeed[] = [
     ],
     steps: [
       { title: { en: "Relative crack length α = a/W", ja: "き裂長さ比 α = a/W", es: "Longitud relativa de la grieta α = a/W", "pt-BR": "Comprimento relativo da trinca α = a/W", de: "Relative Risslänge α = a/W", fr: "Longueur relative de fissure α = a/W" }, expression: "a/W", targetUnit: "", formulaLatex: "\\alpha = \\dfrac{a}{W}" },
-      { title: { en: "Geometry function f(α)", ja: "形状関数 f(α)", es: "Función geométrica f(α)", "pt-BR": "Função geométrica f(α)", de: "Geometriefunktion f(α)", fr: "Fonction géométrique f(α)" }, expression: "(2+s1)/(1-s1)^1.5*(0.886+4.64*s1-13.32*s1^2+14.72*s1^3-5.6*s1^4)", targetUnit: "", formulaLatex: "f = \\dfrac{2+\\alpha}{(1-\\alpha)^{3/2}}\\left(0.886 + 4.64\\alpha - 13.32\\alpha^2 + 14.72\\alpha^3 - 5.6\\alpha^4\\right)" },
+      { title: { en: "Geometry function f(α)", ja: "形状関数 f(α)", es: "Función geométrica f(α)", "pt-BR": "Função geométrica f(α)", de: "Geometriefunktion f(α)", fr: "Fonction géométrique f(α)" }, expression: "(2+s1)/(1-s1)^1.5*(0.886+4.64*s1-13.32*s1^2+14.72*s1^3-5.6*s1^4)", targetUnit: "", formulaLatex: "\\begin{aligned} f &= \\dfrac{2+\\alpha}{(1-\\alpha)^{3/2}}\\bigl(0.886 + 4.64\\alpha - 13.32\\alpha^2 \\\\ &\\qquad + 14.72\\alpha^3 - 5.6\\alpha^4\\bigr) \\end{aligned}" },
       { title: { en: "Stress intensity factor K", ja: "応力拡大係数 K", es: "Factor de intensidad de esfuerzos K", "pt-BR": "Fator de intensidade de tensão K", de: "Spannungsintensitätsfaktor K", fr: "Facteur d'intensité de contrainte K" }, expression: "P/(B*√W)*s2", targetUnit: "MPa√m", formulaLatex: "K = \\dfrac{P}{B\\sqrt{W}}\\,f(\\alpha)" },
     ],
   },
@@ -225,7 +225,7 @@ export const ENG_FATIGUE_FRACTURE_SEEDS: NotebookSeed[] = [
     ],
     steps: [
       { title: { en: "Relative crack length α = a/W", ja: "き裂長さ比 α = a/W", es: "Longitud relativa de la grieta α = a/W", "pt-BR": "Comprimento relativo da trinca α = a/W", de: "Relative Risslänge α = a/W", fr: "Longueur relative de fissure α = a/W" }, expression: "a/W", targetUnit: "", formulaLatex: "\\alpha = \\dfrac{a}{W}" },
-      { title: { en: "Geometry function f(α)", ja: "形状関数 f(α)", es: "Función geométrica f(α)", "pt-BR": "Função geométrica f(α)", de: "Geometriefunktion f(α)", fr: "Fonction géométrique f(α)" }, expression: "3*√s1*(1.99-s1*(1-s1)*(2.15-3.93*s1+2.7*s1^2))/(2*(1+2*s1)*(1-s1)^1.5)", targetUnit: "", formulaLatex: "f = \\dfrac{3\\sqrt{\\alpha}\\left[1.99 - \\alpha(1-\\alpha)(2.15 - 3.93\\alpha + 2.7\\alpha^2)\\right]}{2(1+2\\alpha)(1-\\alpha)^{3/2}}" },
+      { title: { en: "Geometry function f(α)", ja: "形状関数 f(α)", es: "Función geométrica f(α)", "pt-BR": "Função geométrica f(α)", de: "Geometriefunktion f(α)", fr: "Fonction géométrique f(α)" }, expression: "3*√s1*(1.99-s1*(1-s1)*(2.15-3.93*s1+2.7*s1^2))/(2*(1+2*s1)*(1-s1)^1.5)", targetUnit: "", formulaLatex: "\\begin{aligned} f &= \\dfrac{3\\sqrt{\\alpha}}{2(1+2\\alpha)(1-\\alpha)^{3/2}} \\\\ &\\quad \\times \\bigl[1.99 - \\alpha(1-\\alpha) \\\\ &\\qquad \\times (2.15 - 3.93\\alpha + 2.7\\alpha^2)\\bigr] \\end{aligned}" },
       { title: { en: "Stress intensity factor K", ja: "応力拡大係数 K", es: "Factor de intensidad de esfuerzos K", "pt-BR": "Fator de intensidade de tensão K", de: "Spannungsintensitätsfaktor K", fr: "Facteur d'intensité de contrainte K" }, expression: "P*S/(B*W^1.5)*s2", targetUnit: "MPa√m", formulaLatex: "K = \\dfrac{PS}{BW^{3/2}}\\,f(\\alpha)" },
     ],
   },
