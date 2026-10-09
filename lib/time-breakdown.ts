@@ -60,13 +60,22 @@ export function formatTimeBreakdown({ value, unit, significantDigits }: TimeBrea
   if (finestIndex === topIndex) return null;
   const finest = TIME_UNITS[finestIndex];
 
-  let remaining = Math.round((shown * top.seconds) / finest.seconds);
+  // **いちばん上の単位は丸める前に整数部を取り出す。** yr は 365.25 日で下の単位の整数倍にならないので、
+  // 全体を下の単位で丸めてから割ると `2.0 yr`（730.5 日）が 731 日に丸まり `2 yr 1 d` になる
+  // （CodeRabbitが#91で検出）。上の単位の整数部を先に確定させ、端数だけを丸める。
+  // d・h・min は下の単位のちょうど整数倍なので、端数の分解はそのまま割り算で済む。
+  let topCount = Math.floor(shown + 1e-9);
+  let remaining = Math.round(((shown - topCount) * top.seconds) / finest.seconds);
+  if (remaining * finest.seconds >= top.seconds) {
+    // 端数の丸めで1単位ぶんに届いたら繰り上げる（59.99 min を分まで → 1 h ちょうど）。
+    topCount += 1;
+    remaining = 0;
+  }
   const parts: string[] = [];
-  for (let index = topIndex; index <= finestIndex; index += 1) {
+  if (topCount > 0) parts.push(`${topCount} ${top.symbol}`);
+  for (let index = topIndex + 1; index <= finestIndex; index += 1) {
     const ratio = TIME_UNITS[index].seconds / finest.seconds;
-    // 最下位の欄は四捨五入する。yr は 365.25 日なので、上の欄で割った余りに 0.25 日ぶんの端数が残る
-    // （2.5 yr → 2 yr 182.625 d）。切り捨てると 182 d になって元の値より小さく読める。
-    const count = index === finestIndex ? Math.round(remaining) : Math.floor(remaining / ratio);
+    const count = Math.floor(remaining / ratio);
     remaining -= count * ratio;
     if (count > 0) parts.push(`${count} ${TIME_UNITS[index].symbol}`);
   }

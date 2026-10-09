@@ -14,6 +14,12 @@ describe("時間の複合表記（併記用）", () => {
   it("いちばん上の単位は表示単位のまま（日を年へ繰り上げない）", () => {
     expect(formatTimeBreakdown({ value: 400.75, unit: "d", significantDigits: 5 })).toBe("400 d 18 h");
     expect(formatTimeBreakdown({ value: 2.5, unit: "yr", significantDigits: 2 })).toBe("2 yr 183 d");
+    // 年は 365.25 日なので、全体を日で丸めてから割ると 2.0 yr が「2 yr 1 d」になる（#91で検出）。
+    expect(formatTimeBreakdown({ value: 2, unit: "yr", significantDigits: 2 })).toBeNull();
+    expect(formatTimeBreakdown({ value: 3, unit: "yr", significantDigits: 4 })).toBeNull();
+    // 端数の丸めで上の単位に届いたら繰り上げて1単位に収める。
+    expect(formatTimeBreakdown({ value: 1.9999, unit: "h", significantDigits: 3 })).toBeNull();
+    expect(formatTimeBreakdown({ value: 0.99999, unit: "yr", significantDigits: 6 })).toBe("365 d 5 h 54 min 44 s");
   });
 
   it("1つの単位に収まるときは出さない", () => {
