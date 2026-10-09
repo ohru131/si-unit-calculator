@@ -69,6 +69,7 @@ import {
   type ExpressionSegment,
   type UnitSuggestion,
 } from "@/lib/unit-input";
+import { formatTimeBreakdown } from "@/lib/time-breakdown";
 import { convertQuantity, displayDigitsRoundedFrom, formatDimension, formatNumberForLocale, formatQuantity, getCompatibleUnitGroups, getGroupUnitsForSystem, getRegionalUnits, getUnitRegistration, isDimensionless, UNIT_GROUPS, type UnitGroup, type UnitOption } from "@/lib/units";
 
 // 「全消し」の要望に対応するため、従来は空セルのプレースホルダだった最下段（"0"と"="の間）に
@@ -1076,6 +1077,21 @@ export default function CalculatorScreen() {
     () => (display && baseInputMode === null ? displayDigitsRoundedFrom(display.numeric, locale, resultDigits) : null),
     [baseInputMode, display, locale, resultDigits],
   );
+
+  // 時間の結果を `27 h 48 min` のように分けた併記（lib/time-breakdown.ts）。**画面に出ている数値の
+  // 精度で分ける**ので、小数表示なら表示桁の上限、有効数字表示ならその桁数を渡す。科学表記・厳密値は
+  // 読み方そのものを変えるモードなので出さない。SI表記へフォールバックしているとき（秒）は分ける先が無い。
+  const timeBreakdown = useMemo(() => {
+    if (!display || baseInputMode !== null || display.isFallback || activeBase !== 10) return null;
+    if (valueForm === "significant" && significantValue) {
+      return significantValue.significantDigits === null
+        ? null
+        : formatTimeBreakdown({ value: display.numeric, unit: displayUnit, significantDigits: significantValue.significantDigits });
+    }
+    if (valueForm === "scientific" && scientificValue) return null;
+    if (valueForm === "exact" && exactValue) return null;
+    return formatTimeBreakdown({ value: display.numeric, unit: displayUnit, significantDigits: resultDigits });
+  }, [activeBase, baseInputMode, display, displayUnit, exactValue, resultDigits, scientificValue, significantValue, valueForm]);
 
   const shownValueText = !display
     ? ""
@@ -2302,6 +2318,7 @@ export default function CalculatorScreen() {
                       ) : null}
                     </>
                   )}
+                  {timeBreakdown ? <Text style={styles.roundedFromText}>{timeBreakdown}</Text> : null}
                 </>
               ) : resultMode === "diagnosis" ? (
                 // 式の意味の誤り（次元不一致・使えない単位・ゼロ除算…）はここでリアルタイムに説明する。

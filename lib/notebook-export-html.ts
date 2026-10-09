@@ -96,6 +96,7 @@ ${title}
 <p class="step-expression">${escapeHtml(step.expression)}</p>
 <p class="step-result">${escapeHtml(step.resultText)}</p>
 ${step.rawResultText ? `<p class="step-raw-result">${escapeHtml(step.rawResultText)}</p>` : ""}
+${step.timeBreakdownText ? `<p class="step-raw-result">${escapeHtml(step.timeBreakdownText)}</p>` : ""}
 </div>`;
     })
     .join("\n");

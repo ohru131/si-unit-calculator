@@ -400,3 +400,32 @@ describe("表示桁の上限で切り詰めたときの元の値", () => {
     expect(display.rawValue).toBeUndefined();
   });
 });
+
+describe("時間の複合表記の併記", () => {
+  it("疲労試験の所要時間（10⁷回・100Hz）は有効3桁のまま h と min に分ける（画面とPDFで同じ）", () => {
+    const seeds = PRESET_NOTEBOOK_SEEDS["eng-fatigue"];
+    const index = seeds.findIndex((seed) => seed.title.en.startsWith("Fatigue test duration"));
+    const model = buildNotebookExportModel({
+      notebook: notebookFromSeed("eng-fatigue", index, "ja"),
+      globalConstants: [],
+      language: "ja",
+      locale: "ja-JP",
+      unitSystem: "metric",
+      measuringStandard: "jis",
+      unitOverrides: {},
+    });
+    expect(model.steps.map((step) => [step.resultText, step.timeBreakdownText])).toEqual([
+      ["≈ 27.8 h", "27 h 48 min"],
+      ["≈ 1.16 d", "1 d 3 h 50 min"],
+    ]);
+  });
+
+  const timeResultFor = (expression: string, targetUnit: string) =>
+    evaluateNotebookSteps([{ id: "s0", title: "", expression, targetUnit }], [], "ja", [], "ja-JP", 6)[0];
+
+  it("秒（SI表記）や時間以外の結果には付けない", () => {
+    expect(resolveNotebookStepDisplay(timeResultFor("5PS", "kW"), undefined, "metric", "ja-JP", null, 6).timeBreakdown).toBeUndefined();
+    expect(resolveNotebookStepDisplay(timeResultFor("90min", ""), undefined, "metric", "ja-JP", null, 6).timeBreakdown).toBeUndefined();
+    expect(resolveNotebookStepDisplay(timeResultFor("90min", "h"), undefined, "metric", "ja-JP", null, 6).timeBreakdown).toBe("1 h 30 min");
+  });
+});
