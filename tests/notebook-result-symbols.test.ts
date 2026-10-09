@@ -71,6 +71,14 @@ describe("withDerivedResultSymbols", () => {
     expect(result.steps[0].resultSymbol).toBe("F");
   });
 
+  it("2行に組んだ式（aligned）でも左辺から結果記号を補う", () => {
+    const result = withDerivedResultSymbols(seed({
+      localConstants: [{ symbol: "m", expression: "2kg" }, { symbol: "a", expression: "3m/s^2" }],
+      steps: [{ title: { en: "Force" }, expression: "m*a", targetUnit: "N", formulaLatex: "\\begin{aligned} F &= m \\\\ &\\quad \\times a \\end{aligned}" }],
+    }));
+    expect(result.steps[0].resultSymbol).toBe("F");
+  });
+
   // resultSymbolを付けた手順は s1 で参照できなくなる。しかも s1 は未定義エラーにならず
   // 単位の s（1秒）として黙って解釈されるので、参照も同時に書き換えないと値が静かに壊れる。
   it("後続手順の s1 参照を新しい記号へ書き換える", () => {

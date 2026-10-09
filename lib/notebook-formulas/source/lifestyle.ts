@@ -285,7 +285,7 @@ export const WEATHER_SEEDS: NotebookSeed[] = [
         title: { en: "Wind chill temperature", ja: "体感温度", es: "Sensación térmica por viento", "pt-BR": "Sensação térmica pelo vento", de: "Windchill-Temperatur", fr: "Température de refroidissement éolien" },
         expression: "(13.12+0.6215*T+(0.3965*T-11.37)*(v/(1km/h))^0.16)*K+273.15*K",
         targetUnit: "°C",
-        formulaLatex: "T_{wc} = 13.12 + 0.6215\\,T - 11.37\\,v^{0.16} + 0.3965\\,T\\,v^{0.16}",
+        formulaLatex: "\\begin{aligned} T_{wc} &= 13.12 + 0.6215\\,T - 11.37\\,v^{0.16} \\\\ &\\quad + 0.3965\\,T\\,v^{0.16} \\end{aligned}",
       },
     ],
   },

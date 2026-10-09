@@ -220,7 +220,7 @@ export const FITNESS_SEEDS: NotebookSeed[] = [
     ],
     steps: [
       { title: { en: "Max heart rate HRmax", ja: "最大心拍数 HRmax", es: "Frecuencia cardíaca máxima HRmax", "pt-BR": "Frequência cardíaca máxima HRmax", de: "Maximale Herzfrequenz HRmax", fr: "Fréquence cardiaque maximale HRmax" }, expression: "(220-age)*1bpm", targetUnit: "bpm", formulaLatex: "HR_{max} = 220 - \\text{age}" },
-      { title: { en: "Target heart rate", ja: "目標心拍数", es: "Frecuencia cardíaca objetivo", "pt-BR": "Frequência cardíaca alvo", de: "Ziel-Herzfrequenz", fr: "Fréquence cardiaque cible" }, expression: "(s1-HRᵣₑₛₜ)*intensity+HRᵣₑₛₜ", targetUnit: "bpm", formulaLatex: "HR_{target} = (HR_{max} - HR_{rest}) \\times \\text{intensity} + HR_{rest}" },
+      { title: { en: "Target heart rate", ja: "目標心拍数", es: "Frecuencia cardíaca objetivo", "pt-BR": "Frequência cardíaca alvo", de: "Ziel-Herzfrequenz", fr: "Fréquence cardiaque cible" }, expression: "(s1-HRᵣₑₛₜ)*intensity+HRᵣₑₛₜ", targetUnit: "bpm", formulaLatex: "\\begin{aligned} HR_{target} &= (HR_{max} - HR_{rest}) \\times \\text{intensity} \\\\ &\\quad + HR_{rest} \\end{aligned}" },
     ],
   },
   {

@@ -89,10 +89,16 @@ function convertSubscripts(text: string, unicode: boolean): string | null {
   return IDENTIFIER_ANCHORED_PATTERN.test(symbol) ? symbol : null;
 }
 
-/** "F = ma" の左辺だけを取り出す。"=" が無ければ null（等式でない数式は記号を決められない）。 */
+/**
+ * "F = ma" の左辺だけを取り出す。"=" が無ければ null（等式でない数式は記号を決められない）。
+ * 画面幅に収まらない長い式は `\begin{aligned} f &= … \\ &\quad + … \end{aligned}` で2行以上に
+ * 組んであるので、環境の開始と揃え位置の `&` を落としてから読む（落とさないと左辺が
+ * `\begin{aligned} f &` になり、結果記号が付かなくなる）。
+ */
 function equationLeftSide(latex: string): string | null {
   const index = latex.indexOf("=");
-  return index < 0 ? null : latex.slice(0, index);
+  if (index < 0) return null;
+  return latex.slice(0, index).replace(/^\s*\\begin\{aligned\}/, "").replace(/&\s*$/, "");
 }
 
 /** 式の中の識別子トークンだけを置き換える。単位や数値の一部（"3m/s" の m など）は対象にしない。 */
