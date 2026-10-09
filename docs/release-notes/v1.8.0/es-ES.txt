@@ -1,0 +1,3 @@
+Ya se admiten unidades con raíz cuadrada: escribe la tenacidad a fractura como MPa√m o ksi√in y usa √ en las expresiones. Dos grupos nuevos de cuadernos: «Ensayos de materiales» y «Fatiga y mecánica de fractura» (20 cuadernos: tracción, dureza, curva S-N, ley de Paris, K_IC, etc.).
+
+Los resultados de tiempo muestran también una forma desglosada, como «27 h 48 min». Pro: exporta todos los cuadernos predefinidos a JSON, edítalos en bloque e impórtalos de nuevo.

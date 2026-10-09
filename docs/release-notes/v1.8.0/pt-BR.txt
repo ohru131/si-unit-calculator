@@ -1,0 +1,3 @@
+Agora há suporte a unidades com raiz quadrada: digite a tenacidade à fratura como MPa√m ou ksi√in e use √ nas expressões. Dois novos grupos de cadernos: "Ensaios de materiais" e "Fadiga e mecânica da fratura" (20 cadernos: tração, dureza, curva S-N, lei de Paris, K_IC etc.).
+
+Resultados de tempo também mostram uma forma dividida, como "27 h 48 min". Pro: exporte todos os cadernos predefinidos em JSON, edite em lote e importe de volta.

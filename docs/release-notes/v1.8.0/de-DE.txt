@@ -1,0 +1,3 @@
+Einheiten mit Wurzel werden unterstützt: Bruchzähigkeit als MPa√m oder ksi√in eingeben, √ lässt sich auch in Ausdrücken nutzen. Neu bei den Rechenblättern: „Werkstoffprüfung“ und „Ermüdung & Bruchmechanik“ (20 Blätter: Zugversuch, Härte, Wöhler-Kurve, Paris-Gesetz, K_IC u. a.).
+
+Zeitergebnisse zeigen zusätzlich eine aufgeteilte Form wie „27 h 48 min“. Pro: Alle Vorlagen als JSON exportieren, gesammelt bearbeiten und wieder importieren.

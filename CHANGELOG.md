@@ -4,7 +4,7 @@
 各PRは `## [Unreleased]` に1行足す。リリース時にその塊を `## [x.y.z] - YYYY-MM-DD` に改名し、同じコミットに `vx.y.z` の注釈付きタグを打つ。
 Play の「このバージョンの新機能」はここから写す。
 
-## [Unreleased]
+## [1.8.0] - 2026-10-09
 
 ### 追加
 - 平方根の付く単位を扱えるようにした。破壊靭性・応力拡大係数の `MPa√m`・`ksi√in` を単位として打て、`1.12*200MPa*√(π*2mm)` のように式の中で `√` も使える（次元の指数は0.5刻みまで）。
@@ -117,7 +117,8 @@ Play の「このバージョンの新機能」はここから写す。
 
 Google Play クローズドテストに提出した最初のビルド（Shipaton 2026）。
 
-[Unreleased]: https://github.com/ohru131/si-unit-calculator/compare/v1.7.3...HEAD
+[Unreleased]: https://github.com/ohru131/si-unit-calculator/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/ohru131/si-unit-calculator/compare/v1.7.3...v1.8.0
 [1.7.3]: https://github.com/ohru131/si-unit-calculator/compare/v1.7.2...v1.7.3
 [1.7.2]: https://github.com/ohru131/si-unit-calculator/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/ohru131/si-unit-calculator/compare/v1.7.0...v1.7.1

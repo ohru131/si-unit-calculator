@@ -1,0 +1,3 @@
+Square-root units are now supported: type fracture toughness as MPa√m or ksi√in, and use √ inside expressions. Two new notebook groups, "Materials testing" and "Fatigue & fracture mechanics" (20 notebooks: tensile tests, hardness, S-N curves, Paris law, K_IC and more).
+
+Time results now also show a split form such as "27 h 48 min". Pro: export all preset notebooks to JSON, edit them in bulk and import them back.

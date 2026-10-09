@@ -1,0 +1,3 @@
+Les unités avec racine carrée sont prises en charge : saisissez la ténacité en MPa√m ou ksi√in, et utilisez √ dans les expressions. Deux nouveaux groupes de fiches : « Essais des matériaux » et « Fatigue et mécanique de la rupture » (20 fiches : traction, dureté, courbe S-N, loi de Paris, K_IC, etc.).
+
+Les résultats de durée affichent aussi une forme décomposée, comme « 27 h 48 min ». Pro : exporter toutes les fiches prédéfinies en JSON, les modifier en masse et les réimporter.
