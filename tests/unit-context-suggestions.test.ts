@@ -164,7 +164,9 @@ describe("掛け算・割り算の相手の候補", () => {
     const massCompanions = symbols(companions({ leftGroupId: "mass", corpusExamples: getPresetUnitExamples() }));
     expect(massCompanions[0]).toBe("m/s²");
     expect(massCompanions.slice(0, 4)).toContain("N");
-    expect(symbols(companions({ leftGroupId: "length", corpusExamples: getPresetUnitExamples() }))[0]).toBe("m/s");
+    // 長さは速さ（m/s）と応力（MPa）が上位を争う。材料試験・疲労のノートで MPa が先頭に来たので、
+    // 先頭2つに m/s が残っていることだけを見る（上の質量と同じく、順位そのものは固定しない）。
+    expect(symbols(companions({ leftGroupId: "length", corpusExamples: getPresetUnitExamples() })).slice(0, 2)).toContain("m/s");
   });
 
   it("1つのグループで枠を埋め尽くさない（1巡3件ずつ）", () => {
