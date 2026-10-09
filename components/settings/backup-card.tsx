@@ -4,13 +4,14 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { type ThemeColorPalette } from "@/constants/theme";
 import { useColors } from "@/hooks/use-colors";
-import { useCalculatorStore } from "@/lib/calculator-store";
+import { presetSeedTexts, useCalculatorStore } from "@/lib/calculator-store";
 import { type ImportedConstant } from "@/lib/constants-backup";
 import { exportConstantsBackup, pickConstantsBackup } from "@/lib/constants-backup-file";
 import { countCustomUnitConflicts, type CustomUnit } from "@/lib/custom-units";
 import { useGlobalSettings } from "@/lib/global-settings";
-import { type ImportedNotebook, type PresetNotebookOverride } from "@/lib/notebooks-backup";
+import { applyPresetNotebookOverrides, type ImportedNotebook, type PresetNotebookOverride } from "@/lib/notebooks-backup";
 import { exportNotebooksBackup, pickNotebooksBackup } from "@/lib/notebooks-backup-file";
+import { usePro } from "@/lib/revenuecat-provider";
 import { unitErrorMessage } from "@/lib/unit-errors";
 
 /**
@@ -32,6 +33,7 @@ export function BackupCard() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { language, t } = useGlobalSettings();
+  const { isPro } = usePro();
   const {
     constants,
     clearConstants,
@@ -51,16 +53,18 @@ export function BackupCard() {
   // 含むインポート」は、どれも取り込み前に確認ダイアログを1回だけ出す必要がある（複数該当する
   // 場合でも2回続けて出さない）ため、pendingとして持つ情報を1つの状態にまとめる
   // （constants.tsxにあった元のロジックをそのまま移設し、自作単位の分を拡張した）。
-  const [pendingNotebookImport, setPendingNotebookImport] = useState<{ mode: "merge" | "replace"; entries: ImportedNotebook[]; presetOverrides: PresetNotebookOverride[]; customUnits: CustomUnit[]; customUnitConflictCount: number } | null>(null);
+  const [pendingNotebookImport, setPendingNotebookImport] = useState<{ mode: "merge" | "replace"; entries: ImportedNotebook[]; presetOverrides: PresetNotebookOverride[]; changedPresetCount: number; customUnits: CustomUnit[]; customUnitConflictCount: number } | null>(null);
   const [pendingConstantsImport, setPendingConstantsImport] = useState<{ mode: "merge" | "replace"; entries: ImportedConstant[]; customUnits: CustomUnit[]; customUnitConflictCount: number } | null>(null);
 
   // エンジンのエラー(UnitError)は現在の言語で表示する。UnitError以外は従来どおり
   // Error.message をそのまま出す（バックアップ処理など別系統のエラーもここを通るため）。
   const engineErrorMessage = (cause: unknown) => (cause instanceof Error ? (unitErrorMessage(cause, language) ?? cause.message) : t("backupGenericError"));
 
-  const handleExportNotebooks = async () => {
+  const handleExportNotebooks = async (includeAllPresets = false) => {
     try {
-      await exportNotebooksBackup(notebooks, notebookCategories, customUnits, language);
+      // 全件の書き出しは Pro の一括編集用。書き戻しは差分マージなので、触らなかったノートは
+      // 取り込んでも何も変わらない（lib/notebooks-backup.ts の applyPresetNotebookOverrides）。
+      await exportNotebooksBackup(notebooks, notebookCategories, customUnits, language, includeAllPresets ? "presets" : undefined, { includeAllPresets });
       setNotebooksNotice(t("backupNotebooksExportDone"));
     } catch (cause) {
       setNotebooksNotice(engineErrorMessage(cause));
@@ -84,10 +88,14 @@ export function BackupCard() {
       // 同じ記号の自作単位が既にあり、かつ定義が違う件数。0件（記号が新規、または定義が
       // 完全に同じ）なら黙って取り込んでよい。
       const customUnitConflictCount = countCustomUnitConflicts(customUnits, incomingCustomUnits);
+      // プリセットの件数はファイルに入っている数ではなく**実際に変わる数**で数える。Pro の全件書き出し
+      // （一括編集用）は約200件のプリセットを含むが、書き戻しは差分マージなので触らなかったノートは
+      // 何も変わらない。ファイルの件数で「200件を上書きします」と出すと、実際に起きることと違う。
+      const changedPresetCount = applyPresetNotebookOverrides(notebooks.filter((notebook) => notebook.isPreset), presetOverrides, "", presetSeedTexts).appliedCount;
       // 置き換えは既存どおり必ず確認する。マージでも、プリセットへの編集または自作単位の
       // 上書きが含まれるなら「取り込むと上書きされる」ことを確認してもらう。
-      if (mode === "replace" || presetOverrides.length > 0 || customUnitConflictCount > 0) {
-        setPendingNotebookImport({ mode, entries, presetOverrides, customUnits: incomingCustomUnits, customUnitConflictCount });
+      if (mode === "replace" || changedPresetCount > 0 || customUnitConflictCount > 0) {
+        setPendingNotebookImport({ mode, entries, presetOverrides, changedPresetCount, customUnits: incomingCustomUnits, customUnitConflictCount });
         return;
       }
       const result = await importNotebooks(entries, "merge", presetOverrides, incomingCustomUnits);
@@ -186,6 +194,16 @@ export function BackupCard() {
           <Pressable onPress={() => void handleImportNotebooks("merge")} style={({ pressed }) => [styles.button, pressed && styles.pressed]}><Text style={styles.buttonText}>{t("backupNotebooksMerge")}</Text></Pressable>
           <Pressable onPress={() => void handleImportNotebooks("replace")} style={({ pressed }) => [styles.button, pressed && styles.pressed]}><Text style={styles.buttonText}>{t("backupNotebooksReplace")}</Text></Pressable>
         </View>
+        {/* Pro のときだけ出す。取り込み（上の2つ）は誰でも使える——Pro を外したあとや機種変更の後に、
+            自分で書き出したファイルを戻せなくなるのを避けるため。 */}
+        {isPro ? (
+          <>
+            <Text style={styles.description}>{t("backupNotebooksExportAllPresetsHint")}</Text>
+            <View style={styles.actions}>
+              <Pressable onPress={() => void handleExportNotebooks(true)} style={({ pressed }) => [styles.button, pressed && styles.pressed]}><Text style={styles.buttonText}>{t("backupNotebooksExportAllPresets")}</Text></Pressable>
+            </View>
+          </>
+        ) : null}
         {notebooksNotice ? <Text style={styles.notice}>{notebooksNotice}</Text> : null}
       </View>
 
@@ -242,7 +260,7 @@ export function BackupCard() {
         title={
           pendingNotebookImport?.mode === "replace"
             ? t("backupNotebooksReplace")
-            : (pendingNotebookImport?.presetOverrides.length ?? 0) > 0
+            : (pendingNotebookImport?.changedPresetCount ?? 0) > 0
               ? t("backupPresetOverrideTitle")
               : t("backupCustomUnitOverrideTitle")
         }
@@ -252,8 +270,8 @@ export function BackupCard() {
                 // 置き換えなら既存の確認文をそのまま使い、プリセット編集・自作単位の上書き警告を
                 // 後ろに続ける（複数該当する経路でダイアログを2回以上出さないよう、1つの文面にまとめる）。
                 pendingNotebookImport.mode === "replace" ? t("backupNotebooksReplaceConfirm") : null,
-                pendingNotebookImport.presetOverrides.length > 0
-                  ? t("backupPresetOverrideWarning").replace("{count}", String(pendingNotebookImport.presetOverrides.length))
+                pendingNotebookImport.changedPresetCount > 0
+                  ? t("backupPresetOverrideWarning").replace("{count}", String(pendingNotebookImport.changedPresetCount))
                   : null,
                 pendingNotebookImport.customUnitConflictCount > 0
                   ? t("backupCustomUnitOverrideWarning").replace("{count}", String(pendingNotebookImport.customUnitConflictCount))

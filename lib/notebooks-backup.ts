@@ -68,6 +68,17 @@ export type ImportedNotebookConstant = {
    */
   exact?: boolean;
   exactEdited?: boolean;
+  /**
+   * プリセットへの上書き（`presetOverrides`）だけに付く、**書き出した時点で「まだアプリの値」だった式**
+   * （地域既定値の目印が付いている、または投入時の値のまま）。取り込み側は `expression` がこれと同じなら
+   * 「利用者はこの欄を持っていない」と判断して端末の現在の値を残す（三方向マージの基準）。
+   * これが無いと、書き出した端末の地域で解決された電圧・単価や、書き出した後にシードの更新で
+   * 直った式が、取り込んだ瞬間に「利用者の編集」として上書きされる（別の地域へ機種変更すると
+   * 電圧が120Vの端末に100Vが入り、地域への追従も止まる）。
+   * **端末で編集済みの欄には付けない**——付けると、その編集を復元しようとしたときに「触っていない」と
+   * 読まれて復元できない。**手で編集しないこと。**
+   */
+  appExpression?: string;
 };
 
 // 上のとおり、所有権の印が付いている定数だけ書き出す。
@@ -95,7 +106,16 @@ export function importedExactFields(constant: ImportedNotebookConstant): Pick<No
     ? { exact: constant.exact, exactEdited: true }
     : {};
 }
-export type ImportedNotebookStep = { title: string; expression: string; targetUnit: string; formulaLatex?: string; resultSymbol?: string };
+export type ImportedNotebookStep = {
+  title: string;
+  expression: string;
+  targetUnit: string;
+  formulaLatex?: string;
+  resultSymbol?: string;
+  /** 定数の `appExpression` と同じ。投入時の値のままの欄にだけ付く。 */
+  appExpression?: string;
+  appTargetUnit?: string;
+};
 
 export type ImportedNotebook = {
   title: string;
@@ -157,7 +177,8 @@ function isImportedNotebookConstant(value: unknown): value is ImportedNotebookCo
   const candidate = value as Partial<ImportedNotebookConstant>;
   return typeof candidate.symbol === "string" && typeof candidate.expression === "string"
     && (candidate.exact === undefined || typeof candidate.exact === "boolean")
-    && (candidate.exactEdited === undefined || typeof candidate.exactEdited === "boolean");
+    && (candidate.exactEdited === undefined || typeof candidate.exactEdited === "boolean")
+    && (candidate.appExpression === undefined || typeof candidate.appExpression === "string");
 }
 
 function isImportedNotebookStep(value: unknown): value is ImportedNotebookStep {
@@ -165,7 +186,9 @@ function isImportedNotebookStep(value: unknown): value is ImportedNotebookStep {
   const candidate = value as Partial<ImportedNotebookStep>;
   return typeof candidate.title === "string" && typeof candidate.expression === "string" && typeof candidate.targetUnit === "string"
     && (candidate.formulaLatex === undefined || typeof candidate.formulaLatex === "string")
-    && (candidate.resultSymbol === undefined || typeof candidate.resultSymbol === "string");
+    && (candidate.resultSymbol === undefined || typeof candidate.resultSymbol === "string")
+    && (candidate.appExpression === undefined || typeof candidate.appExpression === "string")
+    && (candidate.appTargetUnit === undefined || typeof candidate.appTargetUnit === "string");
 }
 
 function isImportedNotebook(value: unknown): value is ImportedNotebook {
@@ -208,61 +231,186 @@ function resolveExportedCategory(notebook: CalculationNotebook, categories: Note
  * シード比較にすると、地域別の価格既定値（lib/preset-regional-defaults.ts）が投入時に差し込まれる
  * プリセット（電気代・走行コストなど）を、編集していないのに編集扱いしてしまう。
  */
-export function buildPresetNotebookOverrides(notebooks: CalculationNotebook[]): PresetNotebookOverride[] {
+export function buildPresetNotebookOverrides(notebooks: CalculationNotebook[], options: NotebooksBackupOptions = {}): PresetNotebookOverride[] {
   return notebooks
-    .filter((notebook) => notebook.isPreset && notebook.updatedAt !== notebook.createdAt)
+    // 一括編集用の書き出し（Pro）は、編集していないプリセットも全件出す。書き戻しは差分マージなので、
+    // 触らなかった行は取り込んでも何も変わらない（applyPresetNotebookOverrides）。
+    .filter((notebook) => notebook.isPreset && (options.includeAllPresets || notebook.updatedAt !== notebook.createdAt))
     .map((notebook) => ({
       presetId: notebook.id,
       title: notebook.title,
       description: notebook.description,
       formulas: notebook.formulas.map(({ explanation, latex }) => ({ explanation, latex })),
-      localConstants: notebook.localConstants.map((constant) => ({ symbol: constant.symbol, expression: constant.expression, ...exportedExactFields(constant) })),
-      steps: notebook.steps.map(({ title, expression, targetUnit, formulaLatex, resultSymbol }) => ({ title, expression, targetUnit, formulaLatex, resultSymbol })),
+      localConstants: notebook.localConstants.map((constant) => ({
+        symbol: constant.symbol,
+        expression: constant.expression,
+        ...exportedExactFields(constant),
+        ...(constant.regionalDefault || constant.expression === constant.seededExpression ? { appExpression: constant.expression } : {}),
+      })),
+      steps: notebook.steps.map(({ title, expression, targetUnit, formulaLatex, resultSymbol, seededExpression, seededTargetUnit }) => ({
+        title,
+        expression,
+        targetUnit,
+        formulaLatex,
+        resultSymbol,
+        ...(expression === seededExpression ? { appExpression: expression } : {}),
+        ...(targetUnit === seededTargetUnit ? { appTargetUnit: targetUnit } : {}),
+      })),
     }));
 }
 
 /**
- * 取り込んだpresetOverridesを、現存するプリセットのノート配列へ適用する。
- * presetIdで現存のノートを引き、一致するものにだけ title/description/formulas/localConstants/steps を
- * 上書きする。id・isPreset・pinned・createdAtは呼び出し側が渡した現在のノートのものをそのまま保つ
- * （このスプレッド順で自然にそうなる）。一致するpresetIdが無いoverrideは黙って捨てる
- * （アプリのバージョン差でプリセットが増減している場合や、別アプリのファイルを読ませた場合に
- * 落ちないようにするため）。
+ * 三方向マージの1欄ぶん。ファイルの値が書き出した時点の「アプリの値」（`appValue`）と同じなら、
+ * 利用者はこの欄を持っていないので**端末の現在の値を残す**（地域への追従・書き出し後に届いたシードの
+ * 修正を守る）。印の無い欄（端末で編集済み・古いファイル）は従来どおりファイルの値を採る。
+ */
+function mergeField(current: string, incoming: string, appValue: string | undefined): string {
+  return appValue !== undefined && incoming === appValue ? current : incoming;
+}
+
+/**
+ * そのプリセットのシードが持つ文言（全言語ぶんのタイトル・説明文・手順名・数式の説明）。
+ * 取り込んだ文言がこの中にあれば「書き出したときの言語のシードの文言のまま」＝利用者は編集していない、
+ * と判断して書き換えない。書き換えると、言語を切り替えたときの再解決（localizePresetNotebooks）が
+ * それを利用者の編集と読んで、**そのノートの文言が書き出した言語のまま固まる**。
+ * calculator-store.tsx（RNを読み込む）に置いたシードの引き当てを使うので、呼び出し側から渡す。
+ */
+export type PresetSeedTextLookup = (notebook: CalculationNotebook) => ReadonlySet<string> | undefined;
+
+function mergeText(current: string, incoming: string, seedTexts: ReadonlySet<string> | undefined): string {
+  if (incoming === current) return current;
+  if (seedTexts?.has(incoming)) return current;
+  return incoming;
+}
+
+/**
+ * 取り込んだpresetOverridesを、現存するプリセットのノート配列へ**差分として**当てる。
  *
- * 適用先は isPreset のノートに限る。呼び出し側でも絞っているが、ここでも見ておかないと
- * 「プリセットIDと同じidを持つユーザー作成ノート」を作られたときにそれを上書きしてしまう。
- * 契約をコメントだけで守らせるより、この関数自身が守るほうが安全。
+ * **丸ごと差し替えないこと**（2026-10-09 に差分マージへ変えた。Pro の一括編集で全プリセットを書き出して
+ * 書き戻せるようにしたため）。以前は定数・手順の配列を丸ごと作り直していて、id が
+ * `…-override-constant-N` に振り直されるうえ、投入時の値（`seededExpression`）・地域既定値の目印
+ * （`regionalDefault`）が全部消えていた。1件も触っていないノートまで「利用者の編集」扱いになり、
+ * 以後シードの修正が届かず、電圧・単価も端末の地域に追従しなくなる。
+ *
+ * - **定数は記号で突き合わせる。** 式が同じなら現在の定数をそのまま残す（id・目印ごと）。変わって
+ *   いれば式だけ書き換え、地域既定値の目印を外す（`releaseEditedRegionalDefaults` と同じ所有権の
+ *   規則）。投入時の値（`seededExpression`）は残す——保存値と食い違うのでシードの更新は利用者の
+ *   編集として避けて通る。ファイルに無い記号は消し、新しい記号は足す。並びはファイルの順。
+ * - **手順は数と結果記号が同じなら位置で突き合わせる**（シード更新の同期と同じ条件）。式・表示単位・
+ *   数式・手順名を差分で書き換え、id と投入時の値は残す。数や記号が変わっていれば構造の編集なので、
+ *   ファイルの手順で作り直す（そのノートにはシードの修正が届かなくなるが、利用者の意図した編集）。
+ * - **文言はシードのどの言語とも違うときだけ**書き換える（`PresetSeedTextLookup`）。
+ * - 何も変わらなかったノートは updatedAt も触らない（書き出し側の「編集済み」の判定に使うため）。
+ *
+ * 適用先は isPreset のノートに限る（プリセットIDと同じidのユーザー作成ノートを上書きしないため）。
+ * 一致するpresetIdが無いoverrideは黙って捨てる（アプリのバージョン差でプリセットが増減している場合）。
  */
 export function applyPresetNotebookOverrides(
   presetNotebooks: CalculationNotebook[],
   overrides: PresetNotebookOverride[],
   now: string,
+  seedTextsFor?: PresetSeedTextLookup,
 ): { notebooks: CalculationNotebook[]; appliedCount: number } {
   const overrideByPresetId = new Map(overrides.map((override) => [override.presetId, override]));
   let appliedCount = 0;
   const nextNotebooks = presetNotebooks.map((notebook) => {
     const override = notebook.isPreset ? overrideByPresetId.get(notebook.id) : undefined;
     if (!override) return notebook;
-    appliedCount += 1;
-    return {
-      ...notebook,
-      title: override.title,
-      description: override.description,
-      // 取り込んだ要素をスプレッドで展開すると、ファイル側に id が入っていたとき（手で編集した
-      // JSONなど。検証関数は既知のフィールドの型しか見ないので余分なキーは素通りする）に
-      // 生成した決定的なidを上書きしてしまう。id同士が衝突すると、編集画面が別の行を書き換える。
-      // 検証済みの既知フィールドだけを取り出して組み直す。
-      formulas: override.formulas.map(({ explanation, latex }, index) => ({ id: `${notebook.id}-override-formula-${index}`, explanation, latex })),
-      localConstants: override.localConstants.map((constant, index) => ({ id: `${notebook.id}-override-constant-${index}`, symbol: constant.symbol, expression: constant.expression, ...importedExactFields(constant) })),
-      steps: override.steps.map(({ title, expression, targetUnit, formulaLatex, resultSymbol }, index) => ({ id: `${notebook.id}-override-step-${index}`, title, expression, targetUnit, formulaLatex, resultSymbol })),
-      updatedAt: now,
-    };
+    const merged = mergePresetNotebookOverride(notebook, override, now, seedTextsFor?.(notebook));
+    if (merged !== notebook) appliedCount += 1;
+    return merged;
   });
   return { notebooks: nextNotebooks, appliedCount };
 }
 
-export function createNotebooksBackup(notebooks: CalculationNotebook[], categories: NotebookCategory[], customUnits: CustomUnit[] = [], exportedAt = new Date().toISOString()): NotebooksBackup {
-  const presetOverrides = buildPresetNotebookOverrides(notebooks);
+function mergePresetNotebookOverride(
+  notebook: CalculationNotebook,
+  override: PresetNotebookOverride,
+  now: string,
+  seedTexts: ReadonlySet<string> | undefined,
+): CalculationNotebook {
+  let changed = false;
+  // 新しく作る行のid。決定的な形（`<ノートid>-override-constant-N`）にしつつ、差分マージで残した
+  // 既存の行（以前の取り込みで同じ形のidを持っていることがある）と重なったら番号をずらす。
+  // idが重なると編集画面が別の行を書き換える。
+  const usedIds = new Set([...notebook.formulas, ...notebook.localConstants, ...notebook.steps].map((item) => item.id));
+  const freshId = (kind: string, index: number) => {
+    let id = `${notebook.id}-override-${kind}-${index}`;
+    for (let suffix = 1; usedIds.has(id); suffix += 1) id = `${notebook.id}-override-${kind}-${index}-${suffix}`;
+    usedIds.add(id);
+    return id;
+  };
+  const track = <T>(current: T, next: T): T => {
+    if (next !== current) changed = true;
+    return next;
+  };
+  // 取り込んだ要素をスプレッドで展開しないこと。ファイル側に id が入っていたとき（手で編集した
+  // JSONなど。検証関数は既知のフィールドの型しか見ないので余分なキーは素通りする）に、
+  // 決定的なidを上書きしてしまう。検証済みの既知フィールドだけを取り出して組み直す。
+  const title = track(notebook.title, mergeText(notebook.title, override.title, seedTexts));
+  const description = track(notebook.description, mergeText(notebook.description, override.description, seedTexts));
+
+  const formulas = override.formulas.length === notebook.formulas.length
+    ? notebook.formulas.map((formula, index) => {
+        const incoming = override.formulas[index];
+        const explanation = mergeText(formula.explanation, incoming.explanation, seedTexts);
+        if (explanation === formula.explanation && incoming.latex === formula.latex) return formula;
+        changed = true;
+        return { ...formula, explanation, latex: incoming.latex };
+      })
+    : (changed = true, override.formulas.map(({ explanation, latex }, index) => ({ id: freshId("formula", index), explanation, latex })));
+
+  const currentBySymbol = new Map(notebook.localConstants.map((constant) => [constant.symbol, constant]));
+  const localConstants = override.localConstants.map((incoming, index) => {
+    const current = currentBySymbol.get(incoming.symbol);
+    // 突き合わせた定数は消費する。手で編集したファイルに同じ記号が2つあると、両方が同じ定数（同じid）に
+    // 当たって id が重複し、編集画面が別の行を書き換える。2つ目は新しい行として足す。
+    currentBySymbol.delete(incoming.symbol);
+    const exactFields = importedExactFields(incoming);
+    if (!current) {
+      changed = true;
+      return { id: freshId("constant", index), symbol: incoming.symbol, expression: incoming.expression, ...exactFields };
+    }
+    const incomingExpression = mergeField(current.expression, incoming.expression, incoming.appExpression);
+    const expressionChanged = incomingExpression !== current.expression;
+    const exactChanged = exactFields.exactEdited === true && (current.exactEdited !== true || current.exact !== exactFields.exact);
+    if (!expressionChanged && !exactChanged) return current;
+    changed = true;
+    const next = { ...current, ...exactFields };
+    if (expressionChanged) {
+      next.expression = incomingExpression;
+      // 地域既定値の目印は「まだアプリの値」の記録なので、値を書き換えた時点で外す。
+      delete next.regionalDefault;
+    }
+    return next;
+  });
+  if (localConstants.length !== notebook.localConstants.length || localConstants.some((constant, index) => constant !== notebook.localConstants[index])) changed = true;
+
+  const sameStepShape = override.steps.length === notebook.steps.length
+    && override.steps.every((incoming, index) => (incoming.resultSymbol ?? "") === (notebook.steps[index].resultSymbol ?? ""));
+  const steps = sameStepShape
+    ? notebook.steps.map((step, index) => {
+        const incoming = override.steps[index];
+        const stepTitle = mergeText(step.title, incoming.title, seedTexts);
+        const expression = mergeField(step.expression, incoming.expression, incoming.appExpression);
+        const targetUnit = mergeField(step.targetUnit, incoming.targetUnit, incoming.appTargetUnit);
+        if (stepTitle === step.title && expression === step.expression && targetUnit === step.targetUnit && incoming.formulaLatex === step.formulaLatex) return step;
+        changed = true;
+        return { ...step, title: stepTitle, expression, targetUnit, formulaLatex: incoming.formulaLatex };
+      })
+    : (changed = true, override.steps.map(({ title: stepTitle, expression, targetUnit, formulaLatex, resultSymbol }, index) => ({ id: freshId("step", index), title: stepTitle, expression, targetUnit, formulaLatex, resultSymbol })));
+
+  if (!changed) return notebook;
+  return { ...notebook, title, description, formulas, localConstants, steps, updatedAt: now };
+}
+
+export type NotebooksBackupOptions = {
+  /** 編集していないプリセットも書き出す（Pro の一括編集用）。 */
+  includeAllPresets?: boolean;
+};
+
+export function createNotebooksBackup(notebooks: CalculationNotebook[], categories: NotebookCategory[], customUnits: CustomUnit[] = [], exportedAt = new Date().toISOString(), options: NotebooksBackupOptions = {}): NotebooksBackup {
+  const presetOverrides = buildPresetNotebookOverrides(notebooks, options);
   return {
     format: NOTEBOOKS_BACKUP_FORMAT,
     version: NOTEBOOKS_BACKUP_VERSION,
@@ -282,8 +430,8 @@ export function createNotebooksBackup(notebooks: CalculationNotebook[], categori
   };
 }
 
-export function serializeNotebooksBackup(notebooks: CalculationNotebook[], categories: NotebookCategory[], customUnits: CustomUnit[] = [], exportedAt?: string) {
-  return JSON.stringify(createNotebooksBackup(notebooks, categories, customUnits, exportedAt), null, 2);
+export function serializeNotebooksBackup(notebooks: CalculationNotebook[], categories: NotebookCategory[], customUnits: CustomUnit[] = [], exportedAt?: string, options: NotebooksBackupOptions = {}) {
+  return JSON.stringify(createNotebooksBackup(notebooks, categories, customUnits, exportedAt, options), null, 2);
 }
 
 // Windows/macOS双方でファイル名に使えない文字（制御文字含む）。カテゴリ単位のエクスポートは

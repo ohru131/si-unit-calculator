@@ -6,7 +6,7 @@ import { Platform } from "react-native";
 import type { CalculationNotebook, NotebookCategory } from "@/lib/calculator-store";
 import { type CustomUnit } from "@/lib/custom-units";
 import { type AppLanguage } from "@/lib/i18n";
-import { parseNotebooksBackup, sanitizeBackupFileLabel, serializeNotebooksBackup, type ParsedNotebooksBackup } from "@/lib/notebooks-backup";
+import { parseNotebooksBackup, sanitizeBackupFileLabel, serializeNotebooksBackup, type NotebooksBackupOptions, type ParsedNotebooksBackup } from "@/lib/notebooks-backup";
 
 const FILE_NAME_BASE = "si-unit-calculator-notebooks";
 const FILE_NAME = `${FILE_NAME_BASE}.json`;
@@ -51,8 +51,8 @@ const FILE_MESSAGES: Record<AppLanguage, typeof EN_FILE_MESSAGES> = {
   },
 };
 
-export async function exportNotebooksBackup(notebooks: CalculationNotebook[], categories: NotebookCategory[], customUnits: CustomUnit[], language: AppLanguage, fileLabel?: string) {
-  const content = serializeNotebooksBackup(notebooks, categories, customUnits);
+export async function exportNotebooksBackup(notebooks: CalculationNotebook[], categories: NotebookCategory[], customUnits: CustomUnit[], language: AppLanguage, fileLabel?: string, options: NotebooksBackupOptions = {}) {
+  const content = serializeNotebooksBackup(notebooks, categories, customUnits, undefined, options);
   const fileName = resolveNotebooksBackupFileName(fileLabel);
   if (Platform.OS === "web") {
     const blob = new Blob([content], { type: "application/json;charset=utf-8" });

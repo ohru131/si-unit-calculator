@@ -148,10 +148,10 @@ describe("厳密値の印（exact）の投入と貼り直し", () => {
     expect(holeNotebook(restamped.notebooks).localConstants.filter((constant) => constant.exact).map((constant) => constant.symbol)).toEqual(["w", "d", "t"]);
   });
 
-  it("バックアップから復元したプリセットにも印が戻る", () => {
-    // バックアップのJSONは定数を { symbol, expression } だけで持ち運ぶので印は必ず落ちる。
-    // さらに applyPresetNotebookOverrides が定数のidを組み直すため、idで突き合わせていると
-    // 貼り直しも空振りし、復元しただけで表示が `≈ 47 MPa` から `46.875 MPa` へ戻ってしまう。
+  it("バックアップから復元したプリセットにも印が残る", () => {
+    // バックアップのJSONは定数を { symbol, expression } だけで持ち運ぶ（シードが付けた印は書き出さない）。
+    // 書き戻しは差分マージなので、**式が変わっていない定数は印ごとそのまま残る**。以前は配列を丸ごと
+    // 作り直していて、復元しただけで表示が `≈ 47 MPa` から `46.875 MPa` へ戻っていた。
     const edited = seeded().map((notebook) => (notebook.id === holeNotebook(seeded()).id
       ? {
         ...notebook,
@@ -166,13 +166,11 @@ describe("厳密値の印（exact）の投入と貼り直し", () => {
 
     const restored = applyPresetNotebookOverrides(seeded(), overrides, NOW);
     expect(restored.appliedCount).toBe(1);
-    expect(holeNotebook(restored.notebooks).localConstants.filter((constant) => constant.exact)).toHaveLength(0);
-
-    const restamped = applyPresetExactConstants(restored.notebooks);
-    expect(restamped.changed).toBe(true);
-    const marked = holeNotebook(restamped.notebooks).localConstants.filter((constant) => constant.exact).map((constant) => constant.symbol);
-    expect(marked).toEqual(["w", "d", "t"]);
-    // 利用者が書き換えた値はそのまま残る（印は値に触らない）。
-    expect(holeNotebook(restamped.notebooks).localConstants.find((constant) => constant.symbol === "F")?.expression).toBe("20kN");
+    const constants = holeNotebook(restored.notebooks).localConstants;
+    expect(constants.filter((constant) => constant.exact).map((constant) => constant.symbol)).toEqual(["w", "d", "t"]);
+    // 利用者が書き換えた値はそのまま入る（印は値に触らない）。
+    expect(constants.find((constant) => constant.symbol === "F")?.expression).toBe("20kN");
+    // 貼り直しを通しても何も変わらない（印は既に正しい）。
+    expect(applyPresetExactConstants(restored.notebooks).changed).toBe(false);
   });
 });
