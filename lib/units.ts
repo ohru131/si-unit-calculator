@@ -133,7 +133,7 @@ const BASE_UNIT_GROUPS: UnitGroup[] = [
   // lib/display-unit.ts の自動選択は同じ倍率の候補を先に見つけたものだけ残すので、前に置くと
   // 応力の結果が MPa ではなく N/mm² と表示されるようになる（どちらも倍率1e6）。
   // kgf/cm² は倍率が10のべき乗でないため自動選択の候補には入らない（チップからは選べる）。
-  { id: "pressure", label: "圧力", dimension: [-1, 1, -2, 0, 0, 0, 0], units: [{ symbol: "Pa", label: "Pa" }, { symbol: "hPa", label: "hPa" }, { symbol: "kPa", label: "kPa" }, { symbol: "MPa", label: "MPa" }, { symbol: "N/mm²", label: "N/mm²" }, { symbol: "GPa", label: "GPa" }, { symbol: "bar", label: "bar" }, { symbol: "psi", label: "psi" }, { symbol: "atm", label: "atm" }, { symbol: "kgf/cm²", label: "kgf/cm²" }] },
+  { id: "pressure", label: "圧力", dimension: [-1, 1, -2, 0, 0, 0, 0], units: [{ symbol: "Pa", label: "Pa" }, { symbol: "hPa", label: "hPa" }, { symbol: "kPa", label: "kPa" }, { symbol: "MPa", label: "MPa" }, { symbol: "N/mm²", label: "N/mm²" }, { symbol: "GPa", label: "GPa" }, { symbol: "bar", label: "bar" }, { symbol: "psi", label: "psi" }, { symbol: "ksi", label: "ksi" }, { symbol: "atm", label: "atm" }, { symbol: "kgf/cm²", label: "kgf/cm²" }] },
   { id: "energy", label: "エネルギー", dimension: [2, 1, -2, 0, 0, 0, 0], units: [{ symbol: "J", label: "J" }, { symbol: "kJ", label: "kJ" }, { symbol: "Wh", label: "Wh" }, { symbol: "BTU", label: "BTU" }, { symbol: "cal", label: "cal" }, { symbol: "kcal", label: "kcal" }, { symbol: "eV", label: "eV" }] },
   { id: "power", label: "電力", dimension: [2, 1, -3, 0, 0, 0, 0], units: [{ symbol: "W", label: "W" }, { symbol: "kW", label: "kW" }, { symbol: "MW", label: "MW" }, { symbol: "hp", label: "hp" }, { symbol: "PS", label: "PS" }] },
   // 燃費（走行距離÷燃料）。次元は逆面積で、既存のどのグループとも衝突しない。
@@ -162,6 +162,10 @@ const BASE_UNIT_GROUPS: UnitGroup[] = [
   { id: "molarEnergy", label: "モルエネルギー", dimension: [2, 1, -2, 0, 0, -1, 0], units: [{ symbol: "J/mol", label: "J/mol" }, { symbol: "kJ/mol", label: "kJ/mol" }] },
   { id: "molarConcentration", label: "モル濃度", dimension: [-3, 0, 0, 0, 0, 1, 0], units: [{ symbol: "mol/m³", label: "mol/m³" }, { symbol: "mol/L", label: "mol/L" }, { symbol: "mmol/L", label: "mmol/L" }] },
   { id: "areaMomentOfInertia", label: "断面二次モーメント", dimension: [4, 0, 0, 0, 0, 0, 0], units: [{ symbol: "m⁴", label: "m⁴" }, { symbol: "mm⁴", label: "mm⁴" }, { symbol: "cm⁴", label: "cm⁴" }, { symbol: "in⁴", label: "in⁴" }] },
+  // 応力拡大係数・破壊靭性（K = Yσ√(πa)）。次元の指数に0.5が入る唯一のグループ。
+  // 倍率1の Pa√m を必ず残すこと（lib/display-unit.ts の自動選択は倍率1の単位を持たないグループを
+  // 対象外にするので、外すと `1.12*200MPa*sqrt(π*2mm)` が MPa√m ではなくSI表記で出る）。
+  { id: "stressIntensity", label: "応力拡大係数", dimension: [-0.5, 1, -2, 0, 0, 0, 0], units: [{ symbol: "Pa√m", label: "Pa√m" }, { symbol: "MPa√m", label: "MPa√m" }, { symbol: "ksi√in", label: "ksi√in" }] },
 ];
 
 type UnitMeta = { aliases?: string[]; name?: LocalizedText };
@@ -327,6 +331,10 @@ const UNIT_META: Record<string, UnitMeta> = {
   "m⁴": { aliases: ["m4", "m^4"], name: { en: "meter to the fourth power", ja: "メートルの4乗", es: "metro a la cuarta potencia", "pt-BR": "metro à quarta potência", de: "Meter hoch vier", fr: "mètre à la puissance quatre" } },
   "mm⁴": { aliases: ["mm4", "mm^4"], name: { en: "millimeter to the fourth power", ja: "ミリメートルの4乗", es: "milímetro a la cuarta potencia", "pt-BR": "milímetro à quarta potência", de: "Millimeter hoch vier", fr: "millimètre à la puissance quatre" } },
   "cm⁴": { aliases: ["cm4", "cm^4"], name: { en: "centimeter to the fourth power", ja: "センチメートルの4乗", es: "centímetro a la cuarta potencia", "pt-BR": "centímetro à quarta potência", de: "Zentimeter hoch vier", fr: "centimètre à la puissance quatre" } },
+  ksi: { aliases: ["kpsi"], name: { en: "kilopound per square inch", ja: "キロポンド毎平方インチ", es: "kilolibra por pulgada cuadrada", "pt-BR": "quilolibra por polegada quadrada", de: "Kilopound pro Quadratzoll", fr: "kilolivre par pouce carré" } },
+  "Pa√m": { aliases: ["Pa*m^0.5", "Pa·m^0.5"], name: { en: "pascal root meter", ja: "パスカル・ルートメートル", es: "pascal raíz de metro", "pt-BR": "pascal raiz de metro", de: "Pascal Wurzel Meter", fr: "pascal racine de mètre" } },
+  "MPa√m": { aliases: ["MPa*m^0.5", "MPa·m^0.5"], name: { en: "megapascal root meter", ja: "メガパスカル・ルートメートル", es: "megapascal raíz de metro", "pt-BR": "megapascal raiz de metro", de: "Megapascal Wurzel Meter", fr: "mégapascal racine de mètre" } },
+  "ksi√in": { aliases: ["ksi*in^0.5", "ksi·in^0.5"], name: { en: "ksi root inch", ja: "キロポンド毎平方インチ・ルートインチ", es: "kilolibra por pulgada cuadrada raíz de pulgada", "pt-BR": "quilolibra por polegada quadrada raiz de polegada", de: "ksi Wurzel Zoll", fr: "ksi racine de pouce" } },
   "in⁴": { aliases: ["in4", "in^4"], name: { en: "inch to the fourth power", ja: "インチの4乗", es: "pulgada a la cuarta potencia", "pt-BR": "polegada à quarta potência", de: "Zoll hoch vier", fr: "pouce à la puissance quatre" } },
 };
 
@@ -380,6 +388,14 @@ const powerDimension = (dimension: Dimension, power: number): Dimension =>
 const sameDimension = (left: Dimension, right: Dimension) =>
   left.every((value, index) => value === right[index]);
 
+/**
+ * 次元の指数は**0.5刻みまで**許す。破壊靭性（MPa·√m）のように平方根の付く単位を表すためで、
+ * 0.5 は2進数でちょうど表せるので `sameDimension` の厳密な比較が誤差で狂わない。1/3 乗のような
+ * 指数まで許すと、足し引きのたびに次元の一致判定が浮動小数点の誤差で外れうるので広げないこと。
+ */
+const isHalfIntegerDimension = (dimension: Dimension) =>
+  dimension.every((value) => Number.isInteger(value * 2));
+
 const unit = (scale: number, dimension: Dimension, offset?: number): UnitDefinition => ({ scale, dimension, offset });
 const multipliedUnit = (left: UnitDefinition, right: UnitDefinition): UnitDefinition =>
   unit(left.scale * right.scale, multiplyDimensions(left.dimension, right.dimension));
@@ -424,6 +440,8 @@ const BASE_UNITS: Record<string, UnitDefinition> = {
   kt: unit(0.514444444, [1, 0, -1, 0, 0, 0, 0]),
   kine: unit(1e-2, [1, 0, -1, 0, 0, 0, 0]),
   psi: unit(6894.757293168, [-1, 1, -2, 0, 0, 0, 0]),
+  // 1000 psi。接頭辞分解では k + si にしかならず解決できないので、記号として持つ。
+  ksi: unit(6894757.293168, [-1, 1, -2, 0, 0, 0, 0]),
   atm: unit(101325, [-1, 1, -2, 0, 0, 0, 0]),
   BTU: unit(1055.05585262, [2, 1, -2, 0, 0, 0, 0]),
   hp: unit(745.699871582, [2, 1, -3, 0, 0, 0, 0]),
@@ -684,7 +702,8 @@ function resolveUnitSymbol(symbol: string): UnitDefinition {
 }
 
 export function parseUnit(input: string): UnitDefinition {
-  const source = normalize(input).replace(/\*/g, "·");
+  // `MPa√m` のように区切りを書かずに続く √ は、掛け算の区切りを補ってから因子へ分ける。
+  const source = normalize(input).replace(/\*/g, "·").replace(/([^·/])√/g, "$1·√");
   // "無次元"はformatQuantity/formatDimensionが返す無次元ラベルの日本語文言、"dimensionless"は
   // その英語文言。どちらを単位欄に貼り戻しても空単位として解釈できるよう両方を受け付ける。
   if (!source || source === "1" || source === "無次元" || source.toLowerCase() === "dimensionless") return unit(1, ZERO);
@@ -703,10 +722,14 @@ export function parseUnit(input: string): UnitDefinition {
       continue;
     }
 
-    const match = factor.match(/^([A-Za-zΩµμ%°]+)(?:\^?(-?\d+))?$/);
+    // `√m` は m^0.5。指数は `m^0.5`・`m^-1.5` のように0.5刻みの小数も受ける（`m0.5` のように
+    // `^` を省いた小数は受けない。数字だけの指数は従来どおり `m2` でも通る）。
+    const match = factor.match(/^(√)?([A-Za-zΩµμ%°]+)(?:\^(-?\d+(?:\.5)?)|(-?\d+))?$/);
     if (!match) throw new UnitError("unparsableUnitFormat", { input });
-    const [, symbol, rawPower] = match;
-    const power = rawPower ? Number(rawPower) : 1;
+    const [, root, symbol, rawDecimalPower, rawPower] = match;
+    const written = rawDecimalPower ?? rawPower;
+    const power = (written ? Number(written) : 1) * (root ? 0.5 : 1);
+    if (root && written) throw new UnitError("unparsableUnitFormat", { input });
     const resolved = resolveUnitSymbol(symbol);
     if (resolved.offset !== undefined && (power !== 1 || factors.length !== 1)) throw new UnitError("temperatureUnitStandalone");
     if (resolved.offset !== undefined) {
@@ -805,16 +828,21 @@ function exponentiate(base: Quantity, exponent: Quantity): Quantity {
   if (!isDimensionless(exponent.dimension)) throw new UnitError("exponentMustBeDimensionless");
   if (!Number.isFinite(exponent.siValue)) throw new UnitError("exponentMustBeFinite");
   if (base.siValue < 0 && !Number.isInteger(exponent.siValue)) throw new UnitError("negativeBaseRequiresIntegerExponent");
-  if (!isDimensionless(base.dimension) && !Number.isInteger(exponent.siValue)) {
+  const dimension = powerDimension(base.dimension, exponent.siValue);
+  // 単位付きの値の指数は、結果の次元が0.5刻みに収まるときだけ通す（`(4m)^0.5` → 2·√m）。
+  if (!isDimensionless(base.dimension) && !isHalfIntegerDimension(dimension)) {
     throw new UnitError("unitValueRequiresIntegerExponent");
   }
-  return quantity(base.siValue ** exponent.siValue, powerDimension(base.dimension, exponent.siValue));
+  return quantity(base.siValue ** exponent.siValue, dimension);
 }
 
 function squareRoot(input: Quantity): Quantity {
   if (input.siValue < 0) throw new UnitError("negativeSquareRoot");
-  if (input.dimension.some((power) => power % 2 !== 0)) throw new UnitError("squareRootRequiresEvenDimension");
-  return quantity(Math.sqrt(input.siValue), input.dimension.map((power) => power / 2) as Dimension);
+  const dimension = input.dimension.map((power) => power / 2) as Dimension;
+  // 奇数乗の次元も平方根を取れる（`sqrt(π*2mm)` → √m）。ただし √(√m) のように0.5刻みから
+  // 外れる次元は表せないので弾く。
+  if (!isHalfIntegerDimension(dimension)) throw new UnitError("squareRootRequiresEvenDimension");
+  return quantity(Math.sqrt(input.siValue), dimension);
 }
 
 function applyMathFunction(name: string, input: Quantity): Quantity {
@@ -853,7 +881,7 @@ export function isUnitStart(character: string | undefined) {
 // トークナイザ側では現れないが、この関数は生の入力文字列（lib/unit-input.ts の解析）からも
 // 呼ぶので、それらの表記もここで受け付ける。受け付けないと "3N·m" の N までしか読まず、
 // 評価器は N·m を1つの単位として計算しているのに単位チップが m だけを差し替えて "3N·J" になる。
-const UNIT_SUFFIX_BODY_PATTERN = /[A-Za-zΩµμ%°0-9^*/×·÷⁰¹²³⁴⁵⁶⁷⁸⁹⁻]/;
+const UNIT_SUFFIX_BODY_PATTERN = /[A-Za-zΩµμ%°0-9^*/×·÷⁰¹²³⁴⁵⁶⁷⁸⁹⁻√.]/;
 const UNIT_SUFFIX_SEPARATOR_PATTERN = /[*/×·÷]/;
 
 /**
@@ -866,7 +894,13 @@ const UNIT_SUFFIX_SEPARATOR_PATTERN = /[*/×·÷]/;
 export function unitSuffixEnd(source: string, start: number): number {
   let index = start;
   while (UNIT_SUFFIX_BODY_PATTERN.test(source[index] ?? "")) {
-    if (UNIT_SUFFIX_SEPARATOR_PATTERN.test(source[index]) && !isUnitStart(source[index + 1])) break;
+    const current = source[index];
+    const next = source[index + 1];
+    // √ は直後が単位の文字のときだけ単位の一部（`MPa√m`）。`√(` や `√2` は平方根の演算子として残す。
+    if (current === "√" && !isUnitStart(next)) break;
+    if (UNIT_SUFFIX_SEPARATOR_PATTERN.test(current) && !isUnitStart(next) && !(next === "√" && isUnitStart(source[index + 2]))) break;
+    // 小数点は `m^0.5` の指数の中だけ（直前が数字・直後が数字）。`2m.` のような書きかけは取り込まない。
+    if (current === "." && !(/[0-9]/.test(source[index - 1] ?? "") && /[0-9]/.test(next ?? ""))) break;
     index += 1;
   }
   return index;
@@ -973,7 +1007,7 @@ function tokenize(input: string, knownIdentifiers: ReadonlySet<string> = new Set
       continue;
     }
 
-    if (current === "Ω" || current === "%" || current === "°") {
+    if (current === "Ω" || current === "%" || current === "°" || current === "√") {
       tokens.push({ type: "identifier", value: current });
       index += 1;
       continue;
@@ -1014,6 +1048,8 @@ export function evaluateExpression(
     }
     if (token.type === "identifier") {
       position += 1;
+      // 前置の √ は直後の項の平方根（`√3`・`√(π*a)`）。√ は識別子に使えない文字なので定数と衝突しない。
+      if (token.value === "√") return squareRoot(parsePostfix());
       const constant = constantMap.get(token.value);
       if (constant) return constant;
       const customFunction = customFunctions.find((item) => item.name === token.value);
@@ -1241,13 +1277,21 @@ export function displayDigitsRoundedFrom(value: number, locale?: string, maxDigi
 // dimension・localeから組み立てる文字列自体は無次元かどうかの判定に使わず、
 // isDimensionless(dimension)を直接見て判定する（言語によって文言が変わるため、
 // 以前のような「戻り値の文字列が"無次元"かどうかを比較する」実装だと英語UIで壊れる）。
+/** 1因子ぶんの表記。0.5刻みの指数は整数部と √ に分ける（m^0.5 → √m、m^1.5 → m·√m）。 */
+function formatDimensionFactor(label: string, power: number): string {
+  const whole = Math.floor(power);
+  const integerPart = whole === 0 ? "" : `${label}${whole === 1 ? "" : toSuperscript(whole)}`;
+  if (Number.isInteger(power)) return integerPart;
+  return integerPart ? `${integerPart}·√${label}` : `√${label}`;
+}
+
 export function formatDimension(dimension: Dimension, locale?: string): string {
   const labels = ["m", "kg", "s", "A", "K", "mol", "cd"];
   const numerator: string[] = [];
   const denominator: string[] = [];
   dimension.forEach((power, index) => {
-    if (power > 0) numerator.push(`${labels[index]}${power === 1 ? "" : toSuperscript(power)}`);
-    if (power < 0) denominator.push(`${labels[index]}${power === -1 ? "" : toSuperscript(-power)}`);
+    if (power > 0) numerator.push(formatDimensionFactor(labels[index], power));
+    if (power < 0) denominator.push(formatDimensionFactor(labels[index], -power));
   });
   if (!numerator.length && !denominator.length) return dimensionlessLabel(languageFromLocale(locale));
   if (!denominator.length) return numerator.join("·");
@@ -1280,14 +1324,14 @@ export function getCompatibleUnitGroups(dimension: Dimension): UnitGroup[] {
 }
 
 const REGIONAL_PRIORITY: Record<UnitSystem, Record<string, string[]>> = {
-  metric: { length: ["m", "km", "cm", "mm"], area: ["m²", "km²", "cm²"], volume: ["L", "mL", "m³"], mass: ["kg", "g", "mg"], temperature: ["°C", "K"], velocity: ["m/s", "km/h", "cm/s", "kine", "kt"], acceleration: ["m/s²", "Gal", "mGal", "G"], pressure: ["Pa", "kPa", "bar"], energy: ["J", "kJ", "Wh"], power: ["W", "kW"], fuelEconomy: ["km/L", "mpg"] },
+  metric: { length: ["m", "km", "cm", "mm"], area: ["m²", "km²", "cm²"], volume: ["L", "mL", "m³"], mass: ["kg", "g", "mg"], temperature: ["°C", "K"], velocity: ["m/s", "km/h", "cm/s", "kine", "kt"], acceleration: ["m/s²", "Gal", "mGal", "G"], pressure: ["Pa", "kPa", "bar"], energy: ["J", "kJ", "Wh"], power: ["W", "kW"], fuelEconomy: ["km/L", "mpg"], stressIntensity: ["MPa√m"] },
   // areaMomentOfInertia のみ、既存グループと違って米国式(in⁴)を先頭にする実益があるため追加する。
   // それ以外の新規グループ（density/resistance/charge/capacitance/magneticFlux/springConstant/
   // specificHeatCapacity/molarMass/molarEnergy/molarConcentration）は地域ごとの慣用単位が
   // 存在しない（SI単位のみ）ため、あえて優先度を設定しない。未設定でも getRegionalUnits は
   // `?? []` で空配列にフォールバックし、そのままgroup.units全件を返すため壊れない。
-  us: { length: ["in", "ft", "yd", "mi"], area: ["in²", "ft²", "yd²", "acre"], volume: ["gal", "qt", "pt"], mass: ["lb", "oz"], temperature: ["°F"], velocity: ["mph", "ft/s", "kt", "m/s"], acceleration: ["ft/s²", "G", "m/s²", "Gal", "mGal"], pressure: ["psi", "atm"], energy: ["BTU", "Wh"], power: ["hp", "W"], fuelEconomy: ["mpg", "km/L"], areaMomentOfInertia: ["in⁴", "mm⁴", "cm⁴", "m⁴"] },
-  uk: { length: ["mm", "m", "km", "mi"], area: ["m²", "acre"], volume: ["L", "pt"], mass: ["kg", "st", "lb"], temperature: ["°C"], velocity: ["mph", "km/h", "kt", "m/s"], acceleration: ["m/s²", "G", "Gal"], pressure: ["bar", "psi"], energy: ["kJ", "Wh"], power: ["kW", "hp"], fuelEconomy: ["mpgUK", "km/L"] },
+  us: { length: ["in", "ft", "yd", "mi"], area: ["in²", "ft²", "yd²", "acre"], volume: ["gal", "qt", "pt"], mass: ["lb", "oz"], temperature: ["°F"], velocity: ["mph", "ft/s", "kt", "m/s"], acceleration: ["ft/s²", "G", "m/s²", "Gal", "mGal"], pressure: ["psi", "atm"], energy: ["BTU", "Wh"], power: ["hp", "W"], fuelEconomy: ["mpg", "km/L"], stressIntensity: ["ksi√in", "MPa√m"], areaMomentOfInertia: ["in⁴", "mm⁴", "cm⁴", "m⁴"] },
+  uk: { length: ["mm", "m", "km", "mi"], area: ["m²", "acre"], volume: ["L", "pt"], mass: ["kg", "st", "lb"], temperature: ["°C"], velocity: ["mph", "km/h", "kt", "m/s"], acceleration: ["m/s²", "G", "Gal"], pressure: ["bar", "psi"], energy: ["kJ", "Wh"], power: ["kW", "hp"], fuelEconomy: ["mpgUK", "km/L"], stressIntensity: ["MPa√m"] },
 };
 
 /** 地域の優先単位を先頭に置きつつ、そのカテゴリの全単位を返す。 */

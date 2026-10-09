@@ -41,9 +41,9 @@ describe("diagnoseCalculatorInput", () => {
   });
 
   it("式に使えない文字は書きかけではなく間違いなので、その場で診断として出す", () => {
-    // `@` や `√` は式のどこにも現れ得ない文字で、打ち終わっても正しくならない。
+    // `@` や `∛` は式のどこにも現れ得ない文字で、打ち終わっても正しくならない（`√` は平方根の演算子として通る）。
     // 「まだ書きかけ」扱いで隠すと、= を押すまで何が悪いのか分からなくなる。
-    for (const input of ["3m + @", "5cm $ 2", "√9"]) {
+    for (const input of ["3m + @", "5cm $ 2", "∛8"]) {
       const { error } = diagnose(input);
       expect(error, input).toBeInstanceOf(UnitError);
       expect((error as UnitError).code, input).toBe("unparsableCharacter");
