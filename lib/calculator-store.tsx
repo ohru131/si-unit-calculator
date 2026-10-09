@@ -466,6 +466,26 @@ function seedIdFromNotebookId(id: string, categoryId: string): string | undefine
   return id.startsWith(prefix) ? id.slice(prefix.length) : undefined;
 }
 
+/**
+ * プリセットのノートに対応するシードの文言を、全言語ぶん集めた集合。バックアップの書き戻し
+ * （lib/notebooks-backup.ts の applyPresetNotebookOverrides）が「取り込んだ文言はシードのまま＝
+ * 利用者は編集していない」を判定するのに使う。書き出した言語と取り込む端末の言語が違っても、
+ * シードのどれかの言語と一致すれば書き換えない（書き換えると言語を切り替えても訳が変わらなくなる）。
+ */
+export function presetSeedTexts(notebook: CalculationNotebook): ReadonlySet<string> | undefined {
+  if (!notebook.isPreset) return undefined;
+  const seedId = seedIdFromNotebookId(notebook.id, notebook.categoryId);
+  const seed = seedId === undefined ? undefined : PRESET_NOTEBOOK_SEEDS[notebook.categoryId]?.find((candidate) => seedSlug(candidate) === seedId);
+  if (!seed) return undefined;
+  const texts = new Set<string>();
+  const add = (text: LocalizedText) => APP_LANGUAGES.forEach((language) => texts.add(localizedText(text, language)));
+  add(seed.title);
+  add(seed.description);
+  seed.steps.forEach((step) => add(step.title));
+  seed.formulas?.forEach((formula) => add(formula.explanation));
+  return texts;
+}
+
 // 現在保存されている文言が「最後にプリセットの文言を解決した言語（previousLanguage）」の
 // シード文言と完全一致する場合に限って「ユーザーが未編集」とみなし、新しい言語の文言に差し替える。
 // 対応言語すべてと比較すると、ユーザーが意図的に別言語のシード文言を入力した場合に
@@ -1502,7 +1522,7 @@ export function CalculatorProvider({ children }: { children: ReactNode }) {
         else nextUserNotebooks.push(incoming);
       }
     }
-    const { notebooks: overriddenPresetNotebooks, appliedCount: presetOverrideCount } = applyPresetNotebookOverrides(presetNotebooks, presetOverrides, now);
+    const { notebooks: overriddenPresetNotebooks, appliedCount: presetOverrideCount } = applyPresetNotebookOverrides(presetNotebooks, presetOverrides, now, presetSeedTexts);
     // **上書きを当てた直後にシードの印を貼り直す。** バックアップは利用者が決めた印しか
     // 持ち運ばないので、上書きを当てた時点でそれ以外の定数からは `exact` が落ちている。
     // 読み込み時のeffectに任せると、**取り込んだ直後だけ丸めが消えたノートを見せてしまう**

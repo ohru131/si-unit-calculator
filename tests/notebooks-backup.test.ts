@@ -186,7 +186,9 @@ describe("applyPresetNotebookOverrides", () => {
     const { notebooks } = applyPresetNotebookOverrides(presetNotebooks, overrides, now);
     expect(notebooks[0].formulas[0].id).toBe("notebook-preset-astronomy-0-override-formula-0");
     expect(notebooks[0].localConstants[0].id).toBe("notebook-preset-astronomy-0-override-constant-0");
-    expect(notebooks[0].steps[0].id).toBe("notebook-preset-astronomy-0-override-step-0");
+    // 手順は数と結果記号が同じなので差分マージになり、既存の手順のidがそのまま残る（仕込んだidは使わない）。
+    expect(notebooks[0].steps[0].id).toBe("s1");
+    expect(notebooks[0].steps[0].expression).toBe("1");
   });
 
   it("一致するpresetIdが無いoverrideは黙って捨てられる（該当ノートは変更されない）", () => {
