@@ -19,6 +19,7 @@ import { ELECTRONICS_SEEDS, SOLAR_SEEDS } from "./electronics";
 import { INVESTING_SEEDS, REAL_ESTATE_SEEDS } from "./finance";
 import { ENG_POWER_SEEDS, ENG_ELEMENTS_SEEDS } from "./engineering-power";
 import { ENG_STRESS_SEEDS } from "./engineering-stress";
+import { ENG_FATIGUE_FRACTURE_SEEDS, ENG_TESTING_SEEDS } from "./engineering-testing";
 import { BREWING_SEEDS, WEATHER_SEEDS } from "./lifestyle";
 import { DIY_SEEDS, PRINTING_SEEDS } from "./making";
 import { AUDIO_SEEDS, PHOTOGRAPHY_SEEDS } from "./media";
@@ -82,6 +83,8 @@ export const PRESET_NOTEBOOK_CATEGORIES: PresetNotebookCategory[] = [
   // 材料力学は「はり・柱」に絞り、機械設計の他分野と並べた（旧IDは維持）。
   { id: "engineering-design", label: { en: "Mechanical & structural design", ja: "機械・構造設計", es: "Diseño mecánico y estructural", "pt-BR": "Projeto mecânico e estrutural", de: "Maschinen- & Tragwerksentwurf", fr: "Conception mécanique et structurale" } },
   { id: "eng-stress", label: { en: "Stress, strain & safety", ja: "応力・ひずみ・安全率", es: "Esfuerzo, deformación y seguridad", "pt-BR": "Tensão, deformação e segurança", de: "Spannung, Dehnung & Sicherheit", fr: "Contrainte, déformation et sécurité" }, parentId: "engineering-design" },
+  { id: "eng-testing", label: { en: "Materials testing", ja: "材料試験", es: "Ensayos de materiales", "pt-BR": "Ensaios de materiais", de: "Werkstoffprüfung", fr: "Essais des matériaux" }, parentId: "engineering-design" },
+  { id: "eng-fatigue", label: { en: "Fatigue & fracture mechanics", ja: "疲労・破壊力学", es: "Fatiga y mecánica de la fractura", "pt-BR": "Fadiga e mecânica da fratura", de: "Ermüdung & Bruchmechanik", fr: "Fatigue et mécanique de la rupture" }, parentId: "engineering-design" },
   { id: "mechanics-of-materials", label: { en: "Beams & columns", ja: "はり・柱", es: "Vigas y columnas", "pt-BR": "Vigas e colunas", de: "Balken & Stützen", fr: "Poutres et poteaux" }, parentId: "engineering-design" },
   { id: "eng-power", label: { en: "Shafts, torsion & power transmission", ja: "軸・ねじり・動力伝達", es: "Ejes, torsión y transmisión de potencia", "pt-BR": "Eixos, torção e transmissão de potência", de: "Wellen, Torsion & Antriebstechnik", fr: "Arbres, torsion et transmission de puissance" }, parentId: "engineering-design" },
   { id: "eng-elements", label: { en: "Machine elements & joints", ja: "機械要素・締結", es: "Elementos de máquinas y uniones", "pt-BR": "Elementos de máquinas e uniões", de: "Maschinenelemente & Verbindungen", fr: "Éléments de machines et assemblages" }, parentId: "engineering-design" },
@@ -124,6 +127,8 @@ export const PRESET_NOTEBOOK_SEEDS: Record<string, NotebookSeed[]> = {
   brewing: BREWING_SEEDS,
   weather: WEATHER_SEEDS,
   "eng-stress": ENG_STRESS_SEEDS,
+  "eng-testing": ENG_TESTING_SEEDS,
+  "eng-fatigue": ENG_FATIGUE_FRACTURE_SEEDS,
   "eng-power": ENG_POWER_SEEDS,
   "eng-elements": ENG_ELEMENTS_SEEDS,
   investing: INVESTING_SEEDS,
