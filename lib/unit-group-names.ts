@@ -33,6 +33,7 @@ export const UNIT_GROUP_NAMES: Record<string, Record<AppLanguage, string>> = {
   charge: { en: "Charge", ja: "電荷", es: "Carga", "pt-BR": "Carga", de: "Ladung", fr: "Charge" },
   capacitance: { en: "Capacitance", ja: "静電容量", es: "Capacitancia", "pt-BR": "Capacitância", de: "Kapazität", fr: "Capacité" },
   magneticFlux: { en: "Magnetic flux", ja: "磁束", es: "Flujo magnético", "pt-BR": "Fluxo magnético", de: "Magnetischer Fluss", fr: "Flux magnétique" },
+  stressIntensity: { en: "Stress intensity factor", ja: "応力拡大係数", es: "Factor de intensidad de esfuerzos", "pt-BR": "Fator de intensidade de tensão", de: "Spannungsintensitätsfaktor", fr: "Facteur d'intensité de contrainte" },
   springConstant: { en: "Spring constant", ja: "ばね定数", es: "Constante elástica", "pt-BR": "Constante elástica", de: "Federkonstante", fr: "Constante de raideur" },
   specificHeatCapacity: { en: "Specific heat", ja: "比熱", es: "Calor específico", "pt-BR": "Calor específico", de: "Spezifische Wärmekapazität", fr: "Capacité thermique massique" },
   molarMass: { en: "Molar mass", ja: "モル質量", es: "Masa molar", "pt-BR": "Massa molar", de: "Molare Masse", fr: "Masse molaire" },

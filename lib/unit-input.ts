@@ -386,7 +386,7 @@ const UNIT_GROUP_CLUSTERS: readonly (readonly string[])[] = [
   // 電気・電子
   ["voltage", "current", "resistance", "power", "energy", "capacitance", "charge", "magneticFlux", "frequency"],
   // 力学・寸法
-  ["length", "area", "volume", "mass", "force", "pressure", "velocity", "acceleration", "density", "springConstant", "areaMomentOfInertia"],
+  ["length", "area", "volume", "mass", "force", "pressure", "velocity", "acceleration", "density", "springConstant", "areaMomentOfInertia", "stressIntensity"],
   // 熱
   ["temperature", "energy", "power", "specificHeatCapacity"],
   // 化学

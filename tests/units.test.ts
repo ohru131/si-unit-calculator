@@ -16,6 +16,7 @@ import {
   searchUnitOptions,
   type UnitGroup,
   UNIT_GROUPS,
+  unitSuffixEnd,
 } from "../lib/units";
 import { SAMPLE_CALCULATIONS } from "../lib/sample-calculations";
 import { getUnitExplanation } from "../lib/unit-explanations";
@@ -117,9 +118,47 @@ describe("単位付き計算", () => {
   it("三角関数・べき乗・平方根の不正な次元と定義域を拒否する", () => {
     // Error.message はUnitError設計上つねに英語（表示側でunitErrorMessage()を使って言語別に訳す）。
     expect(() => evaluateExpression("sin(1m)")).toThrow("angle or a dimensionless");
-    expect(() => evaluateExpression("(2m)^0.5")).toThrow("integer exponent");
-    expect(() => evaluateExpression("sqrt(2m)")).toThrow("must be even");
+    expect(() => evaluateExpression("(2m)^0.25")).toThrow("steps of 0.5");
+    expect(() => evaluateExpression("sqrt(sqrt(2m))")).toThrow("steps of 0.5");
     expect(() => evaluateExpression("sqrt(-1)")).toThrow("negative value");
+  });
+
+  it("次元の指数は0.5刻みまで扱える（破壊靭性の MPa√m）", () => {
+    // K = Yσ√(πa)。σ=200MPa・a=2mm・Y=1.12 で 17.76 MPa√m。
+    const k = evaluateExpression("1.12*200MPa*√(π*2mm)");
+    expect(k.dimension).toEqual([-0.5, 1, -2, 0, 0, 0, 0]);
+    expect(convertQuantity(k, "MPa√m").value).toBeCloseTo(17.7557, 3);
+    expect(formatQuantity(k)).toBe("1.775571e+7 kg/√m·s²");
+    // 単位としての書き方はどれも同じ値になる。
+    for (const input of ["50MPa√m", "50MPa*√m", "50 MPa√m", "50MPa*m^0.5"]) {
+      expect(convertQuantity(evaluateExpression(input), "MPa√m").value, input).toBeCloseTo(50, 9);
+    }
+    // 1 ksi√in = 1.0988 MPa√m（ASTM E399 の換算表と同じ）。
+    expect(convertQuantity(evaluateExpression("1ksi√in"), "MPa√m").value).toBeCloseTo(1.098843, 5);
+    expect(formatQuantity(evaluateExpression("(4m)^0.5"))).toBe("2 √m");
+    expect(formatQuantity(evaluateExpression("3m^1.5"))).toBe("3 m·√m");
+    // 前置の √ は直後の項の平方根。√ は識別子に使えないので定数と衝突しない。
+    expect(evaluateExpression("√9").siValue).toBe(3);
+    expect(evaluateExpression("2√4").siValue).toBe(4);
+    expect(convertQuantity(evaluateExpression("√(9m²)"), "m").value).toBe(3);
+    // パリス則：ΔK を 1MPa√m で割って無次元にすれば、整数でない指数を掛けられる。
+    expect(evaluateExpression("(20MPa√m/1MPa√m)^3.2").siValue).toBeCloseTo(20 ** 3.2, 6);
+    // 単位どうしの足し引きは次元が合えば通る。
+    expect(convertQuantity(evaluateExpression("50MPa√m - 10ksi√in"), "MPa√m").value).toBeCloseTo(50 - 10.98843, 4);
+    expect(() => evaluateExpression("50MPa√m + 50MPa")).toThrow();
+    // 表示単位の自動選択は MPa√m を選ぶ（倍率1の Pa√m がグループにあるので自動選択の対象になる）。
+    expect(resolveDisplayUnit({ quantity: k, requestedUnit: "", expressionUnits: [], system: "metric", isAdvancedMode: false }).unit).toBe("MPa√m");
+  });
+
+  it("√ を含む単位サフィックスの終端（評価器と入力解析で共有）", () => {
+    expect(unitSuffixEnd("50MPa√m", 2)).toBe(7);
+    expect(unitSuffixEnd("50MPa*√m", 2)).toBe(8);
+    // √ の直後が単位でなければ演算子として残す。
+    expect(unitSuffixEnd("2m√(3)", 1)).toBe(2);
+    expect(unitSuffixEnd("2m*√3", 1)).toBe(2);
+    // 小数点は指数の中だけ。
+    expect(unitSuffixEnd("5m^0.5", 1)).toBe(6);
+    expect(unitSuffixEnd("2m.", 1)).toBe(2);
   });
 
   it("逆三角関数・対数・atan2を計算し、角度へ変換する", () => {
