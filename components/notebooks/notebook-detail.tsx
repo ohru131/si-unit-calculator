@@ -730,7 +730,7 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
               // 有効数字はノートの既定（利用者からの要望）。桁は手順の式ではなくローカル定数まで
               // 辿って数える——手順の式は `V*I*cos(φ)` のように識別子だけで、リテラルが1つも無い。
               const stepDigits = notebookStepSignificantDigits(result.step, editableConstants, stepResults.slice(0, index));
-              const { value: displayValue, rawValue: displayRawValue, significantDigits: displayDigits, error: displayError } =
+              const { value: displayValue, rawValue: displayRawValue, significantDigits: displayDigits, timeBreakdown: displayTimeBreakdown, error: displayError } =
                 resolveNotebookStepDisplay(result, overrideUnit, unitSystem, locale, stepDigits, resultDigits);
               const stepRailKey = stepFieldKey(result.step.id);
               return (
@@ -793,6 +793,8 @@ export function NotebookDetail({ language, locale, unitSystem, measuringStandard
                         // いない値は同じ形で見せる（4桁だとちょうどの値と見分けられないため）。
                         <Text style={styles.resultRawValue}>{displayRawValue}</Text>
                       ) : null}
+                      {/* 時間は `27 h 48 min` のように分けた形も添える（主表示の精度より細かくは分けない）。 */}
+                      {displayTimeBreakdown ? <Text style={styles.resultRawValue}>{displayTimeBreakdown}</Text> : null}
                       {displayError ? <Text style={styles.resultWarning}>{displayError}</Text> : null}
                     </>
                   )}

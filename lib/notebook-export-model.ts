@@ -5,11 +5,21 @@ import { notebookFormulaRows } from "@/lib/notebook-formula-rows";
 import { stepDisplayTitle } from "@/lib/notebook-step-title";
 import { compatibleUnitOptionsFromHints } from "@/lib/unit-options";
 import { inferSignificantDigits, significantDigitsAfterConversion, toSignificantDecimal, type ResolvedIdentifier } from "@/lib/significant-figures";
-import { convertQuantity, displayDigitsRoundedFrom, formatNumberForLocale, formatQuantity, type MeasuringStandard, type SavedConstant, type UnitSystem } from "@/lib/units";
+import { formatTimeBreakdown } from "@/lib/time-breakdown";
+import { convertQuantity, displayDigitsRoundedFrom, formatNumberForLocale, formatQuantity, MAX_DISPLAY_DIGITS, type MeasuringStandard, type SavedConstant, type UnitSystem } from "@/lib/units";
 
 export type NotebookExportFormulaRow = { explanation: string; latex: string };
 export type NotebookExportConstant = { text: string };
-export type NotebookExportStep = { title: string; expression: string; resultText: string; /** 有効数字で丸めたときの、丸める前の値。PDFでも小さく併記する。 */ rawResultText?: string; isError: boolean };
+export type NotebookExportStep = {
+  title: string;
+  expression: string;
+  resultText: string;
+  /** 有効数字で丸めたときの、丸める前の値。PDFでも小さく併記する。 */
+  rawResultText?: string;
+  /** 時間の結果を `27 h 48 min` のように分けた併記（lib/time-breakdown.ts）。 */
+  timeBreakdownText?: string;
+  isError: boolean;
+};
 export type NotebookExportModel = {
   title: string;
   description: string;
@@ -25,6 +35,8 @@ export type NotebookStepDisplay = {
   rawValue?: string;
   /** 丸めに使った桁数。丸めていなければ undefined。 */
   significantDigits?: number;
+  /** 時間の結果を `27 h 48 min` のように分けた併記。主表示の精度より細かくは分けない。 */
+  timeBreakdown?: string;
   error?: string;
   // 値が1つも無く、エラー文言だけを出す（components/notebooks/notebook-detail.tsxの
   // `displayError && !displayValue` と同じ判定）。
@@ -114,11 +126,42 @@ export function resolveNotebookStepDisplay(
   // 上の見栄え差し替えを通っていることがある。文字列を分割し直すのではなく、同じ整形関数で
   // 作った数値の文字列を接頭辞として照合して置き換えれば、ラベルをそのまま保てる。
   const rounded = roundedValueFor(result, value, effectiveUnit, significantDigits, locale, maxDigits);
-  if (rounded) return { value: rounded.value, rawValue: rounded.rawValue, significantDigits: rounded.significantDigits, error, isError: false };
+  if (rounded) {
+    return {
+      value: rounded.value,
+      rawValue: rounded.rawValue,
+      significantDigits: rounded.significantDigits,
+      timeBreakdown: timeBreakdownFor(result, effectiveUnit, rounded.significantDigits),
+      error,
+      isError: false,
+    };
+  }
   // 有効数字の丸めが効かない手順（式から桁が読めない・有効1桁）では、値を変えているのは
   // 表示桁の上限（設定タブの resultDigits）だけになる。切り詰めたときは切り詰めていない値を
   // rawValue に入れて、画面とPDFが有効数字のときと同じ形で小さく併記できるようにする。
-  return { value, rawValue: displayDigitsRawValueFor(result, value, effectiveUnit, locale, maxDigits), error, isError: Boolean(error) && !value };
+  return {
+    value,
+    rawValue: displayDigitsRawValueFor(result, value, effectiveUnit, locale, maxDigits),
+    // 丸めていない値は表示桁の上限（resultDigits）まで出ているので、その桁数を精度として分ける。
+    timeBreakdown: value ? timeBreakdownFor(result, effectiveUnit, maxDigits ?? MAX_DISPLAY_DIGITS) : undefined,
+    error,
+    isError: Boolean(error) && !value,
+  };
+}
+
+/**
+ * 時間の併記。**表示単位へ実際に換算できているときだけ**作る（SI表記へフォールバックしていれば
+ * 画面に出ているのは秒で、分ける先が無い）。
+ */
+function timeBreakdownFor(result: NotebookStepResult, effectiveUnit: string, digits: number): string | undefined {
+  if (!result.quantity || !effectiveUnit) return undefined;
+  let numeric: number;
+  try {
+    numeric = convertQuantity(result.quantity, effectiveUnit).value;
+  } catch {
+    return undefined;
+  }
+  return formatTimeBreakdown({ value: numeric, unit: effectiveUnit, significantDigits: digits }) ?? undefined;
 }
 
 /**
@@ -259,6 +302,7 @@ export function buildNotebookExportModel(options: BuildNotebookExportModelOption
       expression: formatNameValue(result.step.resultSymbol ?? "", result.step.expression),
       resultText: display.isError ? (display.error ?? "") : (display.value ?? ""),
       rawResultText: display.rawValue,
+      timeBreakdownText: display.isError ? undefined : display.timeBreakdown,
       isError: display.isError,
     };
   });
