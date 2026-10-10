@@ -13,15 +13,16 @@
  * **いちばん上の単位は利用者が選んだ表示単位にする。** `400 d` を `1 yr 34 d 18 h` に繰り上げると、
  * 年が 365.25 日（`yr` の定義）なので端数の6時間が紛れ込み、日で見たかった人には読みにくい。
  *
- * **ラベルは分を `m` にする**（利用者の判断。`min` だけ3文字で並びが揃わない。`h` と `s` に挟まれて
- * メートルとは読まれない）。この併記の中だけの表記で、表示単位・単位チップ・式の `m` は変わらない。
+ * **ラベルは1文字にそろえる**（利用者の判断。年は `y`、分は `m`。`yr`・`min` だけ字数が違うと並びが
+ * 揃わない。`h` と `s` に挟まれた `m` はメートルとは読まれない）。この併記の中だけの表記で、
+ * 表示単位・単位チップ・式の `yr`・`min` は変わらない。
  */
 
 type TimeUnit = { symbol: string; label: string; seconds: number };
 
 // 大きい順。symbol は計算エンジン（lib/units.ts の BASE_UNITS）と同じ綴り、label は併記に出す字。
 const TIME_UNITS: readonly TimeUnit[] = [
-  { symbol: "yr", label: "yr", seconds: 31557600 },
+  { symbol: "yr", label: "y", seconds: 31557600 },
   { symbol: "d", label: "d", seconds: 86400 },
   { symbol: "h", label: "h", seconds: 3600 },
   { symbol: "min", label: "m", seconds: 60 },
