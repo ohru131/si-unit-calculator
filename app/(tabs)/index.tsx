@@ -1078,20 +1078,15 @@ export default function CalculatorScreen() {
     [baseInputMode, display, locale, resultDigits],
   );
 
-  // 時間の結果を `27 h 48 min` のように分けた併記（lib/time-breakdown.ts）。**画面に出ている数値の
-  // 精度で分ける**ので、小数表示なら表示桁の上限、有効数字表示ならその桁数を渡す。科学表記・厳密値は
+  // 時間の結果を `27 h 46 m 40 s` のように分けた併記（lib/time-breakdown.ts）。丸める前の値を秒まで分ける
+  // （併記は丸める前の値の行の下に出るので、その行を分けたものとして読まれる）。科学表記・厳密値は
   // 読み方そのものを変えるモードなので出さない。SI表記へフォールバックしているとき（秒）は分ける先が無い。
   const timeBreakdown = useMemo(() => {
     if (!display || baseInputMode !== null || display.isFallback || activeBase !== 10) return null;
-    if (valueForm === "significant" && significantValue) {
-      return significantValue.significantDigits === null
-        ? null
-        : formatTimeBreakdown({ value: display.numeric, unit: displayUnit, significantDigits: significantValue.significantDigits });
-    }
     if (valueForm === "scientific" && scientificValue) return null;
     if (valueForm === "exact" && exactValue) return null;
-    return formatTimeBreakdown({ value: display.numeric, unit: displayUnit, significantDigits: resultDigits });
-  }, [activeBase, baseInputMode, display, displayUnit, exactValue, resultDigits, scientificValue, significantValue, valueForm]);
+    return formatTimeBreakdown({ value: display.numeric, unit: displayUnit });
+  }, [activeBase, baseInputMode, display, displayUnit, exactValue, scientificValue, valueForm]);
 
   const shownValueText = !display
     ? ""
