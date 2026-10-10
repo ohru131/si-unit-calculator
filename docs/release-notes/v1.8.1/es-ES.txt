@@ -1,0 +1,3 @@
+Corregido: las fórmulas largas de los cuadernos se cortaban en el borde derecho. Ahora se reparten en 2–3 líneas, se reducen solas si hace falta y, como último recurso, se desplazan en horizontal.
+
+El tiempo desglosado junto a un resultado, como «27 h 46 m 40 s», se calcula ahora a partir del valor sin redondear y llega hasta los segundos (años «y», minutos «m»).

@@ -1,0 +1,3 @@
+Corrigido: fórmulas longas nos cadernos eram cortadas na borda direita. Agora elas quebram em 2–3 linhas, encolhem sozinhas se preciso e, por último, rolam na horizontal.
+
+O tempo dividido ao lado de um resultado, como "27 h 46 m 40 s", agora parte do valor sem arredondar e chega até os segundos (anos "y", minutos "m").

@@ -1,0 +1,3 @@
+Fixed long formulas in notebooks being cut off at the right edge. Long expressions now wrap onto 2–3 lines, shrink automatically if needed, and scroll sideways as a last resort.
+
+The split time shown beside a result, such as "27 h 46 m 40 s", is now computed from the unrounded value and goes down to seconds (years are "y", minutes "m").

@@ -1,0 +1,3 @@
+Behoben: Lange Formeln in den Rechenblättern wurden am rechten Rand abgeschnitten. Sie werden jetzt auf 2–3 Zeilen umbrochen, bei Bedarf automatisch verkleinert und notfalls seitlich scrollbar.
+
+Die aufgeteilte Zeit neben einem Ergebnis, z. B. „27 h 46 m 40 s“, wird nun aus dem ungerundeten Wert bis zu den Sekunden berechnet (Jahre „y“, Minuten „m“).
