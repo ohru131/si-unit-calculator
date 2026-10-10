@@ -16,7 +16,7 @@ export type NotebookExportStep = {
   resultText: string;
   /** 有効数字で丸めたときの、丸める前の値。PDFでも小さく併記する。 */
   rawResultText?: string;
-  /** 時間の結果を `27 h 48 min` のように分けた併記（lib/time-breakdown.ts）。 */
+  /** 時間の結果を `27 h 46 m 40 s` のように分けた併記（lib/time-breakdown.ts）。 */
   timeBreakdownText?: string;
   isError: boolean;
 };
@@ -35,7 +35,7 @@ export type NotebookStepDisplay = {
   rawValue?: string;
   /** 丸めに使った桁数。丸めていなければ undefined。 */
   significantDigits?: number;
-  /** 時間の結果を `27 h 48 min` のように分けた併記。主表示の精度より細かくは分けない。 */
+  /** 時間の結果を `27 h 46 m 40 s` のように分けた併記。丸める前の値を秒まで分ける。 */
   timeBreakdown?: string;
   error?: string;
   // 値が1つも無く、エラー文言だけを出す（components/notebooks/notebook-detail.tsxの
@@ -131,7 +131,7 @@ export function resolveNotebookStepDisplay(
       value: rounded.value,
       rawValue: rounded.rawValue,
       significantDigits: rounded.significantDigits,
-      timeBreakdown: timeBreakdownFor(result, effectiveUnit, rounded.significantDigits),
+      timeBreakdown: timeBreakdownFor(result, effectiveUnit),
       error,
       isError: false,
     };
@@ -142,8 +142,7 @@ export function resolveNotebookStepDisplay(
   return {
     value,
     rawValue: displayDigitsRawValueFor(result, value, effectiveUnit, locale, maxDigits),
-    // 丸めていない値は表示桁の上限（resultDigits）まで出ているので、その桁数を精度として分ける。
-    timeBreakdown: value ? timeBreakdownFor(result, effectiveUnit, maxDigits ?? MAX_DISPLAY_DIGITS) : undefined,
+    timeBreakdown: value ? timeBreakdownFor(result, effectiveUnit) : undefined,
     error,
     isError: Boolean(error) && !value,
   };
@@ -153,7 +152,7 @@ export function resolveNotebookStepDisplay(
  * 時間の併記。**表示単位へ実際に換算できているときだけ**作る（SI表記へフォールバックしていれば
  * 画面に出ているのは秒で、分ける先が無い）。
  */
-function timeBreakdownFor(result: NotebookStepResult, effectiveUnit: string, digits: number): string | undefined {
+function timeBreakdownFor(result: NotebookStepResult, effectiveUnit: string): string | undefined {
   if (!result.quantity || !effectiveUnit) return undefined;
   let numeric: number;
   try {
@@ -161,7 +160,7 @@ function timeBreakdownFor(result: NotebookStepResult, effectiveUnit: string, dig
   } catch {
     return undefined;
   }
-  return formatTimeBreakdown({ value: numeric, unit: effectiveUnit, significantDigits: digits }) ?? undefined;
+  return formatTimeBreakdown({ value: numeric, unit: effectiveUnit }) ?? undefined;
 }
 
 /**
